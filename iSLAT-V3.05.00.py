@@ -144,7 +144,7 @@ def get_variable_values():
 
 # Default values
 default_values = {
-    "Minimum_Wavelength_(µm)": 4.9,
+    "Minimum_Wavelength_(µm)": 4.5,
     "Maximum_Wavelength_(µm)": 28.0,
     "Distance_(parsec)": 160.0,
     "Resolving_Power_FWHM_(km/s)": 130.0,
@@ -167,7 +167,7 @@ default_values = {
 #root.mainloop()
 
 # Set-up constants to be inputs for model generation
-min_lamb = 4.9
+min_lamb = 4.5
 max_lamb = 28.
 dist = 160.0
 fwhm = 130. # FWHM of the observed lines or instrument
@@ -175,7 +175,7 @@ fwhm = 130. # FWHM of the observed lines or instrument
 intrinsic_line_width = 1.0
 cc = 2.99792458e5  # speed of light in km/s
 model_line_width = cc / fwhm
-model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 5
+model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 20
 
 
 # Dictionary to store the initial values for each chemical
@@ -1348,25 +1348,25 @@ def update_initvals():
     fwhm = float(fwhm_entry.get())
     intrinsic_line_width = float(intrinsic_line_width_entry.get())
     model_line_width = cc / fwhm
-    model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 5
+    model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 20
     print("Updated init vals")
     update()
     canvas.draw()
 
 # Set initial values of xp1 and rng
-xp1 = 13
-rng = 1
-xp2 = xp1 + rng
 fig_max_limit = np.max(wave_cnts)
 fig_min_limit = np.min(wave_cnts)
+xp1 = fig_min_limit + (fig_max_limit - fig_min_limit)/2
+rng = (fig_max_limit - fig_min_limit)/10
+xp2 = xp1 + rng
 
 
-# Functing to limit the user input from the previous prompts to the range of the data you're inspecting
-# The tool with stop and the associated dialogs will be printed in the serial line
-if xp2 > fig_max_limit:
-    sys.exit("Your wavelength range extends past the model, please start with a new range.")
-if xp1 < fig_min_limit:
-    sys.exit("Your wavelength range extends past the model, please start with a new range.")
+# # Functing to limit the user input from the previous prompts to the range of the data you're inspecting
+# # The tool with stop and the associated dialogs will be printed in the serial line
+# if xp2 > fig_max_limit:
+#     sys.exit("Your wavelength range extends past the model, please start with a new range.")
+# if xp1 < fig_min_limit:
+#     sys.exit("Your wavelength range extends past the model, please start with a new range.")
 
 # Set the headers for the saved lines csv to start at True
 headers = True
