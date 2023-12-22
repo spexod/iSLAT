@@ -1,4 +1,4 @@
-print('Loading iSLAT V3.05.00: Please Wait...')
+print('Loading iSLAT V3.06.00: Please Wait...')
 
 # Import necessary modules
 import numpy as np
@@ -146,6 +146,7 @@ default_values = {
 min_lamb = 4.5
 max_lamb = 28.
 dist = 160.0
+star_rv = 0.0
 fwhm = 130. # FWHM of the observed lines or instrument
 
 intrinsic_line_width = 1.0
@@ -893,7 +894,7 @@ def pop_diagram():
     ax3.clear()
     global h2o_radius
     ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))')
-    ax3.set_xlabel(r'$E_{u}$')
+    ax3.set_xlabel(r'$E_{u}$ (K)')
 
     # Getting all the water lines in the range of min_lamb, max_lamb as set by the user in the adjustable variables code block
     int_pars = h2o_intensity.get_table
@@ -1322,7 +1323,7 @@ def update_xp1_rng():
     canvas.draw()
     
 def update_initvals():
-    global min_lamb, max_lamb, dist, fwhm, model_line_width, model_pixel_res, intrinsic_line_width
+    global min_lamb, max_lamb, dist, fwhm, star_rv, model_line_width, model_pixel_res, intrinsic_line_width
     # Get the values from the Tkinter Entry widgets and convert them to floats
     min_lamb = float(min_lamb_entry.get())
     max_lamb = float(max_lamb_entry.get())
@@ -1331,6 +1332,8 @@ def update_initvals():
     intrinsic_line_width = float(intrinsic_line_width_entry.get())
     model_line_width = cc / fwhm
     model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 20
+    # this below needs to be updated to act on the wave array in the data
+    wave_data_new = wave_data_original - wave_data_original / cc * float(star_rv_entry.get())
     print("Updated init vals")
     update()
     canvas.draw()
@@ -1800,36 +1803,37 @@ rng_entry.insert(0, str(rng))
 rng_entry.grid(row=0, column=3)
 rng_entry.bind("<Return>", lambda event: update_xp1_rng())
 
-# Create and place the xp1 text box in row 12, column 0
-specsep_label = tk.Label(param2_frame, text="Line Separ.:")
-specsep_label.grid(row=1, column=0)
-specsep_entry = tk.Entry(param2_frame, bg='lightgray', width=8)
-specsep_entry.insert(0, str(specsep))
-specsep_entry.grid(row=1, column=1)
-
 # Create and place the min_lamb text box in row 2, column 0
 min_lamb_label = tk.Label(param2_frame, text="Min. Wave:")
-min_lamb_label.grid(row=1, column=2)
+min_lamb_label.grid(row=1, column=0)
 min_lamb_entry = tk.Entry(param2_frame, bg='lightgray', width=8)
 min_lamb_entry.insert(0, str(min_lamb))
-min_lamb_entry.grid(row=1, column=3)
+min_lamb_entry.grid(row=1, column=1)
 min_lamb_entry.bind("<Return>", lambda event: update_initvals())
 
 # Create and place the max_lamb text box in row 2, column 2
 max_lamb_label = tk.Label(param2_frame, text="Max. Wave:")
-max_lamb_label.grid(row=2, column=0)
+max_lamb_label.grid(row=1, column=2)
 max_lamb_entry = tk.Entry(param2_frame, bg='lightgray', width=8)
 max_lamb_entry.insert(0, str(max_lamb))
-max_lamb_entry.grid(row=2, column=1)
+max_lamb_entry.grid(row=1, column=3)
 max_lamb_entry.bind("<Return>", lambda event: update_initvals())
 
 # Create and place the dist text box in row 3, column 0
 dist_label = tk.Label(param2_frame, text="Distance:")
-dist_label.grid(row=2, column=2)
+dist_label.grid(row=2, column=0)
 dist_entry = tk.Entry(param2_frame, bg='lightgray', width=8)
 dist_entry.insert(0, str(dist))
-dist_entry.grid(row=2, column=3)
+dist_entry.grid(row=2, column=1)
 dist_entry.bind("<Return>", lambda event: update_initvals())
+
+# Create and place the RV text box in row 3, column 0
+dist_label = tk.Label(param2_frame, text="Stellar RV:")
+dist_label.grid(row=2, column=2)
+star_rv_entry = tk.Entry(param2_frame, bg='lightgray', width=8)
+star_rv_entry.insert(0, str(star_rv))
+star_rv_entry.grid(row=2, column=3)
+star_rv_entry.bind("<Return>", lambda event: update_initvals())
 
 # Create and place the fwhm text box in row 3, column 2
 fwhm_label = tk.Label(param2_frame, text="FWHM:")
@@ -1840,12 +1844,20 @@ fwhm_entry.grid(row=3, column=1)
 fwhm_entry.bind("<Return>", lambda event: update_initvals())
 
 # Create and place the fwhm text box in row 3, column 2
-intrinsic_line_width_label = tk.Label(param2_frame, text="Line width:")
+intrinsic_line_width_label = tk.Label(param2_frame, text="Broadening:")
 intrinsic_line_width_label.grid(row=3, column=2)
 intrinsic_line_width_entry = tk.Entry(param2_frame, bg='lightgray', width=8)
 intrinsic_line_width_entry.insert(0, str(intrinsic_line_width))
 intrinsic_line_width_entry.grid(row=3, column=3)
 intrinsic_line_width_entry.bind("<Return>", lambda event: update_initvals())
+
+# # Create and place the xp1 text box in row 12, column 0
+# specsep_label = tk.Label(param2_frame, text="Line Separ.:")
+# specsep_label.grid(row=1, column=0)
+# specsep_entry = tk.Entry(param2_frame, bg='lightgray', width=8)
+# specsep_entry.insert(0, str(specsep))
+# specsep_entry.grid(row=1, column=1)
+
 
 # Add some space below param2_frame
 tk.Label(param2_frame, text="").grid(row=4, column=0)
