@@ -152,7 +152,7 @@ fwhm = 130. # FWHM of the observed lines or instrument
 intrinsic_line_width = 1.0
 cc = 2.99792458e5  # speed of light in km/s
 model_line_width = cc / fwhm
-model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 20
+model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 10
 
 
 # Dictionary to store the initial values for each chemical
@@ -1354,7 +1354,7 @@ def update_initvals():
     fwhm = float(fwhm_entry.get())
     intrinsic_line_width = float(intrinsic_line_width_entry.get())
     model_line_width = cc / fwhm
-    model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 20
+    model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / 10
     # this below needs to be updated to act on the wave array in the data
     wave_data_new = wave_data_original - wave_data_original / cc * float(star_rv_entry.get())
     print("Updated init vals")
