@@ -34,8 +34,8 @@ from matplotlib.backends.backend_tkagg import (
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 from tkinter import ttk  # For ttk.Style
-    
-#("NH3", "2020HITRANdata/data_Hitran_2020_NH3.par")
+import tkinter as tk
+
 
 # Define the molecules and their corresponding file paths
 molecules_data = [
@@ -100,7 +100,6 @@ initial_parameters = {
     }
 }
 
-import tkinter as tk
 
 def get_variable_values():
     global min_lamb, max_lamb, dist, fwhm, intrinsic_line_width
@@ -762,7 +761,7 @@ def onselect(xmin, xmax):
 
 """
 group() is a function used in the single_finder() function. 
-This function groups model lines together based on a threshold (thr) set when the function is called.
+This function groups model lines together based on a wavelength separation threshold (thr) set when the function is called.
 (a) is the array of lines being grouped
 """
 def group(a,thr):
