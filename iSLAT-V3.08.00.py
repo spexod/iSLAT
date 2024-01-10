@@ -1,5 +1,5 @@
 iSLAT_version = 'V3.07.00'
-print('Loading iSLAT'+ iSLAT_version +': Please Wait...')
+print('Loading iSLAT '+ iSLAT_version +': Please Wait...')
 
 # Import necessary modules
 import numpy as np
@@ -13,20 +13,21 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.widgets import Slider, Button, SpanSelector, TextBox, CheckButtons
 from matplotlib.artist import Artist
-from matplotlib.backends.backend_tkagg import (
-    FigureCanvasTkAgg, NavigationToolbar2Tk)
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 
 import sys
+import os
 from astropy.io import ascii, fits
 from astropy.table import vstack, Table
 from astropy import stats
+import lmfit
+from lmfit.models import GaussianModel
 from ir_model import *
 import tkinter as tk
 from tkinter import filedialog, simpledialog, ttk  # For ttk.Style
-import os
 import inspect
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from datetime import datetime
@@ -35,7 +36,7 @@ import time
 import threading
 
 
-# Define the molecules and their corresponding file paths
+# Define the default molecules and their file path; the folder must be in the same path as iSLAT
 molecules_data = [
     ("H2O", "HITRANdata/data_Hitran_2020_H2O.par"),
     ("OH", "HITRANdata/data_Hitran_2020_OH.par"),
@@ -48,6 +49,7 @@ molecules_data = [
 
 deleted_molecules = []
 
+# read more molecules if saved by the user in a previous iSLAT session
 def read_from_csv():
     if os.path.exists('molecules_data.csv'):
         try:
@@ -59,10 +61,9 @@ def read_from_csv():
             pass
     return molecules_data
 
-# Define the molecules and their corresponding file paths
 molecules_data = read_from_csv()
 
-# Set default initial parameters for a chemical
+# Set default initial parameters for a new molecule
 default_initial_params = {
     "scale_exponent": 17,
     "scale_number": 1,
@@ -70,47 +71,49 @@ default_initial_params = {
     "radius_init": 0.5
 }
 
-# Define the initial parameters for each molecule
+# Define the initial parameters for default molecules
 initial_parameters = {
     "H2O": {
         "scale_exponent": 18,
         "scale_number": 1,
-        "t_kin": 800,
-        "radius_init": 0.60
+        "t_kin": 850,
+        "radius_init": 0.5
     },
     "OH": {
-        "scale_exponent": 17,
+        "scale_exponent": 16,
         "scale_number": 1,
-        "t_kin": 3000,
-        "radius_init": 0.1
+        "t_kin": 2000,
+        "radius_init": 0.3
     },
     "HCN": {
-        "scale_exponent": 17,
+        "scale_exponent": 16,
         "scale_number": 1,
-        "t_kin": 800,
-        "radius_init": 0.3
+        "t_kin": 850,
+        "radius_init": 0.5
     },
     "C2H2": {
         "scale_exponent": 17,
         "scale_number": 1,
-        "t_kin": 700,
-        "radius_init": 0.3
+        "t_kin": 600,
+        "radius_init": 0.1
+    },
+    "CO2": {
+        "scale_exponent": 17,
+        "scale_number": 1,
+        "t_kin": 300,
+        "radius_init": 0.5
+    },
+    "CO": {
+        "scale_exponent": 18,
+        "scale_number": 1,
+        "t_kin": 1200,
+        "radius_init": 0.4
     }
 }
 
-
-def get_variable_values():
-    global min_lamb, max_lamb, dist, fwhm, intrinsic_line_width
-    min_lamb = float(entry_widgets["Minimum_Wavelength_(µm)"].get())
-    max_lamb = float(entry_widgets["Maximum_Wavelength_(µm)"].get())
-    dist = float(entry_widgets["Distance_(parsec)"].get())
-    fwhm = float(entry_widgets["Resolving_Power_FWHM_(km/s)"].get())
-    intrinsic_line_width = float(entry_widgets["Intrinsic_Line_Width_(km/s)"].get())
-    root.destroy()
-       
     
 
-# Set-up constants to be inputs for model generation
+# Set-up default input parameters for model generation
 min_lamb = 4.5
 max_lamb = 28.
 dist = 160.0
@@ -131,11 +134,12 @@ hh = 6.62606896e-27 # erg s
 
 # Dictionary to store the initial values for each chemical
 initial_values = {}
+
+# define other defaults needed below
 linesavepath = ""
 spanmol = "h2o"
 
 # Loop through each molecule and set up the necessary objects and variables
-
 for mol_name, mol_filepath in molecules_data:
     # Import line lists from the ir_model folder
     mol_data = MolData(mol_name, mol_filepath)
@@ -192,7 +196,7 @@ def find_nearest(array,value):
     
 """
 Save() is connected to the "Save Line" button of the tool.
-This function apends information of the the strongest line (as determined by intensity) in the spanned area graph to a csv file. 
+This function appends information of the the strongest line (as determined by intensity) in the spanned area graph to a csv file. 
 The name of the csv file is set with the "svd_line_file" variable in the second code block above. 
 For the parameters of the line that is saved, refer to the "line2save" variable in onselect().
 When starting the tool up, the "headers" variable is set to False. After apending a line to the csv for the first time, the "headers" variable is changed to False.
@@ -252,7 +256,6 @@ def update(*val):
     global oh_vis
     global hcn_vis
     global c2h2_vis
-    global temp_slider
     global h2o_line
     global oh_line
     global hcn_line
@@ -333,8 +336,8 @@ def update(*val):
     #Scaling the y-axis based on tallest peak of data in the range of xp1 and xp2
     range_flux_cnts = observation_data[(observation_data['wave'] > xp1) & (observation_data['wave'] < xp2)]
     range_flux_cnts.index = range(len(range_flux_cnts.index))
-    fig_height = np.max(range_flux_cnts.flux)
-    fig_bottom_height = np.min(range_flux_cnts.flux)
+    fig_height = np.nanmax(range_flux_cnts.flux)
+    fig_bottom_height = np.nanmin(range_flux_cnts.flux)
     ax1.set_ylim(ymin=fig_bottom_height, ymax=fig_height+(fig_height/8))
 
     # Initialize total fluxes list
@@ -510,37 +513,24 @@ def onselect(xmin, xmax):
         max_g_up = g_up[max_index]
         max_tau = tau[max_index]
 
-        # Calling the flux function to calculate the flux for the data in the range selected
-        # Also printing the flux in the notebook for easy copying
-        # See flux_integral
-        line_flux = flux_integral(wave_cnts, flux_cnts, xmin, xmax)
-
-        data_field.delete('1.0', "end")
-        data_field.insert('1.0', ('Strongest line:'+'\nUpper level = '+str(max_up_lev)+'\nLower level = '+str(max_low_lev)+'\nWavelength = '+str(max_lamb_cnts)+'\nIntensity = '+str(f'{max_intensity:.{3}f}')+'\nEinstein-A coeff. = '+str(max_einstein)+'\nUpper level energy = '+str(f'{max_e_up:.{0}f}')+'\nStat. weight = '+str(max_g_up)+'\nFlux = '+str(f'{line_flux:.{3}e}')))
-        # Creating a pandas dataframe for all the info of the strongest line in the selected range
-        # This dataframe is used in the Save() function to save the strongest line in a csv file
-        line2save = {'lev_up':[max_up_lev],'lev_low':[max_low_lev],'lam':[max_lamb_cnts],'tau':[max_tau],'intens':[max_intensity],'a_stein':[max_einstein],'e_up':[max_e_up],'g_up':[max_g_up],'xmin':[f'{xmin:.{4}f}'],'xmax':[f'{xmax:.{4}f}'], 'flux':[f'{line_flux:.{3}e}']}
-        line2save = pd.DataFrame(line2save)
-
         # Finding the index of the minimum and maximimum flux for both the data and model to be used in scaling the zoom graph (section below)
         model_indmin, model_indmax = np.searchsorted(lambdas_h2o, (xmin, xmax))
         data_indmin, data_indmax = np.searchsorted(wave_cnts, (xmin, xmax))
         model_indmax = min(len(lambdas_h2o) - 1, model_indmax)
         data_indmax = min(len(wave_cnts) - 1, data_indmax)
 
-        # Scaling the zoom graph
-        # First, it's determined if the max intensity of the model is bigger than that of the max intensity of the data or vice versa
-        # Then, the max for the y-axis is determined by the max intensity of either the model or data, whichever is bigger
-        # The minimum for the y-axis of the zoom graph is set to zero here
-        
-        #model_region_x = lambdas_h2o[model_indmin:model_indmax]
         # Dynamically set the x variable
         print(spanmol)
         model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
         model_region_x = eval(model_region_x_str)
-        print(model_region_x)
-        #print(model_region_x[0])
-        
+        print('Line range:')
+        print(model_region_x[0],model_region_x[-1])
+
+        # Scaling the zoom graph
+        # First, it's determined if the max intensity of the model is bigger than that of the max intensity of the data or vice versa
+        # Then, the max for the y-axis is determined by the max intensity of either the model or data, whichever is bigger
+        # The minimum for the y-axis of the zoom graph is set to zero here
+
         #model_region_y = fluxes_h2o[model_indmin:model_indmax]
         # Dynamically set the variable
         model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
@@ -550,13 +540,31 @@ def onselect(xmin, xmax):
         max_model_y = 0
         max_data_y = 0
         min_data_y = 0
-        max_data_y = np.max(data_region_y)
-        max_model_y = np.max(model_region_y)
+        max_data_y = np.nanmax(data_region_y)
+        max_model_y = np.nanmax(model_region_y)
         if (max_model_y) >= (max_data_y):
             max_y = max_model_y
         else:
             max_y = max_data_y
         ax2.set_ylim(0, max_y)
+
+        # Calling the flux function to calculate the flux for the data in the range selected
+        # Also printing the flux in the notebook for easy copying
+        # See flux_integral
+        line_flux = flux_integral(wave_cnts, flux_cnts, xmin, xmax)
+        gauss_fit = line_fit(wave_cnts, flux_cnts, xmin, xmax)
+        gauss_fwhm = gauss_fit.params['fwhm'].value / gauss_fit.params['center'].value * cc
+        #print(gauss_fit.params['center'].value)
+
+        data_field.delete('1.0', "end")
+        data_field.insert('1.0', ('Strongest line:'+'\nUpper level = '+str(max_up_lev)+'\nLower level = '+str(max_low_lev)+'\nWavelength (um) = '+str(max_lamb_cnts)+'\nEinstein-A coeff. (1/s) = '+str(max_einstein)+'\nUpper level energy (K) = '+str(f'{max_e_up:.{0}f}')+'\nFlux (erg/s/cm2) = '+str(f'{line_flux:.{3}e}')+'\nGauss. fit centroid (um)= ' + str(np.round(gauss_fit.params['center'].value, decimals=5))+'\nGauss. fit FWHM (km/s)= ' + str(np.round(gauss_fwhm, decimals=1))))
+        # +'\nIntensity = '+str(f'{max_intensity:.{3}f}')+'\nStat. weight = '+str(max_g_up)
+
+        # Creating a pandas dataframe for all the info of the strongest line in the selected range
+        # This dataframe is used in the Save() function to save the strongest line in a csv file
+        line2save = {'lev_up':[max_up_lev],'lev_low':[max_low_lev],'lam':[max_lamb_cnts],'tau':[max_tau],'intens':[max_intensity],'a_stein':[max_einstein],'e_up':[max_e_up],'g_up':[max_g_up],'xmin':[f'{xmin:.{4}f}'],'xmax':[f'{xmax:.{4}f}'], 'flux':[f'{line_flux:.{3}e}']}
+        line2save = pd.DataFrame(line2save)
+
 
         # This section prints vertical lines on the zoom graph at the wavelengths for each line in the model
         # The strongest line is colored differently than the other lines
@@ -785,11 +793,10 @@ def pop_diagram():
     F = intens_mod*beam_s
     freq = ccum/wl
     rd_yax = np.log(4*np.pi*F/(Astein_mod*hh*freq*gu))
-    #sel4plot = np.where( F > np.max(F)/100)
-    threshold = np.max(F)/100
+    threshold = np.nanmax(F)/100
 
-    ax3.set_ylim(np.min(rd_yax[F > threshold]),np.max(rd_yax)+0.5)
-    ax3.set_xlim(np.min(eu)-50,np.max(eu[F > threshold]))
+    ax3.set_ylim(np.nanmin(rd_yax[F > threshold]),np.nanmax(rd_yax)+0.5)
+    ax3.set_xlim(np.nanmin(eu)-50,np.nanmax(eu[F > threshold]))
 
     # Populating the population diagram graph with the lines
     line6 = ax3.scatter(eu, rd_yax, s=0.5, color='#838B8B')
@@ -801,8 +808,8 @@ column density of the currently selected molecule
 """
 def submit_col(event, text):
     
-    global text_box
-    global text_box_data
+    #global text_box
+    #global text_box_data
 
     data_field.delete('1.0', "end")
     data_field.insert('1.0', 'Submitting Density...')
@@ -864,8 +871,8 @@ def submit_col(event, text):
     
 def submit_temp(event, text):
     #print(event)
-    global text_box
-    global text_box_data
+    #global text_box
+    #global text_box_data
     global xp1
     global xp2
     global span
@@ -892,7 +899,6 @@ def submit_temp(event, text):
     global oh_vis
     global hcn_vis
     global c2h2_vis
-    global temp_slider
     global h2o_line
     global oh_line
     global hcn_line
@@ -981,8 +987,8 @@ def submit_temp(event, text):
     
 def submit_rad(event, text):
     
-    global text_box
-    global text_box_data
+    #global text_box
+    #global text_box_data
 
     data_field.delete('1.0', "end")
     data_field.insert('1.0', 'Submitting Radius...')
@@ -1053,6 +1059,18 @@ def flux_integral(lam, flux, lam_min, lam_max):
     line_flux_meas = -line_flux_meas*1e-23 # to get (erg s-1 cm-2); it's using frequency array, so need the - in front of it
     return line_flux_meas
 
+def line_fit(lam, flux, lam_min, lam_max):
+    #global ax2
+    fit_range = np.where(np.logical_and(lam > lam_min, lam < lam_max))
+    x = lam[fit_range[::-1]]
+    model = GaussianModel()
+    params = model.guess(flux[fit_range[::-1]], x=x)
+    linefit_result = model.fit(flux[fit_range[::-1]], params, x=x, nan_policy='omit')
+    print(linefit_result.fit_report())
+    dely = linefit_result.eval_uncertainty(sigma=3)
+    ax2.fill_between(x, linefit_result.best_fit - dely, linefit_result.best_fit + dely, color="#ABABAB", label=r'3-$\sigma$ uncertainty band')
+    ax2.plot(x, linefit_result.best_fit, '-', label='Gauss. fit', color='white', ls='--')
+    return linefit_result
 
 """
 model_visible() is connected to the "Visible" button in the tool.
@@ -1136,8 +1154,8 @@ def selectfileinit():
             flux_cnts = np.array(observation_data['flux'])
 
             # Set initial values of xp1 and rng
-            fig_max_limit = np.max(wave_cnts)
-            fig_min_limit = np.min(wave_cnts)
+            fig_max_limit = np.nanmax(wave_cnts)
+            fig_min_limit = np.nanmin(wave_cnts)
             xp1 = np.around(fig_min_limit + (fig_max_limit - fig_min_limit)/2, decimals=2)
             rng = np.around((fig_max_limit - fig_min_limit)/10, decimals=2)
             xp2 = xp1 + rng
@@ -1292,7 +1310,7 @@ data_line_select, = ax2.plot([],[],color=foreground,linewidth=1)
 #Scaling the y-axis based on tallest peak of data
 range_flux_cnts = observation_data[(observation_data['wave'] > xp1) & (observation_data['wave'] < xp2)]
 range_flux_cnts.index = range(len(range_flux_cnts.index))
-fig_height = np.max(range_flux_cnts.flux)
+fig_height = np.nanmax(range_flux_cnts.flux)
 fig_bottom_height = np.min(range_flux_cnts.flux)
 ax1.set_ylim(ymin=fig_bottom_height, ymax=fig_height+(fig_height/8))
 
@@ -1599,8 +1617,7 @@ def on_span_select(selected_item):
     global model_indmin
     global model_indmax 
     
-    print('test:')
-    
+
     spanmol = selected_item
     
     print(spanmol)
@@ -1830,10 +1847,6 @@ clearmol_button.grid(row=2, column=1)
 atomlines_button = tk.Button(buttonframe, text='Show Atom. Lines', bg='lightgray', activebackground='gray', command=lambda: print_atomic_lines(), width=13, height=1)
 atomlines_button.grid(row=1, column=1)
 
-#delmol_box = fig.add_axes([0.16, .975, 0.07, 0.02]);
-#delmol_button = Button(delmol_box, 'Clear Molecules', color = background, hovercolor = 'lightgray')
-#delmol_button.on_clicked(del_molecule_data) #loadparams_button_clicked)
-
 
 
 # Create and place the buttons in the specified rows and columns
@@ -1899,8 +1912,8 @@ def add_molecule_data():
     global nextrow 
     global vis_button
     global vis_status
-    global text_box
-    global text_box_data
+    #global text_box
+    #global text_box_data
     global text_boxes
     global molecule_elements
     global deleted_molecules
@@ -1948,7 +1961,7 @@ def add_molecule_data():
 
                 
                 # Specify the common directory to start the relative path from
-                common_directory = "2020HITRANdata"
+                common_directory = "HITRANdata"
                 
                 script_directory = os.path.dirname(os.path.realpath(sys.argv[0] if hasattr(sys, 'frozen') else sys.executable))
                 
@@ -2068,7 +2081,7 @@ def add_molecule_data():
                 # Intensity calculation
                 exec(f"{molecule_name.lower()}_intensity = Intensity(mol_{molecule_name.lower()})", globals())
                 exec(f"{molecule_name.lower()}_intensity.calc_intensity(t_{molecule_name.lower()}, n_mol_{molecule_name.lower()}, dv=intrinsic_line_width)", globals())
-                print(f"{molecule_name.lower()}_intensity")
+                #print(f"{molecule_name.lower()}_intensity")
                 # Add the variables to the globals dictionary
                 globals()[f"{molecule_name.lower()}_intensity"] = eval(f"{molecule_name.lower()}_intensity")
                 
@@ -2090,8 +2103,7 @@ def add_molecule_data():
                 
                 update()
                 
-                print('test')
-                
+
                 # Clearing the text feed box.
                 data_field.delete('1.0', "end")
                 data_field.insert('1.0', 'Molecule Imported')
@@ -2125,10 +2137,10 @@ def del_molecule_data():
     global text_boxes
     global nextrow
     global deleted_molecules
-    global text_box
-    global text_box_data
+    #global text_box
+    #global text_box_data
     global molecule_elements
-    
+
     data_field.delete('1.0', "end")
     data_field.insert('1.0', 'Clearing Molecules...')
     plt.draw(), canvas.draw()
@@ -2138,12 +2150,12 @@ def del_molecule_data():
     # Define the molecules and their corresponding file paths
     molecules_data = []
     molecules_data = [
-        ("H2O", "2020HITRANdata/data_Hitran_2020_H2O.par"),
-        ("OH", "2020HITRANdata/data_Hitran_2020_OH.par"),
-        ("HCN", "2020HITRANdata/data_Hitran_2020_HCN.par"),
-        ("C2H2", "2020HITRANdata/data_Hitran_2020_C2H2.par"),
-        ("CO2", "2020HITRANdata/data_Hitran_2020_CO2.par"),
-        ("CO", "2020HITRANdata/data_Hitran_2020_CO.par")
+        ("H2O", "HITRANdata/data_Hitran_2020_H2O.par"),
+        ("OH", "HITRANdata/data_Hitran_2020_OH.par"),
+        ("HCN", "HITRANdata/data_Hitran_2020_HCN.par"),
+        ("C2H2", "HITRANdata/data_Hitran_2020_C2H2.par"),
+        ("CO2", "HITRANdata/data_Hitran_2020_CO2.par"),
+        ("CO", "HITRANdata/data_Hitran_2020_CO.par")
         # Add more molecules here if needed
     ]
     print(molecules_data)
@@ -2220,13 +2232,7 @@ def del_molecule_data():
     else:
         print('No molecule Save Found.')  
 
-#addmol_box = fig.add_axes([0.07, 0.53, 0.1, 0.04]);
-#addmol_button = Button(addmol_box, 'Add Molecule', color = background, hovercolor = 'lightgray')
-#addmol_button.on_clicked(add_molecule_data) #loadparams_button_clicked)
 
-#delmol_box = fig.add_axes([0.16, .975, 0.07, 0.02]);
-#delmol_button = Button(delmol_box, 'Clear Molecules', color = background, hovercolor = 'lightgray')
-#delmol_button.on_clicked(del_molecule_data) #loadparams_button_clicked)
 
 def down_molecule_data(val):
     url = "https://hitran.org/lbl/"
@@ -2276,8 +2282,8 @@ def selectfile():
             flux_cnts = np.array(observation_data['flux'])
 
             # Set initial values of xp1 and rng
-            fig_max_limit = np.max(wave_cnts)
-            fig_min_limit = np.min(wave_cnts)
+            fig_max_limit = np.nanmax(wave_cnts)
+            fig_min_limit = np.nanmin(wave_cnts)
             xp1 = fig_min_limit + (fig_max_limit - fig_min_limit)/2
             rng = (fig_max_limit - fig_min_limit)/10
             xp2 = xp1 + rng
