@@ -769,6 +769,9 @@ def onselect(xmin, xmax):
         # Finding the index of the minimum and maximimum flux for both the data and model to be used in scaling the zoom graph (section below)
         model_indmin, model_indmax = np.searchsorted(lambdas_h2o, (xmin, xmax))
         data_indmin, data_indmax = np.searchsorted(wave_cnts, (xmin, xmax))
+        # this below is to avoid taking too few pixels for the plot, useful in case of e.g. MIRI spectra
+        data_indmin = data_indmin - 1
+        data_indmax = data_indmax + 1
         model_indmax = min(len(lambdas_h2o) - 1, model_indmax)
         data_indmax = min(len(wave_cnts) - 1, data_indmax)
 
