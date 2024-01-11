@@ -1,4 +1,4 @@
-iSLAT_version = 'V3.07.00'
+iSLAT_version = 'V3.10.00'
 print('Loading iSLAT '+ iSLAT_version +': Please Wait...')
 
 # Import necessary modules
@@ -30,10 +30,222 @@ import tkinter as tk
 from tkinter import filedialog, simpledialog, ttk  # For ttk.Style
 import inspect
 from PyQt5.QtWidgets import QApplication, QMainWindow
-from datetime import datetime
+from datetime import datetime as dt
 import csv
 import time
 import threading
+from astroquery import hitran
+import numpy
+from astropy import units as un
+from scipy import constants as con
+import datetime
+import urllib
+
+
+
+
+#Code from Nathan Hagen
+#https://github.com/nzhagen/hitran
+def get_molecule_identifier(molecule_name):
+    '''                                                                                                                                
+    For a given input molecular formula, return the corresponding HITRAN molecule identifier number.                                   
+                                                                                                                                       
+    Parameters                                                                                                                         
+    ----------                                                                                                                         
+    molecular_formula : str                                                                                                            
+        The string describing the molecule.                                                                                            
+                                                                                                                                       
+    Returns                                                                                                                            
+    -------                                                                                                                            
+    M : int                                                                                                                            
+        The HITRAN molecular identifier number.                                                                                        
+    '''
+
+    trans = { '1':'H2O',    '2':'CO2',   '3':'O3',      '4':'N2O',   '5':'CO',    '6':'CH4',   '7':'O2',     '8':'NO',
+              '9':'SO2',   '10':'NO2',  '11':'NH3',    '12':'HNO3', '13':'OH',   '14':'HF',   '15':'HCl',   '16':'HBr',
+             '17':'HI',    '18':'ClO',  '19':'OCS',    '20':'H2CO', '21':'HOCl', '22':'N2',   '23':'HCN',   '24':'CH3Cl',
+             '25':'H2O2',  '26':'C2H2', '27':'C2H6',   '28':'PH3',  '29':'COF2', '30':'SF6',  '31':'H2S',   '32':'HCOOH',
+             '33':'HO2',   '34':'O',    '35':'ClONO2', '36':'NO+',  '37':'HOBr', '38':'C2H4', '39':'CH3OH', '40':'CH3Br',
+             '41':'CH3CN', '42':'CF4',  '43':'C4H2',   '44':'HC3N', '45':'H2',   '46':'CS',   '47':'SO3'}
+    ## Invert the dictionary.                                                                                                          
+    trans = {v:k for k,v in trans.items()}
+    return(int(trans[molecule_name]))
+
+def get_global_identifier(molecule_name,isotopologue_number=1):
+    '''                                                                                                                                
+    For a given input molecular formula, return the corresponding HITRAN *global* identifier number.
+    For more info, see https://hitran.org/docs/iso-meta/ 
+                                                                                                                                       
+    Parameters                                                                                                                         
+    ----------                                                                                                                         
+    molecular_formula : str                                                                                                            
+        The string describing the molecule.              
+    isotopologue_number : int, optional
+        The isotopologue number, from most to least common.                                                                              
+                                                                                                                                       
+    Returns                                                                                                                            
+    -------                                                                                                                            
+    G : int                                                                                                                            
+        The HITRAN global identifier number.                                                                                        
+    '''
+
+    mol_isot_code=molecule_name+'_'+str(isotopologue_number)
+
+    trans = { 'H2O_1':1, 'H2O_2':2, 'H2O_3':3, 'H2O_4':4, 'H2O_5':5, 'H2O_6':6, 'H2O_7':129,
+               'CO2_1':7,'CO2_2':8,'CO2_3':9,'CO2_4':10,'CO2_5':11,'CO2_6':12,'CO2_7':13,'CO2_8':14,
+               'CO2_9':121,'CO2_10':15,'CO2_11':120,'CO2_12':122,
+               'O3_1':16,'O3_2':17,'O3_3':18,'O3_4':19,'O3_5':20,
+               'N2O_1':21,'N2O_2':22,'N2O_3':23,'N2O_4':24,'N2O_5':25,
+               'CO_1':26,'CO_2':27,'CO_3':28,'CO_4':29,'CO_5':30,'CO_6':31,
+               'CH4_1':32,'CH4_2':33,'CH4_3':34,'CH4_4':35,
+               'O2_1':36,'O2_2':37,'O2_3':38,
+               'NO_1':39,'NO_2':40,'NO_3':41,
+               'SO2_1':42,'SO2_2':43,
+               'NO2_1':44,
+               'NH3_1':45,'NH3_2':46,
+               'HNO3_1':47,'HNO3_2':117,
+               'OH_1':48,'OH_2':49,'OH_3':50,
+               'HF_1':51,'HF_2':110,
+               'HCl_1':52,'HCl_2':53,'HCl_3':107,'HCl_4':108,
+               'HBr_1':54,'HBr_2':55,'HBr_3':111,'HBr_4':112,
+               'HI_1':56,'HI_2':113,
+               'ClO_1':57,'ClO_2':58,
+               'OCS_1':59,'OCS_2':60,'OCS_3':61,'OCS_4':62,'OCS_5':63,
+               'H2CO_1':64,'H2CO_2':65,'H2CO_3':66,
+               'HOCl_1':67,'HOCl_2':68,
+               'N2_1':69,'N2_2':118,
+               'HCN_1':70,'HCN_2':71,'HCN_3':72,
+               'CH3Cl_1':73,'CH3CL_2':74,
+               'H2O2_1':75,
+               'C2H2_1':76,'C2H2_2':77,'C2H2_3':105,
+               'C2H6_1':78,'C2H6_2':106,
+               'PH3_1':79,
+               'COF2_1':80,'COF2_2':119,
+               'SF6_1':126,
+               'H2S_1':81,'H2S_2':82,'H2S_3':83,
+               'HCOOH_1':84,
+               'HO2_1':85,
+               'O_1':86,
+               'ClONO2_1':127,'ClONO2_2':128,
+               'NO+_1':87,
+               'HOBr_1':88,'HOBr_2':89,
+               'C2H4_1':90,'C2H4_2':91,
+               'CH3OH_1':92,
+               'CH3Br_1':93,'CH3Br_2':94,
+               'CH3CN_1':95,
+               'CF4_1':96,
+               'C4H2_1':116,
+               'HC3N_1':109,
+               'H2_1':103,'H2_2':115,
+               'CS_1':97,'CS_2':98,'CS_3':99,'CS_4':100,
+               'SO3_1':114,
+               'C2N2_1':123,
+               'COCl2_1':124,'COCl2_2':125}
+ 
+    return trans[mol_isot_code]
+
+
+def get_Hitran_data(Molecule_name, isotopologue_number, min_vu, max_vu):
+
+    M = get_molecule_identifier(Molecule_name)
+
+    Htbl = hitran.Hitran.query_lines(molecule_number = M, 
+                                isotopologue_number = isotopologue_number,
+                                min_frequency = min_vu/un.cm, max_frequency = max_vu/un.cm)
+
+
+    G = get_global_identifier(Molecule_name, isotopologue_number=isotopologue_number)
+
+    qurl='https://hitran.org/data/Q/'+'q'+str(G)+'.txt'
+    handle = urllib.request.urlopen(qurl)
+    qdata = pd.read_csv(handle,sep=' ',skipinitialspace=True,names=['temp','q'],header=None)
+
+    return Htbl, qdata, M, G
+
+def write_partition_function(fh, qdata):
+
+    fh.write("# Number of Partition function entries\n")
+    fh.write("{:d}\n".format(len(qdata['temp'])))
+
+    fh.write("# Temperature    Q(T)\n")
+    fh.write("# [K]\n")
+
+    for t, q in zip(qdata['temp'], qdata['q']):
+        fh.write("{:>6.1f}  {:>15.6f}\n".format(t,q))
+    
+
+    return fh
+
+def write_line_data(fh, Htbl):
+
+
+    numlines = len(Htbl['molec_id'])
+
+    fh.write("Number of lines\n")
+    fh.write(str(numlines) + '\n')
+
+    fh.write("#    Nr                        Lev_up                       Lev_low   Lambda    Frequency")
+    fh.write("       Einstein-A     E_up           E_low        g_up   g_low\n")
+    fh.write("#                                                                    [micron]  [GHz]    ")
+    fh.write("       [s**-1]        [K]            [K]        \n")
+  
+    freqs = Htbl['nu'] * 100. *con.c
+    freqsG = freqs/1E9
+
+    waves = con.c/freqs*1E6
+
+    Elo = con.h * con.c * Htbl['elower']*100 / con.k
+    Eup = con.h * con.c * (Htbl['elower'] + Htbl['nu'])*100 / con.k
+
+
+    for i in range(numlines):
+
+
+        qqup = "_".join(Htbl['global_upper_quanta'][i].strip().split()) + "|" +\
+               "_".join(Htbl['local_upper_quanta'][i].strip().split())
+        qqlow = "_".join(Htbl['global_lower_quanta'][i].strip().split()) + "|" +\
+               "_".join(Htbl['local_lower_quanta'][i].strip().split())
+
+        fh.write("{:6d}{:>30s}{:>30s}{:11.5f}{:15.8f}{:13.4e}{:15.5f}{:15.5f}{:7.1f}{:7.1f}\n".format(
+                  i, qqup, qqlow, waves[i], freqsG[i],  Htbl['a'][i], Eup[i], Elo[i], Htbl['gp'][i], Htbl['gpp'][i]
+                ))
+    return fh
+
+if __name__ == "__main__":
+
+    mols = ["H2O", "CO2", "13CO2", "CO", "13CO", "C18O", "CH4", "HCN", "NH3", "OH", "C2H2"]
+    basem = ["H2O", "CO2", "CO2", "CO", "CO", "CO", "CH4", "HCN", "NH3", "OH", "C2H2"]
+    isot = [1, 1, 2, 1, 2, 3, 1, 1, 1, 1, 1]
+
+    min_wave = 0.3  # micron
+    max_wave = 1000  # micron
+
+    min_vu = 1 / (min_wave / 1E6) / 100.
+    max_vu = 1 / (max_wave / 1E6) / 100.
+
+    print(' ')
+    print ('Checking for HITRAN files: ...')
+
+    for mol, bm, iso in zip(mols, basem, isot):
+        save_folder = 'HITRANdata'
+        file_path = os.path.join(save_folder, "data_Hitran_2020_{:}.par".format(mol))
+
+        if os.path.exists(file_path):
+            print("File already exists for mol: {:}. Skipping.".format(mol))
+            continue
+
+        print("Downloading data for mol: {:}".format(mol))
+        Htbl, qdata, M, G = get_Hitran_data(bm, iso, min_vu, max_vu)
+        os.makedirs(save_folder, exist_ok=True)  # Create the folder if it doesn't exist
+
+        with open(file_path, 'w') as fh:
+            fh.write("# HITRAN 2020 {:}; id:{:}; iso:{:};gid:{:}\n".format(mol, M, iso, G))
+            fh.write("# Downloaded from the Hitran website\n")
+            fh.write("# {:s}\n".format(str(datetime.date.today())))
+            fh = write_partition_function(fh, qdata)
+            fh = write_line_data(fh, Htbl)
+
+        print("Data for Mol: {:} downloaded and saved.".format(mol))
 
 
 # Define the default molecules and their file path; the folder must be in the same path as iSLAT
@@ -139,6 +351,9 @@ initial_values = {}
 linesavepath = ""
 spanmol = "h2o"
 
+print(' ')
+print ('Loading molecule files: ...')
+
 # Loop through each molecule and set up the necessary objects and variables
 for mol_name, mol_filepath in molecules_data:
     # Import line lists from the ir_model folder
@@ -204,25 +419,60 @@ When starting the tool up, the "headers" variable is set to False. After apendin
 def Save():
     global line2save
     global headers
-    global saveline
+    global selectedline
     global linesavepath
 
     # This section is necessary for refreshing the text feed area to the left of the tool
     data_field.delete('1.0', "end")
-    
-    if saveline == True: # "saveline" variable is determined by whether or not an area was selected in the top graph or not 
-         
-        line2save.to_csv(linesavepath, mode='a', index=False, header=False)
 
-        data_field.insert('1.0', 'Line Saved!')
+    if linesavepath != "":
+        if selectedline == True:  # "selectedline" variable is determined by whether or not an area was selected in the top graph or not
+
+            line2save.to_csv (linesavepath, mode='a', index=False, header=False)
+
+            data_field.insert ('1.0', 'Line Saved!')
+            fig.canvas.draw_idle ()
+        else:
+            data_field.insert ('1.0', 'No Line Selected!')
+            fig.canvas.draw_idle ()
+            return
+    else:
+        data_field.delete ('1.0', "end")
+        data_field.insert ('1.0', 'Line save file is not defined!')
+
+    canvas.draw()
+
+
+"""
+Fit() is connected to the "Fit Line" button of the tool.
+This function fits the line selected in the top graph using LMFIT"""
+def Fit():
+    global selectedline
+
+    print (' ')
+    print ('Fitting line with LMFIT ...')
+
+    if selectedline == True:  # "selectedline" variable is determined by whether or not an area was selected in the top graph or not
+
+        gauss_fit = line_fit(wave_cnts, flux_cnts, data_region_x[0], data_region_x[-1])
+        gauss_fwhm = gauss_fit.params['fwhm'].value / gauss_fit.params['center'].value * cc
+        sigma_freq = ccum/(gauss_fit.params['center'].value**2) * gauss_fit.params['sigma'].value # sigma from wavelength to frequency
+        gauss_area = gauss_fit.params['height'].value * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23) # to get erg/s/cm2
+        #print(gauss_fit.params['center'].value)
+
+        data_field.insert(tk.END, ('\n ' + '\nGaussian fit results: ' + '\nCentroid (um)= ' + str(
+            np.round(gauss_fit.params['center'].value, decimals=5)) + '\nFWHM (km/s)= ' + str(
+            np.round(gauss_fwhm, decimals=1)) + '\nArea (erg/s/cm2)= ' + f'{gauss_area:.{3}e}'))
+
         fig.canvas.draw_idle()
     else:
+        data_field.delete ('1.0', "end")
         data_field.insert('1.0', 'No Line Selected!')
         fig.canvas.draw_idle()
         return
     canvas.draw()
 
-    
+
 """
 update() is main function of this tool. It is called any time and of the sliders or text imput are changed. 
 This function is where the models are rebuilt with new parameters and the graphs are recreated.
@@ -243,11 +493,11 @@ def update(*val):
     global fluxes_oh, lambdas_oh
     global fluxes_hcn, lambdas_hcn
     global fluxes_c2h2, lambdas_c2h2
-    global h2o_line_select, data_line_select
+    global model_line_select, data_line_select
     global fig_height, fig_bottom_height
     global h2o_radius
     global n_mol
-    global saveline, spanmol
+    global selectedline, spanmol
     global h2o
     global oh
     global hcn
@@ -279,7 +529,7 @@ def update(*val):
     global min_lamd
     
     span.set_visible(False) # Clears the blue area created by the span selector (range selector in the top graph of the tool)
-    saveline = False # See reference in save()
+    selectedline = False # See reference in save()
 
     # Clearing the text feed box.
     data_field.delete('1.0', "end")
@@ -434,10 +684,13 @@ def onselect(xmin, xmax):
     global wave_cnts, flux_cnts
     global lambdas_h2o, fluxes_h2o
     global line2save
-    global saveline
+    global selectedline
     global spanmol
     global model_indmin, model_indmax
-        
+    global data_region_x
+    global model_line_select
+
+
     xdif = xmax - xmin
     if xdif > 0:
         # Clearing the bottom two graphs
@@ -445,12 +698,12 @@ def onselect(xmin, xmax):
         ax3.clear()
         ax2.clear()
 
-        global wave_cnts, flux_cnts
-        global lambdas_h2o, fluxes_h2o
-        global line2save
-        global saveline
-        global spanmol
-        global model_indmin, model_indmax
+        # global wave_cnts, flux_cnts
+        # global lambdas_h2o, fluxes_h2o
+        # global line2save
+        # global selectedline
+        # global spanmol
+        # global model_indmin, model_indmax
 
         int_pars = eval(f"{spanmol}_intensity.get_table")
         int_pars.index = range(len(int_pars.index))
@@ -470,7 +723,7 @@ def onselect(xmin, xmax):
         linecolor = linevar.get_color()
         #'royalblue'
         # Make empty lines for the zoom plot
-        h2o_line_select, = ax2.plot([], [], color=linecolor, linewidth=3, ls='--')
+        model_line_select, = ax2.plot([], [], color=linecolor, linewidth=3, ls='--')
         data_line_select, = ax2.plot([],[],color=foreground,linewidth=1)
 
         # Getting all the water lines for the selected range
@@ -495,7 +748,7 @@ def onselect(xmin, xmax):
         # If there aren't then this function does not continue
         # If there are, then the strongest intensity of the lines in the range selected is identified along with its index
         if len(intensities) >= 1:
-            saveline = True
+            selectedline = True
             for i in range(len(intensities)):
                 if intensities[i] > max_value:
                     max_value = intensities[i]
@@ -520,11 +773,11 @@ def onselect(xmin, xmax):
         data_indmax = min(len(wave_cnts) - 1, data_indmax)
 
         # Dynamically set the x variable
+        print (' ')
+        print('Molecule selected: ')
         print(spanmol)
         model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
         model_region_x = eval(model_region_x_str)
-        print('Line range:')
-        print(model_region_x[0],model_region_x[-1])
 
         # Scaling the zoom graph
         # First, it's determined if the max intensity of the model is bigger than that of the max intensity of the data or vice versa
@@ -537,9 +790,6 @@ def onselect(xmin, xmax):
         model_region_y = eval(model_region_y_str)
         data_region_x = wave_cnts[data_indmin:data_indmax]
         data_region_y = flux_cnts[data_indmin:data_indmax]
-        max_model_y = 0
-        max_data_y = 0
-        min_data_y = 0
         max_data_y = np.nanmax(data_region_y)
         max_model_y = np.nanmax(model_region_y)
         if (max_model_y) >= (max_data_y):
@@ -547,22 +797,30 @@ def onselect(xmin, xmax):
         else:
             max_y = max_data_y
         ax2.set_ylim(0, max_y)
+        print (' ')
+        print('Data range:')
+        print(data_region_x[0],data_region_x[-1])
+        #print(xmin, xmax)
 
         # Calling the flux function to calculate the flux for the data in the range selected
         # Also printing the flux in the notebook for easy copying
         # See flux_integral
         line_flux = flux_integral(wave_cnts, flux_cnts, xmin, xmax)
-        gauss_fit = line_fit(wave_cnts, flux_cnts, xmin, xmax)
-        gauss_fwhm = gauss_fit.params['fwhm'].value / gauss_fit.params['center'].value * cc
-        #print(gauss_fit.params['center'].value)
 
         data_field.delete('1.0', "end")
-        data_field.insert('1.0', ('Strongest line:'+'\nUpper level = '+str(max_up_lev)+'\nLower level = '+str(max_low_lev)+'\nWavelength (um) = '+str(max_lamb_cnts)+'\nEinstein-A coeff. (1/s) = '+str(max_einstein)+'\nUpper level energy (K) = '+str(f'{max_e_up:.{0}f}')+'\nFlux (erg/s/cm2) = '+str(f'{line_flux:.{3}e}')+'\nGauss. fit centroid (um)= ' + str(np.round(gauss_fit.params['center'].value, decimals=5))+'\nGauss. fit FWHM (km/s)= ' + str(np.round(gauss_fwhm, decimals=1))))
+        data_field.insert ('1.0', (
+                    'Strongest line:' + '\nUpper level = ' + str (max_up_lev) + '\nLower level = ' + str (
+                max_low_lev) + '\nWavelength (um) = ' + str (max_lamb_cnts) + '\nEinstein-A coeff. (1/s) = ' + str (
+                max_einstein) + '\nUpper level energy (K) = ' + str (f'{max_e_up:.{0}f}') + '\nFlux (erg/s/cm2) = ' + str (
+                f'{line_flux:.{3}e}')))
         # +'\nIntensity = '+str(f'{max_intensity:.{3}f}')+'\nStat. weight = '+str(max_g_up)
 
         # Creating a pandas dataframe for all the info of the strongest line in the selected range
         # This dataframe is used in the Save() function to save the strongest line in a csv file
-        line2save = {'lev_up':[max_up_lev],'lev_low':[max_low_lev],'lam':[max_lamb_cnts],'tau':[max_tau],'intens':[max_intensity],'a_stein':[max_einstein],'e_up':[max_e_up],'g_up':[max_g_up],'xmin':[f'{xmin:.{4}f}'],'xmax':[f'{xmax:.{4}f}'], 'flux':[f'{line_flux:.{3}e}']}
+        line2save = {'lev_up': [max_up_lev], 'lev_low': [max_low_lev], 'lam': [max_lamb_cnts], 'tau': [max_tau],
+                     'intens': [max_intensity], 'a_stein': [max_einstein], 'e_up': [max_e_up], 'g_up': [max_g_up],
+                     'xmin': [f'{xmin:.{4}f}'], 'xmax': [f'{xmax:.{4}f}'], 'flux': [f'{line_flux:.{3}e}']
+                     }
         line2save = pd.DataFrame(line2save)
 
 
@@ -572,7 +830,7 @@ def onselect(xmin, xmax):
         # e.g. the strongest line is the tallest, a line that has 50% the int of the strongest line will be half as tall as that line
         if len(model_region_x) >= 1:
             k=0
-            h2o_line_select.set_data(model_region_x, model_region_y), globals()
+            model_line_select.set_data(model_region_x, model_region_y), globals()
             data_line_select.set_data(data_region_x, data_region_y)
             ax2.set_xlim(model_region_x[0], model_region_x[-1])
 
@@ -725,7 +983,25 @@ def print_saved_lines():
     else:
         data_field.delete('1.0', "end")
         data_field.insert('1.0', 'Line save file is not defined!')
-    
+
+
+"""
+fit_saved_lines() will fit all saved lines in one click, and save them to output"""
+def fit_saved_lines():
+    global linesavepath
+
+    if linesavepath != "":
+
+        data_field.delete ('1.0', "end")
+        data_field.insert ('1.0', 'Function under development.')
+        #data_field.insert ('1.0', 'Saved lines retrieved from file.')
+        canvas.draw ()
+    else:
+        data_field.delete ('1.0', "end")
+        data_field.insert ('1.0', 'Function under development.')
+        #data_field.insert('1.0', 'Line save file is not defined!')
+
+
 def print_atomic_lines():
     update()
     ax1.callbacks.connect('xlim_changed', on_xlims_change)
@@ -884,13 +1160,13 @@ def submit_temp(event, text):
     global lambdas_hcn
     global fluxes_c2h2
     global lambdas_c2h2
-    global h2o_line_select
+    global model_line_select
     global data_line_select
     global fig_height
     global fig_bottom_height
     global h2o_radius
     global n_mol
-    global saveline
+    global selectedline
     global h2o
     global oh
     global hcn
@@ -1069,7 +1345,7 @@ def line_fit(lam, flux, lam_min, lam_max):
     print(linefit_result.fit_report())
     dely = linefit_result.eval_uncertainty(sigma=3)
     ax2.fill_between(x, linefit_result.best_fit - dely, linefit_result.best_fit + dely, color="#ABABAB", label=r'3-$\sigma$ uncertainty band')
-    ax2.plot(x, linefit_result.best_fit, '-', label='Gauss. fit', color='white', ls='--')
+    ax2.plot(x, linefit_result.best_fit, label='Gauss. fit', color='white', ls='--')
     return linefit_result
 
 """
@@ -1098,7 +1374,7 @@ def model_visible(event):
 skip = False
 
 
-saveline = False
+selectedline = False
 
 # Initialize visibility booleans for each molecule
 molecule_names = [mol_name.lower() for mol_name, _ in molecules_data]
@@ -1145,6 +1421,7 @@ def selectfileinit():
     if infiles:
         for file_path in infiles:
             # Process each selected file
+            print(' ')
             print("Selected file:", file_path)
             file_name = os.path.basename(file_path)
             # code to process each file
@@ -1160,7 +1437,7 @@ def selectfileinit():
             rng = np.around((fig_max_limit - fig_min_limit)/10, decimals=2)
             xp2 = xp1 + rng
 
-            now = datetime.now()
+            now = dt.now()
             dateandtime = now.strftime("%d-%m-%Y-%H-%M-%S")
             print(dateandtime)
             svd_line_file = f'savedlines-{dateandtime}.csv'
@@ -1613,24 +1890,27 @@ intrinsic_line_width_entry.bind("<Return>", lambda event: update_initvals())
 
 def on_span_select(selected_item):
     global spanmol
-    global h2o_line_select
+    global model_line_select
     global model_indmin
     global model_indmax 
     
 
     spanmol = selected_item
     
-    print(spanmol)
+    pop_diagram()
+    update()
+
+    data_field.insert ('1.0', 'Molecule selected: ' + spanmol)
     model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
     model_region_x = eval(model_region_x_str)
-    print(model_region_x)
+    #print(model_region_x)
     #print(model_region_x[0])
 
     #model_region_y = fluxes_h2o[model_indmin:model_indmax]
     # Dynamically set the variable
     model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
     model_region_y = eval(model_region_y_str)
-    h2o_line_select.set_data(model_region_x, model_region_y), globals()
+    model_line_select.set_data(model_region_x, model_region_y), globals()
     plt.draw(), canvas.draw()
     fig.canvas.flush_events() 
     # Now you can use spanmollower or perform any other actions
@@ -1833,31 +2113,38 @@ export_button = tk.Button(titleframe, text='Export Models', bg='lightgray', comm
 export_button.grid(row=0, column=3)
 
 buttonframe = tk.Frame(window)
-buttonframe.grid(row=22, column=0, rowspan=1, columnspan=5, sticky='nsew')
-
-# Create the 'Add Mol.' button
-addmol_button = tk.Button(buttonframe, text='Add Molecule', bg='lightgray', activebackground='gray', command=lambda: add_molecule_data(), width=13, height=1)
-addmol_button.grid(row=2, column=0)
-
-# Create the 'Clear Mol.' button
-clearmol_button = tk.Button(buttonframe, text='Clear Molecules', bg='lightgray', activebackground='gray', command=lambda: del_molecule_data(), width=13, height=1)
-clearmol_button.grid(row=2, column=1)
-
-# Create the 'Clear Mol.' button
-atomlines_button = tk.Button(buttonframe, text='Show Atom. Lines', bg='lightgray', activebackground='gray', command=lambda: print_atomic_lines(), width=13, height=1)
-atomlines_button.grid(row=1, column=1)
-
+buttonframe.grid(row=23, column=0, rowspan=1, columnspan=6, sticky='nsew')
 
 
 # Create and place the buttons in the specified rows and columns
 save_button = tk.Button(buttonframe, text="Save Line", bg='lightgray', activebackground='gray', command=Save, width=13, height=1)
 save_button.grid(row=0, column=0)
 
-autofind_button = tk.Button(buttonframe, text="Find Single Lines", bg='lightgray', activebackground='gray', command=single_finder, width=13, height=1)
-autofind_button.grid(row=0, column=1)
+fit_button = tk.Button(buttonframe, text="Fit Line", bg='lightgray', activebackground='gray', command=Fit, width=13, height=1)
+fit_button.grid(row=0, column=1)
 
 savedline_button = tk.Button(buttonframe, text="Show Saved Lines", bg='lightgray', activebackground='gray', command=print_saved_lines, width=13, height=1)
 savedline_button.grid(row=1, column=0)
+
+fitsavedline_button = tk.Button(buttonframe, text="Fit Saved Lines", bg='lightgray', activebackground='gray', command=fit_saved_lines, width=13, height=1)
+fitsavedline_button.grid(row=1, column=1)
+
+autofind_button = tk.Button(buttonframe, text="Find Single Lines", bg='lightgray', activebackground='gray', command=single_finder, width=13, height=1)
+autofind_button.grid(row=2, column=0)
+
+# Create the 'Atomic lines' button
+atomlines_button = tk.Button(buttonframe, text='Show Atomic Lines', bg='lightgray', activebackground='gray', command=lambda: print_atomic_lines(), width=13, height=1)
+atomlines_button.grid(row=2, column=1)
+
+# Create the 'Add Mol.' button
+addmol_button = tk.Button(buttonframe, text='Add Molecule', bg='lightgray', activebackground='gray', command=lambda: add_molecule_data(), width=13, height=1)
+addmol_button.grid(row=3, column=0)
+
+# Create the 'Clear Mol.' button
+clearmol_button = tk.Button(buttonframe, text='Clear Molecules', bg='lightgray', activebackground='gray', command=lambda: del_molecule_data(), width=13, height=1)
+clearmol_button.grid(row=3, column=1)
+
+
 
 def toggle_legend():
     if ax1.legend_ is None:
@@ -1886,6 +2173,9 @@ for col in range(2, 10):  # Adjust the column range as needed
 molecule_text_boxes = {}
 
 def set_file_permissions(filename, mode):
+    print (' ')
+    print ('Molecule paths file: ...')
+
     try:
         os.chmod(filename, mode)
         print(f"Permissions set for {filename}")
@@ -2292,7 +2582,7 @@ def selectfile():
             rng_entry.delete(0, "end")
             rng_entry.insert(0, np.around(rng, decimals=2))
             
-            now = datetime.now()
+            now = dt.now()
             dateandtime = now.strftime("%d-%m-%Y-%H-%M-%S")
             print(dateandtime)
             svd_line_file = f'savedlines-{dateandtime}.csv'
@@ -2407,10 +2697,10 @@ tk.Label(files_frame, text="").grid(row=4, column=0)
 
 # Create a frame for the Text widget
 text_frame = tk.Frame(window)
-text_frame.grid(row=27, column=0, columnspan=5, sticky='nsew')
+text_frame.grid(row=28, column=0, columnspan=6, sticky='nsew')
 
 # Create a Text widget within the frame
-data_field = tk.Text(text_frame, wrap="word", height=10, width=24)
+data_field = tk.Text(text_frame, wrap="word", height=13, width=24)
 data_field.pack(fill="both", expand=True)
 
 
@@ -2429,7 +2719,6 @@ span = SpanSelector(
 
 # Storing the callback for on_xlims_change()
 ax1.callbacks.connect('xlim_changed', on_xlims_change)
-fig.canvas.manager.set_window_title('iSLAT-V2.00.00') #Interactive Spectral-Line Analysis Tool
 # Set the window manager to display the figure in a separate window
 #figManager = plt.get_current_fig_manager()
 #figManager.window.showMaximized()
@@ -2452,7 +2741,7 @@ canvas_widget.grid(row=1, column=5, rowspan=100, sticky='nsew')
 
 # Allow column 9 and row 1 to expand
 window.grid_columnconfigure(5, weight=1)
-#window.grid_rowconfigure(1, weight=1)
+window.grid_rowconfigure(100, weight=1)
 
 
 # Create a frame for the toolbar inside the titleframe
