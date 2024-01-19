@@ -814,9 +814,9 @@ def onselect(xmin, xmax):
         data_field.insert ('1.0', (
                     'Strongest line:' + '\nUpper level = ' + str (max_up_lev) + '\nLower level = ' + str (
                 max_low_lev) + '\nWavelength (um) = ' + str (max_lamb_cnts) + '\nEinstein-A coeff. (1/s) = ' + str (
-                max_einstein) + '\nUpper level energy (K) = ' + str (f'{max_e_up:.{0}f}') + '\nFlux (erg/s/cm2) = ' + str (
-                f'{line_flux:.{3}e}')))
-        # +'\nIntensity = '+str(f'{max_intensity:.{3}f}')+'\nStat. weight = '+str(max_g_up)
+                max_einstein) + '\nUpper level energy (K) = ' + str (f'{max_e_up:.{0}f}') +'\nOpacity = '+ str(
+                f'{max_tau:.{3}f}')+ '\nFlux (erg/s/cm2) = ' + str (f'{line_flux:.{3}e}')))
+
 
         # Creating a pandas dataframe for all the info of the strongest line in the selected range
         # This dataframe is used in the Save() function to save the strongest line in a csv file
@@ -836,7 +836,8 @@ def onselect(xmin, xmax):
             model_line_select.set_data(model_region_x, model_region_y), globals()
             data_line_select.set_data(data_region_x, data_region_y)
             ax2.set_xlim(model_region_x[0], model_region_x[-1])
-
+            print(' ')
+            print('Lines in selected range (wavelength, upper and lower levels, E_up, A-coeff, opacity):')
             for j in range(len(lamb_cnts)):
                 if j == max_index:
                     k = j
@@ -845,6 +846,7 @@ def onselect(xmin, xmax):
                     if intensities[j] > max_intensity/50:
                         ax2.vlines(lamb_cnts[j], 0, lineheight, linestyles='dashed',color='green')
                         ax2.text(lamb_cnts[j], lineheight, (str(f'{e_up[j]:.{0}f}')+', '+str(f'{einstein[j]:.{3}f}')), color = 'green', fontsize = 'small')
+                        print(str(f'{lamb_cnts[j]:.{5}f}'), up_lev[j], low_lev[j], str(f'{e_up[j]:.{0}f}'), einstein[j], str(f'{tau[j]:.{3}f}'))
                         area = eval(f"np.pi*({spanmol}_radius*au*1e2)**2") # In cm^2
                         Dist = dist*pc
                         beam_s = area/Dist**2
@@ -1491,12 +1493,16 @@ def update_xp1_rng():
     canvas.draw()
     
 def update_initvals():
-    global min_lamb, max_lamb, dist, fwhm, star_rv, model_line_width, model_pixel_res, intrinsic_line_width, wave_cnts
+    global min_lamb, max_lamb, dist, fwhm, star_rv, model_line_width, model_pixel_res, intrinsic_line_width, wave_cnts, pix_per_fwhm
     # Get the values from the Tkinter Entry widgets and convert them to floats
     min_lamb = float(min_lamb_entry.get())
     max_lamb = float(max_lamb_entry.get())
     dist = float(dist_entry.get())
     fwhm = float(fwhm_entry.get())
+    if fwhm >= 70:
+        pix_per_fwhm = 10
+    if fwhm < 70:
+        pix_per_fwhm = 20 # increase model pixel sampling in case of higher resolution spectra, usually in the M band
     intrinsic_line_width = float(intrinsic_line_width_entry.get())
     model_line_width = cc / fwhm
     model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / pix_per_fwhm
