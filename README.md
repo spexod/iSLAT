@@ -81,6 +81,14 @@ from HITRAN and stored in a .par file in the folder "HITRANdata"
 - Clear molecules: removes any additional molecules and leaves the 
 default ones only
 
+## Data samples
+iSLAT's release includes some continuum-subtracted spectra that
+users can use to get familiar with the different functionalities 
+and applications across a wide range of resolving powers:
+- one M-band spectrum from iSHELL (FZTau) from Banzatti et al. 2023a
+- two spectra from MIRI (FZTau and CITau) from ...
+- one Spitzer spectrum?
+
 ## Known issues
 If you use iSLAT on an Apple-silicon Mac, there is a known issue with 
 tkinter where the GUI often does not take a new input or click; the
