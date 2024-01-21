@@ -81,8 +81,12 @@ from HITRAN and stored in a .par file in the folder "HITRANdata"
 - Clear molecules: removes any additional molecules and leaves the 
 default ones only
 
-## Tutorial and examples
-
+## Known issues
+If you use iSLAT on an Apple-silicon Mac, there is a known issue with 
+tkinter where the GUI often does not take a new input or click; the
+solution is to "wake up" the GUI by slightly resizing it windows in 
+any way. Sometimes even just moving the GUI window around for a 
+moment will do the trick.
 
 ## Acknowledging iSLAT
 If you use iSLAT for your research, we would appreciate its citation 
