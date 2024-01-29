@@ -29,7 +29,7 @@ from ir_model import *
 import tkinter as tk
 from tkinter import filedialog, simpledialog, ttk  # For ttk.Style
 import inspect
-from PyQt5.QtWidgets import QApplication, QMainWindow
+#from PyQt5.QtWidgets import QApplication, QMainWindow
 from datetime import datetime as dt
 import csv
 import time
