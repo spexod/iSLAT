@@ -1011,7 +1011,7 @@ def print_atomic_lines():
     update()
     ax1.callbacks.connect('xlim_changed', on_xlims_change)
     
-    svd_lns = pd.read_csv("ATOMLINES/Extra_line_list.csv", sep=',')
+    svd_lns = pd.read_csv("ATOMLINES/Atomic_line_list.csv", sep=',')
     svd_lamb = np.array(svd_lns['wave'])
     svd_species = svd_lns['species']
 
