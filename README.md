@@ -2,7 +2,10 @@
 **iSLAT** (the **i**nteractive **S**pectral-**L**ine **A**nalysis 
 **T**ool) is a python package that provides an interactive interface
 for the visualization, exploration, and analysis of molecular spectra.
-It has been developed and tested on spectra at infrared wavelengths 
+Synthetic models are made using a simple slab model written by Simon 
+Bruderer and originally described in [Banzatti et al. 2012](https://ui.adsabs.harvard.edu/abs/2012ApJ...745...90B/abstract);
+the code uses molecular data from [HITRAN](https://hitran.org/).
+iSLAT has been developed and currently tested on spectra at infrared wavelengths 
 as observed at different resolving powers (R = 700-90,000) with: 
 JWST-MIRI, Spitzer-IRS, IRTF-ISHELL. iSLAT has been built as a flexible
 tool that should work with one-dimensional molecular spectra observed 
