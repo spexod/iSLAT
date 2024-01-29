@@ -9,22 +9,14 @@ tool that should work with one-dimensional molecular spectra observed
 with other instruments too, provided some requirements are met (see below).
 
 ## Installation and updates
-`pip` is the recommended installation method, you can 
-use it in to ways to install the `islat` python module:
-
-### Download from pypi.org
-
-    pip install islat
 
 ### Download the latest version from github:
 
     git clone https://github.com/spexod/iSLAT
     cd iSLAT
-    pip install .
+    
 
-Remember to update the repository periodically with:
-
-`git pull`
+Remember to update the repository periodically from GitHub.
 
 ## Input and outputs
 iSLAT requires a flat, continuum-subtracted spectrum as input data 
