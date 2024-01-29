@@ -10,11 +10,11 @@ with other instruments too, provided some requirements are met (see below).
 
 ## Installation and updates
 
-### Download the latest version from github:
+### Download and run the latest version from github:
 
     git clone https://github.com/spexod/iSLAT
-    cd iSLAT
-    
+    cd iSLAT/iSLAT
+    python iSLAT.py
 
 Remember to update the repository periodically from GitHub.
 
