@@ -10,13 +10,15 @@ with other instruments too, provided some requirements are met (see below).
 
 ## Installation and updates
 
-### Download and run the latest version from github:
+### Download and run the latest version from GitHub:
 
     git clone https://github.com/spexod/iSLAT
-    cd iSLAT/iSLAT
+    cd iSLAT
+    pip install -r requirements.txt
+    cd iSLAT
     python iSLAT.py
 
-Remember to update the repository periodically from GitHub.
+Remember to update the repository from GitHub when a new version is available.
 
 ## Input and outputs
 iSLAT requires a flat, continuum-subtracted spectrum as input data 
