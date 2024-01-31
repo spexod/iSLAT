@@ -20,6 +20,9 @@ Make sure you have git and pip installed, and then run these commands sequential
     git clone https://github.com/spexod/iSLAT
     cd iSLAT
     pip install -r requirements.txt
+
+To launch iSLAT, simply type:
+
     cd iSLAT
     python iSLAT.py
 
@@ -33,6 +36,15 @@ file in csv format, with a wavelength array in μm ("wave") and flux
 array in Jy ("flux").
 The outputs are txt or csv files that save model parameters, spectra,
 or line lists as defined by users (see more below).
+
+## HITRAN data
+At first launch by the user, iSLAT will download from HITRAN the data
+for a default list of molecules: H2, H2O, CO, CO2, CH4, HCN, NH3, OH, 
+C2H2 and their main isotopologues. 
+These datafiles are stored into the folder "HITRANdata" and are available to 
+load and use in iSLAT (see below). We are currently developing
+an interface function to allow users to download any other molecule 
+by request.
 
 ## Parameters definitions and units
 - Model parameters: temperature is in K, radius in au, column density
@@ -76,7 +88,7 @@ under "Saved lines file"
 saved in the folder ATOMLINES
 - Find single lines: identifies and marks isolated water lines using
 the parameter "Line separ." as their spectral separation
-- Add molecule: adds a molecule to the list of available molecules
+- Add molecule: loads a molecule into the list of available molecules
 at the top left of the GUI; the new molecule must already be downloaded
 from HITRAN and stored in a .par file in the folder "HITRANdata"
 - Clear molecules: removes any additional molecules and leaves the 
