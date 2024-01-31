@@ -213,9 +213,9 @@ def write_line_data(fh, Htbl):
 
 if __name__ == "__main__":
 
-    mols = ["H2", "HD", "H2O", "H218O", "CO2", "13CO2", "CO", "13CO", "C18O", "CH4", "HCN", "NH3", "OH", "C2H2", "13CCH2"]
-    basem = ["H2", "H2", "H2O", "H2O", "CO2", "CO2", "CO", "CO", "CO", "CH4", "HCN", "NH3", "OH", "C2H2", "C2H2"]
-    isot = [1, 2, 1, 2, 1, 2, 1, 2, 3, 1, 1, 1, 1, 1, 2]
+    mols = ["H2", "HD", "H2O", "H218O", "CO2", "13CO2", "CO", "13CO", "C18O", "CH4", "HCN", "H13CN", "NH3", "OH", "C2H2", "13CCH2", "C2H4", "C4H2", "C2H6"]
+    basem = ["H2", "H2", "H2O", "H2O", "CO2", "CO2", "CO", "CO", "CO", "CH4", "HCN", "HCN", "NH3", "OH", "C2H2", "C2H2", "C2H4", "C4H2", "C2H6"]
+    isot = [1, 2, 1, 2, 1, 2, 1, 2, 3, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1]
 
     min_wave = 0.3  # micron
     max_wave = 1000  # micron

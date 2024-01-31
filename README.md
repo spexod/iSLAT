@@ -40,7 +40,7 @@ or line lists as defined by users (see more below).
 ## HITRAN data
 At first launch by the user, iSLAT will download from HITRAN the data
 for a default list of molecules: H2, H2O, CO, CO2, CH4, HCN, NH3, OH, 
-C2H2 and their main isotopologues. 
+C2H2, C2H4, C2H6, C4H2 and their main isotopologues. 
 These datafiles are stored into the folder "HITRANdata" and are available to 
 load and use in iSLAT (see below). We are currently developing
 an interface function to allow users to download any other molecule 
