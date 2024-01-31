@@ -2080,7 +2080,7 @@ def export_spectrum():
     button.grid(row=1, column=1)
 
 # Create a dropdown menu in the new window
-spanselectlab = tk.Label(param2_frame, text="Span Mol.:")
+spanselectlab = tk.Label(param2_frame, text="Molecule:")
 spanselectlab.grid(row=4, column=0)
 spanoptionsvar = [m[0] for m in molecules_data] # + ["SUM"]
 spandropdowntext = tk.StringVar()
