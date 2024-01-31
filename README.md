@@ -15,7 +15,7 @@ with other instruments too, provided some requirements are met (see below).
 
 ### Download and run the latest version from GitHub:
 
-Make sure you have git and pip installed, and then run these commands sequentially:
+Make sure you have [git](https://github.com/git-guides/install-git) and [pip](https://pip.pypa.io/en/stable/installation/) installed, and then run these commands sequentially:
 
     git clone https://github.com/spexod/iSLAT
     cd iSLAT
@@ -101,6 +101,8 @@ and applications across a wide range of resolving powers:
 - one M-band spectrum from iSHELL (FZTau) from [Banzatti et al. 2023a](https://ui.adsabs.harvard.edu/abs/2023AJ....165...72B/abstract)
 - two spectra from MIRI (CITau and FZTau) from [Banzatti et al. 2023b](https://ui.adsabs.harvard.edu/abs/2023ApJ...957L..22B/abstract)
 and [Pontoppidan et al. 2024](https://ui.adsabs.harvard.edu/abs/2023arXiv231117020P/abstract), respectively
+The original data (not continuum-subtracted) are available on
+[spexodisks.com](www.spexodisks.com).
 
 ## Known issues
 If you use iSLAT on an Apple-silicon Mac, there is a known issue with 

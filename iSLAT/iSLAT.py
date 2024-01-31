@@ -1,4 +1,4 @@
-iSLAT_version = 'V3.10.00'
+iSLAT_version = 'v3.10.00'
 print('Loading iSLAT '+ iSLAT_version +': Please Wait...')
 
 # Import necessary modules
