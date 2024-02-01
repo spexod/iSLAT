@@ -94,14 +94,17 @@ from HITRAN and stored in a .par file in the folder "HITRANdata"
 - Clear molecules: removes any additional molecules and leaves the 
 default ones only
 
-## Data samples
-iSLAT's release includes some continuum-subtracted spectra that
-users can use to get familiar with the different functionalities 
-and applications across a wide range of resolving powers:
-- one M-band spectrum from iSHELL (FZTau) from [Banzatti et al. 2023a](https://ui.adsabs.harvard.edu/abs/2023AJ....165...72B/abstract)
-- two spectra from MIRI (CITau and FZTau) from [Banzatti et al. 2023b](https://ui.adsabs.harvard.edu/abs/2023ApJ...957L..22B/abstract)
+## Data examples
+iSLAT's release includes some continuum-subtracted spectra of 
+protoplanetary disks that users can use to get familiar with iSLAT 
+and its applications across a range of resolving powers:
+- one M-band spectrum from iSHELL with R~60,000 (FZ Tau) from [Banzatti et al. 2023a](https://ui.adsabs.harvard.edu/abs/2023AJ....165...72B/abstract)
+- two spectra from MIRI with R~2000-3000 (CI Tau and FZ Tau) from [Banzatti et al. 2023b](https://ui.adsabs.harvard.edu/abs/2023ApJ...957L..22B/abstract)
 and [Pontoppidan et al. 2024](https://ui.adsabs.harvard.edu/abs/2023arXiv231117020P/abstract), respectively
-The original data (not continuum-subtracted) are available on
+- one spectrum from Spitzer-IRS with R~700 (CI Tau) from [Banzatti et al. 2020](https://ui.adsabs.harvard.edu/abs/2020ApJ...903..124B/abstract)
+, reduced as described in [Pontoppidan et al. 2010](https://ui.adsabs.harvard.edu/abs/2010ApJ...720..887P/abstract)
+
+The original spectra (not continuum-subtracted) are available on
 [spexodisks.com](www.spexodisks.com).
 
 ## Known issues
