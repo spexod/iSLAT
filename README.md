@@ -7,9 +7,12 @@ Bruderer and originally described in [Banzatti et al. 2012](https://ui.adsabs.ha
 the code uses molecular data from [HITRAN](https://hitran.org/).
 iSLAT has been developed and currently tested on spectra at infrared wavelengths 
 as observed at different resolving powers (R = 700-90,000) with: 
-JWST-MIRI, Spitzer-IRS, IRTF-ISHELL. iSLAT has been built as a flexible
+JWST-MIRI, Spitzer-IRS, IRTF-ISHELL. Examples of these spectra are
+included for users to practice with the tool functionalities across 
+a range of resolving powers. iSLAT has been built as a flexible
 tool that should work with one-dimensional molecular spectra observed 
 with other instruments too, provided some requirements are met (see below).
+iSLAT is presented and described in [Jellison et al. 2024](...).
 
 ## Installation and updates
 
@@ -115,6 +118,6 @@ any way. Sometimes even just moving the GUI window around for a
 moment will do the trick.
 
 ## Acknowledging iSLAT
-If you use iSLAT for your research, we would appreciate its citation 
+If you use iSLAT in your research, we would appreciate its citation 
 in any publications and oral/poster presentations. The main reference
-to cite is: Jellison et al. 2024
+to cite is: [Jellison et al. 2024](...)
