@@ -50,12 +50,16 @@ iSLAT/SAVES.
 
 ## HITRAN data
 At first launch by the user, iSLAT will download from [HITRAN](https://hitran.org/) the data
-for a default list of molecules: H2, H2O, CO, CO2, CH4, HCN, NH3, OH, 
-C2H2, C2H4, C2H6, C4H2 and their main isotopologues. 
+for a default list of molecules: H<sub>2</sub>, H<sub>2</sub>O, CO, 
+CO<sub>2</sub>, CH<sub>4</sub>, HCN, NH<sub>3</sub>, OH, 
+C<sub>2</sub>H<sub>2</sub>, C<sub>2</sub>H<sub>4</sub>, 
+C<sub>2</sub>H<sub>6</sub>, C<sub>4</sub>H<sub>2</sub>, 
+HCN, HC<sub>3</sub>N and their main isotopologues. 
 These datafiles are stored into the folder "HITRANdata" and are available to 
 load and use in iSLAT (see below). We are currently developing
 an interface function to allow users to download any other molecule 
-by request.
+by request. The current HITRAN data release as of 2024 is described in 
+[Gordon et al. 2022](https://ui.adsabs.harvard.edu/abs/2022JQSRT.27707949G/abstract).
 
 ## Parameters definitions and units
 - Model parameters: temperature is in K, radius in au (this is the 
