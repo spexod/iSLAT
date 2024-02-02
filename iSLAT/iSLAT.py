@@ -460,9 +460,9 @@ def Fit():
         gauss_area = gauss_fit.params['height'].value * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23) # to get erg/s/cm2
         #print(gauss_fit.params['center'].value)
 
-        data_field.insert(tk.END, ('\n ' + '\nGaussian fit results: ' + '\nCentroid (um)= ' + str(
-            np.round(gauss_fit.params['center'].value, decimals=5)) + '\nFWHM (km/s)= ' + str(
-            np.round(gauss_fwhm, decimals=1)) + '\nArea (erg/s/cm2)= ' + f'{gauss_area:.{3}e}'))
+        data_field.insert(tk.END, ('\n ' + '\nGaussian fit results: ' + '\nCentroid (um) = ' + str(
+            np.round(gauss_fit.params['center'].value, decimals=5)) + '\nFWHM (km/s) = ' + str(
+            np.round(gauss_fwhm, decimals=1)) + '\nArea (erg/s/cm2) = ' + f'{gauss_area:.{3}e}'))
 
         fig.canvas.draw_idle()
     else:
@@ -537,7 +537,10 @@ def update(*val):
     data_line_select, = ax2.plot([],[],color=foreground,linewidth=2)
     data_line, = ax1.plot([], [], color=foreground, linewidth=1)
     data_line.set_label('Data')
-    
+
+    ax1.set_prop_cycle (color=['dodgerblue', 'darkorange', 'orangered', 'limegreen', 'darkviolet', 'magenta',
+                               'hotpink', 'cyan', 'gold', 'turquoise', 'chocolate', 'royalblue', 'sienna', 'lime', 'blue'])
+
     # Make empty lines for the top graph for each molecule
     for mol_name, mol_filepath in molecules_data:
         molecule_name_lower = mol_name.lower()
@@ -655,13 +658,13 @@ def update(*val):
     
     # Storing the callback for the span selector
     span = SpanSelector(
-    ax1,
-    onselect,
-    "horizontal",
-    useblit=False,
-    props=dict(alpha=0.5, facecolor="tab:blue"),
-    interactive=True,
-    drag_from_anywhere=True
+        ax1,
+        onselect,
+        "horizontal",
+        useblit=False,
+        props=dict(alpha=0.5, facecolor="lime"),
+        interactive=True,
+        drag_from_anywhere=True
     )
 
     # Rebuilding the population diagram graph
@@ -815,7 +818,7 @@ def onselect(xmin, xmax):
                     'Strongest line:' + '\nUpper level = ' + str (max_up_lev) + '\nLower level = ' + str (
                 max_low_lev) + '\nWavelength (um) = ' + str (max_lamb_cnts) + '\nEinstein-A coeff. (1/s) = ' + str (
                 max_einstein) + '\nUpper level energy (K) = ' + str (f'{max_e_up:.{0}f}') +'\nOpacity = '+ str(
-                f'{max_tau:.{3}f}')+ '\nFlux (erg/s/cm2) = ' + str (f'{line_flux:.{3}e}')))
+                f'{max_tau:.{3}f}')+ '\nFlux in sel. range (erg/s/cm2) = ' + str (f'{line_flux:.{3}e}')))
 
 
         # Creating a pandas dataframe for all the info of the strongest line in the selected range
@@ -837,7 +840,7 @@ def onselect(xmin, xmax):
             data_line_select.set_data(data_region_x, data_region_y)
             ax2.set_xlim(model_region_x[0], model_region_x[-1])
             print(' ')
-            print('Lines in selected range (wavelength, upper and lower levels, E_up, A-coeff, opacity):')
+            print('Other strong lines in selected range (wavelength, upper and lower levels, E_up, A-coeff, opacity):')
             for j in range(len(lamb_cnts)):
                 if j == max_index:
                     k = j
@@ -920,7 +923,7 @@ def single_finder():
         if len(lambgroups[z]) == 1:
             idx = find_nearest(lamb_cnts,lambgroups[z]);
             if intensities[idx] >= 0.5:
-                ax1.vlines(lamb_cnts[idx], fig_bottom_height, fig_height, linestyles='dashed',color='blue')
+                ax1.vlines(lamb_cnts[idx], fig_bottom_height, fig_height+(fig_height/2), linestyles='dashed',color='tomato')
                 counter = counter +1
 
         # For the groups that have more than one line (they are closer to eachother than the threshold set when group() was called)        
@@ -952,7 +955,7 @@ def single_finder():
                     if (intensities_group[i] > max_cutoff) & (intensities_group[i] != max_value):
                         overlap = True
                 if overlap == False:
-                    ax1.vlines(lamb_cnts_group[max_index], fig_bottom_height, fig_height, linestyles='dashed',color='blue')
+                    ax1.vlines(lamb_cnts_group[max_index], fig_bottom_height, fig_height+(fig_height/2), linestyles='dashed',color='tomato')
                     counter = counter +1
 
     # Storing the callback for on_xlims_change()
@@ -981,7 +984,7 @@ def print_saved_lines():
         svd_lns=pd.read_csv(linesavepath, sep=',')
         svd_lamb = np.array(svd_lns['lam'])
         for i in range(len(svd_lamb)):
-            ax1.vlines(svd_lamb[i], -2, 2, linestyles='dashed',color='green')
+            ax1.vlines(svd_lamb[i], -2, 2, linestyles='dashed',color='red')
         data_field.delete('1.0', "end")
         data_field.insert('1.0', 'Saved lines retrieved from file.')
         canvas.draw()
@@ -1016,7 +1019,7 @@ def print_atomic_lines():
     svd_species = svd_lns['species']
 
     for i in range(len(svd_lamb)):
-        ax1.vlines(svd_lamb[i], -2, 2, linestyles='dashed', color='magenta')
+        ax1.vlines(svd_lamb[i], -2, 2, linestyles='dashed', color='tomato')
         
         # Adjust the y-coordinate to place labels within the borders
         label_y = ax1.get_ylim()[1] - 0.17 * (ax1.get_ylim()[1] - ax1.get_ylim()[0])
@@ -1024,7 +1027,7 @@ def print_atomic_lines():
         # Adjust the x-coordinate to place labels just to the right of the line
         label_x = svd_lamb[i] + 0.006 * (ax1.get_xlim()[1] - ax1.get_xlim()[0])
         
-        ax1.text(label_x, label_y, svd_species[i], rotation=90, va='bottom', ha='left', color='magenta')
+        ax1.text(label_x, label_y, svd_species[i], rotation=90, va='bottom', ha='left', color='tomato')
     
     data_field.insert('1.0', 'Atomic lines retrieved from file.')
 
@@ -1678,7 +1681,7 @@ for row, (mol_name, mol_filepath) in enumerate(molecules_data):
     # Column Density input field
     exec(f"{mol_name.lower()}_dens_field = tk.Entry(param_frame, width=6)")
     eval(f"{mol_name.lower()}_dens_field").grid(row=row + 1, column=3)
-    eval(f"{mol_name.lower()}_dens_field").insert(0, f"{n_mol_init}")
+    eval(f"{mol_name.lower()}_dens_field").insert(0, f"{n_mol_init:.{1}e}")
     globals() [f"{mol_name.lower()}_submit_col_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), ce = globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
     #eval(f"{mol_name.lower()}_submit_col_button").grid(row=row + 1, column=6)
     eval(f"{mol_name.lower()}_dens_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
@@ -2251,9 +2254,9 @@ def add_molecule_data():
             
             # Check if the molecule_name starts with a number
             if molecule_name[0].isdigit():
-                # Add 'm' to the beginning of the molecule name
-                molecule_name = 'm' + molecule_name
-            
+                # Add a "m_" to the beginning of the molecule name because python cannot take strings starting with a number
+                molecule_name = 'm_' + molecule_name
+
             molecule_name = molecule_name.upper()
             
             if molecule_name:
@@ -2538,6 +2541,7 @@ def del_molecule_data():
 
 
 
+# Function to download extra data from HITRAN, to be finished..
 def down_molecule_data(val):
     url = "https://hitran.org/lbl/"
     browsers = ["chrome", "edge", "firefox", "safari"]
@@ -2726,7 +2730,7 @@ span = SpanSelector(
     onselect,
     "horizontal",
     useblit=False,
-    props=dict(alpha=0.5, facecolor="tab:blue"),
+    props=dict(alpha=0.5, facecolor="lime"),
     interactive=True,
     drag_from_anywhere=True
 )
