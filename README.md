@@ -23,7 +23,7 @@ or email us at spexodisks@gmail.com
 
 Make sure you have [git](https://github.com/git-guides/install-git) and [pip](https://pip.pypa.io/en/stable/installation/) installed, 
 then run these terminal commands sequentially from within the
-folder where you wish iSLAT to be installed:
+folder where you wish your local copy of iSLAT to be:
 
     git clone https://github.com/spexod/iSLAT
     cd iSLAT
@@ -36,7 +36,7 @@ To launch iSLAT, simply type:
 
 ### Update to the latest version from GitHub:
 
-Remember to update the repository from GitHub from time to time,
+Remember to update the repository from GitHub from time to time;
 from your local iSLAT folder type on terminal:
 
     git pull https://github.com/spexod/iSLAT
@@ -44,7 +44,8 @@ from your local iSLAT folder type on terminal:
 ## Input and outputs
 iSLAT requires a flat, continuum-subtracted spectrum as input data 
 file in csv format, with a wavelength array in μm ("wave") and flux 
-array in Jy ("flux").
+array in Jy ("flux"). The step of subtracting the continuum can be
+done e.g. with this tool: [ctool](https://github.com/pontoppi/ctool).
 The outputs are txt or csv files that save model parameters, spectra,
 or line lists as defined by users (see more below). User model parameter
 saves (using the function "Save Parameters") are stored in the folder
@@ -84,38 +85,38 @@ emission), column density in cm<sup>-2</sup>.
   in the model for the molecule selected in the drop-down menu
 
 ## Quick reference for main functions
-- Save parameters: save in an output file the current model parameters 
+- **Save parameters**: save in an output file the current model parameters 
 (T, R, N) for each molecule; the output file will have the same name 
 as the input observed spectrum plus "-save.txt" and will be stored in
 the folder iSLAT/SAVES
-- Load parameters: loads previously saved model parameters from output
+- **Load parameters**: loads previously saved model parameters from output
 file created with "Save Parameters" from the folder iSLAT/SAVES
-- Export models: export a specific or all model spectra in an output 
+- **Export models**: export a specific or all model spectra in an output 
 csv file
-- Selecting a line: by dragging a region in the top spectrum plot, the
+- **Selecting a line**: by dragging a region in the top spectrum plot, the
 spectral region gets visualized in the bottom left plot with the 
 addition of the individual transitions that dominate the emission;
 the strongest of these transitions is highlighted in orange and its
 properties are reported in the text box at the bottom left of the GUI
-- Save line: save strongest line currently selected into an output 
+- **Save line**: save strongest line currently selected into an output 
 csv file that will include all the line parameters; this function
 needs the selection/definition of an output file from the folder 
 LINESAVES under "Saved lines file"
-- Fit line: fit selected line with a Gaussian function using [LMFIT](https://lmfit.github.io/lmfit-py/index.html);
+- **Fit line**: fit selected line with a Gaussian function using [LMFIT](https://lmfit.github.io/lmfit-py/index.html);
 full fit results are reported in the terminal, while a selection in
 the text box
-- Show saved lines: marks lines saved into the output file selected 
+- **Show saved lines**: marks lines saved into the output file selected 
 under "Saved lines file"
-- Show atomic lines: marks and labels atomic lines from the list 
+- **Show atomic lines**: marks and labels atomic lines from the list 
 saved in the folder ATOMLINES
-- Find single lines: identifies and marks isolated lines using
+- **Find single lines**: identifies and marks isolated lines using
 the parameter "Line separ." as their spectral separation
-- Add molecule: loads a molecule into the list of available molecules
+- **Add molecule**: loads a molecule into the list of available molecules
 at the top left of the GUI; the new molecule must already be downloaded
 from HITRAN and stored in a .par file in the folder "HITRANdata"
-- Clear molecules: removes any additional molecules and leaves the 
+- **Clear molecules**: removes any additional molecules and leaves the 
 default ones only
-- Molecule drop-down menu: select which molecule is considered for
+- **Molecule drop-down menu**: select which molecule is considered for
 the zoomed-in plot and the rotation diagram, and for the "Find single
 lines" function
 
@@ -130,16 +131,19 @@ and [Pontoppidan et al. 2024](https://ui.adsabs.harvard.edu/abs/2023arXiv2311170
 , reduced as described in [Pontoppidan et al. 2010](https://ui.adsabs.harvard.edu/abs/2010ApJ...720..887P/abstract)
 
 The original spectra (not continuum-subtracted) are available on
-[spexodisks.com](www.spexodisks.com).
+[spexodisks.com](www.spexodisks.com). Users who wish to use any of these spectra 
+in their research work should use the original data and cite the
+original publication papers.
 
 ## Known issues
 If you use iSLAT on an Apple-silicon Mac, there is a known issue with 
 tkinter where the GUI often does not take a new input or click; the
-solution is to "wake up" the GUI by slightly resizing it windows in 
+solution is to "wake up" the GUI by slightly resizing it window in 
 any way. Sometimes even just moving the GUI window around for a 
-moment will do the trick.
+moment will do the trick. Hopefully this will be fixed in a new
+release of tkinter (this is not an issue of iSLAT).
 
 ## Acknowledging iSLAT
-If you use iSLAT in your research, we would appreciate its citation 
+If you use iSLAT in your research, please add its citation 
 in any publications and oral/poster presentations. The main reference
 to cite is: [Jellison et al. 2024](...)
