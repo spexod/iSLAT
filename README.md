@@ -21,7 +21,9 @@ or email us at spexodisks@gmail.com
 
 ### Download and run the latest version from GitHub:
 
-Make sure you have [git](https://github.com/git-guides/install-git) and [pip](https://pip.pypa.io/en/stable/installation/) installed, and then run these commands sequentially:
+Make sure you have [git](https://github.com/git-guides/install-git) and [pip](https://pip.pypa.io/en/stable/installation/) installed, 
+then run these terminal commands sequentially from within the
+folder where you wish iSLAT to be installed:
 
     git clone https://github.com/spexod/iSLAT
     cd iSLAT
@@ -62,7 +64,7 @@ by request. The current HITRAN data release as of 2024 is described in
 [Gordon et al. 2022](https://ui.adsabs.harvard.edu/abs/2022JQSRT.27707949G/abstract).
 
 ## Parameters definitions and units
-General note for all parameters in the GUI: *every time you update any 
+**General note for all parameters in the GUI:** *every time you update any 
 value, hit "return/enter" on your keyboard to make them effective.
 A confirmation will appear in the message box in iSLAT.*
 - Molecular model parameters: temperature is in K, radius in au (this is the 
