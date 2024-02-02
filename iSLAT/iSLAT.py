@@ -2096,7 +2096,9 @@ spandropd.bind("<<ComboboxSelected>>", lambda event: on_span_select((spanoptions
 
 
 spanmol = (spanoptionsvar[spandropd.current()]).lower()   
-    
+
+
+# create buttons for top of GUI
 nb_of_columns = 10 # to be replaced by the relevant number
 titleframe = tk.Frame(window, bg ="gray")
 titleframe.grid(row=0, column=0, columnspan=nb_of_columns, sticky='ew')
@@ -2109,23 +2111,42 @@ def toggle_fullscreen():
 fullscreen_button = tk.Button(titleframe, text="Toggle Fullscreen", bg='blue', activebackground='darkblue', command=toggle_fullscreen, width=12, height=1)
 fullscreen_button.grid(row = 0, column = 0)
 
+# Create the 'Add Mol.' button
+addmol_button = tk.Button(titleframe, text='Add Molecule', bg='lightgray', activebackground='gray', command=lambda: add_molecule_data(), width=12, height=1)
+addmol_button.grid(row=0, column=1)
+
+# Create the 'Clear Mol.' button
+clearmol_button = tk.Button(titleframe, text='Clear Molecules', bg='lightgray', activebackground='gray', command=lambda: del_molecule_data(), width=12, height=1)
+clearmol_button.grid(row=0, column=2)
+
 # Create the 'Save Changes' button
 saveparams_button = tk.Button(titleframe, text='Save Parameters', bg='lightgray', activebackground='gray', command=lambda: saveparams_button_clicked(), width=12, height=1)
-saveparams_button.grid(row=0, column=1)
+saveparams_button.grid(row=0, column=3)
 
 # Create the 'Load Save' button
 loadparams_button = tk.Button(titleframe, text='Load Parameters', bg='lightgray', activebackground='gray', command=lambda: loadparams_button_clicked(), width=12, height=1)
-loadparams_button.grid(row=0, column=2)
-
+loadparams_button.grid(row=0, column=4)
 
 export_button = tk.Button(titleframe, text='Export Models', bg='lightgray', command=export_spectrum, width=12, height=1)
-export_button.grid(row=0, column=3)
+export_button.grid(row=0, column=5)
 
+def toggle_legend():
+    if ax1.legend_ is None:
+        ax1.legend ()
+    else:
+        ax1.legend_.remove ()
+    canvas.draw ()
+
+# Create a Tkinter button to toggle the legend
+toggle_button = tk.Button (titleframe, text="Toggle Legend", bg='lightgray', activebackground='gray', command=toggle_legend)
+toggle_button.grid (row=0, column=6)
+
+
+
+# Create and place the buttons for other functions below the molecule box
 buttonframe = tk.Frame(window)
 buttonframe.grid(row=23, column=0, rowspan=1, columnspan=6, sticky='nsew')
 
-
-# Create and place the buttons in the specified rows and columns
 save_button = tk.Button(buttonframe, text="Save Line", bg='lightgray', activebackground='gray', command=Save, width=13, height=1)
 save_button.grid(row=0, column=0)
 
@@ -2145,26 +2166,10 @@ autofind_button.grid(row=2, column=0)
 atomlines_button = tk.Button(buttonframe, text='Show Atomic Lines', bg='lightgray', activebackground='gray', command=lambda: print_atomic_lines(), width=13, height=1)
 atomlines_button.grid(row=2, column=1)
 
-# Create the 'Add Mol.' button
-addmol_button = tk.Button(buttonframe, text='Add Molecule', bg='lightgray', activebackground='gray', command=lambda: add_molecule_data(), width=13, height=1)
-addmol_button.grid(row=3, column=0)
-
-# Create the 'Clear Mol.' button
-clearmol_button = tk.Button(buttonframe, text='Clear Molecules', bg='lightgray', activebackground='gray', command=lambda: del_molecule_data(), width=13, height=1)
-clearmol_button.grid(row=3, column=1)
 
 
 
-def toggle_legend():
-    if ax1.legend_ is None:
-        ax1.legend()
-    else:
-        ax1.legend_.remove()
-    canvas.draw()
-    
-# Create a Tkinter button to toggle the legend
-toggle_button = tk.Button(titleframe, text="Toggle Legend", bg='lightgray', activebackground='gray', command=toggle_legend)
-toggle_button.grid(row=0, column=4)
+
 """
 # Create a label (thin horizontal line) to fill the rest of row 0 with gray
 for col in range(2, 10):  # Adjust the column range as needed

@@ -72,19 +72,26 @@ A confirmation will appear in the message box in iSLAT.*
 radius of the equivalent emitting area, not the orbital radius of the 
 emission), column density in cm<sup>-2</sup>. 
 - Other parameters: 
-  - plot start/range and min/max wavelength (i.e. the spectral range
+  - **Plot start/range** (just for the plot) and 
+  **min/max wavelength** (the spectral range
   for computing the model) are in μm
-  - distance is in pc
-  - stellar RV is Heliocentric and in km/s, and will shift the observed 
+  - **Distance** is in pc
+  - **Stellar RV** is Heliocentric and in km/s, and will shift the observed 
   spectrum (not the model)
-  - line FWHM is in km/s, and is used in convolution of the model to
+  - line **FWHM** is in km/s, and is used in convolution of the model to
   match the observed line widths
-  - line broadening is in km/s and is the FWHM of the intrinsic line
+  - line **broadening** is in km/s and is the FWHM of the intrinsic line
   broadening due to thermal motion or turbulence
-  - line separation is in μm, and is used to identify isolated lines
+  - **line separation** is in μm, and is used to identify isolated lines
   in the model for the molecule selected in the drop-down menu
 
 ## Quick reference for main functions
+### General functions (top of the GUI)
+- **Add molecule**: loads a molecule into the list of available molecules
+at the top left of the GUI; the new molecule must already be downloaded
+from HITRAN and stored in a .par file in the folder "HITRANdata"
+- **Clear molecules**: removes any additional molecules and leaves the 
+default ones only
 - **Save parameters**: save in an output file the current model parameters 
 (T, R, N) for each molecule; the output file will have the same name 
 as the input observed spectrum plus "-save.txt" and will be stored in
@@ -93,6 +100,8 @@ the folder iSLAT/SAVES
 file created with "Save Parameters" from the folder iSLAT/SAVES
 - **Export models**: export a specific or all model spectra in an output 
 csv file
+
+### Spectral analysis functions
 - **Selecting a line**: by dragging a region in the top spectrum plot, the
 spectral region gets visualized in the bottom left plot with the 
 addition of the individual transitions that dominate the emission;
@@ -111,11 +120,6 @@ under "Saved lines file"
 saved in the folder ATOMLINES
 - **Find single lines**: identifies and marks isolated lines using
 the parameter "Line separ." as their spectral separation
-- **Add molecule**: loads a molecule into the list of available molecules
-at the top left of the GUI; the new molecule must already be downloaded
-from HITRAN and stored in a .par file in the folder "HITRANdata"
-- **Clear molecules**: removes any additional molecules and leaves the 
-default ones only
 - **Molecule drop-down menu**: select which molecule is considered for
 the zoomed-in plot and the rotation diagram, and for the "Find single
 lines" function
