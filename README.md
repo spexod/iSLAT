@@ -14,6 +14,9 @@ tool that should work with one-dimensional molecular spectra observed
 with other instruments too, provided some requirements are met (see below).
 iSLAT is presented and described in [Jellison et al. 2024](...).
 
+Questions? Feedback? Contributions? Submit an issue, a pull request,
+or email us at spexodisks@gmail.com
+
 ## Installation and updates
 
 ### Download and run the latest version from GitHub:
@@ -29,7 +32,10 @@ To launch iSLAT, simply type:
     cd iSLAT
     python iSLAT.py
 
-Remember to update the repository from GitHub when a new version is available:
+### Update to the latest version from GitHub:
+
+Remember to update the repository from GitHub from time to time,
+from your local iSLAT folder type on terminal:
 
     git pull https://github.com/spexod/iSLAT
 
@@ -38,7 +44,9 @@ iSLAT requires a flat, continuum-subtracted spectrum as input data
 file in csv format, with a wavelength array in μm ("wave") and flux 
 array in Jy ("flux").
 The outputs are txt or csv files that save model parameters, spectra,
-or line lists as defined by users (see more below).
+or line lists as defined by users (see more below). User model parameter
+saves (using the function "Save Parameters") are stored in the folder
+iSLAT/SAVES.
 
 ## HITRAN data
 At first launch by the user, iSLAT will download from HITRAN the data
@@ -50,27 +58,29 @@ an interface function to allow users to download any other molecule
 by request.
 
 ## Parameters definitions and units
-- Model parameters: temperature is in K, radius in au, column density
-in cm<sup>-2</sup> 
+- Model parameters: temperature is in K, radius in au (this is the 
+radius of the equivalent emitting area, not the orbital radius of the 
+emission), column density in cm<sup>-2</sup> 
 - Other parameters: 
-  - plot start/range and min/max wavelength (which the spectral range
+  - plot start/range and min/max wavelength (i.e. the spectral range
   for computing the model) are in μm
   - distance is in pc
-  - stellar RV is in km/s, and will shift the observed spectrum accordingly
+  - stellar RV is Heliocentric and in km/s, and will shift the observed 
+  spectrum (not the model)
   - line FWHM is in km/s, and is used in convolution of the model to
   match the observed line widths
   - line broadening is in km/s and is the FWHM of the intrinsic line
   broadening due to thermal motion or turbulence
   - line separation is in μm, and is used to identify isolated lines
-  in the current water model
+  in the model for the molecule selected in the drop-down menu
 
 ## Quick reference for main functions
 - Save parameters: save in an output file the current model parameters 
 (T, R, N) for each molecule; the output file will have the same name 
 as the input observed spectrum plus "-save.txt" and will be stored in
-the folder SAVES
+the folder iSLAT/SAVES
 - Load parameters: loads previously saved model parameters from output
-file created with "Save parameters"
+file created with "Save Parameters" from the folder iSLAT/SAVES
 - Export models: export a specific or all model spectra in an output 
 csv file
 - Selecting a line: by dragging a region in the top spectrum plot, the
@@ -89,13 +99,16 @@ the text box
 under "Saved lines file"
 - Show atomic lines: marks and labels atomic lines from the list 
 saved in the folder ATOMLINES
-- Find single lines: identifies and marks isolated water lines using
+- Find single lines: identifies and marks isolated lines using
 the parameter "Line separ." as their spectral separation
 - Add molecule: loads a molecule into the list of available molecules
 at the top left of the GUI; the new molecule must already be downloaded
 from HITRAN and stored in a .par file in the folder "HITRANdata"
 - Clear molecules: removes any additional molecules and leaves the 
 default ones only
+- Molecule drop-down menu: select which molecule is considered for
+the zoomed-in plot and the rotation diagram, and for the "Find single
+lines" function
 
 ## Data examples
 iSLAT's release includes some continuum-subtracted spectra of 
