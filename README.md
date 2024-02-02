@@ -49,7 +49,7 @@ saves (using the function "Save Parameters") are stored in the folder
 iSLAT/SAVES.
 
 ## HITRAN data
-At first launch by the user, iSLAT will download from HITRAN the data
+At first launch by the user, iSLAT will download from [HITRAN](https://hitran.org/) the data
 for a default list of molecules: H2, H2O, CO, CO2, CH4, HCN, NH3, OH, 
 C2H2, C2H4, C2H6, C4H2 and their main isotopologues. 
 These datafiles are stored into the folder "HITRANdata" and are available to 
@@ -92,7 +92,7 @@ properties are reported in the text box at the bottom left of the GUI
 csv file that will include all the line parameters; this function
 needs the selection/definition of an output file from the folder 
 LINESAVES under "Saved lines file"
-- Fit line: fit selected line with a Gaussian function using LMFIT;
+- Fit line: fit selected line with a Gaussian function using [LMFIT](https://lmfit.github.io/lmfit-py/index.html);
 full fit results are reported in the terminal, while a selection in
 the text box
 - Show saved lines: marks lines saved into the output file selected 
