@@ -62,9 +62,12 @@ by request. The current HITRAN data release as of 2024 is described in
 [Gordon et al. 2022](https://ui.adsabs.harvard.edu/abs/2022JQSRT.27707949G/abstract).
 
 ## Parameters definitions and units
-- Model parameters: temperature is in K, radius in au (this is the 
+General note for all parameters in the GUI: *every time you update any 
+value, hit "return/enter" on your keyboard to make them effective.
+A confirmation will appear in the message box in iSLAT.*
+- Molecular model parameters: temperature is in K, radius in au (this is the 
 radius of the equivalent emitting area, not the orbital radius of the 
-emission), column density in cm<sup>-2</sup> 
+emission), column density in cm<sup>-2</sup>. 
 - Other parameters: 
   - plot start/range and min/max wavelength (i.e. the spectral range
   for computing the model) are in μm
