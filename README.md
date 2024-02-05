@@ -17,6 +17,15 @@ a screenshot of iSLAT's GUI is provided here:
 
 ![iSLAT's GUI v3.10](./iSLAT_v310.png)
 
+*We built iSLAT to make the analysis of infrared molecular spectra
+an accessible, enjoyable, and rewarding experience for all, including
+the youngest students who are starting in the field today. We 
+believe iSLAT will be useful to many students and professional researchers,
+and we will continue to support it and expand it with care for all users.
+If you find a bug, please be patient and let us know; we want to fix
+it as much as you do! And if you have ideas to improve the tool, 
+we'd love to hear.*
+
 Questions? Feedback? Contributions? Submit an issue, a pull request,
 or email us at spexodisks@gmail.com
 
@@ -69,9 +78,12 @@ by request. The current HITRAN data release as of 2024 is described in
 
 ## Parameters definitions and units
 **General note for all parameters in the GUI:** *every time you update any 
-value, hit "return/enter" on your keyboard to make them effective.
+value, hit "return/enter" on your keyboard to apply the new value to the model.
+This has to be done for each parameter individually, e.g. when submitting 
+a new temperature for a given molecule, or updating the distance for given object.
 A confirmation will appear in the message box in iSLAT.*
-- Molecular model parameters: temperature is in K, radius in au (this is the 
+
+- **Molecular model parameters**: temperature is in K, radius in au (this is the 
 radius of the equivalent emitting area, not the orbital radius of the 
 emission), column density in cm<sup>-2</sup>. 
 - Other parameters: 
