@@ -12,7 +12,7 @@ included for users to practice with the tool functionalities across
 a range of resolving powers. iSLAT has been built as a flexible
 tool that should work with one-dimensional molecular spectra observed 
 with other instruments too, provided some requirements are met (see below).
-iSLAT is presented and described in [Jellison et al. 2024](https://arxiv.org/abs/2402.04060); 
+iSLAT is presented and described in [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract); 
 a screenshot of iSLAT's GUI is provided here:
 
 ![iSLAT's GUI v3.10](./iSLAT_v310.png)
@@ -180,4 +180,4 @@ If you find iSLAT useful for your research, and if you can remember
 doing it, please add its citation in your publications and oral/poster 
 presentations. It's just a way to say "thank you". 
 The main reference to cite is: 
-[Jellison et al. 2024](https://arxiv.org/abs/2402.04060)
+[Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract)
