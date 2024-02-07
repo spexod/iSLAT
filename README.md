@@ -154,7 +154,16 @@ The original spectra (not continuum-subtracted) are available on
 in their research work should use the original data and cite the
 original publication papers.
 
-## Known issues
+## Caveats and known issues
+The simple slab model used in iSLAT includes line opacity and saturation
+with a curve-of-growth method, but does not account for opacity
+overlap between nearby lines (see details in the appendix of [Banzatti et al. 2012](https://ui.adsabs.harvard.edu/abs/2012ApJ...745...90B/abstract)).
+This implies that some emission lines in iSLAT will look stronger 
+than they should be, specifically where there are clusters of transitions
+that are partially or fully optically thick. Users that wish to model
+those lines correctly can use other available slab model codes: 
+[spectools-ir](https://github.com/csalyk/spectools_ir/) or [iris](https://github.com/munozcar/IRIS).
+
 If you use iSLAT on an Apple-silicon Mac, there is a known issue with 
 tkinter where the GUI often does not take a new input or click; the
 solution is to "wake up" the GUI by slightly resizing it window in 
