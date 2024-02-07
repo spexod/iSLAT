@@ -12,7 +12,7 @@ included for users to practice with the tool functionalities across
 a range of resolving powers. iSLAT has been built as a flexible
 tool that should work with one-dimensional molecular spectra observed 
 with other instruments too, provided some requirements are met (see below).
-iSLAT is presented and described in [Jellison et al. 2024](...); 
+iSLAT is presented and described in [Jellison et al. 2024](https://arxiv.org/abs/2402.04060); 
 a screenshot of iSLAT's GUI is provided here:
 
 ![iSLAT's GUI v3.10](./iSLAT_v310.png)
@@ -162,7 +162,22 @@ any way. Sometimes even just moving the GUI window around for a
 moment will do the trick. Hopefully this will be fixed in a new
 release of tkinter (this is not an issue of iSLAT).
 
-## Acknowledging iSLAT
-If you use iSLAT in your research, please add its citation 
-in any publications and oral/poster presentations. The main reference
-to cite is: [Jellison et al. 2024](...)
+## Acknowledgements
+It is hard to remember to acknowledge and cite all the tools 
+we use in research, and often it is impossible to offer more than 
+personal gratitude to the many people who have contributed to the
+tools and instruments we use. Science is a community endeavor that 
+always builds "on the shoulders of giants", but these giants are
+by now a multitude and are most often unknown. They simply did
+good work and shared it, and left a heritage that became useful 
+to others.
+
+iSLAT's story is similar: it is the outcome of experience, passion,
+and complementary contributions of multiple people spanning more 
+than 14 years, if we focus on the four main authors.
+We offer our gratitude for all the tools we have used to build iSLAT. 
+If you find iSLAT useful for your research, and if you can remember
+doing it, please add its citation in your publications and oral/poster 
+presentations. It's just a way to say "thank you". 
+The main reference to cite is: 
+[Jellison et al. 2024](https://arxiv.org/abs/2402.04060)
