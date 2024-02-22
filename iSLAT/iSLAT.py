@@ -250,12 +250,12 @@ if __name__ == "__main__":
 
 # Define the default molecules and their file path; the folder must be in the same path as iSLAT
 molecules_data = [
-    ("H2O", "HITRANdata/data_Hitran_2020_H2O.par"),
-    ("OH", "HITRANdata/data_Hitran_2020_OH.par"),
-    ("HCN", "HITRANdata/data_Hitran_2020_HCN.par"),
-    ("C2H2", "HITRANdata/data_Hitran_2020_C2H2.par"),
-    ("CO2", "HITRANdata/data_Hitran_2020_CO2.par"),
-    ("CO", "HITRANdata/data_Hitran_2020_CO.par")
+    ("H2O", "HITRANdata/data_Hitran_2020_H2O.par", "H2O"),
+    ("OH", "HITRANdata/data_Hitran_2020_OH.par", "OH"),
+    ("HCN", "HITRANdata/data_Hitran_2020_HCN.par", "HCN"),
+    ("C2H2", "HITRANdata/data_Hitran_2020_C2H2.par", "C2H2"),
+    ("CO2", "HITRANdata/data_Hitran_2020_CO2.par", "CO2"),
+    ("CO", "HITRANdata/data_Hitran_2020_CO.par", "CO")
     # Add more molecules here if needed
 ]
 
@@ -355,7 +355,7 @@ print(' ')
 print ('Loading molecule files: ...')
 
 # Loop through each molecule and set up the necessary objects and variables
-for mol_name, mol_filepath in molecules_data:
+for mol_name, mol_filepath, mol_label in molecules_data:
     # Import line lists from the ir_model folder
     mol_data = MolData(mol_name, mol_filepath)
 
@@ -542,14 +542,14 @@ def update(*val):
                                'hotpink', 'cyan', 'gold', 'turquoise', 'chocolate', 'royalblue', 'sienna', 'lime', 'blue'])
 
     # Make empty lines for the top graph for each molecule
-    for mol_name, mol_filepath in molecules_data:
+    for mol_name, mol_filepath, mol_label in molecules_data:
         molecule_name_lower = mol_name.lower()
         
         if molecule_name_lower in deleted_molecules:
             continue
         
         exec(f"{molecule_name_lower}_line, = ax1.plot([], [], alpha=1, linewidth=2, ls='--')", globals())
-        exec(f"{molecule_name_lower}_line.set_label('{mol_name}')", globals())
+        exec(f"{molecule_name_lower}_line.set_label('{mol_label}')", globals())
     #sum_line, = ax1.plot([], [], color='gray', linewidth=1)
     #sum_line.set_label('Sum')
     ax1.legend()
@@ -557,7 +557,7 @@ def update(*val):
     # h2o, oh, hcn, and c2h2 are variables that are set to True or false depending if the molecule is currently selected in the tool
     # If True, then that molecule's model is rebuilt with any new conditions (as set by the sliders or text input) that may have called the update() function
     # See h2o_select()
-    for mol_name, mol_filepath in molecules_data:
+    for mol_name, mol_filepath, mol_label in molecules_data:
         molecule_name_lower = mol_name.lower()
 
         # Intensity calculation
@@ -598,7 +598,7 @@ def update(*val):
     # Calculate total fluxes based on visibility conditions
     for i in range(len(lambdas_h2o)):
         flux_sum = 0
-        for mol_name, mol_filepath in molecules_data:
+        for mol_name, mol_filepath, mol_label in molecules_data:
             
 
             mol_name_lower = mol_name.lower()
@@ -617,7 +617,7 @@ def update(*val):
             ax1.fill_between(lambdas_h2o, total_fluxes, color='lightgray', alpha=1)
 
     # populating the empty lines created earlier in the function
-    for mol_name, mol_filepath in molecules_data:
+    for mol_name, mol_filepath, mol_label in molecules_data:
         molecule_name_lower = mol_name.lower()
 
         # Dynamically set the data for each molecule's line using exec and globals()
@@ -629,7 +629,7 @@ def update(*val):
     alpha_set = .2
 
     
-    for mol_name, mol_filepath in molecules_data:
+    for mol_name, mol_filepath, mol_label in molecules_data:
         molecule_name_lower = mol_name.lower()
         vis_status_var = globals()[f"{molecule_name_lower}_vis"]
         line_var = globals()[f"{molecule_name_lower}_line"]
@@ -1136,7 +1136,7 @@ def submit_col(event, text):
     # Calculate total fluxes based on visibility conditions
     for i in range(len(lambdas_h2o)):
         flux_sum = 0
-        for mol_name, mol_filepath in molecules_data:
+        for mol_name, mol_filepath, mol_label in molecules_data:
             
 
             mol_name_lower = mol_name.lower()
@@ -1250,7 +1250,7 @@ def submit_temp(event, text):
     # Calculate total fluxes based on visibility conditions
     for i in range(len(lambdas_h2o)):
         flux_sum = 0
-        for mol_name, mol_filepath in molecules_data:
+        for mol_name, mol_filepath, mol_label in molecules_data:
             
 
             mol_name_lower = mol_name.lower()
@@ -1313,7 +1313,7 @@ def submit_rad(event, text):
     # Calculate total fluxes based on visibility conditions
     for i in range(len(lambdas_h2o)):
         flux_sum = 0
-        for mol_name, mol_filepath in molecules_data:
+        for mol_name, mol_filepath, mol_label in molecules_data:
             
 
             mol_name_lower = mol_name.lower()
@@ -1385,14 +1385,14 @@ skip = False
 selectedline = False
 
 # Initialize visibility booleans for each molecule
-molecule_names = [mol_name.lower() for mol_name, _ in molecules_data]
+molecule_names = [mol_name.lower() for mol_name, _ , _ in molecules_data]
 for mol_name in molecule_names:
     if mol_name == 'h2o':
         globals()[f"{mol_name}_vis"] = True
     else:
         globals()[f"{mol_name}_vis"] = False
 
-for mol_name, mol_filepath in molecules_data:
+for mol_name, mol_filepath, mol_label in molecules_data:
     molecule_name_lower = mol_name.lower()
 
     # Column density
@@ -1424,7 +1424,7 @@ def selectfileinit():
     
     filetypes = [('CSV Files', '*.csv')]
     # Ask the user to select a file
-    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectra Data File', filetypes=filetypes)
+    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectrum Data File', filetypes=filetypes)
 
     if infiles:
         for file_path in infiles:
@@ -1516,6 +1516,9 @@ def update_initvals():
     update()
     canvas.draw()
 
+    data_field.delete ('1.0', "end")
+    data_field.insert ('1.0', 'Parameter updated!')
+
 
 
 # # Functing to limit the user input from the previous prompts to the range of the data you're inspecting
@@ -1528,7 +1531,7 @@ def update_initvals():
 # Set the headers for the saved lines csv to start at True
 headers = True
 
-for mol_name, mol_filepath in molecules_data:
+for mol_name, mol_filepath, mol_label in molecules_data:
     molecule_name_lower = mol_name.lower()
 
     # Intensity calculation
@@ -1569,14 +1572,14 @@ ax1.set_xlim(xmin=xp1, xmax=xp2)
 plt.rcParams['font.size'] = 10
 data_line, = ax1.plot(wave_cnts, flux_cnts, color=foreground, linewidth=1)
 
-for mol_name, mol_filepath in molecules_data:
+for mol_name, mol_filepath, mol_label in molecules_data:
         molecule_name_lower = mol_name.lower()
         
         if molecule_name_lower == 'h2o':
             exec(f"{molecule_name_lower}_line, = ax1.plot({molecule_name_lower}_spectrum.lamgrid, fluxes_{molecule_name_lower}, alpha=0.8, linewidth=1)", globals())
         else:
             exec(f"{molecule_name_lower}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
-        exec(f"{molecule_name_lower}_line.set_label('{mol_name}')", globals())
+        exec(f"{molecule_name_lower}_line.set_label('{mol_label}')", globals())
 data_line.set_label('Data')
 sum_line, = ax1.plot([], [], color='purple', linewidth=1)
 sum_line.set_label('Sum')
@@ -1645,7 +1648,7 @@ for col, label in enumerate(column_labels):
     label_widget.grid(row=0, column=col)
 
 # Loop to create rows of input fields and buttons for each chemical
-for row, (mol_name, mol_filepath) in enumerate(molecules_data):
+for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
     global nextrow
     y_row = start_y + row_height * (num_rows - row - 1)
     row = row + 1
@@ -1660,7 +1663,7 @@ for row, (mol_name, mol_filepath) in enumerate(molecules_data):
     # Row label
     exec(f"{mol_name.lower()}_rowl_field = tk.Entry(param_frame, width=6)")
     eval(f"{mol_name.lower()}_rowl_field").grid(row=row + 1, column=0)
-    eval(f"{mol_name.lower()}_rowl_field").insert(0, f"{mol_name}")
+    eval(f"{mol_name.lower()}_rowl_field").insert(0, f"{mol_label}")
 
     # Temperature input field
     exec(f"{mol_name.lower()}_temp_field = tk.Entry(param_frame, width=4)")
@@ -1714,7 +1717,7 @@ def save_variables_to_file(file_name, variable_names, *variables):
     filename = os.path.join(save_folder, f"{file_name}-save.txt")
 
     with open(filename, 'w') as file:
-        for mol_name, mol_filepath in molecules_data:
+        for mol_name, mol_filepath, mol_label in molecules_data:
             file.write(f"t_{mol_name.lower()}: {globals()['t_' + mol_name.lower()]}\n")
             file.write(f"{mol_name.lower()}_radius: {globals()[mol_name.lower() + '_radius']}\n")
             file.write(f"n_mol_{mol_name.lower()}: {globals()['n_mol_' + mol_name.lower()]}\n")
@@ -1759,7 +1762,7 @@ def load_variables_from_file(file_name):
         variable_name, variable_value = line.strip().split(': ')
         exec(f"global {variable_name}\n{variable_name} = {variable_value}")
     
-    for mol_name, mol_filepath in molecules_data:
+    for mol_name, mol_filepath, mol_label in molecules_data:
         eval(f"{mol_name.lower()}_temp_field").delete(0, "end")
         eval(f"{mol_name.lower()}_temp_field").insert(0, eval(f"t_{mol_name.lower()}"))
         
@@ -2207,7 +2210,7 @@ set_file_permissions("molecules_data.csv", 0o666)  # Here, 0o666 sets read and w
 def write_to_csv(data):
     with open('molecules_data.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['Molecule Name', 'File Path'])
+        writer.writerow(['Molecule Name', 'File Path', 'Molecule Label'])
         writer.writerows(data)
 
 def add_molecule_data():
@@ -2250,12 +2253,17 @@ def add_molecule_data():
             mol_file_name = os.path.basename(file_path)
 
             # Ask the user to enter the molecule name
-            molecule_name = simpledialog.askstring("Molecule Name", "Enter the molecule name (not case sensitive):", parent=window)
-            
+            molecule_name = simpledialog.askstring("Molecule Name", "Enter a label for this molecule (case sensitive):", parent=window)
+            molecule_label = molecule_name
+
             # Check if the molecule_name starts with a number
             if molecule_name[0].isdigit():
                 # Add a "m_" to the beginning of the molecule name because python cannot take strings starting with a number
                 molecule_name = 'm_' + molecule_name
+
+            # remove any spaces or "-" and replace with "_"
+            molecule_name = molecule_name.replace(" ","_")
+            molecule_name = molecule_name.replace("-","_")
 
             molecule_name = molecule_name.upper()
             
@@ -2276,7 +2284,7 @@ def add_molecule_data():
                 relative_path = os.path.relpath(mol_file_path, start=script_directory)
                 if common_directory in relative_path:
                     relative_path = os.path.join(common_directory, relative_path.split(common_directory, 1)[1].lstrip(os.path.sep)).replace('\\', '/')
-                molecules_data.append((molecule_name, relative_path))
+                molecules_data.append((molecule_name, relative_path, molecule_label))
                 
                 #make sure molecule is no longer in deleted array
                 if molecule_name.lower() in deleted_molecules:
@@ -2329,7 +2337,7 @@ def add_molecule_data():
                 # Row label
                 exec(f"{molecule_name.lower()}_rowl_field = tk.Entry(param_frame, width=6)", globals())
                 eval(f"{molecule_name.lower()}_rowl_field").grid(row=row+1, column=0)
-                eval(f"{molecule_name.lower()}_rowl_field").insert(0, f"{molecule_name}")
+                eval(f"{molecule_name.lower()}_rowl_field").insert(0, f"{molecule_label}")
                 molecule_elements[molecule_name.lower()] = {'rowl': molecule_name.lower() + '_rowl_field'}
                 
                 # Temperature input field
@@ -2374,7 +2382,7 @@ def add_molecule_data():
                 nextrow += 1
                 
                 exec(f"{molecule_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
-                exec(f"{molecule_name.lower()}_line.set_label('{molecule_name}')", globals())
+                exec(f"{molecule_name.lower()}_line.set_label('{molecule_label}')", globals())
                 
                 # Column density
                 exec(f"global n_mol_{molecule_name.lower()}; n_mol_{molecule_name.lower()} = n_mol_{molecule_name.lower()}_init")
@@ -2434,7 +2442,7 @@ def add_molecule_data():
                 
                 
             else:
-                print("Molecule name not provided.")
+                print("Molecule label not provided.")
     else:
         print("No files selected.")
         
