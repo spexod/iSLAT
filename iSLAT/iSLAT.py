@@ -250,14 +250,16 @@ if __name__ == "__main__":
 
 # Define the default molecules and their file path; the folder must be in the same path as iSLAT
 molecules_data = [
-    ("H2O", "HITRANdata/data_Hitran_2020_H2O.par", "H2O"),
+    ("H2O", "HITRANdata/data_Hitran_2020_H2O.par", "H$_2$O"),
     ("OH", "HITRANdata/data_Hitran_2020_OH.par", "OH"),
     ("HCN", "HITRANdata/data_Hitran_2020_HCN.par", "HCN"),
-    ("C2H2", "HITRANdata/data_Hitran_2020_C2H2.par", "C2H2"),
-    ("CO2", "HITRANdata/data_Hitran_2020_CO2.par", "CO2"),
+    ("C2H2", "HITRANdata/data_Hitran_2020_C2H2.par", "C$_2$H$_2$"),
+    ("CO2", "HITRANdata/data_Hitran_2020_CO2.par", "CO$_2$"),
     ("CO", "HITRANdata/data_Hitran_2020_CO.par", "CO")
     # Add more molecules here if needed
 ]
+
+molecules_data_default = molecules_data.copy()
 
 deleted_molecules = []
 
@@ -1121,7 +1123,7 @@ def submit_col(event, text):
     
     # Clearing the text feed box.
     data_field.delete('1.0', "end")
-    data_field.insert('1.0', 'Density Submitted!')
+    data_field.insert('1.0', 'Density Updated!')
     plt.draw(), canvas.draw()
     fig.canvas.flush_events() 
 
@@ -1231,7 +1233,7 @@ def submit_temp(event, text):
     
     # Clearing the text feed box.
     data_field.delete('1.0', "end")
-    data_field.insert('1.0', 'Temperature Submitted!')
+    data_field.insert('1.0', 'Temperature Updated!')
     plt.draw(), canvas.draw()
     fig.canvas.flush_events() 
 
@@ -1299,7 +1301,7 @@ def submit_rad(event, text):
     
     # Clearing the text feed box.
     data_field.delete('1.0', "end")
-    data_field.insert('1.0', 'Radius Submitted!')
+    data_field.insert('1.0', 'Radius updated!')
     plt.draw(), canvas.draw()
     fig.canvas.flush_events() 
 
@@ -1420,11 +1422,11 @@ def selectfileinit():
     global svd_line_file
     global mode
     global xp1, rng, xp2
-    
-    
+
+    spectra_directory = os.path.abspath("EXAMPLE-data")
     filetypes = [('CSV Files', '*.csv')]
     # Ask the user to select a file
-    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectrum Data File', filetypes=filetypes)
+    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectrum Data File', filetypes=filetypes, initialdir=spectra_directory)
 
     if infiles:
         for file_path in infiles:
@@ -1518,7 +1520,7 @@ def update_initvals():
 
     data_field.delete ('1.0', "end")
     data_field.insert ('1.0', 'Parameter updated!')
-
+    data_field.delete ('1.0', "end")
 
 
 # # Functing to limit the user input from the previous prompts to the range of the data you're inspecting
@@ -2243,9 +2245,10 @@ def add_molecule_data():
     
     # Define the filetypes to accept, in this case, only .par files
     molfiletypes = [('PAR Files', '*.par')]
-    
+    hitran_directory = os.path.abspath ("HITRANdata")
+
     # Ask the user to select a data file
-    inmolfiles = filedialog.askopenfilename(multiple=True, title='Choose HITRAN Molecule Data File', filetypes=molfiletypes)
+    inmolfiles = filedialog.askopenfilename(multiple=True, title='Choose HITRAN Molecule Data File', filetypes=molfiletypes, initialdir=hitran_directory)
 
     if inmolfiles:
         for mol_file_path in inmolfiles:
@@ -2253,17 +2256,18 @@ def add_molecule_data():
             mol_file_name = os.path.basename(file_path)
 
             # Ask the user to enter the molecule name
-            molecule_name = simpledialog.askstring("Molecule Name", "Enter a label for this molecule (case sensitive):", parent=window)
+            molecule_name = simpledialog.askstring("Molecule label", "Enter a label for this model (case sensitive):", parent=window)
             molecule_label = molecule_name
+
+            # remove unaccepted characters
+            molecule_name = molecule_name.translate({ord(i): "_" for i in ' -'})
+            #molecule_name = molecule_name.replace("-","_")
+            molecule_name = molecule_name.translate({ord(i): None for i in '$^{}'})
 
             # Check if the molecule_name starts with a number
             if molecule_name[0].isdigit():
                 # Add a "m_" to the beginning of the molecule name because python cannot take strings starting with a number
                 molecule_name = 'm_' + molecule_name
-
-            # remove any spaces or "-" and replace with "_"
-            molecule_name = molecule_name.replace(" ","_")
-            molecule_name = molecule_name.replace("-","_")
 
             molecule_name = molecule_name.upper()
             
@@ -2448,6 +2452,7 @@ def add_molecule_data():
         
 def del_molecule_data():
     global molecules_data
+    global molecules_data_default
     global temp_field
     global text_boxes
     global nextrow
@@ -2464,15 +2469,7 @@ def del_molecule_data():
     deleted_molecules = []
     # Define the molecules and their corresponding file paths
     molecules_data = []
-    molecules_data = [
-        ("H2O", "HITRANdata/data_Hitran_2020_H2O.par"),
-        ("OH", "HITRANdata/data_Hitran_2020_OH.par"),
-        ("HCN", "HITRANdata/data_Hitran_2020_HCN.par"),
-        ("C2H2", "HITRANdata/data_Hitran_2020_C2H2.par"),
-        ("CO2", "HITRANdata/data_Hitran_2020_CO2.par"),
-        ("CO", "HITRANdata/data_Hitran_2020_CO.par")
-        # Add more molecules here if needed
-    ]
+    molecules_data = molecules_data_default
     print(molecules_data)
     # New array to store the molecules found in the CSV but not in molecules_data
     new_molecules_data = []
@@ -2581,7 +2578,8 @@ def selectfile():
     global xp1, rng, xp2, xp1_entry, rng_entry
     
     filetypes = [('CSV Files', '*.csv')]
-    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectra Data File', filetypes=filetypes)
+    spectra_directory = os.path.abspath ("EXAMPLE-data")
+    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectrum Data File', filetypes=filetypes, initialdir=spectra_directory)
 
     if infiles:
         for file_path in infiles:
@@ -2630,7 +2628,7 @@ def selectlinefile():
 
     filetypes = [('CSV Files', '*.csv')]
     infile = filedialog.asksaveasfilename(
-        title='Choose or Create a Spectra Data File',
+        title='Choose or Create a File',
         filetypes=filetypes,
         defaultextension=".csv",
         initialdir=initial_directory  # Set the initial directory
