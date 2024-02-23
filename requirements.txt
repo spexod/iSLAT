@@ -1,6 +1,6 @@
 numpy
-astropy
 scipy
+astropy
 pandas
 lmfit
 tk
