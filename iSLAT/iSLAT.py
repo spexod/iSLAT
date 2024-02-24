@@ -1665,7 +1665,7 @@ for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
     # Row label
     exec(f"{mol_name.lower()}_rowl_field = tk.Entry(param_frame, width=6)")
     eval(f"{mol_name.lower()}_rowl_field").grid(row=row + 1, column=0)
-    eval(f"{mol_name.lower()}_rowl_field").insert(0, f"{mol_label}")
+    eval(f"{mol_name.lower()}_rowl_field").insert(0, f"{mol_name}")
 
     # Temperature input field
     exec(f"{mol_name.lower()}_temp_field = tk.Entry(param_frame, width=4)")
@@ -2256,7 +2256,7 @@ def add_molecule_data():
             mol_file_name = os.path.basename(file_path)
 
             # Ask the user to enter the molecule name
-            molecule_name = simpledialog.askstring("Molecule label", "Enter a label for this model (case sensitive):", parent=window)
+            molecule_name = simpledialog.askstring("Assign label", "Enter a label for this model (LaTeX and case sensitive):", parent=window)
             molecule_label = molecule_name
 
             # remove unaccepted characters
@@ -2341,7 +2341,7 @@ def add_molecule_data():
                 # Row label
                 exec(f"{molecule_name.lower()}_rowl_field = tk.Entry(param_frame, width=6)", globals())
                 eval(f"{molecule_name.lower()}_rowl_field").grid(row=row+1, column=0)
-                eval(f"{molecule_name.lower()}_rowl_field").insert(0, f"{molecule_label}")
+                eval(f"{molecule_name.lower()}_rowl_field").insert(0, f"{molecule_name}")
                 molecule_elements[molecule_name.lower()] = {'rowl': molecule_name.lower() + '_rowl_field'}
                 
                 # Temperature input field
