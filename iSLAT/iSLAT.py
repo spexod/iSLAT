@@ -265,9 +265,9 @@ deleted_molecules = []
 
 # read more molecules if saved by the user in a previous iSLAT session
 def read_from_csv():
-    if os.path.exists('molecules_data.csv'):
+    if os.path.exists('molecules_list.csv'):
         try:
-            with open('molecules_data.csv', 'r') as csvfile:
+            with open('molecules_list.csv', 'r') as csvfile:
                 reader = csv.reader(csvfile)
                 next(reader)  # Skip the header row
                 return [tuple(row) for row in reader]
@@ -2207,10 +2207,10 @@ def set_file_permissions(filename, mode):
 # Your script code here...
 
 # After you write the data to the CSV file, call the function to set the permissions
-set_file_permissions("molecules_data.csv", 0o666)  # Here, 0o666 sets read and write permissions for all users.
+set_file_permissions("molecules_list.csv", 0o666)  # Here, 0o666 sets read and write permissions for all users.
 
 def write_to_csv(data):
-    with open('molecules_data.csv', 'w', newline='') as csvfile:
+    with open('molecules_list.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Molecule Name', 'File Path', 'Molecule Label'])
         writer.writerows(data)
@@ -2474,10 +2474,10 @@ def del_molecule_data():
     # New array to store the molecules found in the CSV but not in molecules_data
     new_molecules_data = []
 
-    if os.path.exists('molecules_data.csv'):
+    if os.path.exists('molecules_list.csv'):
         try:
             # Assuming the chemical names are in the first column of the CSV file
-            with open('molecules_data.csv', 'r') as csvfile:
+            with open('molecules_list.csv', 'r') as csvfile:
                 reader = csv.reader(csvfile)
                 # Skip the first header row
                 next(reader)
@@ -2535,12 +2535,12 @@ def del_molecule_data():
     else:
         print("CSV file not found.")
 
-    if os.path.exists('molecules_data.csv'):
+    if os.path.exists('molecules_list.csv'):
         try:
-            os.remove('molecules_data.csv')
-            print('molecules_data.csv deleted.')
+            os.remove('molecules_list.csv')
+            print('molecules_list.csv deleted.')
         except OSError as e:
-            print(f"Error deleting molecules_data.csv: {e}")
+            print(f"Error deleting molecules_list.csv: {e}")
     else:
         print('No molecule Save Found.')  
 
