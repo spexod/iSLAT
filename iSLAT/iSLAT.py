@@ -1019,17 +1019,18 @@ def print_atomic_lines():
     svd_lns = pd.read_csv("ATOMLINES/Atomic_line_list.csv", sep=',')
     svd_lamb = np.array(svd_lns['wave'])
     svd_species = svd_lns['species']
+    svd_lineID = np.array(svd_lns['line'])
 
     for i in range(len(svd_lamb)):
         ax1.vlines(svd_lamb[i], -2, 2, linestyles='dashed', color='tomato')
         
         # Adjust the y-coordinate to place labels within the borders
-        label_y = ax1.get_ylim()[1] - 0.17 * (ax1.get_ylim()[1] - ax1.get_ylim()[0])
+        label_y = ax1.get_ylim()[1] - 0.21 * (ax1.get_ylim()[1] - ax1.get_ylim()[0])
         
         # Adjust the x-coordinate to place labels just to the right of the line
         label_x = svd_lamb[i] + 0.006 * (ax1.get_xlim()[1] - ax1.get_xlim()[0])
         
-        ax1.text(label_x, label_y, svd_species[i], rotation=90, va='bottom', ha='left', color='tomato')
+        ax1.text(label_x, label_y, svd_species[i]+' '+svd_lineID[i], fontsize=8, rotation=90, va='bottom', ha='left', color='tomato')
     
     data_field.insert('1.0', 'Atomic lines retrieved from file.')
 
