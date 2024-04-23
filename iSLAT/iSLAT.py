@@ -1,4 +1,5 @@
-iSLAT_version = 'v3.10.00'
+iSLAT_version = 'v3.11.00'
+print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait...')
 
 # Import necessary modules
@@ -1356,7 +1357,7 @@ def line_fit(lam, flux, lam_min, lam_max):
     print(linefit_result.fit_report())
     dely = linefit_result.eval_uncertainty(sigma=3)
     ax2.fill_between(x, linefit_result.best_fit - dely, linefit_result.best_fit + dely, color="#ABABAB", label=r'3-$\sigma$ uncertainty band')
-    ax2.plot(x, linefit_result.best_fit, label='Gauss. fit', color='white', ls='--')
+    ax2.plot(x, linefit_result.best_fit, label='Gauss. fit', color='lime', ls='--')
     return linefit_result
 
 """
@@ -1962,7 +1963,7 @@ def generate_all_csv():
 
         data = list(zip(lambdas, fluxes))
 
-        output_dir = "OUTPUT"
+        output_dir = "MODELS"
         os.makedirs(output_dir, exist_ok=True)
 
         csv_file_path = os.path.join(output_dir, f"{mol_name}_spec_output.csv")
@@ -1984,13 +1985,13 @@ def generate_all_csv():
     data = list(zip(lambdas, fluxes))
 
     # Create a directory if it doesn't exist
-    output_dir = "OUTPUT"
+    output_dir = "MODELS"
     os.makedirs(output_dir, exist_ok=True)
 
     # Specify the full path for the CSV file
     csv_file_path = os.path.join(output_dir, "SUM_spec_output.csv")
 
-    # Create a CSV file with the selected data in the "OUTPUT" directory
+    # Create a CSV file with the selected data in the "MODELS" directory
     with open(csv_file_path, "w", newline="") as csv_file:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(["wave", "flux"])
@@ -2014,13 +2015,13 @@ def generate_csv(mol_name):
         data = list(zip(lambdas, fluxes))
 
         # Create a directory if it doesn't exist
-        output_dir = "OUTPUT"
+        output_dir = "MODELS"
         os.makedirs(output_dir, exist_ok=True)
 
         # Specify the full path for the CSV file
         csv_file_path = os.path.join(output_dir, "SUM_spec_output.csv")
 
-        # Create a CSV file with the selected data in the "OUTPUT" directory
+        # Create a CSV file with the selected data in the "MODELS" directory
         with open(csv_file_path, "w", newline="") as csv_file:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(["wave", "flux"])
@@ -2052,13 +2053,13 @@ def generate_csv(mol_name):
         # Combine fluxes and lambdas into rows
         data = list(zip(lambdas, fluxes))
         # Create a directory if it doesn't exist
-        output_dir = "OUTPUT"
+        output_dir = "MODELS"
         os.makedirs(output_dir, exist_ok=True)
 
         # Specify the full path for the CSV file
         csv_file_path = os.path.join(output_dir, f"{mol_name}_spec_output.csv")
 
-        # Create a CSV file with the selected data in the "OUTPUT" directory
+        # Create a CSV file with the selected data in the "MODELS" directory
         with open(csv_file_path, "w", newline="") as csv_file:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(["wave", "flux"])
