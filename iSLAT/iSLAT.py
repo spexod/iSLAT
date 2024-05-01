@@ -1999,7 +1999,7 @@ def generate_all_csv():
             csv_writer.writerow(row)
 
     data_field.delete('1.0', "end")
-    data_field.insert('1.0', f'All lines exported!')
+    data_field.insert('1.0', f'All models exported!')
 
 def generate_csv(mol_name):
     if mol_name == "SUM":
@@ -2029,7 +2029,7 @@ def generate_csv(mol_name):
                 csv_writer.writerow(row)
                 
         data_field.delete('1.0', "end")
-        data_field.insert('1.0', 'SUM line exported!')
+        data_field.insert('1.0', 'SUM model exported!')
         
     if mol_name == "ALL":
         generate_all_csv()
@@ -2067,7 +2067,7 @@ def generate_csv(mol_name):
                 csv_writer.writerow(row)
                         
         data_field.delete('1.0', "end")
-        data_field.insert('1.0', f'{mol_name} line exported!')
+        data_field.insert('1.0', f'{mol_name} model exported!')
         
 def export_spectrum():
     # Create a new window for exporting the spectrum
