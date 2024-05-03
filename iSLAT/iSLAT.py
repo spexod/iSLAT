@@ -40,7 +40,10 @@ import numpy
 from astropy import units as un
 from scipy import constants as con
 import datetime
+import certifi
+import ssl
 import urllib
+context = ssl.create_default_context(cafile=certifi.where())
 
 
 
@@ -158,7 +161,7 @@ def get_Hitran_data(Molecule_name, isotopologue_number, min_vu, max_vu):
     G = get_global_identifier(Molecule_name, isotopologue_number=isotopologue_number)
 
     qurl='https://hitran.org/data/Q/'+'q'+str(G)+'.txt'
-    handle = urllib.request.urlopen(qurl)
+    handle = urllib.request.urlopen(qurl, context=context)
     qdata = pd.read_csv(handle,sep=' ',skipinitialspace=True,names=['temp','q'],header=None)
 
     return Htbl, qdata, M, G
