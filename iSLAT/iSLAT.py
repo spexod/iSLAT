@@ -877,37 +877,24 @@ def onselect(xmin, xmax):
     else:
         pop_diagram()
         ax2.clear()
-    #plt.show()
-
-"""
-group() is a function used in the single_finder() function. 
-This function groups model lines together based on a wavelength separation threshold (thr) set when the function is called.
-(a) is the array of lines being grouped
-"""
-def group(a,thr):
-    x = np.sort(a)
-    diff = x[1:]-x[:-1]
-    gps = np.concatenate([[0],np.cumsum(diff>=thr)])
-    return [x[gps==i] for i in range(gps[-1]+1)]
 
 """
 single_finder() is connected to the "Find Singles" button.
-This function is a filter that finds water lines in the model that are isolated then prints vertical lines in the top graph where these lines are located
-e.g. they are either a set distance away from other lines, or the intensity of the lines near the line are negligible.
+This function is a filter that finds molecular lines in the model that are isolated then prints vertical lines in the top graph where these lines are located
+e.g. they are either a set distance away from other strong lines, or the intensity of the lines near the line are negligible.
 """
+specsep = .01       #This is the default value for the separation to determine if line is single
 
-specsep = .004 # this is the default value
-    
 def single_finder():
     update()
     global fig_height
     global fig_bottom_height
-    
-    
+    counter = 0
     specsep = float(specsep_entry.get())
     
     # Resetting the text feed box
     data_field.delete('1.0', "end")
+
     # Getting all the water lines in the range of xp1 and xp2
     int_pars_line = int_pars[(int_pars['lam']>xp1) & (int_pars['lam']<xp2)]
     int_pars_line.index = range(len(int_pars_line.index))
@@ -916,52 +903,37 @@ def single_finder():
     lamb_cnts = int_pars_line['lam']
     intensities = int_pars_line['intens']
 
-    # Calling the group() function
-    # See group()
-    # The threshold for the grouping (in wavelength units) can be set here
-    lambgroups = group(lamb_cnts, specsep)
+    # Determining an max threshold for lines we may want to consider
+    # This threshold is based on the max line intensity found in the range of xp1 and xp2
+    # This threshold will be used to filter out weak lines regardless of them being single
+    max_intens = 0
+    for i in range(len(intensities)):
+        if intensities[i] > max_intens:
+            max_intens = intensities[i]
+    max_threshold = max_intens * 0.01       #This will be used to filter out lines with intensities below a percentage of the max intensity
 
-    counter = 0
-    for z in range(len(lambgroups)):
-
-        # If there are no other lines around the isolated line (the group it's in is only made up of the one line)
-        # Then print where that line is in the top graph
-        if len(lambgroups[z]) == 1:
-            idx = find_nearest(lamb_cnts,lambgroups[z]);
-            if intensities[idx] >= 0.5:
-                ax1.vlines(lamb_cnts[idx], fig_bottom_height, fig_height+(fig_height/2), linestyles='dashed',color='tomato')
-                counter = counter +1
-
-        # For the groups that have more than one line (they are closer to eachother than the threshold set when group() was called)        
-        if len(lambgroups[z]) > 1:
-            overlap = False
-            multigroup = lambgroups[z]
-            intensgroup = []
-            max_value = 0
-            max_index = 0
-            int_pars_line_group = int_pars[(int_pars['lam']>=multigroup[0]) & (int_pars['lam']<=multigroup[len(multigroup)-1])]
-            int_pars_line_group.index = range(len(int_pars_line_group.index))
-            lamb_cnts_group = int_pars_line_group['lam']
-            intensities_group = int_pars_line_group['intens']
-
-            # Find the max intensity in the lines
-            for i in range(len(intensities_group)):
-                if intensities_group[i] > max_value:
-                    max_value = intensities_group[i]
-                    max_index = i
-            
-            # Set the cutoff threshold for the other lines in determining if the max line is isolated 
-            max_cutoff = max_value/10
-
-            # Filter out potentially isolated lines that aren't very strong (user adjusts what they determine to be "strong")
-            if max_value >= 0.5:
-
-                # Determine if the line is truly isolated based on the intensities of the closeby lines
-                for i in range(len(intensities_group)):
-                    if (intensities_group[i] > max_cutoff) & (intensities_group[i] != max_value):
-                        overlap = True
-                if overlap == False:
-                    ax1.vlines(lamb_cnts_group[max_index], fig_bottom_height, fig_height+(fig_height/2), linestyles='dashed',color='tomato')
+    # This is the main function. First, it will only consider lines with intensities above "max_threshold."
+    # Of those lines, it will inspect all lines within "specsep" (user defined) below and above their wavelength.
+    # If any lines within this range have an intensity above "threshold" (a percentage of the intensity for the line of interest),
+    # then the line of interest is determined to be non-single. Otherwise, it's determined to be single.
+    for j in int_pars_line.index:
+        include = True      #Boolean for determining line is single or not.
+        j_lam = lamb_cnts[int_pars_line.index[j]]       #Wavelength of line of interest
+        sub_xmin = j_lam - specsep
+        sub_xmax = j_lam + specsep
+        j_intens = intensities[int_pars_line.index[j]]      #Intensity of line of interest
+        threshold = j_intens * 0.1     #Creating a threshold for determining locally if line of interest is single
+        if j_intens >= max_threshold:       #Filter out weak lines
+            chk_range = int_pars[(int_pars['lam']>sub_xmin) & (int_pars['lam']<sub_xmax)]
+            chk_range.index = range(len(chk_range.index))
+            range_intens = chk_range['intens']      #Intensities of lines +/- "specsep" wavelength away from line of interest
+            for k in chk_range.index:
+                k_intens = range_intens[chk_range.index[k]]
+                if k_intens >= threshold:       #Filter determining if line of interest is not single
+                    if k_intens != j_intens:        #Making sure we are not excluding line of interest by accidently considering its own intensity for the filter
+                        include = False     #If both filters above are true, then the line of interest is not single  
+            if include == True:     #If both filters above are false for all lines in range of "specsep", then line of interest is single
+                    ax1.vlines(lamb_cnts[int_pars_line.index[j]], fig_bottom_height, fig_height, linestyles='dashed',color='blue')
                     counter = counter +1
 
     # Storing the callback for on_xlims_change()
@@ -972,8 +944,7 @@ def single_finder():
         data_field.insert('1.0', 'No single lines found in the current wavelength range.')
     if counter > 0:
         data_field.insert('1.0', 'There are '+ str(counter)+' single lines \nfound in the current \nwavelength range.')
-    canvas.draw()
-    #plt.show()
+    canvas.draw()           
 
 """
 print_saved_lines() prints, as vertical dashed lines, on the top graph the locations of all lines saved to the current csv connected to the Save() function.
