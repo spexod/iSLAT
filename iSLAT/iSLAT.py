@@ -356,6 +356,8 @@ initial_values = {}
 # define other defaults needed below
 linesavepath = ""
 spanmol = "h2o"
+line_threshold = 0.05   # this is the percent value (where 0.01 = 1%) of the strongest line in the plot;
+                        # lines below this this limit are ignored in the plot and in the single line selection
 
 print(' ')
 print ('Loading molecule files: ...')
@@ -698,6 +700,7 @@ def onselect(xmin, xmax):
     global model_indmin, model_indmax
     global data_region_x
     global model_line_select
+    global line_threshold
 
 
     xdif = xmax - xmin
@@ -852,7 +855,7 @@ def onselect(xmin, xmax):
                     k = j
                 if j != max_index:
                     lineheight = (intensities[j]/max_intensity)*max_y
-                    if intensities[j] > max_intensity/50:
+                    if intensities[j] > max_intensity * line_threshold:
                         ax2.vlines(lamb_cnts[j], 0, lineheight, linestyles='dashed',color='green')
                         ax2.text(lamb_cnts[j], lineheight, (str(f'{e_up[j]:.{0}f}')+', '+str(f'{einstein[j]:.{3}f}')), color = 'green', fontsize = 'small')
                         print(str(f'{lamb_cnts[j]:.{5}f}'), up_lev[j], low_lev[j], str(f'{e_up[j]:.{0}f}'), einstein[j], str(f'{tau[j]:.{3}f}'))
@@ -910,7 +913,7 @@ def single_finder():
     for i in range(len(intensities)):
         if intensities[i] > max_intens:
             max_intens = intensities[i]
-    max_threshold = max_intens * 0.01       #This will be used to filter out lines with intensities below a percentage of the max intensity
+    max_threshold = max_intens * line_threshold       #This will be used to filter out lines with intensities below a percentage of the max intensity
 
     # This is the main function. First, it will only consider lines with intensities above "max_threshold."
     # Of those lines, it will inspect all lines within "specsep" (user defined) below and above their wavelength.
@@ -922,14 +925,14 @@ def single_finder():
         sub_xmin = j_lam - specsep
         sub_xmax = j_lam + specsep
         j_intens = intensities[int_pars_line.index[j]]      #Intensity of line of interest
-        threshold = j_intens * 0.1     #Creating a threshold for determining locally if line of interest is single
+        loc_threshold = j_intens * 0.1     #Creating a threshold for determining locally if line of interest is single
         if j_intens >= max_threshold:       #Filter out weak lines
             chk_range = int_pars[(int_pars['lam']>sub_xmin) & (int_pars['lam']<sub_xmax)]
             chk_range.index = range(len(chk_range.index))
             range_intens = chk_range['intens']      #Intensities of lines +/- "specsep" wavelength away from line of interest
             for k in chk_range.index:
                 k_intens = range_intens[chk_range.index[k]]
-                if k_intens >= threshold:       #Filter determining if line of interest is not single
+                if k_intens >= loc_threshold:       #Filter determining if line of interest is not single
                     if k_intens != j_intens:        #Making sure we are not excluding line of interest by accidently considering its own intensity for the filter
                         include = False     #If both filters above are true, then the line of interest is not single  
             if include == True:     #If both filters above are false for all lines in range of "specsep", then line of interest is single
