@@ -356,6 +356,7 @@ initial_values = {}
 # define other defaults needed below
 linesavepath = ""
 spanmol = "h2o"
+
 line_threshold = 0.05   # this is the percent value (where 0.01 = 1%) of the strongest line in the plot;
                         # lines below this this limit are ignored in the plot and in the single line selection
 
