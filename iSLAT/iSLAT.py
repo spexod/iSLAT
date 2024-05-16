@@ -1,4 +1,4 @@
-iSLAT_version = 'v3.11.00'
+iSLAT_version = 'v3.12.00'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait...')
 
@@ -1752,27 +1752,9 @@ def load_variables_from_file(file_name):
         eval(f"{mol_name.lower()}_rad_field").insert(0, eval(f"{mol_name.lower()}_radius"))
         
         eval(f"{mol_name.lower()}_dens_field").delete(0, "end")
-        eval(f"{mol_name.lower()}_dens_field").insert(0, eval(f"n_mol_{mol_name.lower()}"))
-        
-        #exec(f"{mol_name.lower()}_temp_field.insert('1.0', t_{mol_name.lower()})")
-    
-    fill_h2o = ax1.fill_between(lambdas_h2o, fluxes_h2o, 0,
-            facecolor="red", # The fill color
-            color='red',       # The outline color
-            alpha=0.2)
-    fill_c2h2 = ax1.fill_between(lambdas_c2h2, fluxes_c2h2, 0,
-            facecolor="blue", # The fill color
-            color='blue',       # The outline color
-            alpha=0)
-    fill_oh = ax1.fill_between(lambdas_oh, fluxes_oh, 0,
-            facecolor="orange", # The fill color
-            color='orange',       # The outline color
-            alpha=0)
-    fill_hcn = ax1.fill_between(lambdas_hcn, fluxes_hcn, 0,
-            facecolor="green", # The fill color
-            color='green',       # The outline color
-            alpha=0)
-    
+        coldens = eval (f"n_mol_{mol_name.lower ()}")
+        eval (f"{mol_name.lower ()}_dens_field").insert (0, f"{coldens:.{1}e}")
+
     h2o_intensity.calc_intensity(t_h2o, n_mol_h2o, dv=intrinsic_line_width)
     h2o_spectrum = Spectrum(lam_min=min_lamb, lam_max=max_lamb, dlambda=model_pixel_res, R=model_line_width, distance=dist) 
     h2o_spectrum.add_intensity(h2o_intensity, h2o_radius ** 2 * np.pi)
