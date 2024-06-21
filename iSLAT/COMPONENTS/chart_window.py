@@ -3,8 +3,9 @@ from tkinter import ttk
 from COMPONENTS.hitran_downloader import download_hitran_data
 
 class MoleculeSelector:
-    def __init__(self, master):
+    def __init__(self, master, data_field):
         self.master = master
+        self.data_field = data_field  # Reference to the data field in the main GUI
         self.mols = []
         self.basem = []
         self.isot = []
@@ -71,7 +72,7 @@ class MoleculeSelector:
 
 
         self.window = tk.Toplevel(master)
-        self.window.title("Download from HITRAN")
+        self.window.title("Select Molecules")
 
         self.frame = ttk.Frame(self.window)
         self.frame.pack(padx=10, pady=10)
@@ -92,10 +93,10 @@ class MoleculeSelector:
         self.isotopologue_combobox = ttk.Combobox(self.frame, textvariable=self.isotopologue_var)
         self.isotopologue_combobox.grid(row=1, column=1, padx=5, pady=5)
 
-        self.add_button = ttk.Button(self.frame, text="Download HITRAN file", command=self.add_molecule)
+        self.add_button = ttk.Button(self.frame, text="Add Molecule", command=self.add_molecule)
         self.add_button.grid(row=2, column=0, columnspan=2, pady=10)
 
-        self.done_button = ttk.Button(self.frame, text="Close Window", command=self.on_done)
+        self.done_button = ttk.Button(self.frame, text="Done", command=self.on_done)
         self.done_button.grid(row=3, column=0, columnspan=2, pady=10)
 
     def update_isotopologues(self, event):
@@ -121,6 +122,10 @@ class MoleculeSelector:
             download_hitran_data(self.basem, self.mols, self.isot)
             print(f"Added Molecule: {mol}, Isotopologue: {isotopologue}, Isotope Number: {isotope}")
 
+            # Update the main GUI data_field
+            self.data_field.delete('1.0', "end")
+            self.data_field.insert('1.0', f"{isotopologue} downloaded from HITRAN.")
+
     def on_done(self):
         self.window.destroy()
-        
+
