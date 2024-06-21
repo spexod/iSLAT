@@ -194,12 +194,12 @@ that are partially or fully optically thick. Users that wish to model
 those lines correctly can use other available slab model codes: 
 [spectools-ir](https://github.com/csalyk/spectools_ir/) or [iris](https://github.com/munozcar/IRIS).
 
-If you use iSLAT on an Apple-silicon Mac, there is a known issue with 
+If you use iSLAT on an Apple-silicon Mac (M1, M2, etc.), there is a known issue with 
 tkinter where the GUI often seems to freeze and does not take a new 
-input or click; the solution is to "wake up" the GUI by slightly resizing 
-its window. 
-Sometimes even just moving the GUI window around for a 
-moment will do the trick. Hopefully this will be fixed in a new
+input or click; the solution is to click and drag very slightly on any
+element you're working on (whether you're clicking a button or 
+updating a parameter value), and the GUI will take your click. 
+Hopefully this will be fixed in a new
 release of tkinter (this is not an issue of iSLAT).
 
 ## Acknowledgements
