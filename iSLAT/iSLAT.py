@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.01'
+iSLAT_version = 'v4.03.02'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -285,6 +285,8 @@ output_dir = "MODELS"
 os.makedirs(output_dir, exist_ok=True)
 linesave_folder = "LINESAVES"
 os.makedirs(linesave_folder, exist_ok=True)
+HITRAN_folder = "HITRANdata"
+os.makedirs(HITRAN_folder, exist_ok=True)
 
 
 # read more molecules if saved by the user in a previous iSLAT session
