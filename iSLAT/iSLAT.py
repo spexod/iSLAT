@@ -2891,23 +2891,19 @@ def toggle_fullscreen():
 
 def import_molecule():
     MoleculeSelector(root)
-    data_field.delete ('1.0', "end")
-    data_field.insert ('1.0', 'New molecule downloaded from HITRAN.')
+    #data_field.delete ('1.0', "end")
+    #data_field.insert ('1.0', 'New molecule downloaded from HITRAN.')
 
 # Create a Tkinter button to import additional hitran molecules
 import_button = tk.Button (title_frame, text="HITRAN query", bg='lightgray', activebackground='gray', command=import_molecule)
 import_button.grid (row=0, column=0)
 
-# Create the 'Add Mol.' button
-addmol_button = tk.Button(title_frame, text='Add Molecule', bg='lightgray', activebackground='gray', command=lambda: add_molecule_data(), width=12, height=1)
-addmol_button.grid(row=0, column=2)
-
 addmol_button = tk.Button(title_frame, text='Default Molecules', bg='lightgray', activebackground='gray', command=lambda: load_defaults_from_file(), width=12, height=1)
 addmol_button.grid(row=0, column=1)
 
-# Create the 'Clear Mol.' button
-#clearmol_button = tk.Button(title_frame, text='Clear Molecules', bg='lightgray', activebackground='gray', command=lambda: del_molecule_data(), width=12, height=1)
-#clearmol_button.grid(row=0, column=2)
+# Create the 'Add Mol.' button
+addmol_button = tk.Button(title_frame, text='Add Molecule', bg='lightgray', activebackground='gray', command=lambda: add_molecule_data(), width=12, height=1)
+addmol_button.grid(row=0, column=2)
 
 # Create the 'Save Changes' button
 saveparams_button = tk.Button(title_frame, text='Save Parameters', bg='lightgray', activebackground='gray', command=lambda: saveparams_button_clicked(), width=12, height=1)
