@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.00'
+iSLAT_version = 'v4.03.01'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -1820,7 +1820,10 @@ def delete_row(widget):
 
     nextrow -= 1
     
-
+    spanoptionsvar = [m[0] for m in molecules_data]
+    spandropd['values'] = spanoptionsvar
+    if spanoptionsvar:
+        spandropd.set(spanoptionsvar[0])
     update()
 
     data_field.delete ('1.0', "end")
@@ -2139,6 +2142,11 @@ def load_variables_from_file(file_name):
                         update_initvals()
 
             #update()
+            spanoptionsvar = [m[0] for m in molecules_data]
+            spandropd['values'] = spanoptionsvar
+            if spanoptionsvar:
+                spandropd.set(spanoptionsvar[0])
+                
             print("Variables loaded from CSV file.")
         except Exception as e:
             print("Error loading variables from CSV:", e)
@@ -2307,6 +2315,10 @@ def load_defaults_from_file():
         nextrow = row + 1
     
     write_user_csv(molecules_data)
+    spanoptionsvar = [m[0] for m in molecules_data]
+    spandropd['values'] = spanoptionsvar
+    if spanoptionsvar:
+        spandropd.set(spanoptionsvar[0])
     
 
     filename = os.path.join(save_folder, f"default.csv")
