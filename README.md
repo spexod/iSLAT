@@ -1,7 +1,7 @@
 # iSLAT
 **Current version:** v4.03.00\
 If you are running a previous version, make sure to update to the new one (see below for instructions)!\
-**Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper) and [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code)\
+**Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper) and [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code)
 
 [![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)
 
@@ -18,8 +18,7 @@ included for users to practice with the tool functionalities across
 a range of resolving powers. iSLAT has been built as a flexible
 tool that should work with one-dimensional molecular spectra observed 
 with other instruments too, provided some requirements are met (see below).
-iSLAT is presented and described in [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract), which is
-the main reference to cite. A screenshot of iSLAT's GUI is provided here:
+iSLAT is presented and described in [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract). A screenshot of iSLAT's GUI is provided here:
 
 ![iSLAT's GUI v3.10](./iSLAT_v310.jpg)
 
