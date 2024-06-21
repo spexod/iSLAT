@@ -1,5 +1,5 @@
 # iSLAT
-**Current version:** v4.03.00\
+**Current version: v4.03.01**\
 If you are running a previous version, make sure to update to the new one (see below for instructions)!\
 **Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper) and [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code)
 
@@ -24,8 +24,8 @@ iSLAT is presented and described in [Jellison et al. 2024](https://ui.adsabs.har
 
 *We built iSLAT to make the analysis of infrared molecular spectra
 an accessible, enjoyable, and rewarding experience for all, including
-the youngest students who are starting in the field today. We 
-believe iSLAT will be useful to many students and professional researchers,
+students and junior researchers who are starting in the field today. We 
+believe iSLAT will be useful both to students and to professional researchers,
 and we will continue to support it and expand it with care for all users.
 If you find a bug, please be patient and let us know; we want to fix
 it as much as you do! And if you have ideas to improve the tool, 
@@ -53,20 +53,22 @@ To launch iSLAT, simply type:
 
 ### Update to the latest version from GitHub:
 
-Remember to update the repository from GitHub from time to time;
+Remember to update the repository from GitHub from time to time (check at the top of the page to see if you're running an older version);
 from your local iSLAT folder, type on terminal:
 
     git pull https://github.com/spexod/iSLAT
 
 ## Input and outputs
-iSLAT requires a flat, continuum-subtracted spectrum as input data 
+iSLAT requires a continuum-subtracted spectrum as input data 
 file in csv format, with a wavelength array in μm (assumed to be in a
 column called "wave") and flux array in Jy (assumed to be called "flux"). 
 The step of estimating and subtracting the continuum can be done e.g. 
 with this tool: [ctool](https://github.com/pontoppi/ctool).
 iSLAT's outputs are txt or csv files that save model parameters, spectra,
 or line lists as defined by users (see more below). These output files 
-are stored in the folders /SAVES, /LINESAVES, and /MODELS.
+are stored in the folders /SAVES, /LINESAVES, and /MODELS. The folder
+/LINELISTS instead includes some curated line lists provided to users 
+(see [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract)).
 
 ## HITRAN data
 At first launch by the user, iSLAT will download from [HITRAN](https://hitran.org/) the data
@@ -76,9 +78,8 @@ C<sub>2</sub>H<sub>2</sub>, C<sub>2</sub>H<sub>4</sub>,
 C<sub>2</sub>H<sub>6</sub>, C<sub>4</sub>H<sub>2</sub>, 
 HCN, HC<sub>3</sub>N and some of their isotopologues. 
 These datafiles are stored into the folder "HITRANdata" and are available to 
-load and use in iSLAT (see below). We are currently developing
-an interface function to allow users to download any other molecule 
-by request. The current HITRAN data release as of 2024 is described in 
+load and use in iSLAT (see below). Any additional molecule or isotopologue can be downloaded from HITRAN using the "HITRAN query" function in iSLAT. 
+The current HITRAN data release as of 2024 is described in 
 [Gordon et al. 2022](https://ui.adsabs.harvard.edu/abs/2022JQSRT.27707949G/abstract).
 
 ## Parameters definitions and units
@@ -90,7 +91,10 @@ target. A confirmation will appear in the message box in iSLAT.*
 
 - **Molecular model parameters**: temperature is in K, radius in au (this is the 
 radius of the equivalent emitting area, not the orbital radius of the 
-emission), column density in cm<sup>-2</sup>. 
+emission), column density in cm<sup>-2</sup>. You can control which molecules are
+ready for use in the GUI with the buttons: "Default Molecules" and "Add Molecule"
+(see more below on these functions), and the "Del." button to remove them. You can
+also select each molecule color by using the "Color" button.
 - Other parameters: 
   - **Plot start/range** (just for the current plot) and 
   **min/max wavelength** (the spectral range
@@ -109,22 +113,28 @@ emission), column density in cm<sup>-2</sup>.
 
 ## Quick reference for main functions
 ### General functions (top of the GUI)
+- **HITRAN query**: opens up a window where you can select and dowload any
+molecules or isotopologues available in HITRAN; you need to run this first
+if you wish to use any molecule that is not part of the default list above.
+- **Default molecules**: load the default list of molecules for the GUI; this
+list includes: H<sub>2</sub>O, OH, HCN, CO<sub>2</sub>, C<sub>2</sub>H<sub>2</sub>, CO.
 - **Add molecule**: loads a molecule into the list of available molecules
 at the top left of the GUI; the new molecule must already be downloaded
 from HITRAN and stored in a .par file in the folder "HITRANdata"; the user 
 can also load multiple times the same molecule, as long as different labels 
 are assigned (for instance to simultaneously plot different temperature
-components of a same molecule)
-- **Clear molecules**: removes any additional molecules and leaves the 
-default ones only
+components of a same molecule).
 - **Save parameters**: save in an output file the current model parameters 
-(T, R, N) for each molecule; the output file will have the same name 
-as the input observed spectrum plus "-save.txt" and will be stored in
-the folder iSLAT/SAVES
+(T, R, N) for each molecule, plus the distance, RV, FWHM, and broadening values
+set by users for any input spectrum; the output file will have the same name 
+as the input observed spectrum plus "-molsave.csv" and will be stored in
+the folder iSLAT/SAVES.
 - **Load parameters**: loads previously saved model parameters from output
-file created with "Save Parameters" from the folder iSLAT/SAVES
+file created with "Save Parameters" from the folder iSLAT/SAVES; it will
+use the input spectrum file name to identify the correct save file, so if
+you change the input spectrum name make sure you update the save filename too.
 - **Export models**: export specific or all model spectra in an output 
-csv file in the folder iSLAT/MODELS
+csv file in the folder iSLAT/MODELS.
 
 ### Spectral analysis functions
 - **Selecting a line**: by dragging a region in the top spectrum plot, the
@@ -134,22 +144,29 @@ the strongest of these transitions is highlighted in orange and its
 properties are reported in the text box at the bottom left of the GUI.
 The list and properties of other significant lines that emit in the selected
 range are reported on terminal for user's reference.
-- **Save line**: save strongest line currently selected into an output 
-csv file that will include all the line parameters; this function
-needs the selection/definition of an output file from the folder 
-LINESAVES under "Saved lines file"
+- **Save line**: save strongest currently-selected line into an output 
+csv file that will include all its line parameters; this function
+needs the definition of an output file in the box "Output Line Measurements"
+that will be saved in the LINESAVES folder.
 - **Fit line**: fit selected line with a Gaussian function using [LMFIT](https://lmfit.github.io/lmfit-py/index.html);
 full fit results are reported on terminal, and a selection in
-the text box
+the GUI text box.
 - **Show saved lines**: marks in the plot all lines saved into the 
-file selected in "Saved lines file"
+file selected in "Input Line List" (this list can be one of those
+provided with iSLAT, or one you make using the "Save Line" function).
+- **Fit saved lines**: this is the same as "Fit line" but it fits in
+one shot all lines defined in the "Input Line List" and will save
+their measurements in the LINESAVES folder in the file defined in the
+"Output Line Measurements" box. The output will also include rotation
+diagram values for each line, which you can use to make a rotation diagram
+like the one in the GUI, but with measured lines instead of a model.
 - **Show atomic lines**: marks and labels atomic lines from the list 
-saved in the folder ATOMLINES
+provided in the folder LINELISTS
 - **Find single lines**: identifies and marks isolated lines using
-the value in "Line separ." as their spectral separation
+the value in "Line separ." as their spectral separation.
 - **Molecule drop-down menu**: select which molecule is considered for
-the zoomed-in plot and the rotation diagram, and for the "Find single
-lines" function
+the zoomed-in plot, the rotation diagram, the "Find single
+lines" function, and the "Save line" function.
 
 ## Data examples
 iSLAT's release includes some continuum-subtracted spectra of 
