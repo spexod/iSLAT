@@ -20,7 +20,7 @@ tool that should work with one-dimensional molecular spectra observed
 with other instruments too, provided some requirements are met (see below).
 iSLAT is presented and described in [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract). A screenshot of iSLAT's GUI is provided here:
 
-![iSLAT's GUI v3.10](./iSLAT_v310.jpg)
+![iSLAT's GUI v3.10](./iSLAT_v403.jpg)
 
 *We built iSLAT to make the analysis of infrared molecular spectra
 an accessible, enjoyable, and rewarding experience for all, including
