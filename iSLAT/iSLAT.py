@@ -241,7 +241,6 @@ if __name__ == "__main__":
 
         print("Downloading data for mol: {:}".format(mol))
         Htbl, qdata, M, G = get_Hitran_data(bm, iso, min_vu, max_vu)
-        os.makedirs(save_folder, exist_ok=True)  # Create the folder if it doesn't exist
 
         with open(file_path, 'w') as fh:
             fh.write("# HITRAN 2020 {:}; id:{:}; iso:{:};gid:{:}\n".format(mol, M, iso, G))
@@ -279,7 +278,14 @@ molecules_data_default = molecules_data.copy()
 
 deleted_molecules = []
 
+# Create necessary folders, if it doesn't exist (typically at first launch of iSLAT)
 save_folder = "SAVES"
+os.makedirs(save_folder, exist_ok=True)
+output_dir = "MODELS"
+os.makedirs(output_dir, exist_ok=True)
+linesave_folder = "LINESAVES"
+os.makedirs(linesave_folder, exist_ok=True)
+
 
 # read more molecules if saved by the user in a previous iSLAT session
 def read_from_csv():
@@ -2362,7 +2368,6 @@ def load_defaults_from_file():
                 
                 
 def write_default_csv(data):
-    os.makedirs(save_folder, exist_ok=True)  # Create the "SAVES" folder if it doesn't exist
     csv_filename = os.path.join(save_folder, f"default.csv")
     
     try:
@@ -2494,10 +2499,6 @@ def savelinefile():
     global linesavefile
     global linesavepath
 
-    # Create the folder if it doesn't exist
-    linesave_folder = "LINESAVES"
-    if not os.path.exists(linesave_folder):
-        os.makedirs(linesave_folder)
 
     # Set the initial directory to the created folder
     initial_directory = os.path.abspath(linesave_folder)
@@ -2721,7 +2722,6 @@ specsep_entry.grid(row=4, column=3, pady=(0,45))
 #tk.Label(plotparams_frame, text="").grid(row=4, column=0)
 
 def generate_all_csv():
-    output_dir = "MODELS"
 
     for molecule in molecules_data:
         mol_name = molecule[0]
@@ -2773,7 +2773,6 @@ def generate_all_csv():
 
 
 def generate_csv(mol_name):
-    output_dir = "MODELS"
 
     if mol_name == "SUM":
 
@@ -2999,7 +2998,6 @@ def write_to_csv(data, confirmation=False):
         if confirmed == "no":  # Check if user clicked "no"
             return
 
-    os.makedirs(save_folder, exist_ok=True)  # Create the "SAVES" folder if it doesn't exist
     csv_filename = os.path.join(save_folder, f"{file_name}-molsave.csv")
     
     try:
@@ -3033,7 +3031,6 @@ def write_to_csv(data, confirmation=False):
 
 def write_user_csv(data):
 
-    os.makedirs(save_folder, exist_ok=True)  # Create the "SAVES" folder if it doesn't exist
     csv_filename = os.path.join(save_folder, f"molecules_list.csv")
     
     try:
