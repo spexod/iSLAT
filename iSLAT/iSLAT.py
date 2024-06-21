@@ -1,11 +1,11 @@
-iSLAT_version = 'v4.03.03'
+iSLAT_version = 'v4.00.00'
 print(' ')
-print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
+print('Loading iSLAT '+ iSLAT_version +': Please Wait...')
 
 # Import necessary modules
 import numpy as np
 import pandas as pd
-import warnings
+
 import matplotlib
 #matplotlib.use('Agg')
 matplotlib.use("TKAgg")
@@ -29,7 +29,6 @@ from lmfit.models import GaussianModel
 from ir_model import *
 import tkinter as tk
 from tkinter import filedialog, simpledialog, ttk  # For ttk.Style
-from tkinter import colorchooser
 import inspect
 #from PyQt5.QtWidgets import QApplication, QMainWindow
 from datetime import datetime as dt
@@ -47,184 +46,20 @@ import urllib
 context = ssl.create_default_context(cafile=certifi.where())
 
 from COMPONENTS.chart_window import MoleculeSelector
+from COMPONENTS.Hitran_data import get_Hitran_data
+from COMPONENTS.partition_function_writer import write_partition_function
+from COMPONENTS.line_data_writer import write_line_data
 
-
-# create HITRAN folder, only needed for first start
-HITRAN_folder = "HITRANdata"
-os.makedirs(HITRAN_folder, exist_ok=True)
-
-#Code from Nathan Hagen
-#https://github.com/nzhagen/hitran
-def get_molecule_identifier(molecule_name):
-    '''                                                                                                                                
-    For a given input molecular formula, return the corresponding HITRAN molecule identifier number.                                   
-                                                                                                                                       
-    Parameters                                                                                                                         
-    ----------                                                                                                                         
-    molecular_formula : str                                                                                                            
-        The string describing the molecule.                                                                                            
-                                                                                                                                       
-    Returns                                                                                                                            
-    -------                                                                                                                            
-    M : int                                                                                                                            
-        The HITRAN molecular identifier number.                                                                                        
-    '''
-
-    trans = { '1':'H2O',    '2':'CO2',   '3':'O3',      '4':'N2O',   '5':'CO',    '6':'CH4',   '7':'O2',     '8':'NO',
-              '9':'SO2',   '10':'NO2',  '11':'NH3',    '12':'HNO3', '13':'OH',   '14':'HF',   '15':'HCl',   '16':'HBr',
-             '17':'HI',    '18':'ClO',  '19':'OCS',    '20':'H2CO', '21':'HOCl', '22':'N2',   '23':'HCN',   '24':'CH3Cl',
-             '25':'H2O2',  '26':'C2H2', '27':'C2H6',   '28':'PH3',  '29':'COF2', '30':'SF6',  '31':'H2S',   '32':'HCOOH',
-             '33':'HO2',   '34':'O',    '35':'ClONO2', '36':'NO+',  '37':'HOBr', '38':'C2H4', '39':'CH3OH', '40':'CH3Br',
-             '41':'CH3CN', '42':'CF4',  '43':'C4H2',   '44':'HC3N', '45':'H2',   '46':'CS',   '47':'SO3'}
-    ## Invert the dictionary.                                                                                                          
-    trans = {v:k for k,v in trans.items()}
-    return(int(trans[molecule_name]))
-
-def get_global_identifier(molecule_name,isotopologue_number=1):
-    '''                                                                                                                                
-    For a given input molecular formula, return the corresponding HITRAN *global* identifier number.
-    For more info, see https://hitran.org/docs/iso-meta/ 
-                                                                                                                                       
-    Parameters                                                                                                                         
-    ----------                                                                                                                         
-    molecular_formula : str                                                                                                            
-        The string describing the molecule.              
-    isotopologue_number : int, optional
-        The isotopologue number, from most to least common.                                                                              
-                                                                                                                                       
-    Returns                                                                                                                            
-    -------                                                                                                                            
-    G : int                                                                                                                            
-        The HITRAN global identifier number.                                                                                        
-    '''
-
-    mol_isot_code=molecule_name+'_'+str(isotopologue_number)
-
-    trans = { 'H2O_1':1, 'H2O_2':2, 'H2O_3':3, 'H2O_4':4, 'H2O_5':5, 'H2O_6':6, 'H2O_7':129,
-               'CO2_1':7,'CO2_2':8,'CO2_3':9,'CO2_4':10,'CO2_5':11,'CO2_6':12,'CO2_7':13,'CO2_8':14,
-               'CO2_9':121,'CO2_10':15,'CO2_11':120,'CO2_12':122,
-               'O3_1':16,'O3_2':17,'O3_3':18,'O3_4':19,'O3_5':20,
-               'N2O_1':21,'N2O_2':22,'N2O_3':23,'N2O_4':24,'N2O_5':25,
-               'CO_1':26,'CO_2':27,'CO_3':28,'CO_4':29,'CO_5':30,'CO_6':31,
-               'CH4_1':32,'CH4_2':33,'CH4_3':34,'CH4_4':35,
-               'O2_1':36,'O2_2':37,'O2_3':38,
-               'NO_1':39,'NO_2':40,'NO_3':41,
-               'SO2_1':42,'SO2_2':43,
-               'NO2_1':44,
-               'NH3_1':45,'NH3_2':46,
-               'HNO3_1':47,'HNO3_2':117,
-               'OH_1':48,'OH_2':49,'OH_3':50,
-               'HF_1':51,'HF_2':110,
-               'HCl_1':52,'HCl_2':53,'HCl_3':107,'HCl_4':108,
-               'HBr_1':54,'HBr_2':55,'HBr_3':111,'HBr_4':112,
-               'HI_1':56,'HI_2':113,
-               'ClO_1':57,'ClO_2':58,
-               'OCS_1':59,'OCS_2':60,'OCS_3':61,'OCS_4':62,'OCS_5':63,
-               'H2CO_1':64,'H2CO_2':65,'H2CO_3':66,
-               'HOCl_1':67,'HOCl_2':68,
-               'N2_1':69,'N2_2':118,
-               'HCN_1':70,'HCN_2':71,'HCN_3':72,
-               'CH3Cl_1':73,'CH3CL_2':74,
-               'H2O2_1':75,
-               'C2H2_1':76,'C2H2_2':77,'C2H2_3':105,
-               'C2H6_1':78,'C2H6_2':106,
-               'PH3_1':79,
-               'COF2_1':80,'COF2_2':119,
-               'SF6_1':126,
-               'H2S_1':81,'H2S_2':82,'H2S_3':83,
-               'HCOOH_1':84,
-               'HO2_1':85,
-               'O_1':86,
-               'ClONO2_1':127,'ClONO2_2':128,
-               'NO+_1':87,
-               'HOBr_1':88,'HOBr_2':89,
-               'C2H4_1':90,'C2H4_2':91,
-               'CH3OH_1':92,
-               'CH3Br_1':93,'CH3Br_2':94,
-               'CH3CN_1':95,
-               'CF4_1':96,
-               'C4H2_1':116,
-               'HC3N_1':109,
-               'H2_1':103,'H2_2':115,
-               'CS_1':97,'CS_2':98,'CS_3':99,'CS_4':100,
-               'SO3_1':114,
-               'C2N2_1':123,
-               'COCl2_1':124,'COCl2_2':125}
- 
-    return trans[mol_isot_code]
-
-
-def get_Hitran_data(Molecule_name, isotopologue_number, min_vu, max_vu):
-
-    M = get_molecule_identifier(Molecule_name)
-
-    Htbl = hitran.Hitran.query_lines(molecule_number = M, 
-                                isotopologue_number = isotopologue_number,
-                                min_frequency = min_vu/un.cm, max_frequency = max_vu/un.cm)
-
-
-    G = get_global_identifier(Molecule_name, isotopologue_number=isotopologue_number)
-
-    qurl='https://hitran.org/data/Q/'+'q'+str(G)+'.txt'
-    handle = urllib.request.urlopen(qurl, context=context)
-    qdata = pd.read_csv(handle,sep=' ',skipinitialspace=True,names=['temp','q'],header=None)
-
-    return Htbl, qdata, M, G
-
-def write_partition_function(fh, qdata):
-
-    fh.write("# Number of Partition function entries\n")
-    fh.write("{:d}\n".format(len(qdata['temp'])))
-
-    fh.write("# Temperature    Q(T)\n")
-    fh.write("# [K]\n")
-
-    for t, q in zip(qdata['temp'], qdata['q']):
-        fh.write("{:>6.1f}  {:>15.6f}\n".format(t,q))
-    
-
-    return fh
-
-def write_line_data(fh, Htbl):
-
-
-    numlines = len(Htbl['molec_id'])
-
-    fh.write("Number of lines\n")
-    fh.write(str(numlines) + '\n')
-
-    fh.write("#    Nr                        Lev_up                       Lev_low   Lambda    Frequency")
-    fh.write("       Einstein-A     E_up           E_low        g_up   g_low\n")
-    fh.write("#                                                                    [micron]  [GHz]    ")
-    fh.write("       [s**-1]        [K]            [K]        \n")
-  
-    freqs = Htbl['nu'] * 100. *con.c
-    freqsG = freqs/1E9
-
-    waves = con.c/freqs*1E6
-
-    Elo = con.h * con.c * Htbl['elower']*100 / con.k
-    Eup = con.h * con.c * (Htbl['elower'] + Htbl['nu'])*100 / con.k
-
-
-    for i in range(numlines):
-
-
-        qqup = "_".join(Htbl['global_upper_quanta'][i].strip().split()) + "|" +\
-               "_".join(Htbl['local_upper_quanta'][i].strip().split())
-        qqlow = "_".join(Htbl['global_lower_quanta'][i].strip().split()) + "|" +\
-               "_".join(Htbl['local_lower_quanta'][i].strip().split())
-
-        fh.write("{:6d}{:>30s}{:>30s}{:11.5f}{:15.8f}{:13.4e}{:15.5f}{:15.5f}{:7.1f}{:7.1f}\n".format(
-                  i, qqup, qqlow, waves[i], freqsG[i],  Htbl['a'][i], Eup[i], Elo[i], Htbl['gp'][i], Htbl['gpp'][i]
-                ))
-    return fh
 
 if __name__ == "__main__":
 
     mols = ["H2", "HD", "H2O", "H218O", "CO2", "13CO2", "CO", "13CO", "C18O", "CH4", "HCN", "H13CN", "NH3", "OH", "C2H2", "13CCH2", "C2H4", "C4H2", "C2H6", "HC3N"]
     basem = ["H2", "H2", "H2O", "H2O", "CO2", "CO2", "CO", "CO", "CO", "CH4", "HCN", "HCN", "NH3", "OH", "C2H2", "C2H2", "C2H4", "C4H2", "C2H6", "HC3N"]
     isot = [1, 2, 1, 2, 1, 2, 1, 2, 3, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1]
+
+    #mols = ["O2"]
+    #basem = ["O2", "O2"]
+    #isot = [1, 2]
 
     min_wave = 0.3  # micron
     max_wave = 1000  # micron
@@ -245,6 +80,7 @@ if __name__ == "__main__":
 
         print("Downloading data for mol: {:}".format(mol))
         Htbl, qdata, M, G = get_Hitran_data(bm, iso, min_vu, max_vu)
+        os.makedirs(save_folder, exist_ok=True)  # Create the folder if it doesn't exist
 
         with open(file_path, 'w') as fh:
             fh.write("# HITRAN 2020 {:}; id:{:}; iso:{:};gid:{:}\n".format(mol, M, iso, G))
@@ -267,76 +103,23 @@ molecules_data = [
     # Add more molecules here if needed
 ]
 
-default_data = [
-    ("H2O", "HITRANdata/data_Hitran_2020_H2O.par", "H$_2$O"),
-    ("OH", "HITRANdata/data_Hitran_2020_OH.par", "OH"),
-    ("HCN", "HITRANdata/data_Hitran_2020_HCN.par", "HCN"),
-    ("C2H2", "HITRANdata/data_Hitran_2020_C2H2.par", "C$_2$H$_2$"),
-    ("CO2", "HITRANdata/data_Hitran_2020_CO2.par", "CO$_2$"),
-    ("CO", "HITRANdata/data_Hitran_2020_CO.par", "CO")
-] 
-
-
-
 molecules_data_default = molecules_data.copy()
 
 deleted_molecules = []
 
-# Create necessary folders, if it doesn't exist (typically at first launch of iSLAT)
-save_folder = "SAVES"
-os.makedirs(save_folder, exist_ok=True)
-output_dir = "MODELS"
-os.makedirs(output_dir, exist_ok=True)
-linesave_folder = "LINESAVES"
-os.makedirs(linesave_folder, exist_ok=True)
-
-
 # read more molecules if saved by the user in a previous iSLAT session
 def read_from_csv():
-    global file_name
-    filename = os.path.join(save_folder, f"{file_name}-molsave.csv")
-    
-    if os.path.exists(filename):
+    if os.path.exists('molecules_list.csv'):
         try:
-            with open(filename, 'r') as csvfile:
+            with open('molecules_list.csv', 'r') as csvfile:
                 reader = csv.reader(csvfile)
                 next(reader)  # Skip the header row
-                return [tuple(row[:3]) for row in reader] 
+                return [tuple(row) for row in reader]
         except FileNotFoundError:
             pass
     return molecules_data
 
-def read_default_csv():
-    global file_name
-    filename = os.path.join(save_folder, f"default.csv")
-    
-    if os.path.exists(filename):
-        try:
-            with open(filename, 'r') as csvfile:
-                reader = csv.reader(csvfile)
-                next(reader)  # Skip the header row
-                return [tuple(row[:3]) for row in reader] 
-        except FileNotFoundError:
-            pass
-    return molecules_data
-
-# read more molecules if saved by the user in a previous iSLAT session
-def read_from_user_csv():
-    global file_name
-    filename = os.path.join(save_folder, f"molecules_list.csv")
-    
-    if os.path.exists(filename):
-        try:
-            with open(filename, 'r') as csvfile:
-                reader = csv.reader(csvfile)
-                next(reader)  # Skip the header row
-                return [tuple(row[:3]) for row in reader] 
-        except FileNotFoundError:
-            pass
-    return molecules_data
-
-
-
+molecules_data = read_from_csv()
 
 # Set default initial parameters for a new molecule
 default_initial_params = {
@@ -404,7 +187,7 @@ model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / pix_per_fwhm
 # Constants used in generating the rotation diagram
 au = 1.496e11 # 1AU in m
 pc = 3.08567758128e18 # From parsec to cm
-ccum = 2.99792458e14 # speed of light in um/s
+ccum = 2.99792458e14 # speed of light in um s^-1
 hh = 6.62606896e-27 # erg s
 
 # Dictionary to store the initial values for each chemical
@@ -416,17 +199,62 @@ spanmol = "h2o"
 line_threshold = 0.03   # this is the percent value (where 0.01 = 1%) of the strongest line in the plot;
                         # lines below this this limit are ignored in the plot and in the single line selection
 
+print(' ')
+print ('Loading molecule files: ...')
+
+# Loop through each molecule and set up the necessary objects and variables
+for mol_name, mol_filepath, mol_label in molecules_data:
+    # Import line lists from the ir_model folder
+    mol_data = MolData(mol_name, mol_filepath)
+
+    # Get the initial parameters for the current molecule, use default if not defined
+    params = initial_parameters.get(mol_name, default_initial_params)
+    scale_exponent = params["scale_exponent"]
+    scale_number = params["scale_number"]
+    t_kin = params["t_kin"]
+    radius_init = params["radius_init"]
+
+    # Calculate and set n_mol_init for the current molecule
+    n_mol_init = float(scale_number * (10 ** scale_exponent))
+
+    # Use exec() to create the variables with specific variable names for each molecule
+    exec(f"mol_{mol_name.lower()} = MolData('{mol_name}', '{mol_filepath}')", globals())
+    exec(f"scale_exponent_{mol_name.lower()} = {scale_exponent}", globals())
+    exec(f"scale_number_{mol_name.lower()} = {scale_number}", globals())
+    exec(f"n_mol_{mol_name.lower()}_init = {n_mol_init}", globals())
+    exec(f"t_kin_{mol_name.lower()} = {t_kin}", globals())
+    exec(f"{mol_name.lower()}_radius_init = {radius_init}", globals())
+
+    # Print the results (you can modify this part as needed)
+    print(f"Molecule Initialized: {mol_name}")
+    #print(f"scale_exponent_{mol_name.lower()} = {scale_exponent}")
+    #print(f"scale_number_{mol_name.lower()} = {scale_number}")
+    #print(f"n_mol_{mol_name.lower()}_init = {n_mol_init}")
+    #print(f"t_kin_{mol_name.lower()} = {t_kin}")
+    #print(f"{mol_name.lower()}_radius_init = {radius_init}")
+    #print()  # Empty line for spacing
+
+
+    # Store the initial values in the dictionary
+    initial_values[mol_name.lower()] = {
+        "scale_exponent": scale_exponent,
+        "scale_number": scale_number,
+        "t_kin": t_kin,
+        "radius_init": radius_init,
+        "n_mol_init": n_mol_init
+    }
+
 
 
 """Creating all the functions used for the tool"""
 
-# """
-# find_nearest() is a simple function that finds a value in a given array that matches closest to a value input.
-# The function then returns the index of the value in the array.
-# """
-# def find_nearest(array,value):
-#     idx = (np.abs(array-value)).argmin()
-#     return idx
+"""
+find_nearest() is a simple function that finds a value in a given array that matches closest to a value input. 
+The function then returns the index of the value in the array. 
+"""
+def find_nearest(array,value):
+    idx = (np.abs(array-value)).argmin()
+    return idx
 
     
 """
@@ -476,8 +304,7 @@ def fit_onselect():
 
     if selectedline == True:  # "selectedline" variable is determined by whether or not an area was selected in the top graph or not
 
-        # using one less pixel on each side here, because of how data_region_x is defined: to include 1 more pixel on each side
-        gauss_fit, gauss_fwhm, gauss_area, x_fit = fit_line(data_region_x[1],data_region_x[-2])
+        gauss_fit, gauss_fwhm, gauss_area, x_fit = fit_line(data_region_x[0],data_region_x[-1])
 
         dely = gauss_fit.eval_uncertainty (sigma=3)
         ax2.fill_between (x_fit, gauss_fit.best_fit - dely, gauss_fit.best_fit + dely, color="#ABABAB",
@@ -513,26 +340,16 @@ def fit_line(xmin, xmax):
     print (gauss_fit.fit_report ())  # print full fit report
 
     gauss_fwhm = gauss_fit.params['fwhm'].value / gauss_fit.params['center'].value * cc # get FWHM in km/s
-    # these if statements are made to avoid problems when the fit does not converge and stderr are returned as NoneType
-    if gauss_fit.params['fwhm'].stderr is not None:
-        gauss_fwhm_err = gauss_fit.params['fwhm'].stderr / gauss_fit.params['center'].value * cc # get FWHM error
-    else:
-        gauss_fwhm_err = np.nan
+    gauss_fwhm_err = gauss_fit.params['fwhm'].stderr / gauss_fit.params['center'].value * cc # get FWHM error
 
     sigma_freq = ccum / (gauss_fit.params['center'].value ** 2) * gauss_fit.params[
         'sigma'].value  # sigma from wavelength to frequency
-    if gauss_fit.params['sigma'].stderr is not None:
-        sigma_freq_err = ccum / (gauss_fit.params['center'].value ** 2) * gauss_fit.params['sigma'].stderr # error on sigma
-    else:
-        sigma_freq_err = np.nan
+    sigma_freq_err = ccum / (gauss_fit.params['center'].value ** 2) * gauss_fit.params['sigma'].stderr # error on sigma
 
     gauss_area = gauss_fit.params['height'].value * sigma_freq * np.sqrt (2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
-    if gauss_fit.params['height'].stderr is not None:
-        gauss_area_err = (gauss_area * np.sqrt(
+    gauss_area_err = (gauss_area * np.sqrt(
                         (gauss_fit.params['height'].stderr/gauss_fit.params['height'].value)**2 +
                         (sigma_freq_err/sigma_freq)**2) ) # get area error
-    else:
-        gauss_area_err = np.nan
 
     return gauss_fit, [gauss_fwhm,gauss_fwhm_err], [gauss_area,gauss_area_err], x_fit
 
@@ -551,8 +368,46 @@ def update(*val):
     ax2.clear() # These functions clear the three plots of the tool
     ax3.clear() # They are rebuilt in the update() function
         
-    global xp1, xp2, span, model_line_select, data_line_select, fig_height, fig_bottom_height, n_mol, selectedline, spanmol, sum_line, int_pars, molecules_data, total_fluxes, dist, fwhm, max_lamd, min_lamd
-    
+    global xp1, xp2
+    global span
+    global fluxes_h2o, lambdas_h2o
+    global fluxes_oh, lambdas_oh
+    global fluxes_hcn, lambdas_hcn
+    global fluxes_c2h2, lambdas_c2h2
+    global model_line_select, data_line_select
+    global fig_height, fig_bottom_height
+    global h2o_radius
+    global n_mol
+    global selectedline, spanmol
+    global h2o
+    global oh
+    global hcn
+    global c2h2
+    global h2o_vis
+    global oh_vis
+    global hcn_vis
+    global c2h2_vis
+    global h2o_line
+    global oh_line
+    global hcn_line
+    global c2h2_line
+    global sum_line
+    global t_h2o
+    global t_oh
+    global t_hcn
+    global t_c2h2
+    global n_mol_h2o
+    global n_mol_oh
+    global n_mol_hcn
+    global n_mol_c2h2
+    global h2o_intensity
+    global int_pars
+    global molecules_data
+    global total_fluxes
+    global dist
+    global fwhm
+    global max_lamd
+    global min_lamd
     
     span.set_visible(False) # Clears the blue area created by the span selector (range selector in the top graph of the tool)
     selectedline = False # See reference in save()
@@ -576,18 +431,6 @@ def update(*val):
         
         exec(f"{molecule_name_lower}_line, = ax1.plot([], [], alpha=1, linewidth=2, ls='--')", globals())
         exec(f"{molecule_name_lower}_line.set_label('{mol_label}')", globals())
-        
-        try:
-            color_var = globals().get(f"{molecule_name_lower}_color")
-            
-            if color_var:
-                # Set the color of the molecule line
-                exec(f"{molecule_name_lower}_line.set_color('{color_var}')", globals())
-                exec(f"global {molecule_name_lower}_line_color; {molecule_name_lower}_line_color = '{color_var}'")
-        except NameError:
-            print('not changed!')
-            return
-            
     #sum_line, = ax1.plot([], [], color='gray', linewidth=1)
     #sum_line.set_label('Sum')
     ax1.legend()
@@ -609,11 +452,6 @@ def update(*val):
 
         # Fluxes and lambdas
         exec(f"fluxes_{molecule_name_lower} = {molecule_name_lower}_spectrum.flux_jy; lambdas_{molecule_name_lower} = {molecule_name_lower}_spectrum.lamgrid", globals())
-        
-        linevar = eval(f"{molecule_name_lower}_line")
-        linecolor = linevar.get_color()
-        exec(f"global {molecule_name_lower}_line_color; {mol_name.lower()}_line_color = '{linecolor}'")
-                       
 
     
     # Redefining plot parameters that were deleted by the clear functions at the begining of this function
@@ -727,8 +565,14 @@ The lines are also highlighted in the population diagram graph in this function.
 
 def onselect(xmin, xmax):
     
-    global wave_data, flux_data, line2save, selectedline, spanmol, model_indmin, model_indmax, data_region_x, model_line_select
-
+    global wave_data, flux_data
+    global lambdas_h2o, fluxes_h2o
+    global line2save
+    global selectedline
+    global spanmol
+    global model_indmin, model_indmax
+    global data_region_x
+    global model_line_select
 
 
     xdif = xmax - xmin
@@ -983,7 +827,7 @@ def single_finder():
         data_field.insert ('1.0', 'No single lines found in the current wavelength range.')
     if counter > 0:
         data_field.insert ('1.0',
-                           'There are ' + str (counter) + ' single lines found in the current wavelength range.')
+                           'There are ' + str (counter) + ' single lines \nfound in the current \nwavelength range.')
     canvas.draw ()
 
 
@@ -1007,14 +851,8 @@ def print_saved_lines():
 
         svd_lns=pd.read_csv(linelistpath, sep=',')
         svd_lamb = np.array(svd_lns['lam'])
-        if 'xmin' in svd_lns:
-            x_min = np.array(svd_lns['xmin'])
-            x_max = np.array(svd_lns['xmax'])
         for i in range(len(svd_lamb)):
-            ax1.vlines(svd_lamb[i], -2, 10, linestyles='dashed',color='red')
-            if 'xmin' in svd_lns:
-                ax1.vlines (x_min[i], -2, 10, color='coral', alpha=0.5)
-                ax1.vlines (x_max[i], -2, 10, color='coral', alpha=0.5)
+            ax1.vlines(svd_lamb[i], -2, 2, linestyles='dashed',color='red')
         data_field.delete('1.0', "end")
         data_field.insert('1.0', 'Saved lines retrieved from file.')
         canvas.draw()
@@ -1040,14 +878,11 @@ def fit_saved_lines():
 
             x_min = np.array(svd_lns['xmin'])
             x_max = np.array(svd_lns['xmax'])
-            restwl = np.array(svd_lns['lam'])
             # define new columns to be filled with values line by line in the loop below
             svd_lns["Flux_data"], svd_lns["Flux_fit"], svd_lns["Flux_err"] = [np.empty_like(x_min, dtype=None),np.empty_like(x_min, dtype=None),np.empty_like(x_min, dtype=None)]
-            svd_lns["Centr_fit"], svd_lns["Centr_err"], svd_lns["Doppler"], svd_lns["FWHM_fit"], svd_lns["FWHM_err"] = [np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min)]
+            svd_lns["Centr_fit"], svd_lns["Centr_err"], svd_lns["FWHM_fit"], svd_lns["FWHM_err"] = [np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min)]
 
             for i in range(len(x_min)):
-                ax1.vlines(x_min[i], -2, 10, color='lime', alpha=0.5)
-                ax1.vlines(x_max[i], -2, 10, color='lime', alpha=0.5)
                 gauss_fit, gauss_fwhm, gauss_area, x_fit = fit_line(x_min[i],x_max[i])
 
                 dely = gauss_fit.eval_uncertainty (sigma=3)
@@ -1056,31 +891,14 @@ def fit_saved_lines():
                 ax1.plot (x_fit, gauss_fit.best_fit, label='Gauss. fit', color='lime', ls='--')
                 flux_nofit = flux_integral (wave_data, flux_data, x_min[i], x_max[i])
 
-                sig_det_lim = 2
-                # these reformatting below is for reducing the number of decimals and then get back to a float
-                svd_lns.loc[i,"Flux_data"] = np.float64(f'{flux_nofit:.{3}e}')
-                svd_lns.loc[i,"Flux_fit"] = np.float64(f'{gauss_area[0]:.{3}e}')
-                svd_lns.loc[i,"Flux_err"] = np.float64(f'{gauss_area[1]:.{3}e}')
-                # store fit results only if fit is good and line is detected; for now we're using a condition on line detection, as the goodness of fit is not very informative in MIRI spectra, it seems..
-                if gauss_area[0] > sig_det_lim*gauss_area[1]:
-                    svd_lns.loc[i,"FWHM_fit"] = np.round(gauss_fwhm[0], decimals=1)
-                    svd_lns.loc[i,"FWHM_err"] = np.round(gauss_fwhm[1], decimals=1)
-                    svd_lns.loc[i,"Centr_fit"] = np.round (gauss_fit.params['center'].value, decimals=5)
-                    svd_lns.loc[i,"Centr_err"] = np.round (gauss_fit.params['center'].stderr, decimals=5)
-                    svd_lns.loc[i,"Doppler"] = np.round ((gauss_fit.params['center'].value - restwl[i]) / restwl[i] * cc, decimals=1)
-
-                else:
-                    svd_lns.loc[i,"FWHM_fit"] = np.nan
-                    svd_lns.loc[i,"FWHM_err"] = np.nan
-                    svd_lns.loc[i,"Centr_fit"] = np.nan
-                    svd_lns.loc[i,"Centr_err"] = np.nan
-                    svd_lns.loc[i, "Doppler"] = np.nan
-
+                svd_lns.loc[i,"Flux_data"] = f'{flux_nofit:.{3}e}'
+                svd_lns.loc[i,"Flux_fit"] = f'{gauss_area[0]:.{3}e}'
+                svd_lns.loc[i,"Flux_err"] = f'{gauss_area[1]:.{3}e}'
+                svd_lns.loc[i,"FWHM_fit"] = np.round(gauss_fwhm[0], decimals=1)
+                svd_lns.loc[i,"FWHM_err"] = np.round(gauss_fwhm[1], decimals=1)
+                svd_lns.loc[i,"Centr_fit"] = np.round (gauss_fit.params['center'].value, decimals=5)
+                svd_lns.loc[i,"Centr_err"] = np.round (gauss_fit.params['center'].stderr, decimals=5)
                 svd_lns.loc[i,"Red-chisq"] = np.round (gauss_fit.redchi, decimals=2)
-
-            # add rotation diagram values
-            freq = ccum / svd_lns['lam']
-            svd_lns['RD_y'] = np.round(np.log(4 * np.pi * svd_lns["Flux_fit"] / (svd_lns['a_stein'] * hh * freq * svd_lns['g_up'])), decimals=3)
 
             # save output file with measurements as csv file
             svd_lns.to_csv(linesavepath, header=True, index=False)
@@ -1094,7 +912,7 @@ def print_atomic_lines():
     update()
     ax1.callbacks.connect('xlim_changed', on_xlims_change)
     
-    svd_lns = pd.read_csv("LINELISTS/Atomic_lines.csv", sep=',')
+    svd_lns = pd.read_csv("ATOMLINES/Atomic_line_list.csv", sep=',')
     svd_lamb = np.array(svd_lns['wave'])
     svd_species = svd_lns['species']
     svd_lineID = np.array(svd_lns['line'])
@@ -1241,12 +1059,43 @@ def submit_temp(event, text):
     global xp1
     global xp2
     global span
+    global fluxes_h2o
+    global lambdas_h2o
+    global fluxes_oh
+    global lambdas_oh
+    global fluxes_hcn
+    global lambdas_hcn
+    global fluxes_c2h2
+    global lambdas_c2h2
     global model_line_select
     global data_line_select
     global fig_height
     global fig_bottom_height
+    global h2o_radius
     global n_mol
     global selectedline
+    global h2o
+    global oh
+    global hcn
+    global c2h2
+    global h2o_vis
+    global oh_vis
+    global hcn_vis
+    global c2h2_vis
+    global h2o_line
+    global oh_line
+    global hcn_line
+    global c2h2_line
+    global sum_line
+    global t_h2o
+    global t_oh
+    global t_hcn
+    global t_c2h2
+    global n_mol_h2o
+    global n_mol_oh
+    global n_mol_hcn
+    global n_mol_c2h2
+    global h2o_intensity
     global int_pars
     global molecules_data
     global total_fluxes
@@ -1386,9 +1235,10 @@ flux_integral() calculates the flux of the data line in the selected region of t
 This function is used in onselect().
 """
 def flux_integral(lam, flux, lam_min, lam_max):
+    cc = 2.99792458e8*1e6 # speed of light in um/s, to convert wavelengths into frequencies
     # calculate flux integral
     integral_range = np.where(np.logical_and(lam > lam_min, lam < lam_max))
-    line_flux_meas = np.trapz(flux[integral_range[::-1]], x=ccum/lam[integral_range[::-1]])
+    line_flux_meas = np.trapz(flux[integral_range[::-1]], x=cc/lam[integral_range[::-1]])
     line_flux_meas = -line_flux_meas*1e-23 # to get (erg s-1 cm-2); it's using frequency array, so need the - in front of it
     return line_flux_meas
 
@@ -1421,112 +1271,6 @@ skip = False
 
 selectedline = False
 
-
-root = tk.Tk()
-root.withdraw()
-root.call('wm', 'attributes', '.', '-topmost', True)
-
-def selectfileinit():
-    global file_path
-    global file_name
-    global wave_data, flux_data, err_data, wave_original
-    global input_spectrum_data
-    global filename_box_data
-    global mode
-    global xp1, rng, xp2
-
-    spectra_directory = os.path.abspath("EXAMPLE-data")
-    filetypes = [('CSV Files', '*.csv')]
-    # Ask the user to select a file
-    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectrum Data File', filetypes=filetypes, initialdir=spectra_directory)
-
-    if infiles:
-        for file_path in infiles:
-            # Process each selected file
-            print(' ')
-            print("Selected file:", file_path)
-            file_name = os.path.basename(file_path)
-            # code to process each file
-            input_spectrum_data = pd.read_csv(filepath_or_buffer=file_path, sep=',')
-            wave_data = np.array(input_spectrum_data['wave'])
-            wave_original = np.array(input_spectrum_data['wave'])
-            flux_data = np.array(input_spectrum_data['flux'])
-            if 'err' in input_spectrum_data:
-                err_data = np.array(input_spectrum_data['err'])
-            else:
-                err_data = np.empty_like(flux_data) + np.nanmax(flux_data)/100 # assumed, if not present
-
-                # Set initial values of xp1 and rng
-            fig_max_limit = np.nanmax(wave_data)
-            fig_min_limit = np.nanmin(wave_data)
-            xp1 = np.around(fig_min_limit + (fig_max_limit - fig_min_limit)/2, decimals=2)
-            rng = np.around((fig_max_limit - fig_min_limit)/10, decimals=2)
-            xp2 = xp1 + rng
-
-            # now = dt.now()
-            # dateandtime = now.strftime("%d-%m-%Y-%H-%M-%S")
-            # print(dateandtime)
-            # svd_line_file = f'savedlines-{dateandtime}.csv'
-            
-        # Ask the user to select the mode (light or dark)
-        mode_dialog = tk.messagebox.askquestion("Select Mode", "Would you like to start iSLAT in Dark Mode?")
-        
-        if mode_dialog == 'yes':
-            mode = True  # Dark mode
-        else:
-            mode = False  # Light mode
-    else:
-        print("No files selected.")
-
-
-selectfileinit()
-
-print(' ')
-print ('Loading molecule files: ...')
-
-molecules_data = read_from_user_csv()
-# Loop through each molecule and set up the necessary objects and variables
-for mol_name, mol_filepath, mol_label in molecules_data:
-    # Import line lists from the ir_model folder
-    mol_data = MolData(mol_name, mol_filepath)
-
-    # Get the initial parameters for the current molecule, use default if not defined
-    params = initial_parameters.get(mol_name, default_initial_params)
-    scale_exponent = params["scale_exponent"]
-    scale_number = params["scale_number"]
-    t_kin = params["t_kin"]
-    radius_init = params["radius_init"]
-
-    # Calculate and set n_mol_init for the current molecule
-    n_mol_init = float(scale_number * (10 ** scale_exponent))
-
-    # Use exec() to create the variables with specific variable names for each molecule
-    exec(f"mol_{mol_name.lower()} = MolData('{mol_name}', '{mol_filepath}')", globals())
-    exec(f"scale_exponent_{mol_name.lower()} = {scale_exponent}", globals())
-    exec(f"scale_number_{mol_name.lower()} = {scale_number}", globals())
-    exec(f"n_mol_{mol_name.lower()}_init = {n_mol_init}", globals())
-    exec(f"t_kin_{mol_name.lower()} = {t_kin}", globals())
-    exec(f"{mol_name.lower()}_radius_init = {radius_init}", globals())
-
-    # Print the results (you can modify this part as needed)
-    print(f"Molecule Initialized: {mol_name}")
-    #print(f"scale_exponent_{mol_name.lower()} = {scale_exponent}")
-    #print(f"scale_number_{mol_name.lower()} = {scale_number}")
-    #print(f"n_mol_{mol_name.lower()}_init = {n_mol_init}")
-    #print(f"t_kin_{mol_name.lower()} = {t_kin}")
-    #print(f"{mol_name.lower()}_radius_init = {radius_init}")
-    #print()  # Empty line for spacing
-
-
-    # Store the initial values in the dictionary
-    initial_values[mol_name.lower()] = {
-        "scale_exponent": scale_exponent,
-        "scale_number": scale_number,
-        "t_kin": t_kin,
-        "radius_init": radius_init,
-        "n_mol_init": n_mol_init
-    }
-    
 # Initialize visibility booleans for each molecule
 molecule_names = [mol_name.lower() for mol_name, _ , _ in molecules_data]
 for mol_name in molecule_names:
@@ -1547,6 +1291,63 @@ for mol_name, mol_filepath, mol_label in molecules_data:
     # Radius
     exec(f"global {molecule_name_lower}_radius; {molecule_name_lower}_radius = {molecule_name_lower}_radius_init")
 
+
+root = tk.Tk()
+root.withdraw()
+root.call('wm', 'attributes', '.', '-topmost', True)
+
+def selectfileinit():
+    global file_path
+    global file_name
+    global wave_data, flux_data, err_data, wave_original
+    global input_spectrum_data
+    global filename_box_data
+    global svd_line_file
+    global mode
+    global xp1, rng, xp2
+
+    spectra_directory = os.path.abspath("EXAMPLE-data")
+    filetypes = [('CSV Files', '*.csv')]
+    # Ask the user to select a file
+    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectrum Data File', filetypes=filetypes, initialdir=spectra_directory)
+
+    if infiles:
+        for file_path in infiles:
+            # Process each selected file
+            print(' ')
+            print("Selected file:", file_path)
+            file_name = os.path.basename(file_path)
+            # code to process each file
+            input_spectrum_data = pd.read_csv(filepath_or_buffer=file_path, sep=',')
+            wave_data = np.array(input_spectrum_data['wave'])
+            wave_original = np.array(input_spectrum_data['wave'])
+            flux_data = np.array(input_spectrum_data['flux'])
+            err_data = np.array(input_spectrum_data['err'])
+
+            # Set initial values of xp1 and rng
+            fig_max_limit = np.nanmax(wave_data)
+            fig_min_limit = np.nanmin(wave_data)
+            xp1 = np.around(fig_min_limit + (fig_max_limit - fig_min_limit)/2, decimals=2)
+            rng = np.around((fig_max_limit - fig_min_limit)/10, decimals=2)
+            xp2 = xp1 + rng
+
+            now = dt.now()
+            dateandtime = now.strftime("%d-%m-%Y-%H-%M-%S")
+            print(dateandtime)
+            svd_line_file = f'savedlines-{dateandtime}.csv'
+            
+        # Ask the user to select the mode (light or dark)
+        mode_dialog = tk.messagebox.askquestion("Select Mode", "Would you like to start iSLAT in Dark Mode?")
+        
+        if mode_dialog == 'yes':
+            mode = True  # Dark mode
+        else:
+            mode = False  # Light mode
+    else:
+        print("No files selected.")
+
+        
+selectfileinit()
 if mode:
     global background
     global foreground
@@ -1596,13 +1397,14 @@ def update_initvals():
     model_pixel_res = (np.mean([min_lamb, max_lamb]) / cc * fwhm) / pix_per_fwhm
     # this below needs to be updated to act on the wave array in the data
     wave_data = wave_original - (wave_original / cc * float(star_rv_entry.get()))
+    print("Updated init vals")
     loadsavedmessage()
     update()
     canvas.draw()
 
-    data_field.delete('1.0', "end")
-    data_field.insert('1.0', 'Parameter updated!')
-    # time.sleep(2)
+    data_field.delete ('1.0', "end")
+    data_field.insert ('1.0', 'Parameter updated!')
+    data_field.delete ('1.0', "end")
 
 
 # # Functing to limit the user input from the previous prompts to the range of the data you're inspecting
@@ -1668,7 +1470,12 @@ data_line.set_label('Data')
 sum_line, = ax1.plot([], [], color='purple', linewidth=1)
 sum_line.set_label('Sum')
 ax1.legend()
-
+if oh_vis == False:
+    oh_line.set_visible(False)
+if hcn_vis == False:
+    hcn_line.set_visible(False)
+if c2h2_vis == False:
+    c2h2_line.set_visible(False)
 
 ax2.set_frame_on(False)
 ax3.set_frame_on(False)
@@ -1706,7 +1513,7 @@ total_height = row_height * num_rows
 start_y = 0.52 + (0.45 - total_height) / 2  # Center vertically
    
 # Define the column labels
-column_labels = ['Molecule', 'Temp.', 'Radius', 'Col. Dens', 'On', 'Del.', 'Color']
+column_labels = ['Molecule', 'Temp.', 'Radius', 'Col. Dens', 'On']
 
 # Create a dictionary to store the visibility buttons
 vis_buttons_dict = {}
@@ -1718,40 +1525,31 @@ window.title("iSLAT "+ iSLAT_version)
 
 # MENU of tkinter GUI frame parts and definitions:
 # title_frame : menu at the top of the GUI (Add molecule, etc)
-# molecule_frame (contained by outer_frame) : top right frame for molecules and their parameters (temp, rad, coldens)
+# molecule_frame : top right frame for molecules and their parameters (temp, rad, coldens)
 # files_frame : file input and output
 # plotparams_frame : plot parameters (plot start, range, etc)
 # functions_frame : buttons to activate functions (Save line, Fit line, etc)
 # text_frame : bottom right empty frame for text messages
 
-# create buttons for top of GUI
-nb_of_columns = 10 # to be replaced by the relevant number
-title_frame = tk.Frame(window, bg ="gray")
-title_frame.grid(row=0, column=0, columnspan=nb_of_columns, sticky='ew')
+# Define your data (molecules_data, initial_values, column_labels, etc.)
 
-# Create a frame to hold the canvasscroll and both scrollbars
+# Create a frame to hold the canvasscroll and scrollbar
 outer_frame = tk.Frame(window)
-outer_frame.grid(row=title_frame.grid_info()['row'] + title_frame.grid_info()['rowspan'], column=0, rowspan=10, columnspan=5, sticky="nsew")
+outer_frame.grid(row=1, column=0, rowspan=10, columnspan=5, sticky="nsew")
 
 # Create a canvasscroll widget
 canvasscroll = tk.Canvas(outer_frame)
-canvasscroll.grid(row=0, column=0, sticky="nsew")
+canvasscroll.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-# Create vertical and horizontal scrollbar widgets and associate them with the canvasscroll
-vscrollbar = tk.Scrollbar(outer_frame, orient="vertical", command=canvasscroll.yview)
-vscrollbar.grid(row=0, column=1, sticky="ns")
-hscrollbar = tk.Scrollbar(outer_frame, orient="horizontal", command=canvasscroll.xview)
-hscrollbar.grid(row=1, column=0, sticky="ew")
-
-# Configure the canvasscroll to use the scrollbars
-canvasscroll.configure(yscrollcommand=vscrollbar.set, xscrollcommand=hscrollbar.set)
-
-# Allow resizing of the canvasscroll and outer_frame
-outer_frame.grid_rowconfigure(0, weight=1)
-outer_frame.grid_columnconfigure(0, weight=1)
+# Create a scrollbar widget and associate it with the canvasscroll
+scrollbar = tk.Scrollbar(outer_frame, orient="vertical", command=canvasscroll.yview)
+scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+canvasscroll.configure(yscrollcommand=scrollbar.set)
 
 # Create the frame that will contain your actual content
-molecule_frame = tk.Frame(canvasscroll, borderwidth=2)  # , relief="groove")
+molecule_frame = tk.Frame(canvasscroll, borderwidth=2) #, relief="groove")
+
+# Add the frame to the canvasscroll
 canvasscroll.create_window((0, 0), window=molecule_frame, anchor="nw")
 
 # Configure the canvasscroll scroll region
@@ -1770,98 +1568,9 @@ for col, label in enumerate(column_labels):
     label_widget = tk.Label(molecule_frame, text=label)
     label_widget.grid(row=0, column=col)
 
-def choose_color(widget):
-    # Get the row number from the widget's grid info
-    row = widget.grid_info()["row"]
-    
-    # Get the molecule name from the entry widget in the same row
-    mol_name = molecule_frame.grid_slaves(row=row, column=0)[0].get().lower()
-    
-    # Ask user to choose a color
-    color = colorchooser.askcolor(title="Choose a color")
-    if color[1]:  # Check if a color was selected
-        # Set the color of the molecule line
-        globals()[f"{mol_name.lower()}_color"] = color[1]
-        exec(f"{mol_name.lower()}_line.set_color('{color[1]}')", globals())
-        # Get the color button from the grid_slaves list
-        color_button = molecule_frame.grid_slaves(row=row, column=6)[0]
-
-        # Set the background color of the color button
-        color_button.configure(bg=color[1])
-        update()
-
-    
-def delete_row(widget):
-    global molecules_data, nextrow
-    
-    data_field.delete('1.0', "end")
-    
-    row = widget.grid_info()["row"]
-    mol_name = molecule_frame.grid_slaves(row=row, column=0)[0].get().lower()
-    
-    if mol_name == "h2o":
-        data_field.delete ('1.0', "end")
-        data_field.insert ('1.0', f'You can not delete {mol_name.upper()}!')
-        return
-
-    # Destroy all widgets in the row
-    for w in molecule_frame.grid_slaves(row=row):
-        w.destroy()
-        
-    exec(f"{mol_name.lower()}_line.remove()", globals())
-
-    # Remove the molecule from molecules_data
-    molecules_data = [molecule for molecule in molecules_data if molecule[0].lower() != mol_name]
-    
-    write_user_csv(molecules_data)
-    
-    # Move all rows below this row up by one
-    for r in range(row + 1, nextrow):
-        for col in range(7):  # Adjust the range if you have more columns
-            widget_list = molecule_frame.grid_slaves(row=r, column=col)
-            for widget in widget_list:
-                widget.grid(row=r-1, column=col)
-
-    nextrow -= 1
-    
-    spanoptionsvar = [m[0] for m in molecules_data]
-    spandropd['values'] = spanoptionsvar
-    if spanoptionsvar:
-        spandropd.set(spanoptionsvar[0])
-    update()
-
-    data_field.delete ('1.0', "end")
-    data_field.insert ('1.0', f'{mol_name.upper()} deleted!')
-
-def update_csv():
-    filename = os.path.join(save_folder, f"{file_name}-molsave.csv")
-    csv_file = filename
-    try:
-        # Read existing data from CSV
-        with open(csv_file, 'r', newline='') as file:
-            reader = csv.reader(file)
-            rows = list(reader)
-
-        # Identify the row to delete
-        for i, row in enumerate(rows):
-            if row[0].lower() == mol_name:
-                del rows[i]
-                break
-
-        # Write updated data back to CSV
-        with open(csv_file, 'w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerows(rows)
-
-        print(f"{csv_file} updated.")
-    except Exception as e:
-        print(f"Error updating {csv_file}: {e}")
-      
-
 # Loop to create rows of input fields and buttons for each chemical
-nextrow = 1  # Start with row 1
 for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
-    #global nextrow
+    global nextrow
     y_row = start_y + row_height * (num_rows - row - 1)
     row = row + 1
     # Get the initial values for the current chemical from the dictionary
@@ -1874,29 +1583,34 @@ for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
 
     # Row label
     exec(f"{mol_name.lower()}_rowl_field = tk.Entry(molecule_frame, width=6)")
-    eval(f"{mol_name.lower()}_rowl_field").grid(row=row, column=0)
+    eval(f"{mol_name.lower()}_rowl_field").grid(row=row + 1, column=0)
     eval(f"{mol_name.lower()}_rowl_field").insert(0, f"{mol_name}")
 
     # Temperature input field
     exec(f"{mol_name.lower()}_temp_field = tk.Entry(molecule_frame, width=4)")
-    eval(f"{mol_name.lower()}_temp_field").grid(row=row, column=1)
+    eval(f"{mol_name.lower()}_temp_field").grid(row=row + 1, column=1)
     eval(f"{mol_name.lower()}_temp_field").insert(0, f"{t_kin}")
+    globals() [f"{mol_name.lower()}_submit_temp_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), ce = globals()[f"{mol_name.lower()}_temp_field"]: submit_temp(ce.get(), mn))
+    #eval(f"{mol_name.lower()}_submit_temp_button").grid(row=row + 1, column=2)
     eval(f"{mol_name.lower()}_temp_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_temp_field"]: submit_temp(ce.get(), mn))
     
-
     # Radius input field
     exec(f"{mol_name.lower()}_rad_field = tk.Entry(molecule_frame, width=4)")
-    eval(f"{mol_name.lower()}_rad_field").grid(row=row, column=2)
+    eval(f"{mol_name.lower()}_rad_field").grid(row=row + 1, column=2)
     eval(f"{mol_name.lower()}_rad_field").insert(0, f"{radius_init}")
+    globals() [f"{mol_name.lower()}_submit_rad_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), ce = globals()[f"{mol_name.lower()}_rad_field"]: submit_rad(ce.get(), mn))
+    #eval(f"{mol_name.lower()}_submit_rad_button").grid(row=row + 1, column=4)
     eval(f"{mol_name.lower()}_rad_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_rad_field"]: submit_rad(ce.get(), mn))
-
     
     # Column Density input field
     exec(f"{mol_name.lower()}_dens_field = tk.Entry(molecule_frame, width=6)")
-    eval(f"{mol_name.lower()}_dens_field").grid(row=row, column=3)
+    eval(f"{mol_name.lower()}_dens_field").grid(row=row + 1, column=3)
     eval(f"{mol_name.lower()}_dens_field").insert(0, f"{n_mol_init:.{1}e}")
+    globals() [f"{mol_name.lower()}_submit_col_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), ce = globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
+    #eval(f"{mol_name.lower()}_submit_col_button").grid(row=row + 1, column=6)
     eval(f"{mol_name.lower()}_dens_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
-    
+
+
     # Visibility Checkbutton
     if mol_name.lower() == 'h2o':
         exec(f"{mol_name.lower()}_vis_status = tk.BooleanVar()")
@@ -1907,23 +1621,36 @@ for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
         globals()[f"{mol_name.lower()}_vis_status"] = tk.BooleanVar()
         globals()[f"{mol_name.lower()}_vis_checkbutton"] = tk.Checkbutton(molecule_frame, text='', variable=eval(f"{mol_name.lower()}_vis_status"), command=lambda mn=mol_name.lower(): model_visible(mn))
         globals()[f"{mol_name.lower()}_vis_status"].set(False)  # Set the initial state
+        #globals()[f"{mol_name.lower()}_vis"] = eval(f"{mol_name.lower()}_vis_status")
 
-    eval(f"{mol_name.lower()}_vis_checkbutton").grid(row=row, column=4)
-
-    # Delete button
-    del_button = tk.Button(molecule_frame, text="X", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): delete_row(widget))
-    del_button.grid(row=row, column=5)
-    
-    color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
-    color_button.grid(row=row, column=6)
-    
-
+    eval(f"{mol_name.lower()}_vis_checkbutton").grid(row=row + 1, column=4)
     nextrow = row + 1
 
 
 
 
 variable_names = ['t_h2o', 'h2o_radius', 'n_mol_h2o', 't_oh', 'oh_radius', 'n_mol_oh', 't_hcn', 'hcn_radius', 'n_mol_hcn', 't_c2h2', 'c2h2_radius', 'n_mol_c2h2']
+
+
+def save_variables_to_file(file_name, variable_names, *variables):
+    save_folder = "SAVES"
+    os.makedirs(save_folder, exist_ok=True)  # Create the "SAVES" folder if it doesn't exist
+    filename = os.path.join(save_folder, f"{file_name}-save.txt")
+
+    with open(filename, 'w') as file:
+        for mol_name, mol_filepath, mol_label in molecules_data:
+            file.write(f"t_{mol_name.lower()}: {globals()['t_' + mol_name.lower()]}\n")
+            file.write(f"{mol_name.lower()}_radius: {globals()[mol_name.lower() + '_radius']}\n")
+            file.write(f"n_mol_{mol_name.lower()}: {globals()['n_mol_' + mol_name.lower()]}\n")
+
+
+    data_field.delete('1.0', "end")
+    data_field.insert('1.0', 'Molecule parameters saved into file.')
+    fig.canvas.draw_idle()
+#    filename = f"{file_name}-save.txt"
+#    with open(filename, 'w') as file:
+#        for index, var in enumerate(variables, start=1):
+#            file.write(f"Variable {index}: {var}\n")
 
 
 def loadsavedmessage():
@@ -1933,690 +1660,81 @@ def loadsavedmessage():
     fig.canvas.draw_idle()
 
 def saveparams_button_clicked():
-    write_to_csv(molecules_data, True)
-
+    save_variables_to_file(file_name, variable_names, t_h2o, h2o_radius, n_mol_h2o, t_oh, oh_radius, n_mol_oh, t_hcn, hcn_radius, n_mol_hcn, t_c2h2, c2h2_radius, n_mol_c2h2)
 
 def load_variables_from_file(file_name):
     #global text_box_data
     #global text_box
-    global molecules_data, nextrow
-    # Display a confirmation dialog
-    confirmed = tk.messagebox.askquestion("Confirmation", "Sure you want to load parameters? Make sure to save any unsaved changes!")
-    if confirmed == "no":  # Check if user clicked "no"
-        return
-    if not os.path.exists(os.path.join(save_folder, f"{file_name}-molsave.csv")):
-        data_field.delete('1.0', "end")
-        data_field.insert('1.0', 'No save for data file found.')
-        return
     
-    data_field.delete('1.0', "end")
-    data_field.insert('1.0', 'Loading saved parameters, this may take a moment...')
-    plt.draw(), canvas.draw()
-    fig.canvas.flush_events()
-    
-    #del_molecule_data()
-    
-    molecules_data = read_from_csv()
-    
-   # Read molecules_list.csv
-    molecules_list = []
-    new_molecules = []
-    missing_molecules = []  # Initialize the missing_molecules array
-    try:
-        with open(os.path.join(save_folder, "molecules_list.csv"), 'r') as list_file:
-            reader = csv.reader(list_file)
-            next(reader)  # Skip header
-            for row in reader:
-                molecules_list.append(tuple(row[:3]))  # Taking the first three columns of each row
-    except Exception as e:
-        print("Error reading molecules_list.csv:", e)
-
-    # Create a set of molecule names from molecules_data
-    molecules_data_names = set(item[0] for item in molecules_data)
-    
-    # Create a set of molecule names from molecules_data
-    molecules_list_names = set(item[0] for item in molecules_list)
-    
-    # Append missing molecules from molecules_list.csv
-    for mol_name, mol_path, mol_label in molecules_data:
-        if mol_name not in molecules_list_names:
-            new_molecules.append((mol_name, mol_path, mol_label))
-
-    # Append missing molecules from molecules_list.csv
-    for mol_name, mol_path, mol_label in molecules_list:
-        if mol_name not in molecules_data_names:
-            missing_molecules.append((mol_name, mol_path, mol_label))  # Add to missing_molecules
-            molecules_data.append((mol_name, mol_path, mol_label))
-    
-    print(f"new molecules:{new_molecules}")
-    
-    # Create labels for columns
-    for col, label in enumerate(column_labels):
-        label_widget = tk.Label(molecule_frame, text=label)
-        label_widget.grid(row=0, column=col)
-
-    # Loop to create rows of input fields and buttons for each chemical
-    #nextrow = 1  # Start with row 1
-    for row, (mol_name, mol_filepath, mol_label) in enumerate(new_molecules):
-        #global nextrow
-        y_row = start_y + row_height * (num_rows - row - 1)
-        row = nextrow
-        # Get the initial values for the current chemical from the dictionary
-        params = initial_parameters.get(mol_name, default_initial_params)
-        scale_exponent = params["scale_exponent"]
-        scale_number = params["scale_number"]
-        t_kin = params["t_kin"]
-        radius_init = params["radius_init"]
-        
-        # Calculate and set n_mol_init for the current molecule
-        n_mol_init = float(scale_number * (10 ** scale_exponent))
-        
-        # Import line lists from the ir_model folder
-        mol_data = MolData(mol_name, mol_filepath)
-        
-        # Use exec() to create the variables with specific variable names for each molecule
-        exec(f"mol_{mol_name.lower()} = MolData('{mol_name}', '{mol_filepath}')", globals())
-               
-        # Row label
-        exec(f"{mol_name.lower()}_rowl_field = tk.Entry(molecule_frame, width=6)", globals())
-        eval(f"{mol_name.lower()}_rowl_field").grid(row=row, column=0)
-        eval(f"{mol_name.lower()}_rowl_field").insert(0, f"{mol_name}")
-        #molecule_elements[mol_name.lower()] = {'rowl': mol_name.lower() + '_rowl_field'}
-
-        # Temperature input field
-        globals()[f"{mol_name.lower()}_temp_field"] = tk.Entry(molecule_frame, width=4)
-
-        eval(f"{mol_name.lower()}_temp_field").grid(row=row, column=1)
-        eval(f"{mol_name.lower()}_temp_field").insert(0, f"{t_kin}")
-        #globals() [f"{mol_name.lower()}_submit_temp_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), te = globals()[f"{mol_name.lower()}_temp_field"]: submit_temp(te.get(), mn))
-        #eval(f"{mol_name.lower()}_submit_temp_button").grid(row=row + 1, column=2)
-        #molecule_elements[mol_name.lower()] = {'temp': mol_name.lower() + '_temp_field'}
-        eval(f"{mol_name.lower()}_temp_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_temp_field"]: submit_temp(ce.get(), mn))
-        exec(f"t_{mol_name.lower()} = {t_kin}", globals())
-        
-        # Radius input field
-        globals()[f"{mol_name.lower()}_rad_field"] = tk.Entry(molecule_frame, width=4)
-        eval(f"{mol_name.lower()}_rad_field").grid(row=row, column=2)
-        eval(f"{mol_name.lower()}_rad_field").insert(0, f"{radius_init}")
-        #globals() [f"{mol_name.lower()}_submit_rad_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), re = globals()[f"{mol_name.lower()}_rad_field"]: submit_rad(re.get(), mn))
-        #eval(f"{mol_name.lower()}_submit_rad_button").grid(row=row + 1, column=4)
-        #molecule_elements[mol_name.lower()]['rad'] = mol_name.lower() + '_rad_field'
-        eval(f"{mol_name.lower()}_rad_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_rad_field"]: submit_rad(ce.get(), mn))
-        exec(f"{mol_name.lower()}_radius = {radius_init}", globals())
-        
-        # Column Density input field
-        globals()[f"{mol_name.lower()}_dens_field"] = tk.Entry(molecule_frame, width=6)
-        eval(f"{mol_name.lower()}_dens_field").grid(row=row, column=3)
-        eval(f"{mol_name.lower()}_dens_field").insert(0, f"{n_mol_init:.{1}e}")
-        #globals() [f"{mol_name.lower()}_submit_col_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), ce = globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
-        #eval(f"{mol_name.lower()}_submit_col_button").grid(row=row + 1, column=6)
-        #molecule_elements[mol_name.lower()]['dens'] = mol_name.lower() + '_dens_field'
-        eval(f"{mol_name.lower()}_dens_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
-        exec(f"n_mol_{mol_name.lower()} = {n_mol_init}", globals())
-        
-        # Visibility Checkbutton
-        if mol_name.lower() == 'h2o':
-            exec(f"{mol_name.lower()}_vis_status = tk.BooleanVar()")
-            exec(f"{mol_name.lower()}_vis_status.set(True)")  # Set the initial state
-            exec(f"{mol_name.lower()}_vis_checkbutton = tk.Checkbutton(molecule_frame, text='', variable={mol_name.lower()}_vis_status, onvalue=True, offvalue=False, command=lambda mn=mol_name.lower(): model_visible(mn))")
-            exec(f"{mol_name.lower()}_vis_checkbutton.select()")
-        else:
-            globals()[f"{mol_name.lower()}_vis_status"] = tk.BooleanVar()
-            globals()[f"{mol_name.lower()}_vis_checkbutton"] = tk.Checkbutton(molecule_frame, text='', variable=eval(f"{mol_name.lower()}_vis_status"), command=lambda mn=mol_name.lower(): model_visible(mn))
-            globals()[f"{mol_name.lower()}_vis_status"].set(False)  # Set the initial state
-            
-        globals()[f"{mol_name}_vis"] = False
-        eval(f"{mol_name.lower()}_vis_checkbutton").grid(row=row, column=4)
-
-        # Delete button
-        del_button = tk.Button(molecule_frame, text="X", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): delete_row(widget))
-        del_button.grid(row=row, column=5)
-
-        color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
-        color_button.grid(row=row, column=6)
-        
-        exec(f"{mol_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
-        exec(f"{mol_name.lower()}_line.set_label('{mol_name}')", globals())
-        
-        # Intensity calculation
-        exec(f"{mol_name.lower()}_intensity = Intensity(mol_{mol_name.lower()})", globals())
-        exec(f"{mol_name.lower()}_intensity.calc_intensity(t_{mol_name.lower()}, n_mol_{mol_name.lower()}, dv=intrinsic_line_width)", globals())
-        #print(f"{mol_name.lower()}_intensity")
-        # Add the variables to the globals dictionary
-        globals()[f"{mol_name.lower()}_intensity"] = eval(f"{mol_name.lower()}_intensity")
-
-        # Spectrum creation
-        exec(f"{mol_name.lower()}_spectrum = Spectrum(lam_min=min_lamb, lam_max=max_lamb, dlambda=model_pixel_res, R=model_line_width, distance=dist)", globals())
-
-        # Adding intensity to the spectrum
-        exec(f"{mol_name.lower()}_spectrum.add_intensity({mol_name.lower()}_intensity, {mol_name.lower()}_radius ** 2 * np.pi)", globals())
-
-        # Fluxes and lambdas
-        exec(f"fluxes_{mol_name.lower()} = {mol_name.lower()}_spectrum.flux_jy; lambdas_{mol_name.lower()} = {mol_name.lower()}_spectrum.lamgrid", globals())
-
-        #delete_button = tk.Button(molecule_frame, text="Delete", command=lambda r=row, mn=mol_name: delete_row(r, mn))
-        #delete_button.grid(row=row, column=5)
-
-        nextrow = nextrow + 1
-    
-    filename = os.path.join(save_folder, f"{file_name}-molsave.csv")
+    filename = f"SAVES/{file_name}-save.txt"
     if os.path.exists(filename):
-        try:
-            with open(filename, 'r') as csvfile:
-                reader = csv.reader(csvfile)
-                header = next(reader)  # Read the header row
-                rows = list(reader)  # Read all rows into a list
-                for i, row in enumerate(rows):
-                    mol_name, mol_filepath, mol_label, temp, rad, n_mol, color, vis, dist, stellarrv, fwhm, ilw = row
-                    # Update global variables or GUI fields with the loaded values
-                    exec(f"global t_{mol_name.lower()}; t_{mol_name.lower()} = {temp}")
-                    exec(f"global {mol_name.lower()}_radius; {mol_name.lower()}_radius = {rad}")
-                    exec(f"global n_mol_{mol_name.lower()}; n_mol_{mol_name.lower()} = {n_mol}")
-                    exec(f"global {mol_name.lower()}_line_color; {mol_name.lower()}_line_color = '{color}'")
-                    exec(f"global {mol_name.lower()}_vis; {mol_name.lower()}_vis = {vis}")
-                    exec(f"global dist; dist = {dist}")
-                    exec(f"global star_rv; star_rv = {stellarrv}")
-                    exec(f"global fwhm; fwhm = {fwhm}")
-                    exec(f"global intrinsic_line_width; intrinsic_line_width = {ilw}")
+        with open(filename, 'r') as file:
+            lines = file.readlines()
 
-                    # Update GUI fields
-                    eval(f"{mol_name.lower()}_temp_field").delete(0, "end")
-                    eval(f"{mol_name.lower()}_temp_field").insert(0, temp)
+        for line in lines:
+            variable_name, variable_value = line.strip().split(': ')
+            exec(f"global {variable_name}\n{variable_name} = {variable_value}")
 
-                    eval(f"{mol_name.lower()}_rad_field").delete(0, "end")
-                    eval(f"{mol_name.lower()}_rad_field").insert(0, rad)
+        for mol_name, mol_filepath, mol_label in molecules_data:
+            eval(f"{mol_name.lower()}_temp_field").delete(0, "end")
+            eval(f"{mol_name.lower()}_temp_field").insert(0, eval(f"t_{mol_name.lower()}"))
 
-                    eval(f"{mol_name.lower()}_dens_field").delete(0, "end")
-                    eval(f"{mol_name.lower()}_dens_field").insert(0, f"{float(n_mol):.{1}e}")
+            eval(f"{mol_name.lower()}_rad_field").delete(0, "end")
+            eval(f"{mol_name.lower()}_rad_field").insert(0, eval(f"{mol_name.lower()}_radius"))
 
-                    dist_entry.delete(0, "end")
-                    dist_entry.insert(0, f"{dist}")
+            eval(f"{mol_name.lower()}_dens_field").delete(0, "end")
+            coldens = eval(f"n_mol_{mol_name.lower()}")
+            eval(f"{mol_name.lower()}_dens_field").insert(0, f"{coldens:.{1}e}")
 
-                    star_rv_entry.delete(0, "end")
-                    star_rv_entry.insert(0, f"{star_rv}")
+        # DELETE? this is probably old code from Evan, now it's done dynamically in the update() function
+        # h2o_intensity.calc_intensity(t_h2o, n_mol_h2o, dv=intrinsic_line_width)
+        # h2o_spectrum = Spectrum(lam_min=min_lamb, lam_max=max_lamb, dlambda=model_pixel_res, R=model_line_width, distance=dist)
+        # h2o_spectrum.add_intensity(h2o_intensity, h2o_radius ** 2 * np.pi)
+        # fluxes_h2o = h2o_spectrum.flux_jy
+        # lambdas_h2o = h2o_spectrum.lamgrid
+        #
+        # oh_intensity.calc_intensity(t_oh,n_mol_oh, dv=intrinsic_line_width)
+        # oh_spectrum = Spectrum(lam_min=min_lamb, lam_max=max_lamb, dlambda=model_pixel_res, R=model_line_width, distance=dist)
+        # oh_spectrum.add_intensity(oh_intensity, oh_radius ** 2 * np.pi)
+        # fluxes_oh = oh_spectrum.flux_jy
+        # lambdas_oh = oh_spectrum.lamgrid
+        #
+        # hcn_intensity.calc_intensity(t_hcn,n_mol_hcn, dv=intrinsic_line_width)
+        # hcn_spectrum = Spectrum(lam_min=min_lamb, lam_max=max_lamb, dlambda=model_pixel_res, R=model_line_width, distance=dist)
+        # hcn_spectrum.add_intensity(hcn_intensity, hcn_radius ** 2 * np.pi)
+        # fluxes_hcn = hcn_spectrum.flux_jy
+        # lambdas_hcn = hcn_spectrum.lamgrid
+        #
+        # c2h2_intensity.calc_intensity(t_c2h2,n_mol_c2h2, dv=intrinsic_line_width)
+        # c2h2_spectrum = Spectrum(lam_min=min_lamb, lam_max=max_lamb, dlambda=model_pixel_res, R=model_line_width, distance=dist)
+        # c2h2_spectrum.add_intensity(c2h2_intensity, c2h2_radius ** 2 * np.pi)
+        # fluxes_c2h2 = c2h2_spectrum.flux_jy
+        # lambdas_c2h2 = c2h2_spectrum.lamgrid
+        #
+        # oh_line.set_data(lambdas_oh, fluxes_oh)
+        # hcn_line.set_data(lambdas_hcn, fluxes_hcn)
+        # c2h2_line.set_data(lambdas_c2h2, fluxes_c2h2)
+        # h2o_line.set_data(lambdas_h2o, fluxes_h2o)
+        # data_line.set_data(wave_data, flux_data)
 
-                    fwhm_entry.delete(0, "end")
-                    fwhm_entry.insert(0, f"{fwhm}")
-
-                    intrinsic_line_width_entry.delete(0, "end")
-                    intrinsic_line_width_entry.insert(0, f"{intrinsic_line_width}")
-
-                    # Call update_initvals() only on the last iteration
-                    if i == len(rows) - 1:
-                        update_initvals()
-
-            #update()
-            spanoptionsvar = [m[0] for m in molecules_data]
-            spandropd['values'] = spanoptionsvar
-            if spanoptionsvar:
-                spandropd.set(spanoptionsvar[0])
-                
-            print("Variables loaded from CSV file.")
-        except Exception as e:
-            print("Error loading variables from CSV:", e)
-
-
-    for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
-
-            linecolor = eval(f"{mol_name.lower()}_line_color")
-            exec(f"{mol_name.lower()}_line.set_color('{linecolor}')", globals())
-            # Get the molecule name in lower case
-            mol_name_lower = mol_name.lower()
-
-            # Get the line object
-            line_var = globals().get(f"{mol_name_lower}_line")
-
-            # Check if the line object exists and has a color attribute
-            if line_var and hasattr(line_var, 'get_color'):
-                # Get the color of the line
-                line_color = line_var.get_color()
-                globals()[f"{mol_name.lower()}_color"] = line_color
-
-                # Get the color button from the grid_slaves list
-                color_button = molecule_frame.grid_slaves(row=row, column=6)[0]
-                # Set the background color of the color button
-                color_button.configure(bg=line_color)
-                
-            if eval(f"{mol_name.lower()}_vis"):
-                exec(f"{mol_name.lower()}_vis_checkbutton.select()")
-                
-                
-    
+        update()
+        #fig.canvas.draw_idle()
+        #time.sleep(3)  # Pause for 3 seconds
     else:
         data_field.delete('1.0', "end")
         data_field.insert('1.0', 'Saved parameters file not found.')
-    update()
-    write_user_csv(molecules_data)
-    data_field.delete ('1.0', "end")
-    data_field.insert ('1.0', 'Saved parameters loaded from file.')
 
-
-def load_defaults_from_file():
-    #global text_box_data
-    #global text_box
-    global molecules_data, nextrow
-    
-    confirmed = tk.messagebox.askquestion("Confirmation", "Sure you want to load the default molecules? This will erase all current parameters (save first if you wish to).")
-    if confirmed == "no":  # Check if user clicked "no"
-        return
-    
-    data_field.delete('1.0', "end")
-    data_field.insert('1.0', 'Loading default molecules, this may take a moment...')
-    plt.draw(), canvas.draw()
-    fig.canvas.flush_events()
-    
-    del_molecule_data()
-    
-    molecules_data = read_default_csv()
-    #print(molecules_data)
-    # Create labels for columns
-    for col, label in enumerate(column_labels):
-        label_widget = tk.Label(molecule_frame, text=label)
-        label_widget.grid(row=0, column=col)
-
-    # Loop to create rows of input fields and buttons for each chemical
-    nextrow = 1  # Start with row 1
-    for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
-        #global nextrow
-        y_row = start_y + row_height * (num_rows - row - 1)
-        row = row + 1
-        # Get the initial values for the current chemical from the dictionary
-        params = initial_parameters.get(mol_name, default_initial_params)
-        scale_exponent = params["scale_exponent"]
-        scale_number = params["scale_number"]
-        t_kin = params["t_kin"]
-        radius_init = params["radius_init"]
-        
-        # Calculate and set n_mol_init for the current molecule
-        n_mol_init = float(scale_number * (10 ** scale_exponent))
-        
-        # Import line lists from the ir_model folder
-        mol_data = MolData(mol_name, mol_filepath)
-        
-        # Use exec() to create the variables with specific variable names for each molecule
-        exec(f"mol_{mol_name.lower()} = MolData('{mol_name}', '{mol_filepath}')", globals())
-               
-        # Row label
-        exec(f"{mol_name.lower()}_rowl_field = tk.Entry(molecule_frame, width=6)", globals())
-        eval(f"{mol_name.lower()}_rowl_field").grid(row=row, column=0)
-        eval(f"{mol_name.lower()}_rowl_field").insert(0, f"{mol_name}")
-        #molecule_elements[mol_name.lower()] = {'rowl': mol_name.lower() + '_rowl_field'}
-
-        # Temperature input field
-        globals()[f"{mol_name.lower()}_temp_field"] = tk.Entry(molecule_frame, width=4)
-
-        eval(f"{mol_name.lower()}_temp_field").grid(row=row, column=1)
-        eval(f"{mol_name.lower()}_temp_field").insert(0, f"{t_kin}")
-        #globals() [f"{mol_name.lower()}_submit_temp_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), te = globals()[f"{mol_name.lower()}_temp_field"]: submit_temp(te.get(), mn))
-        #eval(f"{mol_name.lower()}_submit_temp_button").grid(row=row + 1, column=2)
-        #molecule_elements[mol_name.lower()] = {'temp': mol_name.lower() + '_temp_field'}
-        eval(f"{mol_name.lower()}_temp_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_temp_field"]: submit_temp(ce.get(), mn))
-        exec(f"t_{mol_name.lower()} = {t_kin}", globals())
-        
-        # Radius input field
-        globals()[f"{mol_name.lower()}_rad_field"] = tk.Entry(molecule_frame, width=4)
-        eval(f"{mol_name.lower()}_rad_field").grid(row=row, column=2)
-        eval(f"{mol_name.lower()}_rad_field").insert(0, f"{radius_init}")
-        #globals() [f"{mol_name.lower()}_submit_rad_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), re = globals()[f"{mol_name.lower()}_rad_field"]: submit_rad(re.get(), mn))
-        #eval(f"{mol_name.lower()}_submit_rad_button").grid(row=row + 1, column=4)
-        #molecule_elements[mol_name.lower()]['rad'] = mol_name.lower() + '_rad_field'
-        eval(f"{mol_name.lower()}_rad_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_rad_field"]: submit_rad(ce.get(), mn))
-        exec(f"{mol_name.lower()}_radius = {radius_init}", globals())
-        
-        # Column Density input field
-        globals()[f"{mol_name.lower()}_dens_field"] = tk.Entry(molecule_frame, width=6)
-        eval(f"{mol_name.lower()}_dens_field").grid(row=row, column=3)
-        eval(f"{mol_name.lower()}_dens_field").insert(0, f"{n_mol_init:.{1}e}")
-        #globals() [f"{mol_name.lower()}_submit_col_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), ce = globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
-        #eval(f"{mol_name.lower()}_submit_col_button").grid(row=row + 1, column=6)
-        #molecule_elements[mol_name.lower()]['dens'] = mol_name.lower() + '_dens_field'
-        eval(f"{mol_name.lower()}_dens_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
-        exec(f"n_mol_{mol_name.lower()} = {n_mol_init}", globals())
-        
-        # Visibility Checkbutton
-        if mol_name.lower() == 'h2o':
-            exec(f"{mol_name.lower()}_vis_status = tk.BooleanVar()")
-            exec(f"{mol_name.lower()}_vis_status.set(True)")  # Set the initial state
-            exec(f"{mol_name.lower()}_vis_checkbutton = tk.Checkbutton(molecule_frame, text='', variable={mol_name.lower()}_vis_status, onvalue=True, offvalue=False, command=lambda mn=mol_name.lower(): model_visible(mn))")
-            exec(f"{mol_name.lower()}_vis_checkbutton.select()")
-        else:
-            globals()[f"{mol_name.lower()}_vis_status"] = tk.BooleanVar()
-            globals()[f"{mol_name.lower()}_vis_checkbutton"] = tk.Checkbutton(molecule_frame, text='', variable=eval(f"{mol_name.lower()}_vis_status"), command=lambda mn=mol_name.lower(): model_visible(mn))
-            globals()[f"{mol_name.lower()}_vis_status"].set(False)  # Set the initial state
-            
-        globals()[f"{mol_name}_vis"] = False
-        eval(f"{mol_name.lower()}_vis_checkbutton").grid(row=row, column=4)
-
-        # Delete button
-        del_button = tk.Button(molecule_frame, text="X", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): delete_row(widget))
-        del_button.grid(row=row, column=5)
-
-        color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
-        color_button.grid(row=row, column=6)
-
-        exec(f"{mol_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
-        exec(f"{mol_name.lower()}_line.set_label('{mol_name}')", globals())
-        
-        # Intensity calculation
-        exec(f"{mol_name.lower()}_intensity = Intensity(mol_{mol_name.lower()})", globals())
-        exec(f"{mol_name.lower()}_intensity.calc_intensity(t_{mol_name.lower()}, n_mol_{mol_name.lower()}, dv=intrinsic_line_width)", globals())
-        #print(f"{mol_name.lower()}_intensity")
-        # Add the variables to the globals dictionary
-        globals()[f"{mol_name.lower()}_intensity"] = eval(f"{mol_name.lower()}_intensity")
-
-        # Spectrum creation
-        exec(f"{mol_name.lower()}_spectrum = Spectrum(lam_min=min_lamb, lam_max=max_lamb, dlambda=model_pixel_res, R=model_line_width, distance=dist)", globals())
-
-        # Adding intensity to the spectrum
-        exec(f"{mol_name.lower()}_spectrum.add_intensity({mol_name.lower()}_intensity, {mol_name.lower()}_radius ** 2 * np.pi)", globals())
-
-        # Fluxes and lambdas
-        exec(f"fluxes_{mol_name.lower()} = {mol_name.lower()}_spectrum.flux_jy; lambdas_{mol_name.lower()} = {mol_name.lower()}_spectrum.lamgrid", globals())
-
-        #delete_button = tk.Button(molecule_frame, text="Delete", command=lambda r=row, mn=mol_name: delete_row(r, mn))
-        #delete_button.grid(row=row, column=5)
-
-        nextrow = row + 1
-    
-    write_user_csv(molecules_data)
-    spanoptionsvar = [m[0] for m in molecules_data]
-    spandropd['values'] = spanoptionsvar
-    if spanoptionsvar:
-        spandropd.set(spanoptionsvar[0])
-    
-
-    filename = os.path.join(save_folder, f"default.csv")
-    if os.path.exists(filename):
-        try:
-            with open(filename, 'r') as csvfile:
-                reader = csv.reader(csvfile)
-                header = next(reader)  # Read the header row
-                for row in reader:
-                    mol_name, mol_filepath, mol_label, temp, rad, n_mol, vis = row
-                    # Update global variables or GUI fields with the loaded values
-                    exec(f"global t_{mol_name.lower()}; t_{mol_name.lower()} = {temp}")
-                    exec(f"global {mol_name.lower()}_radius; {mol_name.lower()}_radius = {rad}")
-                    exec(f"global n_mol_{mol_name.lower()}; n_mol_{mol_name.lower()} = {n_mol}")
-                    exec(f"global {mol_name.lower()}_vis; {mol_name.lower()}_vis = {vis}")
-                    
-
-                    # Update GUI fields
-                    eval(f"{mol_name.lower()}_temp_field").delete(0, "end")
-                    eval(f"{mol_name.lower()}_temp_field").insert(0, temp)
-
-                    eval(f"{mol_name.lower()}_rad_field").delete(0, "end")
-                    eval(f"{mol_name.lower()}_rad_field").insert(0, rad)
-
-                    eval(f"{mol_name.lower()}_dens_field").delete(0, "end")
-                    eval(f"{mol_name.lower()}_dens_field").insert(0, f"{float(n_mol):.{1}e}")
-                    
-                    update_initvals()
-
-            #update()
-            data_field.delete('1.0', "end")
-            data_field.insert('1.0', 'Defaults loaded!')
-        except Exception as e:
-            print("Error loading defaults:", e)
-
-    for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
-
-            # Get the molecule name in lower case
-            mol_name_lower = mol_name.lower()
-
-            # Get the line object
-            line_var = globals().get(f"{mol_name_lower}_line")
-
-            # Check if the line object exists and has a color attribute
-            if line_var and hasattr(line_var, 'get_color'):
-                # Get the color of the line
-                line_color = line_var.get_color()
-                globals()[f"{mol_name.lower()}_color"] = line_color
-
-                # Get the color button from the grid_slaves list
-                color_button = molecule_frame.grid_slaves(row=row, column=6)[0]
-
-                # Set the background color of the color button
-                color_button.configure(bg=line_color)
-                
-            if eval(f"{mol_name.lower()}_vis"):
-                exec(f"{mol_name.lower()}_vis_checkbutton.select()")
-       
-                
-                
-def write_default_csv(data):
-    csv_filename = os.path.join(save_folder, f"default.csv")
-    
-    try:
-        with open(csv_filename, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Vis']
-            writer.writerow(header)
-
-            for mol_name, mol_filepath, mol_label in data:
-                row = [mol_name, mol_filepath, mol_label]
-                # Append the variables for the current molecule to the row
-                row.append(globals().get(f"t_{mol_name.lower()}", ''))
-                row.append(globals().get(f"{mol_name.lower()}_radius", ''))
-                row.append(globals().get(f"n_mol_{mol_name.lower()}", ''))
-                row.append(globals().get(f"{mol_name.lower()}_vis", ''))
-                writer.writerow(row)
-    except Exception as e:
-        print("Error:", e)
-
-write_default_csv(default_data)
     
 def loadparams_button_clicked():
     load_variables_from_file(file_name)
+    data_field.delete ('1.0', "end")
+    data_field.insert ('1.0', 'Saved parameters loaded from file.')
     #plt.draw(), canvas.draw()
     #fig.canvas.flush_events() 
 
-files_frame = tk.Frame(window, borderwidth=2, relief="groove")
-files_frame.grid(row=outer_frame.grid_info()['row'] + outer_frame.grid_info()['rowspan'], column=0, rowspan=7, columnspan=5, sticky="nsew")
-
-# Function to open spectrum data file from the GUI using Open File for "Spectrum data file"
-def selectfile():
-    global file_path
-    global file_name
-    global wave_data, flux_data, err_data, wave_original
-    global input_spectrum_data
-    global filename_box_data
-    global xp1, rng, xp2, xp1_entry, rng_entry
-
-    filetypes = [('CSV Files', '*.csv')]
-    spectra_directory = os.path.abspath ("EXAMPLE-data")
-    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectrum Data File', filetypes=filetypes, initialdir=spectra_directory)
-
-    if infiles:
-        for file_path in infiles:
-            # Process each selected file
-            print("Selected file:", file_path)
-            file_name = os.path.basename(file_path)
-            file_name_label.config(text=str(file_name))
-            #filename_box_data.set_val(file_name)
-            # Add your code to process each file
-            #THIS IS THE OLD FILE SYSTEM (THIS WILL BE USED UNTIL THE NEW FILE SYSTEM IS DEVELOPED) USE THIS!!!!!
-            input_spectrum_data=pd.read_csv(filepath_or_buffer=(file_path), sep=',')
-            wave_data = np.array(input_spectrum_data['wave'])
-            wave_original = np.array(input_spectrum_data['wave'])
-            flux_data = np.array(input_spectrum_data['flux'])
-            if 'err' in input_spectrum_data:
-                err_data = np.array(input_spectrum_data['err'])
-            else:
-                err_data = np.empty_like(flux_data) + np.nanmax(flux_data)/100 # assumed, if not present
-
-            # Set initial values of xp1 and rng
-            fig_max_limit = np.nanmax(wave_data)
-            fig_min_limit = np.nanmin(wave_data)
-            xp1 = fig_min_limit + (fig_max_limit - fig_min_limit)/2
-            rng = (fig_max_limit - fig_min_limit)/10
-            xp2 = xp1 + rng
-            xp1_entry.delete(0, "end")
-            xp1_entry.insert(0, np.around(xp1, decimals=2))
-            rng_entry.delete(0, "end")
-            rng_entry.insert(0, np.around(rng, decimals=2))
-
-            #now = dt.now()
-            #dateandtime = now.strftime("%d-%m-%Y-%H-%M-%S")
-            #print(dateandtime)
-            #svd_line_file = f'savedlines-{dateandtime}.csv'
-
-            update()
-
-            data_field.delete('1.0', "end")
-            data_field.insert('1.0', 'New spectrum loaded!')
-    else:
-        data_field.delete('1.0', "end")
-        data_field.insert('1.0', 'No file selected.')
-
-
-def selectlinefile():
-    global linelistfile
-    global linelistpath
-
-    # Create the folder if it doesn't exist
-    linelist_folder = "LINELISTS"
-
-    # Set the initial directory to the created folder
-    initial_directory = os.path.abspath(linelist_folder)
-
-    filetypes = [('CSV Files', '*.csv')]
-    infile = filedialog.askopenfilename(
-        title='Choose Line List File',
-        filetypes=filetypes,
-        defaultextension=".csv",
-        initialdir=initial_directory  # Set the initial directory
-    )
-
-    if infile:
-        linelistpath = infile
-        linelistfile = os.path.basename(linelistpath)
-        # Update the label with the selected/created file
-        linefile_name_label.config(text=str(linelistfile))
-
-        #headers = "lev_up,lev_low,lam, tau,intens,a_stein,e_up,g_up,xmin,xmax"
-
-        # Check if the file already exists
-        if os.path.exists(infile):
-            # File already exists, so check if the headers match
-            with open(infile, 'r') as existing_file:
-                first_line = existing_file.readline().strip()
-            #if first_line == headers:
-            #    # Headers match, no need to write them
-            #    pass
-            #else:
-            #    print("File selected is not a line save file")
-        else:
-            # File doesn't exist
-            print("File selected does not exist")
-        
-        
-        
-def savelinefile():
-    global linesavefile
-    global linesavepath
-
-
-    # Set the initial directory to the created folder
-    initial_directory = os.path.abspath(linesave_folder)
-
-    filetypes = [('CSV Files', '*.csv')]
-    infile = filedialog.asksaveasfilename(
-        title='Choose or Define a File',
-        filetypes=filetypes,
-        defaultextension=".csv",
-        initialdir=initial_directory  # Set the initial directory
-    )
-
-    if infile:
-        linesavepath = infile
-        linesavefile = os.path.basename(linesavepath)
-        # Update the label with the selected/created file
-        savelinefile_name_label.config(text=str(linesavefile))
-
-        headers = "species,lev_up,lev_low,lam,tau,intens,a_stein,e_up,g_up,xmin,xmax"
-
-        # Check if the file already exists
-        if os.path.exists(infile):
-            # File already exists, so check if the headers match
-            with open(infile, 'r') as existing_file:
-                first_line = existing_file.readline().strip()
-            if first_line == headers:
-                # Headers match, no need to write them
-                pass
-            elif not first_line:
-                # First line is empty, so write the headers
-                with open(infile, 'a') as file:
-                    file.write(headers + '\n')
-            else:
-                print("File selected is not a line save file")
-        else:
-            # File doesn't exist, create a new one and write headers
-            with open(infile, 'w') as file:
-                file.write(headers + '\n')
-
-# Configure columns to expand and fill the width
-for i in range(5):
-    files_frame.columnconfigure(i, weight=1)
-
-# Create a frame to hold the box outline
-box_frame = tk.Frame(files_frame)
-box_frame.grid(row=1, column=0, columnspan=5, sticky='nsew')
-
-specfile_label = tk.Label(files_frame, text='Spectrum Data File:')
-specfile_label.grid(row=0, column=0, columnspan=5, sticky='nsew')  # Center-align using grid
-
-linefile_label = tk.Label(files_frame, text='Input Line List:')
-linefile_label.grid(row=2, column=0, columnspan=5, sticky='nsew')  # Center-align using grid
-
-linefile_label = tk.Label(files_frame, text='Output Line Measurements:')
-linefile_label.grid(row=4, column=0, columnspan=5, sticky='nsew')  # Center-align using grid
-
-# Create a frame to hold the box outline
-linebox_frame = tk.Frame(files_frame)
-linebox_frame.grid(row=3, column=0, columnspan=5, sticky='nsew')
-
-# Create a label widget inside the frame to create the box outline
-linebox_label = tk.Label(linebox_frame, text='', relief='solid', borderwidth=1, height=2)  # Adjust the height value as needed
-linebox_label.pack(side="top", fill="both", expand=True)
-
-# Create a label inside the box_frame and center-align it
-linefile_name_label = tk.Label(linebox_label, text='')
-linefile_name_label.grid(row=0, column=0, sticky='nsew')  # Center-align using grid
-
-# Create a frame to hold the box outline
-savelinebox_frame = tk.Frame(files_frame)
-savelinebox_frame.grid(row=5, column=0, columnspan=5, sticky='nsew', pady=(0,10))
-
-# Create a label widget inside the frame to create the box outline
-linesavebox_label = tk.Label(savelinebox_frame, text='', relief='solid', borderwidth=1, height=2)  # Adjust the height value as needed
-linesavebox_label.pack(side="top", fill="both", expand=True)
-
-# Create a label inside the box_frame and center-align it
-savelinefile_name_label = tk.Label(linesavebox_label, text='')
-savelinefile_name_label.grid(row=0, column=0, sticky='nsew')  # Center-align using grid
-
-# Create a label widget inside the frame to create the box outline
-box_label = tk.Label(box_frame, text='', relief='solid', borderwidth=1, height=2)  # Adjust the height value as needed
-box_label.pack(fill=tk.BOTH, expand=True)
-
-# Create a label inside the box_frame and center-align it
-file_name_label = tk.Label(box_label, text=str(file_name))
-file_name_label.grid(row=0, column=0, sticky='nsew')  # Center-align using grid
-
-file_button = tk.Button(files_frame, text='Open File', command=selectfile)
-file_button.grid(row=1, column=5)
-
-linefile_button = tk.Button(files_frame, text='Open File', command=selectlinefile)
-linefile_button.grid(row=3, column=5)
-
-linesave_button = tk.Button(files_frame, text='Define File', command=savelinefile)
-linesave_button.grid(row=5, column=5, pady=(0,10))
-
-# Add some space below files_frame
-#tk.Label(files_frame, text="").grid(row=4, column=0)
 
 plotparams_frame = tk.Frame(window, borderwidth=2, relief="groove")
-plotparams_frame.grid(row=files_frame.grid_info()['row'] + files_frame.grid_info()['rowspan'], column=0, rowspan=6, columnspan=5, sticky="nsew")
+plotparams_frame.grid(row=18, column=0, rowspan=6, columnspan=5, sticky="nsew")
     
 
 # Create and place the xp1 text box in row 12, column 0
@@ -2690,36 +1808,26 @@ def on_span_select(selected_item):
     global model_indmin
     global model_indmax 
     
-    # Suppress the divide by zero warning
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        spanmol = selected_item
 
-        pop_diagram()
-        update()
+    spanmol = selected_item
+    
+    pop_diagram()
+    update()
 
-        data_field.insert('1.0', 'Molecule selected: ' + spanmol)
+    data_field.insert ('1.0', 'Molecule selected: ' + spanmol)
+    model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
+    model_region_x = eval(model_region_x_str)
+    #print(model_region_x)
+    #print(model_region_x[0])
 
-        try:
-            model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
-            model_region_x = eval(model_region_x_str)
-
-            # Dynamically set the variable
-            model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
-            model_region_y = eval(model_region_y_str)
-
-            # Suppress the divide by zero warning
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=RuntimeWarning)
-
-
-            model_line_select.set_data(model_region_x, model_region_y)
-            plt.draw()
-            canvas.draw()
-            fig.canvas.flush_events()
-        except NameError:
-            #print("model_indmin or model_indmax is not defined.")
-            pass
+    #model_region_y = fluxes_h2o[model_indmin:model_indmax]
+    # Dynamically set the variable
+    model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
+    model_region_y = eval(model_region_y_str)
+    model_line_select.set_data(model_region_x, model_region_y), globals()
+    plt.draw(), canvas.draw()
+    fig.canvas.flush_events() 
+    # Now you can use spanmollower or perform any other actions
 
 
 
@@ -2738,126 +1846,124 @@ specsep_entry.grid(row=4, column=3, pady=(0,45))
 #tk.Label(plotparams_frame, text="").grid(row=4, column=0)
 
 def generate_all_csv():
-
     for molecule in molecules_data:
         mol_name = molecule[0]
-        mol_name_lower = mol_name.lower ()
+        mol_name_lower = mol_name.lower()
 
-        fluxes = globals ().get (f'fluxes_{mol_name_lower}', np.array ([]))
-        lambdas = globals ().get (f'lambdas_{mol_name_lower}', np.array ([]))
+        fluxes = globals().get(f'fluxes_{mol_name_lower}', np.array([]))
+        lambdas = globals().get(f'lambdas_{mol_name_lower}', np.array([]))
 
-        if fluxes.size == 0 or lambdas.size == 0 or len (fluxes) != len (lambdas):
+        if fluxes.size == 0 or lambdas.size == 0 or len(fluxes) != len(lambdas):
             continue
 
-        data = list (zip (lambdas, fluxes))
+        data = list(zip(lambdas, fluxes))
 
-        os.makedirs (output_dir, exist_ok=True)
+        output_dir = "MODELS"
+        os.makedirs(output_dir, exist_ok=True)
 
-        csv_file_path = os.path.join (output_dir, f"{mol_name}_spec_output.csv")
+        csv_file_path = os.path.join(output_dir, f"{mol_name}_spec_output.csv")
 
-        with open (csv_file_path, "w", newline="") as csv_file:
-            csv_writer = csv.writer (csv_file)
-            csv_writer.writerow (["wave", "flux"])
+        with open(csv_file_path, "w", newline="") as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow(["wave", "flux"])
             for row in data:
-                csv_writer.writerow (row)
-
+                csv_writer.writerow(row)
+    
     # Get the fluxes and lambdas for the selected molecule
-    fluxes = globals ().get ('total_fluxes', [])
-    lambdas = globals ().get ('lambdas_h2o', np.array ([]))
+    fluxes = globals().get('total_fluxes', [])
+    lambdas = globals().get('lambdas_h2o', np.array([]))
 
-    if len (fluxes) == 0 or lambdas.size == 0 or len (fluxes) != len (lambdas):
+    if len(fluxes) == 0 or lambdas.size == 0 or len(fluxes) != len(lambdas):
         return
 
     # Combine fluxes and lambdas into rows
-    data = list (zip (lambdas, fluxes))
+    data = list(zip(lambdas, fluxes))
 
     # Create a directory if it doesn't exist
-    os.makedirs (output_dir, exist_ok=True)
+    output_dir = "MODELS"
+    os.makedirs(output_dir, exist_ok=True)
 
     # Specify the full path for the CSV file
-    csv_file_path = os.path.join (output_dir, "SUM_spec_output.csv")
+    csv_file_path = os.path.join(output_dir, "SUM_spec_output.csv")
 
     # Create a CSV file with the selected data in the "MODELS" directory
-    with open (csv_file_path, "w", newline="") as csv_file:
-        csv_writer = csv.writer (csv_file)
-        csv_writer.writerow (["wave", "flux"])
+    with open(csv_file_path, "w", newline="") as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["wave", "flux"])
         for row in data:
-            csv_writer.writerow (row)
+            csv_writer.writerow(row)
 
-    data_field.delete ('1.0', "end")
-    data_field.insert ('1.0', f'All models exported!')
-
+    data_field.delete('1.0', "end")
+    data_field.insert('1.0', f'All models exported!')
 
 def generate_csv(mol_name):
-
     if mol_name == "SUM":
-
+        
         # Get the fluxes and lambdas for the selected molecule
-        fluxes = globals ().get ('total_fluxes', [])
-        lambdas = globals ().get ('lambdas_h2o', np.array ([]))
+        fluxes = globals().get('total_fluxes', [])
+        lambdas = globals().get('lambdas_h2o', np.array([]))
 
-        if len (fluxes) == 0 or lambdas.size == 0 or len (fluxes) != len (lambdas):
+        if len(fluxes) == 0 or lambdas.size == 0 or len(fluxes) != len(lambdas):
             return
 
         # Combine fluxes and lambdas into rows
-        data = list (zip (lambdas, fluxes))
+        data = list(zip(lambdas, fluxes))
 
         # Create a directory if it doesn't exist
-        os.makedirs (output_dir, exist_ok=True)
+        output_dir = "MODELS"
+        os.makedirs(output_dir, exist_ok=True)
 
         # Specify the full path for the CSV file
-        csv_file_path = os.path.join (output_dir, "SUM_spec_output.csv")
+        csv_file_path = os.path.join(output_dir, "SUM_spec_output.csv")
 
         # Create a CSV file with the selected data in the "MODELS" directory
-        with open (csv_file_path, "w", newline="") as csv_file:
-            csv_writer = csv.writer (csv_file)
-            csv_writer.writerow (["wave", "flux"])
+        with open(csv_file_path, "w", newline="") as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow(["wave", "flux"])
             for row in data:
-                csv_writer.writerow (row)
-
-        data_field.delete ('1.0', "end")
-        data_field.insert ('1.0', 'SUM model exported!')
-
+                csv_writer.writerow(row)
+                
+        data_field.delete('1.0', "end")
+        data_field.insert('1.0', 'SUM model exported!')
+        
     if mol_name == "ALL":
-        generate_all_csv ()
-
+        generate_all_csv()
+        
     else:
         # Find the tuple for the selected molecule
-        molecule = next ((m for m in molecules_data if m[0] == mol_name), None)
+        molecule = next((m for m in molecules_data if m[0] == mol_name), None)
         if molecule is None:
             return
 
         # Extract the lowercase version of the molecule name
-        mol_name_lower = mol_name.lower ()
+        mol_name_lower = mol_name.lower()
 
         # Get the fluxes and lambdas for the selected molecule
-        fluxes = globals ().get (f'fluxes_{mol_name_lower}', np.array ([]))
-        lambdas = globals ().get (f'lambdas_{mol_name_lower}', np.array ([]))
-        line_prop = eval (f"{spanmol}_intensity.get_table")
-        line_prop.to_csv (output_dir + '/' + f"{mol_name}_line_params.csv", index=False)
+        fluxes = globals().get(f'fluxes_{mol_name_lower}', np.array([]))
+        lambdas = globals().get(f'lambdas_{mol_name_lower}', np.array([]))
 
-        if fluxes.size == 0 or lambdas.size == 0 or len (fluxes) != len (lambdas):
+        if fluxes.size == 0 or lambdas.size == 0 or len(fluxes) != len(lambdas):
             return
 
         # Combine fluxes and lambdas into rows
-        data = list (zip (lambdas, fluxes))
+        data = list(zip(lambdas, fluxes))
         # Create a directory if it doesn't exist
-        os.makedirs (output_dir, exist_ok=True)
+        output_dir = "MODELS"
+        os.makedirs(output_dir, exist_ok=True)
 
         # Specify the full path for the CSV file
-        csv_file_path = os.path.join (output_dir, f"{mol_name}_spec_output.csv")
+        csv_file_path = os.path.join(output_dir, f"{mol_name}_spec_output.csv")
 
         # Create a CSV file with the selected data in the "MODELS" directory
-        with open (csv_file_path, "w", newline="") as csv_file:
-            csv_writer = csv.writer (csv_file)
-            csv_writer.writerow (["wave", "flux"])
+        with open(csv_file_path, "w", newline="") as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow(["wave", "flux"])
             for row in data:
-                csv_writer.writerow (row)
-
-        data_field.delete ('1.0', "end")
-        data_field.insert ('1.0', f'{mol_name} model exported!')
-
-
+                csv_writer.writerow(row)
+                        
+        data_field.delete('1.0', "end")
+        data_field.insert('1.0', f'{mol_name} model exported!')
+        
 def export_spectrum():
     # Create a new window for exporting the spectrum
     export_window = tk.Toplevel(root)
@@ -2897,29 +2003,26 @@ spandropd.bind("<<ComboboxSelected>>", lambda event: on_span_select((spanoptions
 spanmol = (spanoptionsvar[spandropd.current()]).lower()   
 
 
+# create buttons for top of GUI
+nb_of_columns = 10 # to be replaced by the relevant number
+title_frame = tk.Frame(window, bg ="gray")
+title_frame.grid(row=0, column=0, columnspan=nb_of_columns, sticky='ew')
+
 def toggle_fullscreen():
     state = window.attributes('-fullscreen')
     window.attributes('-fullscreen', not state)
 
-# # Create a button to toggle fullscreen
-# fullscreen_button = tk.Button(title_frame, text="Toggle Fullscreen", bg='blue', activebackground='darkblue', command=toggle_fullscreen, width=14, height=1)
-# fullscreen_button.grid(row = 0, column = 0)
-
-def import_molecule():
-    MoleculeSelector(root)
-    #data_field.delete ('1.0', "end")
-    #data_field.insert ('1.0', 'New molecule downloaded from HITRAN.')
-
-# Create a Tkinter button to import additional hitran molecules
-import_button = tk.Button (title_frame, text="HITRAN query", bg='lightgray', activebackground='gray', command=import_molecule)
-import_button.grid (row=0, column=0)
-
-addmol_button = tk.Button(title_frame, text='Default Molecules', bg='lightgray', activebackground='gray', command=lambda: load_defaults_from_file(), width=12, height=1)
-addmol_button.grid(row=0, column=1)
+# Create a button to toggle fullscreen
+fullscreen_button = tk.Button(title_frame, text="Toggle Fullscreen", bg='blue', activebackground='darkblue', command=toggle_fullscreen, width=12, height=1)
+fullscreen_button.grid(row = 0, column = 0)
 
 # Create the 'Add Mol.' button
 addmol_button = tk.Button(title_frame, text='Add Molecule', bg='lightgray', activebackground='gray', command=lambda: add_molecule_data(), width=12, height=1)
-addmol_button.grid(row=0, column=2)
+addmol_button.grid(row=0, column=1)
+
+# Create the 'Clear Mol.' button
+clearmol_button = tk.Button(title_frame, text='Clear Molecules', bg='lightgray', activebackground='gray', command=lambda: del_molecule_data(), width=12, height=1)
+clearmol_button.grid(row=0, column=2)
 
 # Create the 'Save Changes' button
 saveparams_button = tk.Button(title_frame, text='Save Parameters', bg='lightgray', activebackground='gray', command=lambda: saveparams_button_clicked(), width=12, height=1)
@@ -2940,13 +2043,21 @@ def toggle_legend():
     canvas.draw ()
 
 # Create a Tkinter button to toggle the legend
-toggle_button = tk.Button (title_frame, text="Toggle Legend", bg='lightgray', activebackground='gray', command=toggle_legend, width=12)
+toggle_button = tk.Button (title_frame, text="Toggle Legend", bg='lightgray', activebackground='gray', command=toggle_legend)
 toggle_button.grid (row=0, column=6)
+
+def import_molecule():
+    MoleculeSelector(root, data_field)
+
+# Create a Tkinter button to import additional hitran molecules
+import_button = tk.Button (title_frame, text="Import Molecules", bg='lightgray', activebackground='gray', command=import_molecule)
+import_button.grid (row=0, column=7)
+
 
 
 # Create and place the buttons for other functions
 functions_frame = tk.Frame(window, borderwidth=2, relief="groove")
-functions_frame.grid(row=plotparams_frame.grid_info()['row'] + plotparams_frame.grid_info()['rowspan'], column=0, rowspan=5, columnspan=5, sticky='nsew')
+functions_frame.grid(row=24, column=0, rowspan=5, columnspan=5, sticky='nsew')
 
 save_button = tk.Button(functions_frame, text="Save Line", bg='lightgray', activebackground='gray', command=Save, width=13, height=1)
 save_button.grid(row=0, column=0)
@@ -3000,80 +2111,13 @@ def set_file_permissions(filename, mode):
 # Your script code here...
 
 # After you write the data to the CSV file, call the function to set the permissions
-csv_perm_path = os.path.join(save_folder, f"{file_name}-molsave.csv")
-set_file_permissions(csv_perm_path, 0o666)  # Here, 0o666 sets read and write permissions for all users.
+set_file_permissions("molecules_list.csv", 0o666)  # Here, 0o666 sets read and write permissions for all users.
 
-def write_to_csv(data, confirmation=False):
-    if confirmation:
-        # Display a confirmation dialog
-        confirmed = tk.messagebox.askquestion("Confirmation", "Sure you want to save? This will overwrite any previous save for this data file.")
-        if confirmed == "no":  # Check if user clicked "no"
-            return
-
-    csv_filename = os.path.join(save_folder, f"{file_name}-molsave.csv")
-    
-    try:
-        with open(csv_filename, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad']
-            writer.writerow(header)
-
-            for mol_name, mol_filepath, mol_label in data:
-                row = [mol_name, mol_filepath, mol_label]
-                linevar = eval(f"{mol_name.lower()}_line")
-                linecolor = linevar.get_color()
-                # Append the variables for the current molecule to the row
-                row.append(globals().get(f"t_{mol_name.lower()}", ''))
-                row.append(globals().get(f"{mol_name.lower()}_radius", ''))
-                row.append(globals().get(f"n_mol_{mol_name.lower()}", ''))
-                row.append(linecolor)
-                row.append(globals().get(f"{mol_name.lower()}_vis", ''))
-                row.append(dist)
-                row.append(star_rv_entry.get())
-                row.append(fwhm)
-                row.append(intrinsic_line_width)
-                
-                writer.writerow(row)
-
-        data_field.delete('1.0', "end")
-        data_field.insert('1.0', 'Molecule parameters saved into file.')
-        fig.canvas.draw_idle()
-    except Exception as e:
-        print("Error:", e)
-
-def write_user_csv(data):
-
-    csv_filename = os.path.join(save_folder, f"molecules_list.csv")
-    
-    try:
-        with open(csv_filename, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad']
-            writer.writerow(header)
-
-            for mol_name, mol_filepath, mol_label in data:
-                row = [mol_name, mol_filepath, mol_label]
-                linevar = eval(f"{mol_name.lower()}_line")
-                linecolor = linevar.get_color()
-                # Append the variables for the current molecule to the row
-                row.append(globals().get(f"t_{mol_name.lower()}", ''))
-                row.append(globals().get(f"{mol_name.lower()}_radius", ''))
-                row.append(globals().get(f"n_mol_{mol_name.lower()}", ''))
-                row.append(linecolor)
-                row.append(globals().get(f"{mol_name.lower()}_vis", ''))
-                row.append(dist)
-                row.append(star_rv_entry.get())
-                row.append(fwhm)
-                row.append(intrinsic_line_width)
-                
-                writer.writerow(row)
-
-        data_field.delete('1.0', "end")
-        data_field.insert('1.0', 'Molecule parameters saved into file.')
-        fig.canvas.draw_idle()
-    except Exception as e:
-        print("Error:", e)
-
+def write_to_csv(data):
+    with open('molecules_list.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Molecule Name', 'File Path', 'Molecule Label'])
+        writer.writerows(data)
 
 def add_molecule_data():
     global mol_file_path
@@ -3200,14 +2244,14 @@ def add_molecule_data():
 
                 # Row label
                 exec(f"{molecule_name.lower()}_rowl_field = tk.Entry(molecule_frame, width=6)", globals())
-                eval(f"{molecule_name.lower()}_rowl_field").grid(row=row, column=0)
+                eval(f"{molecule_name.lower()}_rowl_field").grid(row=row+1, column=0)
                 eval(f"{molecule_name.lower()}_rowl_field").insert(0, f"{molecule_name}")
                 molecule_elements[molecule_name.lower()] = {'rowl': molecule_name.lower() + '_rowl_field'}
                 
                 # Temperature input field
                 globals()[f"{molecule_name.lower()}_temp_field"] = tk.Entry(molecule_frame, width=4)
 
-                eval(f"{molecule_name.lower()}_temp_field").grid(row=row, column=1)
+                eval(f"{molecule_name.lower()}_temp_field").grid(row=row + 1, column=1)
                 eval(f"{molecule_name.lower()}_temp_field").insert(0, f"{t_kin}")
                 #globals() [f"{molecule_name.lower()}_submit_temp_button"] = tk.Button(window, text="Submit", command=lambda mn=molecule_name.lower(), te = globals()[f"{molecule_name.lower()}_temp_field"]: submit_temp(te.get(), mn))
                 #eval(f"{molecule_name.lower()}_submit_temp_button").grid(row=row + 1, column=2)
@@ -3216,7 +2260,7 @@ def add_molecule_data():
                 
                 # Radius input field
                 globals()[f"{molecule_name.lower()}_rad_field"] = tk.Entry(molecule_frame, width=4)
-                eval(f"{molecule_name.lower()}_rad_field").grid(row=row, column=2)
+                eval(f"{molecule_name.lower()}_rad_field").grid(row=row + 1, column=2)
                 eval(f"{molecule_name.lower()}_rad_field").insert(0, f"{radius_init}")
                 #globals() [f"{molecule_name.lower()}_submit_rad_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), re = globals()[f"{molecule_name.lower()}_rad_field"]: submit_rad(re.get(), mn))
                 #eval(f"{molecule_name.lower()}_submit_rad_button").grid(row=row + 1, column=4)
@@ -3225,7 +2269,7 @@ def add_molecule_data():
                 
                 # Column Density input field
                 globals()[f"{molecule_name.lower()}_dens_field"] = tk.Entry(molecule_frame, width=6)
-                eval(f"{molecule_name.lower()}_dens_field").grid(row=row, column=3)
+                eval(f"{molecule_name.lower()}_dens_field").grid(row=row + 1, column=3)
                 eval(f"{molecule_name.lower()}_dens_field").insert(0, f"{n_mol_init:.{1}e}")
                 #globals() [f"{molecule_name.lower()}_submit_col_button"] = tk.Button(window, text="Submit", command=lambda mn=mol_name.lower(), ce = globals()[f"{molecule_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
                 #eval(f"{molecule_name.lower()}_submit_col_button").grid(row=row + 1, column=6)
@@ -3236,34 +2280,18 @@ def add_molecule_data():
                 globals()[f"{molecule_name.lower()}_vis_status"] = tk.BooleanVar()
                 globals()[f"{molecule_name.lower()}_vis_checkbutton"] = tk.Checkbutton(molecule_frame, text='', variable=eval(f"{molecule_name.lower()}_vis_status"), command=lambda mn=molecule_name.lower(): model_visible(mn))
                 globals()[f"{molecule_name.lower()}_vis_status"].set(False)  # Set the initial state
-                eval(f"{molecule_name.lower()}_vis_checkbutton").grid(row=row, column=4)
+                eval(f"{molecule_name.lower()}_vis_checkbutton").grid(row=row + 1, column=4)
                 globals()[f"{molecule_name.lower()}_vis"] = False
                 # Add the variable to the globals dictionary
                 # Add the text boxes to the molecule_text_boxes dictionary
                 #molecule_text_boxes[molecule_name.lower()] = text_boxes
-                
-                #print(f"{mol_name.lower()}_rowl_field")
-                
-                del_button = tk.Button(molecule_frame, text="X", command=lambda widget=eval(f"{molecule_name.lower()}_rowl_field"): delete_row(widget))
-                del_button.grid(row=row, column=5)
-                
-                color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{molecule_name.lower()}_rowl_field"): choose_color(widget))
-                color_button.grid(row=row, column=6)
-                
+
                 # Increment nextrow
                 nextrow += 1
                 
                 exec(f"{molecule_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
                 exec(f"{molecule_name.lower()}_line.set_label('{molecule_label}')", globals())
                 
-                line_var = globals().get(f"{molecule_name.lower()}_line")
-                linecolor = line_var.get_color()
-                # Get the color button from the grid_slaves list
-                colorbutton = molecule_frame.grid_slaves(row=row, column=6)[0]
-
-                # Set the background color of the color button
-                colorbutton.configure(bg=linecolor)
-
                 # Column density
                 exec(f"global n_mol_{molecule_name.lower()}; n_mol_{molecule_name.lower()} = n_mol_{molecule_name.lower()}_init")
 
@@ -3293,7 +2321,8 @@ def add_molecule_data():
                 #exec(f"{molecule_name.lower()}_line.set_data(lambdas_{molecule_name.lower()}, fluxes_{molecule_name.lower()})", globals())
                 
                 # Save the molecules_data to the CSV file
-                write_user_csv(molecules_data)
+                print(molecules_data)
+                write_to_csv(molecules_data)
                 
                 update()
                 
@@ -3326,51 +2355,98 @@ def add_molecule_data():
         print("No files selected.")
         
 def del_molecule_data():
+    global molecules_data
+    global molecules_data_default
+    global temp_field
+    global text_boxes
+    global nextrow
+    global deleted_molecules
+    #global text_box
+    #global text_box_data
+    global molecule_elements
+
+    data_field.delete('1.0', "end")
+    data_field.insert('1.0', 'Clearing Molecules...')
+    plt.draw(), canvas.draw()
+    fig.canvas.flush_events() 
     
-    global molecules_data, nextrow
-    
-    default_list = []
-    try:
-        with open(os.path.join(save_folder, "default.csv"), 'r') as list_file:
-            reader = csv.reader(list_file)
-            next(reader)  # Skip header
-            for row in reader:
-                default_list.append(tuple(row[:3]))  # Taking the first three columns of each row
-    except Exception as e:
-        print("Error reading molecules_list.csv:", e)
+    deleted_molecules = []
+    # Define the molecules and their corresponding file paths
+    molecules_data = []
+    molecules_data = molecules_data_default
+    print(molecules_data)
+    # New array to store the molecules found in the CSV but not in molecules_data
+    new_molecules_data = []
 
-    # Create a set of molecule names from molecules_data
-    default_data_names = set(item[0] for item in default_data)
-    indexsub=0
-    for row, (mol_name, _, _) in enumerate(molecules_data, start = 1):
-        if mol_name not in default_data_names:
-            adjrow = row - indexsub
-            # Destroy all widgets in the row
-            for w in molecule_frame.grid_slaves(row=adjrow):
-                w.destroy()
+    if os.path.exists('molecules_list.csv'):
+        try:
+            # Assuming the chemical names are in the first column of the CSV file
+            with open('molecules_list.csv', 'r') as csvfile:
+                reader = csv.reader(csvfile)
+                # Skip the first header row
+                next(reader)
+                csv_chemicals = [row[0].strip().lower() for row in reader]
 
-            exec(f"{mol_name.lower()}_line.remove()", globals())
+            for chem in csv_chemicals:
+                if chem not in [mol[0].lower() for mol in molecules_data]:
+                    # You can define the file path for each missing molecule here
+                    # For now, we'll set it to an empty string
+                    file_path = ""
+                    new_molecules_data.append((chem.upper(), file_path))
 
-            # Remove the molecule from molecules_data
-            molecules_data = [molecule for molecule in molecules_data if molecule[0].lower() != mol_name]
+            if len(new_molecules_data) > 0:
+                print("Molecules found in the CSV but not in molecules_data:", new_molecules_data)
+                
+                for data in new_molecules_data:
+                    nextrow = nextrow - 1
+                    chem = data[0]
+                    temp_field_var = f"{chem.lower()}_temp_field"
+                    rad_field_var = f"{chem.lower()}_rad_field"
+                    dens_field_var = f"{chem.lower()}_dens_field"
+                    vis_button_var = f"vis_button_{chem.lower()}"
+                    label_var = f"{chem.lower()}_rowl_field"
+                    line_var = f"{chem.lower()}_line"
+                    
+                    
+                    eval(f"{chem.lower()}_temp_field").destroy()
+                    eval(f"{chem.lower()}_vis_checkbutton").destroy()
+                    eval(f"{chem.lower()}_rowl_field").destroy()
+                    eval(f"{chem.lower()}_rad_field").destroy()
+                    eval(f"{chem.lower()}_dens_field").destroy()
+                    
+                # Clearing the text feed box.
+                data_field.delete('1.0', "end")
+                data_field.insert('1.0', 'Molecules Cleared!')
+                plt.draw(), canvas.draw()
+                fig.canvas.flush_events() 
 
+                #plt.pause(3)
 
-            # Move all rows below this row up by one
-            for r in range(adjrow + 1, nextrow):
-                for col in range(7):  # Adjust the range if you have more columns
-                    widget_list = molecule_frame.grid_slaves(row=r, column=col)
-                    for widget in widget_list:
-                        widget.grid(row=r-1, column=col)
-                        
-            indexsub += 1
+                # Clearing the text feed box.
+                data_field.delete('1.0', "end")
+                print(molecules_data)
+                plt.draw(), canvas.draw()
+                
+                spanoptionsvar = [m[0] for m in molecules_data]
+                spandropd['values'] = spanoptionsvar
+                if spanoptionsvar:
+                    spandropd.set(spanoptionsvar[0])
+                    
+            else:
+                print("No new molecules found in the CSV.")
+        except OSError as e:
+            print(f"Error reading the CSV file: {e}")
+    else:
+        print("CSV file not found.")
 
-    
-    write_user_csv(molecules_data)
-    nextrow = 7
-    update()
-
-    data_field.delete ('1.0', "end")
-    data_field.insert ('1.0', f'{mol_name.upper()} deleted!')
+    if os.path.exists('molecules_list.csv'):
+        try:
+            os.remove('molecules_list.csv')
+            print('molecules_list.csv deleted.')
+        except OSError as e:
+            print(f"Error deleting molecules_list.csv: {e}")
+    else:
+        print('No molecule Save Found.')  
 
 
 
@@ -3390,17 +2466,222 @@ def down_molecule_data(val):
                 os.system(f"{browser_name} {url}")
                 break  # Stop trying if the command succeeds
             except OSError:
-                continue  # Try the next browser if the current one fails       
+                continue  # Try the next browser if the current one fails
+
+    
+
+# Function to open spectrum data file from the GUI using Open File for "Spectrum data file"
+def selectfile():
+    global file_path
+    global file_name
+    global wave_data, flux_data, err_data, wave_original
+    global input_spectrum_data
+    global filename_box_data
+    global xp1, rng, xp2, xp1_entry, rng_entry
+    
+    filetypes = [('CSV Files', '*.csv')]
+    spectra_directory = os.path.abspath ("EXAMPLE-data")
+    infiles = filedialog.askopenfilename(multiple=True, title='Choose Spectrum Data File', filetypes=filetypes, initialdir=spectra_directory)
+
+    if infiles:
+        for file_path in infiles:
+            # Process each selected file
+            print("Selected file:", file_path)
+            file_name = os.path.basename(file_path)
+            file_name_label.config(text=str(file_name))
+            #filename_box_data.set_val(file_name)
+            # Add your code to process each file
+            #THIS IS THE OLD FILE SYSTEM (THIS WILL BE USED UNTIL THE NEW FILE SYSTEM IS DEVELOPED) USE THIS!!!!!
+            input_spectrum_data=pd.read_csv(filepath_or_buffer=(file_path), sep=',')
+            wave_data = np.array(input_spectrum_data['wave'])
+            wave_original = np.array(input_spectrum_data['wave'])
+            flux_data = np.array(input_spectrum_data['flux'])
+            err_data = np.array(input_spectrum_data['err'])
+
+            # Set initial values of xp1 and rng
+            fig_max_limit = np.nanmax(wave_data)
+            fig_min_limit = np.nanmin(wave_data)
+            xp1 = fig_min_limit + (fig_max_limit - fig_min_limit)/2
+            rng = (fig_max_limit - fig_min_limit)/10
+            xp2 = xp1 + rng
+            xp1_entry.delete(0, "end")
+            xp1_entry.insert(0, np.around(xp1, decimals=2))
+            rng_entry.delete(0, "end")
+            rng_entry.insert(0, np.around(rng, decimals=2))
+            
+            now = dt.now()
+            dateandtime = now.strftime("%d-%m-%Y-%H-%M-%S")
+            print(dateandtime)
+            svd_line_file = f'savedlines-{dateandtime}.csv'
+    else:
+        print("No files selected.")
+    update()
+    
+def selectlinefile():
+    global linelistfile
+    global linelistpath
+
+    # Create the folder if it doesn't exist
+    linelist_folder = "LINELISTS"
+
+    # Set the initial directory to the created folder
+    initial_directory = os.path.abspath(linelist_folder)
+
+    filetypes = [('CSV Files', '*.csv')]
+    infile = filedialog.askopenfilename(
+        title='Choose Line List File',
+        filetypes=filetypes,
+        defaultextension=".csv",
+        initialdir=initial_directory  # Set the initial directory
+    )
+
+    if infile:
+        linelistpath = infile
+        linelistfile = os.path.basename(linelistpath)
+        # Update the label with the selected/created file
+        linefile_name_label.config(text=str(linelistfile))
+
+        #headers = "lev_up,lev_low,lam, tau,intens,a_stein,e_up,g_up,xmin,xmax"
+
+        # Check if the file already exists
+        if os.path.exists(infile):
+            # File already exists, so check if the headers match
+            with open(infile, 'r') as existing_file:
+                first_line = existing_file.readline().strip()
+            #if first_line == headers:
+            #    # Headers match, no need to write them
+            #    pass
+            #else:
+            #    print("File selected is not a line save file")
+        else:
+            # File doesn't exist
+            print("File selected does not exist")
+        
+        
+        
+def savelinefile():
+    global linesavefile
+    global linesavepath
+
+    # Create the folder if it doesn't exist
+    linesave_folder = "LINESAVES"
+    if not os.path.exists(linesave_folder):
+        os.makedirs(linesave_folder)
+
+    # Set the initial directory to the created folder
+    initial_directory = os.path.abspath(linesave_folder)
+
+    filetypes = [('CSV Files', '*.csv')]
+    infile = filedialog.asksaveasfilename(
+        title='Choose or Define a File',
+        filetypes=filetypes,
+        defaultextension=".csv",
+        initialdir=initial_directory  # Set the initial directory
+    )
+
+    if infile:
+        linesavepath = infile
+        linesavefile = os.path.basename(linesavepath)
+        # Update the label with the selected/created file
+        savelinefile_name_label.config(text=str(linesavefile))
+
+        headers = "species,lev_up,lev_low,lam, tau,intens,a_stein,e_up,g_up,xmin,xmax"
+
+        # Check if the file already exists
+        if os.path.exists(infile):
+            # File already exists, so check if the headers match
+            with open(infile, 'r') as existing_file:
+                first_line = existing_file.readline().strip()
+            if first_line == headers:
+                # Headers match, no need to write them
+                pass
+            elif not first_line:
+                # First line is empty, so write the headers
+                with open(infile, 'a') as file:
+                    file.write(headers + '\n')
+            else:
+                print("File selected is not a line save file")
+        else:
+            # File doesn't exist, create a new one and write headers
+            with open(infile, 'w') as file:
+                file.write(headers + '\n')
+
+        
+        
         
 # sum button
 #sum_box = plt.axes([0.16, .975, 0.07, 0.02])
 #sum_button = Button(sum_box, 'Show Sum', color = background, hovercolor = background)
 #sum_button.on_clicked(total_flux)    
 
+files_frame = tk.Frame(window, borderwidth=2, relief="groove")
+files_frame.grid(row=11, column=0, rowspan=7, columnspan=5, sticky="nsew")
+
+# Configure columns to expand and fill the width
+for i in range(5):
+    files_frame.columnconfigure(i, weight=1)
+
+# Create a frame to hold the box outline
+box_frame = tk.Frame(files_frame)
+box_frame.grid(row=1, column=0, columnspan=5, sticky='nsew')
+
+specfile_label = tk.Label(files_frame, text='Spectrum Data File:')
+specfile_label.grid(row=0, column=0, columnspan=5, sticky='nsew')  # Center-align using grid
+
+linefile_label = tk.Label(files_frame, text='Input Line List:')
+linefile_label.grid(row=2, column=0, columnspan=5, sticky='nsew')  # Center-align using grid
+
+linefile_label = tk.Label(files_frame, text='Output Line Measurements:')
+linefile_label.grid(row=4, column=0, columnspan=5, sticky='nsew')  # Center-align using grid
+
+# Create a frame to hold the box outline
+linebox_frame = tk.Frame(files_frame)
+linebox_frame.grid(row=3, column=0, columnspan=5, sticky='nsew')
+
+# Create a label widget inside the frame to create the box outline
+linebox_label = tk.Label(linebox_frame, text='', relief='solid', borderwidth=1, height=2)  # Adjust the height value as needed
+linebox_label.pack(side="top", fill="both", expand=True)
+
+# Create a label inside the box_frame and center-align it
+linefile_name_label = tk.Label(linebox_label, text='')
+linefile_name_label.grid(row=0, column=0, sticky='nsew')  # Center-align using grid
+
+# Create a frame to hold the box outline
+savelinebox_frame = tk.Frame(files_frame)
+savelinebox_frame.grid(row=5, column=0, columnspan=5, sticky='nsew', pady=(0,10))
+
+# Create a label widget inside the frame to create the box outline
+linesavebox_label = tk.Label(savelinebox_frame, text='', relief='solid', borderwidth=1, height=2)  # Adjust the height value as needed
+linesavebox_label.pack(side="top", fill="both", expand=True)
+
+# Create a label inside the box_frame and center-align it
+savelinefile_name_label = tk.Label(linesavebox_label, text='')
+savelinefile_name_label.grid(row=0, column=0, sticky='nsew')  # Center-align using grid
+
+# Create a label widget inside the frame to create the box outline
+box_label = tk.Label(box_frame, text='', relief='solid', borderwidth=1, height=2)  # Adjust the height value as needed
+box_label.pack(fill=tk.BOTH, expand=True)
+
+# Create a label inside the box_frame and center-align it
+file_name_label = tk.Label(box_label, text=str(file_name))
+file_name_label.grid(row=0, column=0, sticky='nsew')  # Center-align using grid
+
+file_button = tk.Button(files_frame, text='Open File', command=selectfile)
+file_button.grid(row=1, column=5)
+
+linefile_button = tk.Button(files_frame, text='Open File', command=selectlinefile)
+linefile_button.grid(row=3, column=5)
+
+linesave_button = tk.Button(files_frame, text='Define File', command=savelinefile)
+linesave_button.grid(row=5, column=5, pady=(0,10))
+
+# Add some space below files_frame
+#tk.Label(files_frame, text="").grid(row=4, column=0)
+
 
 # Create a frame for the Text widget
 text_frame = tk.Frame(window)
-text_frame.grid(row=functions_frame.grid_info()['row'] + functions_frame.grid_info()['rowspan'], column=0, columnspan=5, sticky='nsew')
+text_frame.grid(row=35, column=0, columnspan=5, sticky='nsew')
 
 # Create a Text widget within the frame
 data_field = tk.Text(text_frame, wrap="word", height=13, width=24)
@@ -3442,7 +2723,7 @@ canvas_widget = canvas.get_tk_widget()
 # Place the canvas widget in column 9, row 1
 canvas_widget.grid(row=1, column=5, rowspan=100, sticky='nsew')
 
-# Allow column 9 and row 1 to expandc
+# Allow column 9 and row 1 to expand
 window.grid_columnconfigure(5, weight=1)
 window.grid_rowconfigure(100, weight=1)
 
@@ -3450,6 +2731,7 @@ window.grid_rowconfigure(100, weight=1)
 # Create a frame for the toolbar inside the title_frame
 toolbar_frame = tk.Frame(title_frame)
 toolbar_frame.grid(row=0, column=9, columnspan=2, sticky="nsew")  # Place the frame in row 0, column 9
+
 # Create a toolbar and update it
 toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
 toolbar.update()
@@ -3457,28 +2739,5 @@ toolbar.update()
 title_frame.grid_columnconfigure(9, weight=1)
 
 plt.interactive(False)
-
 update()
-
-for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
-    # Get the molecule name in lower case
-    mol_name_lower = mol_name.lower()
-    
-    # Get the line object
-    line_var = globals().get(f"{mol_name_lower}_line")
-    # Check if the line object exists and has a color attribute
-    if line_var and hasattr(line_var, 'get_color'):
-        # Get the color of the line
-        line_color = line_var.get_color()
-        
-        # Get the color button from the grid_slaves list
-        color_button = molecule_frame.grid_slaves(row=row, column=6)[0]
-        
-        # Set the background color of the color button
-        color_button.configure(bg=line_color)
-    else:
-        print('Line object or color attribute not found for:', mol_name)
-        
-        
-#save_default_to_file(file_name)
 window.mainloop()
