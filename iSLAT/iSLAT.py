@@ -1,6 +1,6 @@
 iSLAT_version = 'v4.03.00'
 print(' ')
-print('Loading iSLAT '+ iSLAT_version +': Please Wait...')
+print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
 # Import necessary modules
 import numpy as np
