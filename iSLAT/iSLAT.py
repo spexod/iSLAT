@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.02'
+iSLAT_version = 'v4.03.03'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -48,6 +48,10 @@ context = ssl.create_default_context(cafile=certifi.where())
 
 from COMPONENTS.chart_window import MoleculeSelector
 
+
+# create HITRAN folder, only needed for first start
+HITRAN_folder = "HITRANdata"
+os.makedirs(HITRAN_folder, exist_ok=True)
 
 #Code from Nathan Hagen
 #https://github.com/nzhagen/hitran
@@ -285,8 +289,6 @@ output_dir = "MODELS"
 os.makedirs(output_dir, exist_ok=True)
 linesave_folder = "LINESAVES"
 os.makedirs(linesave_folder, exist_ok=True)
-HITRAN_folder = "HITRANdata"
-os.makedirs(HITRAN_folder, exist_ok=True)
 
 
 # read more molecules if saved by the user in a previous iSLAT session
