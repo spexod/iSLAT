@@ -71,7 +71,7 @@ class MoleculeSelector:
 
 
         self.window = tk.Toplevel(master)
-        self.window.title("Select Molecules")
+        self.window.title("Download from HITRAN")
 
         self.frame = ttk.Frame(self.window)
         self.frame.pack(padx=10, pady=10)
@@ -92,10 +92,10 @@ class MoleculeSelector:
         self.isotopologue_combobox = ttk.Combobox(self.frame, textvariable=self.isotopologue_var)
         self.isotopologue_combobox.grid(row=1, column=1, padx=5, pady=5)
 
-        self.add_button = ttk.Button(self.frame, text="Add Molecule", command=self.add_molecule)
+        self.add_button = ttk.Button(self.frame, text="Download HITRAN file", command=self.add_molecule)
         self.add_button.grid(row=2, column=0, columnspan=2, pady=10)
 
-        self.done_button = ttk.Button(self.frame, text="Done", command=self.on_done)
+        self.done_button = ttk.Button(self.frame, text="Close Window", command=self.on_done)
         self.done_button.grid(row=3, column=0, columnspan=2, pady=10)
 
     def update_isotopologues(self, event):
