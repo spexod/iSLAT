@@ -879,8 +879,8 @@ def fit_saved_lines():
             x_max = np.array(svd_lns['xmax'])
             restwl = np.array(svd_lns['lam'])
             # define new columns to be filled with values line by line in the loop below
-            svd_lns["Flux_data"], svd_lns["Flux_fit"], svd_lns["Flux_err"] = [np.empty_like(x_min, dtype=None),np.empty_like(x_min, dtype=None),np.empty_like(x_min, dtype=None)]
-            svd_lns["Centr_fit"], svd_lns["Centr_err"], svd_lns["Doppler"], svd_lns["FWHM_fit"], svd_lns["FWHM_err"] = [np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min)]
+            #svd_lns["Flux_data"], svd_lns["Flux_fit"], svd_lns["Flux_err"] = [np.empty_like(x_min, dtype=None),np.empty_like(x_min, dtype=None),np.empty_like(x_min, dtype=None)]
+            #svd_lns["Centr_fit"], svd_lns["Centr_err"], svd_lns["Doppler"], svd_lns["FWHM_fit"], svd_lns["FWHM_err"] = [np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min)]
 
             for i in range(len(x_min)):
                 ax1.vlines(x_min[i], -2, 10, color='lime', alpha=0.5)
