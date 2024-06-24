@@ -3,8 +3,9 @@ from tkinter import ttk
 from COMPONENTS.hitran_downloader import download_hitran_data
 
 class MoleculeSelector:
-    def __init__(self, master):
+    def __init__(self, master, data_field):
         self.master = master
+        self.data_field = data_field  # Reference to the data field in the main GUI
         self.mols = []
         self.basem = []
         self.isot = []
@@ -120,6 +121,10 @@ class MoleculeSelector:
 
             download_hitran_data(self.basem, self.mols, self.isot)
             print(f"Added Molecule: {mol}, Isotopologue: {isotopologue}, Isotope Number: {isotope}")
+
+            # Update the main GUI data_field
+            self.data_field.delete('1.0', "end")
+            self.data_field.insert('1.0', f"{isotopologue} downloaded from HITRAN.")
 
     def on_done(self):
         self.window.destroy()
