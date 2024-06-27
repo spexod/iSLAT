@@ -102,7 +102,7 @@ class MolData:
         n_partition = int(data_clean[0])
 
         data_q = data_clean[1:n_partition + 1]
-        data_lines = data_clean[n_partition + 2:]
+        data_lines = data_clean[n_partition + 1:]
 
         # 2. read partition function
         N = np.genfromtxt(data_q, dtype="f8,f8")
@@ -110,8 +110,8 @@ class MolData:
 
         # 3. read lines
 
-        # noinspection PyTypeChecker
-        M = np.genfromtxt(data_lines, dtype="i4,S30,S30,f8,f8,f8,f8,f8,f8,f8",
+        # skip_header is to skip the number of lines printed in the file
+        M = np.genfromtxt(data_lines, dtype="i4,S30,S30,f8,f8,f8,f8,f8,f8,f8", skip_header=2,
                           delimiter=(6, 30, 30, 11, 15, 13, 15, 15, 7, 7))
 
         nr, lev_up, lev_low, lam, freq, a_stein, e_up, e_low, g_up, g_low = [M[field] for field in M.dtype.names]
