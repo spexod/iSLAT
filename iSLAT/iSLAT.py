@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.03'
+iSLAT_version = 'v4.03.04'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -893,7 +893,7 @@ def fit_saved_lines():
                 ax1.plot (x_fit, gauss_fit.best_fit, label='Gauss. fit', color='lime', ls='--')
                 flux_nofit = flux_integral (wave_data, flux_data, x_min[i], x_max[i])
 
-                sig_det_lim = 2
+                sig_det_lim = 1
                 # these reformatting below is for reducing the number of decimals and then get back to a float
                 svd_lns.loc[i,"Flux_data"] = np.float64(f'{flux_nofit:.{3}e}')
                 svd_lns.loc[i,"Flux_fit"] = np.float64(f'{gauss_area[0]:.{3}e}')
@@ -907,6 +907,7 @@ def fit_saved_lines():
                     svd_lns.loc[i,"Doppler"] = np.round ((gauss_fit.params['center'].value - restwl[i]) / restwl[i] * cc, decimals=1)
 
                 else:
+                    svd_lns.loc[i,"Flux_fit"] = svd_lns.loc[i,"Flux_data"] # safety measure, LMFIT gives much larger fluxes to undetected lines sometimes..
                     svd_lns.loc[i,"FWHM_fit"] = np.nan
                     svd_lns.loc[i,"FWHM_err"] = np.nan
                     svd_lns.loc[i,"Centr_fit"] = np.nan
