@@ -401,8 +401,8 @@ def update(*val):
     data_line, = ax1.plot([], [], color=foreground, linewidth=1)
     data_line.set_label('Data')
 
-    ax1.set_prop_cycle (color=['dodgerblue', 'darkorange', 'orangered', 'limegreen', 'darkviolet', 'magenta',
-                               'hotpink', 'cyan', 'gold', 'turquoise', 'chocolate', 'royalblue', 'sienna', 'lime', 'blue'])
+    ax1.set_prop_cycle (color=['dodgerblue', 'darkorange', 'orangered', 'limegreen', 'mediumorchid', 'magenta',
+                               'hotpink', 'cyan', 'gold', 'turquoise', 'chocolate', 'royalblue', 'sienna', 'lime', 'darkviolet', 'blue'])
 
     # Make empty lines for the top graph for each molecule
     for mol_name, mol_filepath, mol_label in molecules_data:
