@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.04'
+iSLAT_version = 'v4.03.05'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -28,7 +28,7 @@ import lmfit
 from lmfit.models import GaussianModel
 from ir_model import *
 import tkinter as tk
-from tkinter import filedialog, simpledialog, ttk  # For ttk.Style
+from tkinter import filedialog, simpledialog, ttk, Toplevel, Label, LEFT, SOLID  # For ttk.Style
 from tkinter import colorchooser
 import inspect
 #from PyQt5.QtWidgets import QApplication, QMainWindow
@@ -562,6 +562,45 @@ The strongest line is determined and its info is printed in the text feed on the
 The lines are also highlighted in the population diagram graph in this function.
 """
 
+class ToolTip(object):
+
+    def __init__(self, widget):
+        self.widget = widget
+        self.tipwindow = None
+        self.id = None
+        self.x = self.y = 0
+
+    def showtip(self, text):
+        "Display text in tooltip window"
+        self.text = text
+        if self.tipwindow or not self.text:
+            return
+        x, y, cx, cy = self.widget.bbox("insert")
+        x = x + self.widget.winfo_rootx() + 57
+        y = y + cy + self.widget.winfo_rooty() +27
+        self.tipwindow = tw = Toplevel(self.widget)
+        tw.wm_overrideredirect(1)
+        tw.wm_geometry("+%d+%d" % (x, y))
+        label = Label(tw, text=self.text, justify=LEFT,
+                      background="#ffffe0", relief=SOLID, borderwidth=1,
+                      font=("tahoma", "8", "normal"))
+        label.pack(ipadx=1)
+
+    def hidetip(self):
+        tw = self.tipwindow
+        self.tipwindow = None
+        if tw:
+            tw.destroy()
+
+def CreateToolTip(widget, text):
+    toolTip = ToolTip(widget)
+    def enter(event):
+        toolTip.showtip(text)
+    def leave(event):
+        toolTip.hidetip()
+    widget.bind('<Enter>', enter)
+    widget.bind('<Leave>', leave)
+
 def onselect(xmin, xmax):
     
     global wave_data, flux_data, line2save, selectedline, spanmol, model_indmin, model_indmax, data_region_x, model_line_select
@@ -1068,6 +1107,7 @@ def submit_col(event, text):
         total_fluxes.append(flux_sum)
     
     sum_line.set_data(lambdas_h2o, total_fluxes)
+    write_user_csv(molecules_data)
     update()
     pop_diagram()
     canvas.draw()
@@ -1152,6 +1192,7 @@ def submit_temp(event, text):
     
     sum_line.set_data(lambdas_h2o, total_fluxes)
     #exec(sum_line.set_data(lambdas_h2o, total_fluxes), globals())
+    write_user_csv(molecules_data)
     update()
     pop_diagram()
     plt.draw(), canvas.draw()
@@ -1214,6 +1255,7 @@ def submit_rad(event, text):
         total_fluxes.append(flux_sum)
     
     sum_line.set_data(lambdas_h2o, total_fluxes)
+    write_user_csv(molecules_data)
     update()
     pop_diagram()
     canvas.draw()
@@ -1249,6 +1291,7 @@ def model_visible(event):
         globals()[f"{event}_vis"] = True
         if event == 'h2o':
             ax1.fill_between(lambdas_h2o, fluxes_h2o, 0, facecolor="red", color='red', alpha=0.2)
+    write_user_csv(molecules_data)
 
 
     update()  # Call the update function to refresh the plot
@@ -1626,6 +1669,7 @@ def choose_color(widget):
 
         # Set the background color of the color button
         color_button.configure(bg=color[1])
+        write_user_csv(molecules_data)
         update()
 
     
@@ -1644,6 +1688,9 @@ def delete_row(widget):
 
     # Destroy all widgets in the row
     for w in molecule_frame.grid_slaves(row=row):
+        if isinstance(w, tk.Entry) or isinstance(w, tk.Button) or isinstance(w, tk.Checkbutton):
+            w.unbind('<Enter>')
+            w.unbind('<Leave>')
         w.destroy()
         
     exec(f"{mol_name.lower()}_line.remove()", globals())
@@ -1667,7 +1714,7 @@ def delete_row(widget):
     if spanoptionsvar:
         spandropd.set(spanoptionsvar[0])
     update()
-
+    canvas.draw()
     data_field.delete ('1.0', "end")
     data_field.insert ('1.0', f'{mol_name.upper()} deleted!')
 
@@ -1714,26 +1761,36 @@ for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
     exec(f"{mol_name.lower()}_rowl_field = tk.Entry(molecule_frame, width=6)")
     eval(f"{mol_name.lower()}_rowl_field").grid(row=row, column=0)
     eval(f"{mol_name.lower()}_rowl_field").insert(0, f"{mol_name}")
-
+    
     # Temperature input field
     exec(f"{mol_name.lower()}_temp_field = tk.Entry(molecule_frame, width=4)")
     eval(f"{mol_name.lower()}_temp_field").grid(row=row, column=1)
     eval(f"{mol_name.lower()}_temp_field").insert(0, f"{t_kin}")
     eval(f"{mol_name.lower()}_temp_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_temp_field"]: submit_temp(ce.get(), mn))
     
+    CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
+                 'the temperature of\n'
+                 'its respective molecule.\n')
 
     # Radius input field
     exec(f"{mol_name.lower()}_rad_field = tk.Entry(molecule_frame, width=4)")
     eval(f"{mol_name.lower()}_rad_field").grid(row=row, column=2)
     eval(f"{mol_name.lower()}_rad_field").insert(0, f"{radius_init}")
     eval(f"{mol_name.lower()}_rad_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_rad_field"]: submit_rad(ce.get(), mn))
-
+    
+    CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
+                 'the radius of\n'
+                 'its respective molecule.\n')
     
     # Column Density input field
     exec(f"{mol_name.lower()}_dens_field = tk.Entry(molecule_frame, width=6)")
     eval(f"{mol_name.lower()}_dens_field").grid(row=row, column=3)
     eval(f"{mol_name.lower()}_dens_field").insert(0, f"{n_mol_init:.{1}e}")
     eval(f"{mol_name.lower()}_dens_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
+    
+    CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
+                 'the column density of\n'
+                 'its respective molecule.\n')
     
     # Visibility Checkbutton
     if mol_name.lower() == 'h2o':
@@ -1747,19 +1804,123 @@ for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
         globals()[f"{mol_name.lower()}_vis_status"].set(False)  # Set the initial state
 
     eval(f"{mol_name.lower()}_vis_checkbutton").grid(row=row, column=4)
-
+    
+    CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
+                 'the visiblity of\n'
+                 'its respective molecule.\n')
+    
     # Delete button
     del_button = tk.Button(molecule_frame, text="X", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): delete_row(widget))
     del_button.grid(row=row, column=5)
     
+    CreateToolTip(del_button, text = 'This button deletes\n'
+                 'its respective molecule\n'
+                 'from the GUI.\n')
+    
     color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
     color_button.grid(row=row, column=6)
     
-
+    CreateToolTip(color_button, text = 'This button allows\n'
+                 'the user to change\n'
+                 'the color of its\n'
+                 'respective molecule.\n')
+    
     nextrow = row + 1
 
 
+def load_molecules_list():
+    filename = os.path.join(save_folder, f"molecules_list.csv")
+    
+    if os.path.exists(filename):
+        try:
+            with open(filename, 'r') as csvfile:
+                reader = csv.reader(csvfile)
+                header = next(reader)  # Read the header row
+                rows = list(reader)  # Read all rows into a list
+                
+                for i, row in enumerate(rows):
+                    mol_name, mol_filepath, mol_label, temp, rad, n_mol, color, vis, dist, stellarrv, fwhm, ilw = row
+                    
+                    # Update global variables or GUI fields with the loaded values
+                    exec(f"global t_{mol_name.lower()}; t_{mol_name.lower()} = {temp}")
+                    exec(f"global {mol_name.lower()}_radius; {mol_name.lower()}_radius = {rad}")
+                    exec(f"global n_mol_{mol_name.lower()}; n_mol_{mol_name.lower()} = {n_mol}")
+                    exec(f"global {mol_name.lower()}_line_color; {mol_name.lower()}_line_color = '{color}'")
+                    exec(f"global {mol_name.lower()}_color; {mol_name.lower()}_color = '{color}'")
+                    exec(f"global {mol_name.lower()}_vis; {mol_name.lower()}_vis = {vis}")
+                    exec(f"global dist; dist = {dist}")
+                    exec(f"global star_rv; star_rv = {stellarrv}")
+                    exec(f"global fwhm; fwhm = {fwhm}")
+                    exec(f"global intrinsic_line_width; intrinsic_line_width = {ilw}")
 
+                    # Update GUI fields
+                    eval(f"{mol_name.lower()}_temp_field").delete(0, "end")
+                    eval(f"{mol_name.lower()}_temp_field").insert(0, temp)
+
+                    eval(f"{mol_name.lower()}_rad_field").delete(0, "end")
+                    eval(f"{mol_name.lower()}_rad_field").insert(0, rad)
+
+                    eval(f"{mol_name.lower()}_dens_field").delete(0, "end")
+                    eval(f"{mol_name.lower()}_dens_field").insert(0, f"{float(n_mol):.{1}e}")
+
+                    dist_entry.delete(0, "end")
+                    dist_entry.insert(0, f"{dist}")
+
+                    star_rv_entry.delete(0, "end")
+                    star_rv_entry.insert(0, f"{star_rv}")
+
+                    fwhm_entry.delete(0, "end")
+                    fwhm_entry.insert(0, f"{fwhm}")
+
+                    intrinsic_line_width_entry.delete(0, "end")
+                    intrinsic_line_width_entry.insert(0, f"{intrinsic_line_width}")
+
+                    # Call update_initvals() only on the last iteration
+                    if i == len(rows) - 1:
+                        update_initvals()
+
+            # Perform other updates or actions after loading
+            spanoptionsvar = [m[0] for m in molecules_data]
+            spandropd['values'] = spanoptionsvar
+            if spanoptionsvar:
+                spandropd.set(spanoptionsvar[0])
+                
+            print("Variables loaded from CSV file.")
+
+        except Exception as e:
+            print("Error loading variables from CSV:", e)
+            
+    for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
+
+            linecolor = eval(f"{mol_name.lower()}_color")
+            exec(f"{mol_name.lower()}_line.set_color('{linecolor}')", globals())
+            # Get the molecule name in lower case
+            mol_name_lower = mol_name.lower()
+
+            # Get the line object
+            line_var = globals().get(f"{mol_name_lower}_line")
+
+            # Check if the line object exists and has a color attribute
+            if line_var and hasattr(line_var, 'get_color'):
+                # Get the color of the line
+                line_color = line_var.get_color()
+                globals()[f"{mol_name.lower()}_color"] = line_color
+
+                # Get the color button from the grid_slaves list
+                color_button = molecule_frame.grid_slaves(row=row, column=6)[0]
+                # Set the background color of the color button
+                color_button.configure(bg=line_color)
+                
+            if eval(f"{mol_name.lower()}_vis"):
+                exec(f"{mol_name.lower()}_vis_checkbutton.select()")  
+    
+    else:
+        data_field.delete('1.0', "end")
+        data_field.insert('1.0', 'Saved parameters file not found.')
+    
+
+    update()
+            
 
 variable_names = ['t_h2o', 'h2o_radius', 'n_mol_h2o', 't_oh', 'oh_radius', 'n_mol_oh', 't_hcn', 'hcn_radius', 'n_mol_hcn', 't_c2h2', 'c2h2_radius', 'n_mol_c2h2']
 
@@ -1913,6 +2074,31 @@ def load_variables_from_file(file_name):
         color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
         color_button.grid(row=row, column=6)
         
+        CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
+         'the temperature of\n'
+         'its respective molecule.\n')
+
+        CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
+                         'the radius of\n'
+                         'its respective molecule.\n')
+
+        CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
+                         'the column density of\n'
+                         'its respective molecule.\n')
+
+        CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
+                         'the visiblity of\n'
+                         'its respective molecule.\n')
+
+        CreateToolTip(del_button, text = 'This button deletes\n'
+                         'its respective molecule\n'
+                         'from the GUI.\n')
+
+        CreateToolTip(color_button, text = 'This button allows\n'
+                         'the user to change\n'
+                         'the color of its\n'
+                         'respective molecule.\n')
+        
         exec(f"{mol_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
         exec(f"{mol_name.lower()}_line.set_label('{mol_name}')", globals())
         
@@ -1936,6 +2122,7 @@ def load_variables_from_file(file_name):
         #delete_button.grid(row=row, column=5)
 
         nextrow = nextrow + 1
+
     
     filename = os.path.join(save_folder, f"{file_name}-molsave.csv")
     if os.path.exists(filename):
@@ -1951,6 +2138,8 @@ def load_variables_from_file(file_name):
                     exec(f"global {mol_name.lower()}_radius; {mol_name.lower()}_radius = {rad}")
                     exec(f"global n_mol_{mol_name.lower()}; n_mol_{mol_name.lower()} = {n_mol}")
                     exec(f"global {mol_name.lower()}_line_color; {mol_name.lower()}_line_color = '{color}'")
+                    exec(f"global {mol_name.lower()}_color; {mol_name.lower()}_color = '{color}'")
+
                     exec(f"global {mol_name.lower()}_vis; {mol_name.lower()}_vis = {vis}")
                     exec(f"global dist; dist = {dist}")
                     exec(f"global star_rv; star_rv = {stellarrv}")
@@ -1992,11 +2181,11 @@ def load_variables_from_file(file_name):
             print("Variables loaded from CSV file.")
         except Exception as e:
             print("Error loading variables from CSV:", e)
-
-
+            
+    
     for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
 
-            linecolor = eval(f"{mol_name.lower()}_line_color")
+            linecolor = eval(f"{mol_name.lower()}_color")
             exec(f"{mol_name.lower()}_line.set_color('{linecolor}')", globals())
             # Get the molecule name in lower case
             mol_name_lower = mol_name.lower()
@@ -2016,13 +2205,13 @@ def load_variables_from_file(file_name):
                 color_button.configure(bg=line_color)
                 
             if eval(f"{mol_name.lower()}_vis"):
-                exec(f"{mol_name.lower()}_vis_checkbutton.select()")
-                
-                
+                exec(f"{mol_name.lower()}_vis_checkbutton.select()")  
     
     else:
         data_field.delete('1.0', "end")
         data_field.insert('1.0', 'Saved parameters file not found.')
+    
+
     update()
     write_user_csv(molecules_data)
     data_field.delete ('1.0', "end")
@@ -2131,7 +2320,32 @@ def load_defaults_from_file():
 
         color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
         color_button.grid(row=row, column=6)
+        
+        CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
+                 'the temperature of\n'
+                 'its respective molecule.\n')
 
+        CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
+                         'the radius of\n'
+                         'its respective molecule.\n')
+
+        CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
+                         'the column density of\n'
+                         'its respective molecule.\n')
+
+        CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
+                         'the visiblity of\n'
+                         'its respective molecule.\n')
+
+        CreateToolTip(del_button, text = 'This button deletes\n'
+                         'its respective molecule\n'
+                         'from the GUI.\n')
+
+        CreateToolTip(color_button, text = 'This button allows\n'
+                         'the user to change\n'
+                         'the color of its\n'
+                         'respective molecule.\n')
+        
         exec(f"{mol_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
         exec(f"{mol_name.lower()}_line.set_label('{mol_name}')", globals())
         
@@ -2752,8 +2966,8 @@ def import_molecule():
 import_button = tk.Button (title_frame, text="HITRAN query", bg='lightgray', activebackground='gray', command=import_molecule)
 import_button.grid (row=0, column=0)
 
-addmol_button = tk.Button(title_frame, text='Default Molecules', bg='lightgray', activebackground='gray', command=lambda: load_defaults_from_file(), width=12, height=1)
-addmol_button.grid(row=0, column=1)
+defmol_button = tk.Button(title_frame, text='Default Molecules', bg='lightgray', activebackground='gray', command=lambda: load_defaults_from_file(), width=12, height=1)
+defmol_button.grid(row=0, column=1)
 
 # Create the 'Add Mol.' button
 addmol_button = tk.Button(title_frame, text='Add Molecule', bg='lightgray', activebackground='gray', command=lambda: add_molecule_data(), width=12, height=1)
@@ -3087,6 +3301,31 @@ def add_molecule_data():
                 
                 color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{molecule_name.lower()}_rowl_field"): choose_color(widget))
                 color_button.grid(row=row, column=6)
+
+                CreateToolTip(eval(f"{molecule_name.lower()}_temp_field"), text = 'This field changes\n'
+                         'the temperature of\n'
+                         'its respective molecule.\n')
+
+                CreateToolTip(eval(f"{molecule_name.lower()}_rad_field"), text = 'This field changess\n'
+                                 'the radius of\n'
+                                 'its respective molecule.\n')
+
+                CreateToolTip(eval(f"{molecule_name.lower()}_dens_field"), text = 'This field changes\n'
+                                 'the column density of\n'
+                                 'its respective molecule.\n')
+
+                CreateToolTip(eval(f"{molecule_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
+                                 'the visiblity of\n'
+                                 'its respective molecule.\n')
+
+                CreateToolTip(del_button, text = 'This button deletes\n'
+                                 'its respective molecule\n'
+                                 'from the GUI.\n')
+
+                CreateToolTip(color_button, text = 'This button allows\n'
+                                 'the user to change\n'
+                                 'the color of its\n'
+                                 'respective molecule.\n')                
                 
                 # Increment nextrow
                 nextrow += 1
@@ -3298,18 +3537,134 @@ plt.interactive(False)
 
 update()
 
+
+CreateToolTip(import_button, text = 'This button allows\n'
+            'the user to download\n'
+            'new HITRAN files.\n')
+
+CreateToolTip(addmol_button, text = 'This button allows\n'
+             'the the user to add\n'
+             'a molecule to iSLAT.\n')
+
+CreateToolTip(saveparams_button, text = 'This button saves\n'
+             'the molecules and\n'
+             'parameters in iSLAT.\n')
+
+CreateToolTip(loadparams_button, text = 'This button loads\n'
+             'the save for the\n'
+             'current data filede.\n')
+
+CreateToolTip(defmol_button, text = 'This button loads\n'
+             'the default molecules.\n')
+
+CreateToolTip(export_button, text = 'This button allows\n'
+             'the user to export\n'
+             'any and all line data.\n')
+
+CreateToolTip(toggle_button, text = 'This button allows\n'
+             'the user to toggle the\n'
+             'legendin the upper plot.\n')
+
+CreateToolTip(file_button, text = 'This button allows\n'
+             'the user to select\n'
+             'a different data file.\n')
+
+CreateToolTip(linefile_button, text = 'This button allows\n'
+             'the user to select\n'
+             'the input line list\n'
+             'data file.\n')
+
+CreateToolTip(linesave_button, text = 'This button allows\n'
+             'the user to select\n'
+             'the output line list\n'
+             'data file.\n')
+#---------------------------------------------------------
+CreateToolTip(xp1_entry, text = 'This entry controls\n'
+            'the starting lambda\n'
+            'of the plot.\n')
+
+CreateToolTip(rng_entry, text = 'This entry controls\n'
+             'the range of\n'
+             'the plot.\n')
+
+CreateToolTip(min_lamb_entry, text = 'This entry controls\n'
+             'the minimum lambda\n'
+             'of the plot.\n')
+
+CreateToolTip(max_lamb_entry, text = 'This entry controls\n'
+             'the maximum lambda\n'
+             'of the plot.\n')
+
+CreateToolTip(dist_entry, text = 'This entry controls\n'
+             'the simulated distance.\n')
+
+CreateToolTip(star_rv_entry, text = 'This entry controls\n'
+             'stellar rv.\n')
+
+CreateToolTip(fwhm_entry, text = 'This entry controls\n'
+             'FWHM.\n')
+
+CreateToolTip(intrinsic_line_width_entry, text = 'This entry controls\n'
+             'Intrinsic line width.\n')
+
+CreateToolTip(specsep_entry, text = 'This entry controls\n'
+             'the seperation threshold\n'
+             'for the "Find Singles Lines"\n'
+             'button.\n')
+
+CreateToolTip(spandropd, text = 'This dropdown allows\n'
+             'the user to select\n'
+             'the molecule being\n'
+             'plotted in the\n'
+             'lower left plot.\n')
+#------------------------------------------------------------------------
+CreateToolTip(save_button, text = 'This button saves\n'
+             'the strongest line\n'
+             'in the selected span.\n')
+
+CreateToolTip(fit_button, text = 'This button fits\n'
+             'the data line for the selected line\n'
+              'and selected line and\n'
+             'outputs the fit parameters.\n')
+
+CreateToolTip(savedline_button, text = 'This button shows\n'
+             'the users saved lines.\n')
+
+
+CreateToolTip(fitsavedline_button, text = 'This button fits\n'
+             'the data line for the saved lines\n'
+              'and selected line and\n'
+             'outputs the fit parameters.\n')
+
+CreateToolTip(autofind_button, text = 'This button automatically\n'
+             'finds the water lines within\n'
+             'the boundaries of the"\n'
+             'upper plot.\n')
+
+CreateToolTip(atomlines_button, text = 'This button shows\n'
+             'all known atomic lines.\n')
+
+file_button = tk.Button(files_frame, text='Open File', command=selectfile)
+file_button.grid(row=1, column=5)
+
+linefile_button = tk.Button(files_frame, text='Open File', command=selectlinefile)
+linefile_button.grid(row=3, column=5)
+
+linesave_button = tk.Button(files_frame, text='Define File', command=savelinefile)
+linesave_button.grid(row=5, column=5, pady=(0,10))
+
 for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
     # Get the molecule name in lower case
     mol_name_lower = mol_name.lower()
     
     # Get the line object
     line_var = globals().get(f"{mol_name_lower}_line")
-    # Check if the line object exists and has a color attribute
+    # Chdeseck if the line object exists and has a color attribute
     if line_var and hasattr(line_var, 'get_color'):
         # Get the color of the line
         line_color = line_var.get_color()
         
-        # Get the color button from the grid_slaves list
+        # Get the color button from the grid_slaves listatomi
         color_button = molecule_frame.grid_slaves(row=row, column=6)[0]
         
         # Set the background color of the color button
@@ -3319,4 +3674,5 @@ for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
         
         
 #save_default_to_file(file_name)
+load_molecules_list()
 window.mainloop()
