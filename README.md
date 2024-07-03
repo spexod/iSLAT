@@ -83,7 +83,7 @@ The current HITRAN data release as of 2024 is described in
 [Gordon et al. 2022](https://ui.adsabs.harvard.edu/abs/2022JQSRT.27707949G/abstract).
 
 ## Parameters definitions and units
-These definitions and instructions are also available by hovering over GUI elements.
+(Definitions and instructions are also available by hovering over GUI elements.)
 
 **General note for all parameters in the GUI:** *every time you update any 
 value, hit "return/enter" on your keyboard to apply the new value to the model.
@@ -114,7 +114,7 @@ also select each molecule color by using the "Color" button.
   in the model for the molecule selected in the drop-down menu
 
 ## Quick reference for main functions
-These definitions and instructions are also available by hovering over GUI elements.
+(Definitions and instructions are also available by hovering over GUI elements.)
 
 ### General functions (top of the GUI)
 - **HITRAN query**: opens up a window where you can select and dowload any
