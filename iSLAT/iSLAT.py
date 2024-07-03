@@ -582,8 +582,8 @@ class ToolTip(object):
         tw.wm_overrideredirect(1)
         tw.wm_geometry("+%d+%d" % (x, y))
         label = Label(tw, text=self.text, justify=LEFT,
-                      background="#ffffe0", relief=SOLID, borderwidth=1,
-                      font=("tahoma", "8", "normal"))
+                      background="peachpuff", relief=SOLID, borderwidth=1,
+                      font=("tahoma", "12", "normal"))
         label.pack(ipadx=1)
 
     def hidetip(self):
@@ -1768,9 +1768,8 @@ for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
     eval(f"{mol_name.lower()}_temp_field").insert(0, f"{t_kin}")
     eval(f"{mol_name.lower()}_temp_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_temp_field"]: submit_temp(ce.get(), mn))
     
-    CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
-                 'the temperature of\n'
-                 'its respective molecule.\n')
+    CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'Excitation temperature\n'
+                 'units: K')
 
     # Radius input field
     exec(f"{mol_name.lower()}_rad_field = tk.Entry(molecule_frame, width=4)")
@@ -1778,20 +1777,18 @@ for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
     eval(f"{mol_name.lower()}_rad_field").insert(0, f"{radius_init}")
     eval(f"{mol_name.lower()}_rad_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_rad_field"]: submit_rad(ce.get(), mn))
     
-    CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
-                 'the radius of\n'
-                 'its respective molecule.\n')
-    
+    CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'Equivalent radius\n'
+                 'units: au')
+
     # Column Density input field
     exec(f"{mol_name.lower()}_dens_field = tk.Entry(molecule_frame, width=6)")
     eval(f"{mol_name.lower()}_dens_field").grid(row=row, column=3)
     eval(f"{mol_name.lower()}_dens_field").insert(0, f"{n_mol_init:.{1}e}")
     eval(f"{mol_name.lower()}_dens_field").bind("<Return>", lambda event, mn=mol_name.lower(), ce=globals()[f"{mol_name.lower()}_dens_field"]: submit_col(ce.get(), mn))
     
-    CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
-                 'the column density of\n'
-                 'its respective molecule.\n')
-    
+    CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'Column density\n'
+                 'units: cm^(-2)')
+
     # Visibility Checkbutton
     if mol_name.lower() == 'h2o':
         exec(f"{mol_name.lower()}_vis_status = tk.BooleanVar()")
@@ -1805,25 +1802,21 @@ for row, (mol_name, mol_filepath, mol_label) in enumerate(molecules_data):
 
     eval(f"{mol_name.lower()}_vis_checkbutton").grid(row=row, column=4)
     
-    CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
-                 'the visiblity of\n'
-                 'its respective molecule.\n')
-    
+    CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'Turn on/off this\n'
+                 'model in the plot')
+
     # Delete button
     del_button = tk.Button(molecule_frame, text="X", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): delete_row(widget))
     del_button.grid(row=row, column=5)
     
-    CreateToolTip(del_button, text = 'This button deletes\n'
-                 'its respective molecule\n'
-                 'from the GUI.\n')
+    CreateToolTip(del_button, text = 'Remove this model\n'
+                 'from the GUI')
     
     color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
     color_button.grid(row=row, column=6)
     
-    CreateToolTip(color_button, text = 'This button allows\n'
-                 'the user to change\n'
-                 'the color of its\n'
-                 'respective molecule.\n')
+    CreateToolTip(color_button, text = 'Change color\n'
+                 'for this model')
     
     nextrow = row + 1
 
@@ -2074,30 +2067,30 @@ def load_variables_from_file(file_name):
         color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
         color_button.grid(row=row, column=6)
         
-        CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
-         'the temperature of\n'
-         'its respective molecule.\n')
+        # CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
+        #  'the temperature of\n'
+        #  'its respective molecule.\n')
+        #
+        # CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
+        #                  'the radius of\n'
+        #                  'its respective molecule.\n')
+        #
+        # CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
+        #                  'the column density of\n'
+        #                  'its respective molecule.\n')
 
-        CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
-                         'the radius of\n'
-                         'its respective molecule.\n')
-
-        CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
-                         'the column density of\n'
-                         'its respective molecule.\n')
-
-        CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
-                         'the visiblity of\n'
-                         'its respective molecule.\n')
-
-        CreateToolTip(del_button, text = 'This button deletes\n'
-                         'its respective molecule\n'
-                         'from the GUI.\n')
-
-        CreateToolTip(color_button, text = 'This button allows\n'
-                         'the user to change\n'
-                         'the color of its\n'
-                         'respective molecule.\n')
+        # CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
+        #                  'the visiblity of\n'
+        #                  'its respective molecule.\n')
+        #
+        # CreateToolTip(del_button, text = 'This button deletes\n'
+        #                  'its respective molecule\n'
+        #                  'from the GUI.\n')
+        #
+        # CreateToolTip(color_button, text = 'This button allows\n'
+        #                  'the user to change\n'
+        #                  'the color of its\n'
+        #                  'respective molecule.\n')
         
         exec(f"{mol_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
         exec(f"{mol_name.lower()}_line.set_label('{mol_name}')", globals())
@@ -2321,30 +2314,30 @@ def load_defaults_from_file():
         color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
         color_button.grid(row=row, column=6)
         
-        CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
-                 'the temperature of\n'
-                 'its respective molecule.\n')
-
-        CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
-                         'the radius of\n'
-                         'its respective molecule.\n')
-
-        CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
-                         'the column density of\n'
-                         'its respective molecule.\n')
-
-        CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
-                         'the visiblity of\n'
-                         'its respective molecule.\n')
-
-        CreateToolTip(del_button, text = 'This button deletes\n'
-                         'its respective molecule\n'
-                         'from the GUI.\n')
-
-        CreateToolTip(color_button, text = 'This button allows\n'
-                         'the user to change\n'
-                         'the color of its\n'
-                         'respective molecule.\n')
+        # CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
+        #          'the temperature of\n'
+        #          'its respective molecule.\n')
+        #
+        # CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
+        #                  'the radius of\n'
+        #                  'its respective molecule.\n')
+        #
+        # CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
+        #                  'the column density of\n'
+        #                  'its respective molecule.\n')
+        #
+        # CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
+        #                  'the visiblity of\n'
+        #                  'its respective molecule.\n')
+        #
+        # CreateToolTip(del_button, text = 'This button deletes\n'
+        #                  'its respective molecule\n'
+        #                  'from the GUI.\n')
+        #
+        # CreateToolTip(color_button, text = 'This button allows\n'
+        #                  'the user to change\n'
+        #                  'the color of its\n'
+        #                  'respective molecule.\n')
         
         exec(f"{mol_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
         exec(f"{mol_name.lower()}_line.set_label('{mol_name}')", globals())
@@ -3302,30 +3295,30 @@ def add_molecule_data():
                 color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{molecule_name.lower()}_rowl_field"): choose_color(widget))
                 color_button.grid(row=row, column=6)
 
-                CreateToolTip(eval(f"{molecule_name.lower()}_temp_field"), text = 'This field changes\n'
-                         'the temperature of\n'
-                         'its respective molecule.\n')
-
-                CreateToolTip(eval(f"{molecule_name.lower()}_rad_field"), text = 'This field changess\n'
-                                 'the radius of\n'
-                                 'its respective molecule.\n')
-
-                CreateToolTip(eval(f"{molecule_name.lower()}_dens_field"), text = 'This field changes\n'
-                                 'the column density of\n'
-                                 'its respective molecule.\n')
-
-                CreateToolTip(eval(f"{molecule_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
-                                 'the visiblity of\n'
-                                 'its respective molecule.\n')
-
-                CreateToolTip(del_button, text = 'This button deletes\n'
-                                 'its respective molecule\n'
-                                 'from the GUI.\n')
-
-                CreateToolTip(color_button, text = 'This button allows\n'
-                                 'the user to change\n'
-                                 'the color of its\n'
-                                 'respective molecule.\n')                
+                # CreateToolTip(eval(f"{molecule_name.lower()}_temp_field"), text = 'This field changes\n'
+                #          'the temperature of\n'
+                #          'its respective molecule.\n')
+                #
+                # CreateToolTip(eval(f"{molecule_name.lower()}_rad_field"), text = 'This field changess\n'
+                #                  'the radius of\n'
+                #                  'its respective molecule.\n')
+                #
+                # CreateToolTip(eval(f"{molecule_name.lower()}_dens_field"), text = 'This field changes\n'
+                #                  'the column density of\n'
+                #                  'its respective molecule.\n')
+                #
+                # CreateToolTip(eval(f"{molecule_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
+                #                  'the visiblity of\n'
+                #                  'its respective molecule.\n')
+                #
+                # CreateToolTip(del_button, text = 'This button deletes\n'
+                #                  'its respective molecule\n'
+                #                  'from the GUI.\n')
+                #
+                # CreateToolTip(color_button, text = 'This button allows\n'
+                #                  'the user to change\n'
+                #                  'the color of its\n'
+                #                  'respective molecule.\n')
                 
                 # Increment nextrow
                 nextrow += 1
@@ -3537,113 +3530,6 @@ plt.interactive(False)
 
 update()
 
-
-CreateToolTip(import_button, text = 'This button allows\n'
-            'the user to download\n'
-            'new HITRAN files.\n')
-
-CreateToolTip(addmol_button, text = 'This button allows\n'
-             'the the user to add\n'
-             'a molecule to iSLAT.\n')
-
-CreateToolTip(saveparams_button, text = 'This button saves\n'
-             'the molecules and\n'
-             'parameters in iSLAT.\n')
-
-CreateToolTip(loadparams_button, text = 'This button loads\n'
-             'the save for the\n'
-             'current data filede.\n')
-
-CreateToolTip(defmol_button, text = 'This button loads\n'
-             'the default molecules.\n')
-
-CreateToolTip(export_button, text = 'This button allows\n'
-             'the user to export\n'
-             'any and all line data.\n')
-
-CreateToolTip(toggle_button, text = 'This button allows\n'
-             'the user to toggle the\n'
-             'legendin the upper plot.\n')
-
-CreateToolTip(file_button, text = 'This button allows\n'
-             'the user to select\n'
-             'a different data file.\n')
-
-CreateToolTip(linefile_button, text = 'This button allows\n'
-             'the user to select\n'
-             'the input line list\n'
-             'data file.\n')
-
-CreateToolTip(linesave_button, text = 'This button allows\n'
-             'the user to select\n'
-             'the output line list\n'
-             'data file.\n')
-#---------------------------------------------------------
-CreateToolTip(xp1_entry, text = 'This entry controls\n'
-            'the starting lambda\n'
-            'of the plot.\n')
-
-CreateToolTip(rng_entry, text = 'This entry controls\n'
-             'the range of\n'
-             'the plot.\n')
-
-CreateToolTip(min_lamb_entry, text = 'This entry controls\n'
-             'the minimum lambda\n'
-             'of the plot.\n')
-
-CreateToolTip(max_lamb_entry, text = 'This entry controls\n'
-             'the maximum lambda\n'
-             'of the plot.\n')
-
-CreateToolTip(dist_entry, text = 'This entry controls\n'
-             'the simulated distance.\n')
-
-CreateToolTip(star_rv_entry, text = 'This entry controls\n'
-             'stellar rv.\n')
-
-CreateToolTip(fwhm_entry, text = 'This entry controls\n'
-             'FWHM.\n')
-
-CreateToolTip(intrinsic_line_width_entry, text = 'This entry controls\n'
-             'Intrinsic line width.\n')
-
-CreateToolTip(specsep_entry, text = 'This entry controls\n'
-             'the seperation threshold\n'
-             'for the "Find Singles Lines"\n'
-             'button.\n')
-
-CreateToolTip(spandropd, text = 'This dropdown allows\n'
-             'the user to select\n'
-             'the molecule being\n'
-             'plotted in the\n'
-             'lower left plot.\n')
-#------------------------------------------------------------------------
-CreateToolTip(save_button, text = 'This button saves\n'
-             'the strongest line\n'
-             'in the selected span.\n')
-
-CreateToolTip(fit_button, text = 'This button fits\n'
-             'the data line for the selected line\n'
-              'and selected line and\n'
-             'outputs the fit parameters.\n')
-
-CreateToolTip(savedline_button, text = 'This button shows\n'
-             'the users saved lines.\n')
-
-
-CreateToolTip(fitsavedline_button, text = 'This button fits\n'
-             'the data line for the saved lines\n'
-              'and selected line and\n'
-             'outputs the fit parameters.\n')
-
-CreateToolTip(autofind_button, text = 'This button automatically\n'
-             'finds the water lines within\n'
-             'the boundaries of the"\n'
-             'upper plot.\n')
-
-CreateToolTip(atomlines_button, text = 'This button shows\n'
-             'all known atomic lines.\n')
-
 file_button = tk.Button(files_frame, text='Open File', command=selectfile)
 file_button.grid(row=1, column=5)
 
@@ -3652,6 +3538,97 @@ linefile_button.grid(row=3, column=5)
 
 linesave_button = tk.Button(files_frame, text='Define File', command=savelinefile)
 linesave_button.grid(row=5, column=5, pady=(0,10))
+
+
+CreateToolTip(import_button, text = 'Query HITRAN.org\n'
+            'database to download\n'
+            'new molecules')
+
+CreateToolTip(addmol_button, text = 'Add molecule to\n'
+             'the GUI from files\n'
+             'downloaded from HITRAN')
+
+CreateToolTip(saveparams_button, text = 'Save current molecules\n'
+             'and their parameters\n'
+             'for this input datafile')
+
+CreateToolTip(loadparams_button, text = 'Load previously saved\n'
+             'molecules and parameters\n'
+             'for this input datafile')
+
+CreateToolTip(defmol_button, text = 'Load default\n'
+             'molecule list\n'
+             'into the GUI')
+
+CreateToolTip(export_button, text = 'Export current\n'
+             'models into csv files')
+
+CreateToolTip(toggle_button, text = 'Turn legend on/off')
+
+CreateToolTip(file_button, text = 'Select input spectrum datafile')
+
+CreateToolTip(linefile_button, text = 'Select input line list\n'
+             'from those available in iSLAT\n'
+             'or previously saved by the user')
+
+CreateToolTip(linesave_button, text = 'Select output file\n'
+             'to save line measurements\n'
+             'with "Save Line" or "Fit Saved Lines"')
+
+#---------------------------------------------------------
+CreateToolTip(xp1_entry, text = 'Start wavelength\n'
+            'for the upper plot')
+
+CreateToolTip(rng_entry, text = 'Wavelength range\n'
+            'for the upper plot')
+
+CreateToolTip(min_lamb_entry, text = 'Minimum wavelength\n'
+             'to calculate the models')
+
+CreateToolTip(max_lamb_entry, text = 'Maximum wavelength\n'
+             'to calculate the models')
+
+CreateToolTip(dist_entry, text = 'Distance to the\n'
+             'observed target')
+
+CreateToolTip(star_rv_entry, text = 'Radial velocity\n'
+             'of the observed target')
+
+CreateToolTip(fwhm_entry, text = 'FWHM for convolution\n'
+             'of the model spectra')
+
+CreateToolTip(intrinsic_line_width_entry, text = 'Line broadening\n'
+             '(thermal/turbulence)')
+
+CreateToolTip(specsep_entry, text = 'Seperation threshold\n'
+             'for "Find Singles Lines"')
+
+CreateToolTip(spandropd, text = 'Select molecule for line inspection,\n'
+             'the population diagram, and for "Save Line"\n'
+             'and "Find Singles Lines"')
+
+#------------------------------------------------------------------------
+CreateToolTip(save_button, text = 'Save strongest line\n'
+             'from the current line inspection\n'
+             'into the "Output Line Measurements"')
+
+CreateToolTip(fit_button, text = 'Fit line currently\n'
+             'selected for line inspection')
+
+CreateToolTip(savedline_button, text = 'Show saved lines\n'
+             'from the "Input Line List"')
+
+
+CreateToolTip(fitsavedline_button, text = 'Fit all lines from the "Input Line List"\n'
+             'and save into the "Output Line Measurements"')
+
+CreateToolTip(autofind_button, text = 'Find single lines\n'
+             'using separation threshold\n'
+             'set in the "Line Separ."')
+
+CreateToolTip(atomlines_button, text = 'Show atomic lines\n'
+             'from the available line list')
+
 
 for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
     # Get the molecule name in lower case
