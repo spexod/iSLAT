@@ -204,7 +204,7 @@ If you use iSLAT on an Apple-silicon Mac (M1, M2, etc.), there is a known issue 
 tkinter where the GUI often seems to freeze and does not take a new 
 input or click; the solution is to click and drag very slightly on any
 element you're working on (whether you're clicking a button or 
-updating a parameter value), and the GUI will take your click. 
+updating a parameter value), and the GUI will take your input. 
 Hopefully this will be fixed in a new
 release of tkinter (this is not an issue of iSLAT).
 
