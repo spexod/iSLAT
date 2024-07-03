@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.05'
+iSLAT_version = 'v4.03.06'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -1882,31 +1882,37 @@ def load_molecules_list():
 
         except Exception as e:
             print("Error loading variables from CSV:", e)
-            
-    for row, (mol_name, _, _) in enumerate(molecules_data, start=1):
 
-            linecolor = eval(f"{mol_name.lower()}_color")
-            exec(f"{mol_name.lower()}_line.set_color('{linecolor}')", globals())
-            # Get the molecule name in lower case
-            mol_name_lower = mol_name.lower()
+    for row, (mol_name, _, _) in enumerate (molecules_data, start=1):
+        # Get the molecule name in lower case
+        mol_name_lower = mol_name.lower ()
+
+        # Check if the color variable is defined
+        if f"{mol_name_lower}_color" in globals ():
+            linecolor = eval (f"{mol_name_lower}_color")
+            exec (f"{mol_name_lower}_line.set_color('{linecolor}')", globals ())
 
             # Get the line object
-            line_var = globals().get(f"{mol_name_lower}_line")
+            line_var = globals ().get (f"{mol_name_lower}_line")
 
             # Check if the line object exists and has a color attribute
-            if line_var and hasattr(line_var, 'get_color'):
+            if line_var and hasattr (line_var, 'get_color'):
                 # Get the color of the line
-                line_color = line_var.get_color()
-                globals()[f"{mol_name.lower()}_color"] = line_color
+                line_color = line_var.get_color ()
+                globals ()[f"{mol_name_lower}_color"] = line_color
 
                 # Get the color button from the grid_slaves list
-                color_button = molecule_frame.grid_slaves(row=row, column=6)[0]
+                color_button = molecule_frame.grid_slaves (row=row, column=6)[0]
                 # Set the background color of the color button
-                color_button.configure(bg=line_color)
-                
-            if eval(f"{mol_name.lower()}_vis"):
-                exec(f"{mol_name.lower()}_vis_checkbutton.select()")  
-    
+                color_button.configure (bg=line_color)
+
+        # Check if the visibility variable is defined and evaluate it
+        if eval (f"{mol_name_lower}_vis"):
+            exec (f"{mol_name_lower}_vis_checkbutton.select()")
+
+            if eval (f"{mol_name.lower ()}_vis"):
+                exec (f"{mol_name.lower ()}_vis_checkbutton.select()")
+
     else:
         data_field.delete('1.0', "end")
         data_field.insert('1.0', 'Saved parameters file not found.')
