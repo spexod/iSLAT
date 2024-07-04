@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.07'
+iSLAT_version = 'v4.03.08'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -365,7 +365,7 @@ def fit_line(xmin, xmax):
 
     gauss_area = gauss_fit.params['height'].value * sigma_freq * np.sqrt (2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
     if gauss_fit.params['height'].stderr is not None:
-        gauss_area_err = (gauss_area * np.sqrt(
+        gauss_area_err = np.absolute(gauss_area * np.sqrt(
                         (gauss_fit.params['height'].stderr/gauss_fit.params['height'].value)**2 +
                         (sigma_freq_err/sigma_freq)**2) ) # get area error
     else:
@@ -938,7 +938,7 @@ def fit_saved_lines():
                 svd_lns.loc[i,"Flux_fit"] = np.float64(f'{gauss_area[0]:.{3}e}')
                 svd_lns.loc[i,"Flux_err"] = np.float64(f'{gauss_area[1]:.{3}e}')
                 # store fit results only if fit is good and line is detected; for now we're using a condition on line detection, as the goodness of fit is not very informative in MIRI spectra, it seems..
-                if gauss_area[0] > sig_det_lim*gauss_area[1]:
+                if np.absolute(gauss_area[0]) > sig_det_lim*gauss_area[1]:
                     svd_lns.loc[i,"FWHM_fit"] = np.round(gauss_fwhm[0], decimals=1)
                     svd_lns.loc[i,"FWHM_err"] = np.round(gauss_fwhm[1], decimals=1)
                     svd_lns.loc[i,"Centr_fit"] = np.round (gauss_fit.params['center'].value, decimals=5)
