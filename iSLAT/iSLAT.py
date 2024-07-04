@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.06'
+iSLAT_version = 'v4.03.07'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -458,7 +458,6 @@ def update(*val):
     ax1.set_xlabel('Wavelength (μm)')
     ax2.set_ylabel('Flux density (Jy)')
     ax2.set_xlabel('Wavelength (μm)')
-    ax3.set_label('Population Diagram')
     plt.rcParams['font.size'] = 10
 
     # xp1 and xp2 define the range of spectrum shown in the top graph
@@ -627,7 +626,8 @@ def onselect(xmin, xmax):
         # Resetting the labels of graphs after they were deleted by the clear function above
         ax2.set_xlabel('Wavelength (μm)')
         ax2.set_ylabel('Flux density (Jy)')
-        
+        ax2.set_title ('Line inspection plot', fontsize='medium')
+
         linevar = eval(f"{spanmol}_line")
         linecolor = linevar.get_color()
         #'royalblue'
@@ -1016,6 +1016,7 @@ def pop_diagram():
     global spanmol
     ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))')
     ax3.set_xlabel(r'$E_{u}$ (K)')
+    ax3.set_title('Population diagram', fontsize = 'medium')
 
     # Getting all the water lines in the range of min_lamb, max_lamb as set by the user in the adjustable variables code block
     int_pars = eval(f"{spanmol}_intensity.get_table")
@@ -1524,12 +1525,12 @@ gs = GridSpec(nrows=2, ncols=2, width_ratios=[1, 1], height_ratios=[1, 1.5])
 ax1 = fig.add_subplot(gs[0, :])
 ax2 = fig.add_subplot(gs[1, 0])
 ax3 = fig.add_subplot(gs[1, 1])
+
 # Create a text box for streaming useful information in the third section
 #text_box = fig.add_subplot(gs[1, 0])  # This is the third section
 #text_box_data = TextBox(text_box, label='', color = background, hovercolor= background)
-ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))')
-ax3.set_xlabel(r'$E_{u}$')
-ax3.set_label('Population Diagram')
+#ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))')
+#ax3.set_xlabel(r'$E_{u}$')
 ax2.set_xlabel('Wavelength (μm)')
 ax1.set_ylabel('Flux density (Jy)')
 ax2.set_ylabel('Flux density (Jy)')
@@ -1556,6 +1557,7 @@ ax3.set_frame_on(False)
 
 
 #make empty lines for the second plot
+ax2.set_title('Line inspection plot', fontsize = 'medium')
 data_line_select, = ax2.plot([],[],color=foreground,linewidth=1)
 
 
@@ -2073,31 +2075,7 @@ def load_variables_from_file(file_name):
         color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
         color_button.grid(row=row, column=6)
         
-        # CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
-        #  'the temperature of\n'
-        #  'its respective molecule.\n')
-        #
-        # CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
-        #                  'the radius of\n'
-        #                  'its respective molecule.\n')
-        #
-        # CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
-        #                  'the column density of\n'
-        #                  'its respective molecule.\n')
 
-        # CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
-        #                  'the visiblity of\n'
-        #                  'its respective molecule.\n')
-        #
-        # CreateToolTip(del_button, text = 'This button deletes\n'
-        #                  'its respective molecule\n'
-        #                  'from the GUI.\n')
-        #
-        # CreateToolTip(color_button, text = 'This button allows\n'
-        #                  'the user to change\n'
-        #                  'the color of its\n'
-        #                  'respective molecule.\n')
-        
         exec(f"{mol_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
         exec(f"{mol_name.lower()}_line.set_label('{mol_name}')", globals())
         
@@ -2320,31 +2298,7 @@ def load_defaults_from_file():
         color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{mol_name.lower()}_rowl_field"): choose_color(widget))
         color_button.grid(row=row, column=6)
         
-        # CreateToolTip(eval(f"{mol_name.lower()}_temp_field"), text = 'This field changes\n'
-        #          'the temperature of\n'
-        #          'its respective molecule.\n')
-        #
-        # CreateToolTip(eval(f"{mol_name.lower()}_rad_field"), text = 'This field changess\n'
-        #                  'the radius of\n'
-        #                  'its respective molecule.\n')
-        #
-        # CreateToolTip(eval(f"{mol_name.lower()}_dens_field"), text = 'This field changes\n'
-        #                  'the column density of\n'
-        #                  'its respective molecule.\n')
-        #
-        # CreateToolTip(eval(f"{mol_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
-        #                  'the visiblity of\n'
-        #                  'its respective molecule.\n')
-        #
-        # CreateToolTip(del_button, text = 'This button deletes\n'
-        #                  'its respective molecule\n'
-        #                  'from the GUI.\n')
-        #
-        # CreateToolTip(color_button, text = 'This button allows\n'
-        #                  'the user to change\n'
-        #                  'the color of its\n'
-        #                  'respective molecule.\n')
-        
+
         exec(f"{mol_name.lower()}_line, = ax1.plot([], [], alpha=0.8, linewidth=1)", globals())
         exec(f"{mol_name.lower()}_line.set_label('{mol_name}')", globals())
         
@@ -3301,31 +3255,7 @@ def add_molecule_data():
                 color_button = tk.Button(molecule_frame, text=" ", command=lambda widget=eval(f"{molecule_name.lower()}_rowl_field"): choose_color(widget))
                 color_button.grid(row=row, column=6)
 
-                # CreateToolTip(eval(f"{molecule_name.lower()}_temp_field"), text = 'This field changes\n'
-                #          'the temperature of\n'
-                #          'its respective molecule.\n')
-                #
-                # CreateToolTip(eval(f"{molecule_name.lower()}_rad_field"), text = 'This field changess\n'
-                #                  'the radius of\n'
-                #                  'its respective molecule.\n')
-                #
-                # CreateToolTip(eval(f"{molecule_name.lower()}_dens_field"), text = 'This field changes\n'
-                #                  'the column density of\n'
-                #                  'its respective molecule.\n')
-                #
-                # CreateToolTip(eval(f"{molecule_name.lower()}_vis_checkbutton"), text = 'This button changes\n'
-                #                  'the visiblity of\n'
-                #                  'its respective molecule.\n')
-                #
-                # CreateToolTip(del_button, text = 'This button deletes\n'
-                #                  'its respective molecule\n'
-                #                  'from the GUI.\n')
-                #
-                # CreateToolTip(color_button, text = 'This button allows\n'
-                #                  'the user to change\n'
-                #                  'the color of its\n'
-                #                  'respective molecule.\n')
-                
+
                 # Increment nextrow
                 nextrow += 1
                 
@@ -3607,11 +3537,11 @@ CreateToolTip(intrinsic_line_width_entry, text = 'Line broadening\n'
              '(thermal/turbulence)')
 
 CreateToolTip(specsep_entry, text = 'Seperation threshold\n'
-             'for "Find Singles Lines"')
+             'for "Find Single Lines"')
 
 CreateToolTip(spandropd, text = 'Select molecule for line inspection,\n'
              'the population diagram, and for "Save Line"\n'
-             'and "Find Singles Lines"')
+             'and "Find Single Lines"')
 
 #------------------------------------------------------------------------
 CreateToolTip(save_button, text = 'Save strongest line\n'
