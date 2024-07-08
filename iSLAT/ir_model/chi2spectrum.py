@@ -94,7 +94,12 @@ class Chi2Spectrum:
         The file is format free (spaces to separate columns)
         """
 
-        lam_min, lam_max, flux, flux_error = np.loadtxt(fname, unpack=True, usecols = (3,4,5,6))
+        #lam_min, lam_max, flux, flux_error = np.loadtxt(fname, unpack=True, usecols = (3,4,5,6))
+        measur = pd.read_csv(fname, sep=',', usecols=['xmin','xmax','Flux_fit','Flux_err'])
+        lam_min = measur['xmin']
+        lam_max = measur['xmax']
+        flux = measur['Flux_fit']
+        flux_error = measur['Flux_err']
 
         for d in zip(lam_min, lam_max, flux, flux_error):
             self.add_measurement(FluxMeasurement(*d))
