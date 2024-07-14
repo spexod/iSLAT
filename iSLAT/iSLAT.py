@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.08'
+iSLAT_version = 'v4.03.09'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -2182,7 +2182,10 @@ def load_variables_from_file(file_name):
                 color_button.configure(bg=line_color)
                 
             if eval(f"{mol_name.lower()}_vis"):
-                exec(f"{mol_name.lower()}_vis_checkbutton.select()")  
+                exec(f"{mol_name.lower()}_vis_checkbutton.select()")
+                
+            if not eval(f"{mol_name.lower()}_vis"):
+                exec(f"{mol_name.lower()}_vis_checkbutton.deselect()") 
     
     else:
         data_field.delete('1.0', "end")
