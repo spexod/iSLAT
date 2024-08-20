@@ -5,7 +5,7 @@
 
 [![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)
 
-*If you are running iSLAT on an Apple silicon processor, please read note in "Caveats" below*
+*If you are running iSLAT on an Apple silicon processor, please read "Caveats" below*
 
 **iSLAT** (the **i**nteractive **S**pectral-**L**ine **A**nalysis 
 **T**ool) is a python package that provides an interactive interface
