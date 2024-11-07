@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.09'
+iSLAT_version = 'v4.03.10'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -26,6 +26,7 @@ from astropy.table import vstack, Table
 from astropy import stats
 import lmfit
 from lmfit.models import GaussianModel
+from lmfit.models import PseudoVoigtModel
 from ir_model import *
 import tkinter as tk
 from tkinter import filedialog, simpledialog, ttk, Toplevel, Label, LEFT, SOLID  # For ttk.Style
@@ -343,10 +344,11 @@ def fit_line(xmin, xmax):
 
     fit_range = np.where (np.logical_and (wave_data >= xmin, wave_data <= xmax))  # define spectral range for the fit
     x_fit = wave_data[fit_range[::-1]]  # reverse the wavelength array to use it in the fit
-    model = GaussianModel ()  # use gaussian model from LMFIT
-    params = model.guess (flux_data[fit_range[::-1]], x=x_fit)  # get initial guess for parameters
+    model = GaussianModel()  # use gaussian model from LMFIT
+    #model = PseudoVoigtModel()
+    params = model.guess(flux_data[fit_range[::-1]], x=x_fit)  # get initial guess for parameters
     # the fit in the next line uses the data error array as weights, as described in the LMFIT docs and this discussion: https://groups.google.com/g/lmfit-py/c/SmO19HbXGcc/m/xa3tsPJcBgAJ
-    gauss_fit = model.fit (flux_data[fit_range[::-1]], params, x=x_fit, weights=1/err_data[fit_range[::-1]], nan_policy='omit')  # make the fit, ignoring nans
+    gauss_fit = model.fit(flux_data[fit_range[::-1]], params, x=x_fit, weights=1/err_data[fit_range[::-1]], nan_policy='omit')  # make the fit, ignoring nans
     print (gauss_fit.fit_report ())  # print full fit report
 
     gauss_fwhm = gauss_fit.params['fwhm'].value / gauss_fit.params['center'].value * cc # get FWHM in km/s
@@ -399,6 +401,7 @@ def update(*val):
     # Make empty lines for the second plot
     data_line_select, = ax2.plot([],[],color=foreground,linewidth=2)
     data_line, = ax1.plot([], [], color=foreground, linewidth=1)
+    ax1.errorbar(wave_data, flux_data, yerr=err_data, fmt='None', ecolor='gray', elinewidth=1, zorder=-1)
     data_line.set_label('Data')
 
     ax1.set_prop_cycle (color=['dodgerblue', 'darkorange', 'orangered', 'limegreen', 'mediumorchid', 'magenta',
@@ -717,14 +720,14 @@ def onselect(xmin, xmax):
         # Calling the flux function to calculate the flux for the data in the range selected
         # Also printing the flux in the notebook for easy copying
         # See flux_integral
-        line_flux = flux_integral(wave_data, flux_data, xmin, xmax)
+        line_flux, line_err = flux_integral(wave_data, flux_data, err_data, xmin, xmax)
 
         data_field.delete('1.0', "end")
         data_field.insert ('1.0', (
                     'Strongest line:' + '\nUpper level = ' + str (max_up_lev) + '\nLower level = ' + str (
                 max_low_lev) + '\nWavelength (μm) = ' + str (max_lamb_cnts) + '\nEinstein-A coeff. (1/s) = ' + str (
                 max_einstein) + '\nUpper level energy (K) = ' + str (f'{max_e_up:.{0}f}') +'\nOpacity = '+ str(
-                f'{max_tau:.{3}f}')+ '\nFlux in sel. range (erg/s/cm2) = ' + str (f'{line_flux:.{3}e}')))
+                f'{max_tau:.{3}f}')+ '\nFlux, err (erg/s/cm2) = ' + str(f'{line_flux:.{1}e}') + ', ' + str(f'{line_err:.{1}e}')))
 
 
         # Creating a pandas dataframe for all the info of the strongest line in the selected range
@@ -930,15 +933,29 @@ def fit_saved_lines():
                 ax1.fill_between (x_fit, gauss_fit.best_fit - dely, gauss_fit.best_fit + dely, color="#ABABAB",
                                   label=r'3-$\sigma$ uncertainty band')
                 ax1.plot (x_fit, gauss_fit.best_fit, label='Gauss. fit', color='lime', ls='--')
-                flux_nofit = flux_integral (wave_data, flux_data, x_min[i], x_max[i])
+                flux_nofit, err_nofit = flux_integral(wave_data, flux_data, err_data , x_min[i], x_max[i])
 
-                sig_det_lim = 1
+                sig_det_lim = 2
                 # these reformatting below is for reducing the number of decimals and then get back to a float
                 svd_lns.loc[i,"Flux_data"] = np.float64(f'{flux_nofit:.{3}e}')
-                svd_lns.loc[i,"Flux_fit"] = np.float64(f'{gauss_area[0]:.{3}e}')
-                svd_lns.loc[i,"Flux_err"] = np.float64(f'{gauss_area[1]:.{3}e}')
+                svd_lns.loc[i,"Err_data"] = np.float64(f'{err_nofit:.{3}e}')
+                svd_lns.loc[i,"Line_SN"] = np.round(flux_nofit/err_nofit, decimals=1)
+                if np.absolute(flux_nofit) > sig_det_lim*err_nofit: # determine line detection based on data
+                    svd_lns.loc[i,"Line_det"] = np.bool_(True)
+                else:
+                    svd_lns.loc[i, "Line_det"] = np.bool_(False)
+                # store as "islat" values the data values, unless the fit results are detected and replaced below
+                svd_lns.loc[i,"Flux_islat"] = svd_lns.loc[i,"Flux_data"]
+                svd_lns.loc[i,"Err_islat"] = svd_lns.loc[i,"Err_data"]
+
                 # store fit results only if fit is good and line is detected; for now we're using a condition on line detection, as the goodness of fit is not very informative in MIRI spectra, it seems..
+                svd_lns.loc[i,"Fit_SN"] = np.round(gauss_area[0]/gauss_area[1], decimals=1)
                 if np.absolute(gauss_area[0]) > sig_det_lim*gauss_area[1]:
+                    svd_lns.loc[i,"Fit_det"] = np.bool_(True)
+                    svd_lns.loc[i,"Flux_fit"] = np.float64 (f'{gauss_area[0]:.{3}e}')
+                    svd_lns.loc[i,"Err_fit"] = np.float64 (f'{gauss_area[1]:.{3}e}')
+                    svd_lns.loc[i,"Flux_islat"] = np.float64 (f'{gauss_area[0]:.{3}e}')
+                    svd_lns.loc[i,"Err_islat"] = np.float64 (f'{gauss_area[1]:.{3}e}')
                     svd_lns.loc[i,"FWHM_fit"] = np.round(gauss_fwhm[0], decimals=1)
                     svd_lns.loc[i,"FWHM_err"] = np.round(gauss_fwhm[1], decimals=1)
                     svd_lns.loc[i,"Centr_fit"] = np.round (gauss_fit.params['center'].value, decimals=5)
@@ -946,7 +963,9 @@ def fit_saved_lines():
                     svd_lns.loc[i,"Doppler"] = np.round ((gauss_fit.params['center'].value - restwl[i]) / restwl[i] * cc, decimals=1)
 
                 else:
-                    svd_lns.loc[i,"Flux_fit"] = svd_lns.loc[i,"Flux_data"] # safety measure, LMFIT gives much larger fluxes to undetected lines sometimes..
+                    svd_lns.loc[i,"Fit_det"] = np.bool_(False)
+                    svd_lns.loc[i,"Flux_fit"] = np.float64 (f'{gauss_area[0]:.{3}e}')
+                    svd_lns.loc[i,"Err_fit"] = np.float64 (f'{gauss_area[1]:.{3}e}')
                     svd_lns.loc[i,"FWHM_fit"] = np.nan
                     svd_lns.loc[i,"FWHM_err"] = np.nan
                     svd_lns.loc[i,"Centr_fit"] = np.nan
@@ -1266,12 +1285,14 @@ def submit_rad(event, text):
 flux_integral() calculates the flux of the data line in the selected region of the top graph.
 This function is used in onselect().
 """
-def flux_integral(lam, flux, lam_min, lam_max):
+def flux_integral(lam, flux, err, lam_min, lam_max):
     # calculate flux integral
     integral_range = np.where(np.logical_and(lam > lam_min, lam < lam_max))
     line_flux_meas = np.trapz(flux[integral_range[::-1]], x=ccum/lam[integral_range[::-1]])
     line_flux_meas = -line_flux_meas*1e-23 # to get (erg s-1 cm-2); it's using frequency array, so need the - in front of it
-    return line_flux_meas
+    line_err_meas = np.trapz(err[integral_range[::-1]], x=ccum/lam[integral_range[::-1]])
+    line_err_meas = -line_err_meas*1e-23 # to get (erg s-1 cm-2); it's using frequency array, so need the - in front of it
+    return line_flux_meas, line_err_meas
 
 
 """
@@ -1537,6 +1558,7 @@ ax2.set_ylabel('Flux density (Jy)')
 ax1.set_xlim(xmin=xp1, xmax=xp2)
 plt.rcParams['font.size'] = 10
 data_line, = ax1.plot(wave_data, flux_data, color=foreground, linewidth=1)
+
 
 for mol_name, mol_filepath, mol_label in molecules_data:
         molecule_name_lower = mol_name.lower()
