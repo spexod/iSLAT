@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.10'
+iSLAT_version = 'v4.03.11'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -920,9 +920,6 @@ def fit_saved_lines():
             x_min = np.array(svd_lns['xmin'])
             x_max = np.array(svd_lns['xmax'])
             restwl = np.array(svd_lns['lam'])
-            # define new columns to be filled with values line by line in the loop below
-            #svd_lns["Flux_data"], svd_lns["Flux_fit"], svd_lns["Flux_err"] = [np.empty_like(x_min, dtype=None),np.empty_like(x_min, dtype=None),np.empty_like(x_min, dtype=None)]
-            #svd_lns["Centr_fit"], svd_lns["Centr_err"], svd_lns["Doppler"], svd_lns["FWHM_fit"], svd_lns["FWHM_err"] = [np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min),np.empty_like(x_min)]
 
             for i in range(len(x_min)):
                 ax1.vlines(x_min[i], -2, 10, color='lime', alpha=0.5)
@@ -3126,12 +3123,12 @@ def add_molecule_data():
     
     molecule_elements = {} 
     
-    if nextrow == 16:
-        data_field.delete('1.0', "end")
-        data_field.insert('1.0', 'Maximum Molecules Reached!')
-        #fig.canvas.draw_idle()
-        #update()
-        return
+    # if nextrow == 16:
+    #     data_field.delete('1.0', "end")
+    #     data_field.insert('1.0', 'Maximum Molecules Reached!')
+    #     #fig.canvas.draw_idle()
+    #     #update()
+    #     return
     
     # Define the filetypes to accept, in this case, only .par files
     molfiletypes = [('PAR Files', '*.par')]
