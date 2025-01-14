@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.11'
+iSLAT_version = 'v4.03.12'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -294,10 +294,10 @@ def Save():
             line2save.to_csv (linesavepath, mode='a', index=False, header=False)
 
             data_field.insert ('1.0', 'Line Saved!')
-            fig.canvas.draw_idle ()
+            fig.canvas.draw_idle()
         else:
             data_field.insert ('1.0', 'No Line Selected!')
-            fig.canvas.draw_idle ()
+            fig.canvas.draw_idle()
             return
 
     canvas.draw()
@@ -390,7 +390,7 @@ def update(*val):
     ax2.clear() # These functions clear the three plots of the tool
     ax3.clear() # They are rebuilt in the update() function
         
-    global xp1, xp2, span, model_line_select, data_line_select, fig_height, fig_bottom_height, n_mol, selectedline, spanmol, sum_line, int_pars, molecules_data, total_fluxes, dist, fwhm, max_lamd, min_lamd
+    global xp1, xp2, span, model_line_select, data_line_select, fig_height, fig_bottom_height, n_mol, selectedline, spanmol, sum_line, int_pars, molecules_data, total_fluxes, dist, fwhm, max_lamb, min_lamb
     
     
     span.set_visible(False) # Clears the blue area created by the span selector (range selector in the top graph of the tool)
@@ -470,9 +470,13 @@ def update(*val):
 
     #Scaling the y-axis based on tallest peak of data in the range of xp1 and xp2
     range_flux_cnts = input_spectrum_data[(input_spectrum_data['wave'] > xp1) & (input_spectrum_data['wave'] < xp2)]
-    range_flux_cnts.index = range(len(range_flux_cnts.index))
-    fig_height = np.nanmax(range_flux_cnts.flux)
-    fig_bottom_height = np.nanmin(range_flux_cnts.flux)
+    if range_flux_cnts.empty:
+        fig_height = np.nanmax(total_fluxes)
+        fig_bottom_height = 0
+    else:
+        range_flux_cnts.index = range(len(range_flux_cnts.index))
+        fig_height = np.nanmax(range_flux_cnts.flux)
+        fig_bottom_height = np.nanmin(range_flux_cnts.flux)
     ax1.set_ylim(ymin=fig_bottom_height, ymax=fig_height+(fig_height/8))
 
     # Initialize total fluxes list
@@ -1472,9 +1476,21 @@ else:
 def update_xp1_rng():
     global xp1, rng, xp2 
     # Get the values from the Tkinter Entry widgets and convert them to floats
+    min_lamb = float(min_lamb_entry.get())
+    max_lamb = float(max_lamb_entry.get())
     xp1 = float(xp1_entry.get())
     rng = float(rng_entry.get())
     xp2 = xp1 + rng
+    if xp1 < min_lamb or xp1 > max_lamb:
+        if xp1 < min_lamb:
+            min_lamb = xp1
+            min_lamb_entry.delete(0, "end")
+            min_lamb_entry.insert(0, str (min_lamb))
+        if xp1 > max_lamb:
+            max_lamb = xp2
+            max_lamb_entry.delete(0, "end")
+            max_lamb_entry.insert(0, str (max_lamb))
+        update_initvals()
     ax1.set_xlim(xmin=xp1, xmax=xp2)
     print("Updated values: xp1 =", xp1, ", rng =", rng)
     update()
