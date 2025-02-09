@@ -1,5 +1,5 @@
 # iSLAT
-**Current version: v4.03.12**\
+**Current version: v4.04.01**\
 *If you are running a previous version, make sure to update to the latest one (see below for instructions)!*\
 **Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper) and [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code)
 
@@ -148,9 +148,10 @@ spectral region gets visualized in the bottom left plot with the
 addition of the individual transitions that dominate the emission;
 the strongest of these transitions is highlighted in orange and its
 properties are reported in the text box at the bottom left of the GUI.
-The list and properties of other significant lines that emit in the selected
-range are reported on terminal for user's reference.
-- **Save line**: save strongest currently-selected line into an output 
+Starting with version 4.04, other lines can be selected interactively in this
+plot and the population diagram by clicking on them; this new feature allows
+users to explore and save different lines within the same selected range.
+- **Save line**: save the currently selected line into an output 
 csv file that will include all its line parameters; this function
 needs the definition of an output file in the box "Output Line Measurements"
 that will be saved in the LINESAVES folder.

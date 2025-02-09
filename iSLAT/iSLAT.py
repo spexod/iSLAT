@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.03.12'
+iSLAT_version = 'v4.04.01'
 print(' ')
 print('Loading iSLAT '+ iSLAT_version +': Please Wait ...')
 
@@ -607,183 +607,7 @@ def CreateToolTip(widget, text):
     widget.bind('<Enter>', enter)
     widget.bind('<Leave>', leave)
 
-def onselect(xmin, xmax):
-    
-    global wave_data, flux_data, line2save, selectedline, spanmol, model_indmin, model_indmax, data_region_x, model_line_select
 
-
-
-    xdif = xmax - xmin
-    if xdif > 0:
-        # Clearing the bottom two graphs
-        # Reference: matplotlib.pyplot
-        ax3.clear()
-        ax2.clear()
-
-        int_pars = eval(f"{spanmol}_intensity.get_table")
-        int_pars.index = range(len(int_pars.index))
-
-        #print(spanmol)
-        # Clearing the text feed box.
-        data_field.delete('1.0', "end")
-
-        # Repopulating the population diagram graph with all the lines of the water molecule (gray dots)
-        pop_diagram()
-
-        # Resetting the labels of graphs after they were deleted by the clear function above
-        ax2.set_xlabel('Wavelength (μm)')
-        ax2.set_ylabel('Flux density (Jy)')
-        ax2.set_title ('Line inspection plot', fontsize='medium')
-
-        linevar = eval(f"{spanmol}_line")
-        linecolor = linevar.get_color()
-        #'royalblue'
-        # Make empty lines for the zoom plot
-        model_line_select, = ax2.plot([], [], color=linecolor, linewidth=3, ls='--')
-        data_line_select, = ax2.plot([],[],color=foreground,linewidth=1)
-
-        # Getting all the water lines for the selected range
-        int_pars_line = int_pars[(int_pars['lam']>xmin) & (int_pars['lam']<xmax)]
-        int_pars_line.index = range(len(int_pars_line.index))
-
-        # Parsing out the columns of the lines in int_pars_line to be used later
-        lamb_cnts = int_pars_line['lam']
-        intensities = int_pars_line['intens']
-        einstein = int_pars_line['a_stein']
-        e_up = int_pars_line['e_up']
-        up_lev = int_pars_line['lev_up']
-        low_lev = int_pars_line['lev_low']
-        g_up = int_pars_line['g_up']
-        tau = int_pars_line['tau']
-
-        # Creating zero variables to be used later
-        max_value = intensities[0]
-        max_index = 0
-
-        # Checking to see if there are any lines in the range selected
-        # If there aren't then this function does not continue
-        # If there are, then the strongest intensity of the lines in the range selected is identified along with its index
-        if len(intensities) >= 1:
-            selectedline = True
-            for i in range(len(intensities)):
-                if intensities[i] > max_value:
-                    max_value = intensities[i]
-                    max_index = i
-        else:
-            return
-
-        # Defining the other parameters of the line with the strongest intensity as found previously
-        max_lamb_cnts = lamb_cnts[max_index]
-        max_up_lev = up_lev[max_index]
-        max_low_lev = low_lev[max_index]
-        max_intensity = intensities[max_index]
-        max_einstein = einstein[max_index]
-        max_e_up = e_up[max_index]
-        max_g_up = g_up[max_index]
-        max_tau = tau[max_index]
-
-        # Finding the index of the minimum and maximimum flux for both the data and model to be used in scaling the zoom graph (section below)
-        model_indmin, model_indmax = np.searchsorted(lambdas_h2o, (xmin, xmax))
-        data_indmin, data_indmax = np.searchsorted(wave_data, (xmin, xmax))
-        # this below is to avoid taking too few pixels for the plot, useful in case of e.g. MIRI spectra
-        data_indmin = data_indmin - 1
-        data_indmax = data_indmax + 1
-        model_indmax = min(len(lambdas_h2o) - 1, model_indmax)
-        data_indmax = min(len(wave_data) - 1, data_indmax)
-
-        # Dynamically set the x variable
-        print (' ')
-        print('Molecule selected: ')
-        print(spanmol)
-        model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
-        model_region_x = eval(model_region_x_str)
-
-        # Scaling the zoom graph
-        # First, it's determined if the max intensity of the model is bigger than that of the max intensity of the data or vice versa
-        # Then, the max for the y-axis is determined by the max intensity of either the model or data, whichever is bigger
-        # The minimum for the y-axis of the zoom graph is set to zero here
-
-        #model_region_y = fluxes_h2o[model_indmin:model_indmax]
-        # Dynamically set the variable
-        model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
-        model_region_y = eval(model_region_y_str)
-        data_region_x = wave_data[data_indmin:data_indmax]
-        data_region_y = flux_data[data_indmin:data_indmax]
-        max_data_y = np.nanmax(data_region_y)
-        max_model_y = np.nanmax(model_region_y)
-        if (max_model_y) >= (max_data_y):
-            max_y = max_model_y
-        else:
-            max_y = max_data_y
-        ax2.set_ylim(0, max_y)
-        print (' ')
-        print('Data range:')
-        print(data_region_x[0],data_region_x[-1])
-        #print(xmin, xmax)
-
-        # Calling the flux function to calculate the flux for the data in the range selected
-        # Also printing the flux in the notebook for easy copying
-        # See flux_integral
-        line_flux, line_err = flux_integral(wave_data, flux_data, err_data, xmin, xmax)
-
-        data_field.delete('1.0', "end")
-        data_field.insert ('1.0', (
-                    'Strongest line:' + '\nUpper level = ' + str (max_up_lev) + '\nLower level = ' + str (
-                max_low_lev) + '\nWavelength (μm) = ' + str (max_lamb_cnts) + '\nEinstein-A coeff. (1/s) = ' + str (
-                max_einstein) + '\nUpper level energy (K) = ' + str (f'{max_e_up:.{0}f}') +'\nOpacity = '+ str(
-                f'{max_tau:.{3}f}')+ '\nFlux, err (erg/s/cm2) = ' + str(f'{line_flux:.{1}e}') + ', ' + str(f'{line_err:.{1}e}')))
-
-
-        # Creating a pandas dataframe for all the info of the strongest line in the selected range
-        # This dataframe is used in the Save() function to save the strongest line in a csv file
-        line2save = {'species': [spanmol.upper()], 'lev_up': [max_up_lev], 'lev_low': [max_low_lev], 'lam': [max_lamb_cnts], 'tau': [max_tau],
-                     'intens': [max_intensity], 'a_stein': [max_einstein], 'e_up': [max_e_up], 'g_up': [max_g_up],
-                     'xmin': [f'{xmin:.{4}f}'], 'xmax': [f'{xmax:.{4}f}']
-                     }
-        line2save = pd.DataFrame(line2save)
-
-
-        # This section prints vertical lines on the zoom graph at the wavelengths for each line in the model
-        # The strongest line is colored differently than the other lines
-        # The height of the lines represent the ratio of their intensities to the strongest line's intensity 
-        # e.g. the strongest line is the tallest, a line that has 50% the int of the strongest line will be half as tall as that line
-        if len(model_region_x) >= 1:
-            k=0
-            model_line_select.set_data(model_region_x, model_region_y), globals()
-            data_line_select.set_data(data_region_x, data_region_y)
-            ax2.set_xlim(model_region_x[0], model_region_x[-1])
-            print(' ')
-            print('Other strong lines in selected range (wavelength, upper and lower levels, E_up, A-coeff, opacity):')
-            for j in range(len(lamb_cnts)):
-                if j == max_index:
-                    k = j
-                if j != max_index:
-                    lineheight = (intensities[j]/max_intensity)*max_y
-                    if intensities[j] > max_intensity/50:
-                        ax2.vlines(lamb_cnts[j], 0, lineheight, linestyles='dashed',color='green')
-                        ax2.text(lamb_cnts[j], lineheight, (str(f'{e_up[j]:.{0}f}')+', '+str(f'{einstein[j]:.{3}f}')), color = 'green', fontsize = 'small')
-                        print(str(f'{lamb_cnts[j]:.{5}f}'), up_lev[j], low_lev[j], str(f'{e_up[j]:.{0}f}'), einstein[j], str(f'{tau[j]:.{3}f}'))
-                        area = eval(f"np.pi*({spanmol}_radius*au*1e2)**2") # In cm^2
-                        Dist = dist*pc
-                        beam_s = area/Dist**2
-                        F = intensities[j]*beam_s
-                        freq = ccum/lamb_cnts[j]
-                        rd_yax = np.log(4*np.pi*F/(einstein[j]*hh*freq*g_up[j]))
-                        ax3.scatter(e_up[j], rd_yax, s=30, color='green', edgecolors='black')
-            lineheight = (intensities[k]/max_model_y)*max_model_y
-            ax2.vlines(lamb_cnts[k], 0, lineheight, linestyles='dashed',color='orange')
-            ax2.text(lamb_cnts[k], max_y, (str(f'{e_up[k]:.{0}f}')+', '+str(f'{einstein[k]:.{3}f}')), color = 'orange', fontsize = 'small')
-            area = eval(f"np.pi*({spanmol}_radius*au*1e2)**2") # In cm^2
-            Dist = dist*pc
-            beam_s = area/Dist**2
-            F = intensities[k]*beam_s
-            freq = ccum/lamb_cnts[k]
-            rd_yax = np.log(4*np.pi*F/(einstein[k]*hh*freq*g_up[k]))
-            ax3.scatter(e_up[k], rd_yax, s=30, color='orange', edgecolors='black')
-            fig.canvas.flush_events()
-    else:
-        pop_diagram()
-        ax2.clear()
 
 
 # """
@@ -874,33 +698,232 @@ def single_finder():
 print_saved_lines() prints, as vertical dashed lines, on the top graph the locations of all lines saved to the current csv connected to the Save() function.
 This csv can be changed in the user adjustable variables code block, but the change won't take into effect until the user regenerates the tool.
 """
+
 def print_saved_lines():
-    global linelistpath
+    global linelistpath, green_lines, green_scatter, default_line
 
     try:
         linelistpath
-
     except NameError:
         data_field.delete('1.0', "end")
         data_field.insert('1.0', 'Input line list is not defined!')
+        return
 
-    else:
-        update()
-        ax1.callbacks.connect('xlim_changed', on_xlims_change)
+    update()
+    ax1.callbacks.connect('xlim_changed', on_xlims_change)
 
-        svd_lns=pd.read_csv(linelistpath, sep=',')
-        svd_lamb = np.array(svd_lns['lam'])
+    # Initialize default_line to None at the start
+    default_line = None
+
+    green_lines = []
+    green_scatter = []
+
+    # Load saved lines
+    svd_lns = pd.read_csv(linelistpath, sep=',')
+    svd_lamb = np.array(svd_lns['lam'])
+    if 'xmin' in svd_lns:
+        x_min = np.array(svd_lns['xmin'])
+        x_max = np.array(svd_lns['xmax'])
+
+    # Plot vertical lines in ax1 for saved lines
+    for i in range(len(svd_lamb)):
+        ax1.vlines(svd_lamb[i], -2, 10, linestyles='dashed', color='red')
         if 'xmin' in svd_lns:
-            x_min = np.array(svd_lns['xmin'])
-            x_max = np.array(svd_lns['xmax'])
-        for i in range(len(svd_lamb)):
-            ax1.vlines(svd_lamb[i], -2, 10, linestyles='dashed',color='red')
-            if 'xmin' in svd_lns:
-                ax1.vlines (x_min[i], -2, 10, color='coral', alpha=0.5)
-                ax1.vlines (x_max[i], -2, 10, color='coral', alpha=0.5)
-        data_field.delete('1.0', "end")
-        data_field.insert('1.0', 'Saved lines retrieved from file.')
-        canvas.draw()
+            ax1.vlines(x_min[i], -2, 10, color='coral', alpha=0.5)
+            ax1.vlines(x_max[i], -2, 10, color='coral', alpha=0.5)
+
+    data_field.delete('1.0', "end")
+    data_field.insert('1.0', 'Saved lines retrieved from file.')
+    canvas.draw()
+
+
+def plot_spectrum_around_line(lamb, xmin, xmax):
+    global wave_data, flux_data, lamb_cnts, intensities, einstein, e_up, up_lev, low_lev, g_up, tau, max_intensity, max_y, spanmol
+        
+    int_pars = eval(f"{spanmol}_intensity.get_table")
+    int_pars.index = range(len(int_pars.index))
+    
+    # Getting all the water lines for the selected range
+    int_pars_line = int_pars[(int_pars['lam'] > xmin) & (int_pars['lam'] < xmax)]
+    int_pars_line.index = range(len(int_pars_line.index))
+    
+    # Parsing out the columns of the lines in int_pars_line to be used later
+    lamb_cnts = int_pars_line['lam']
+    intensities = int_pars_line['intens']
+    einstein = int_pars_line['a_stein']
+    e_up = int_pars_line['e_up']
+    up_lev = int_pars_line['lev_up']
+    low_lev = int_pars_line['lev_low']
+    g_up = int_pars_line['g_up']
+    tau = int_pars_line['tau']
+
+    # Creating zero variables to be used later
+    max_value = intensities[0]
+    max_index = 0
+
+    # Checking to see if there are any lines in the range selected
+    # If there aren't then this function does not continue
+    # If there are, then the strongest intensity of the lines in the range selected is identified along with its index
+    if len(intensities) >= 1:
+        selectedline = True
+        for i in range(len(intensities)):
+            if intensities[i] > max_value:
+                max_value = intensities[i]
+                max_index = i
+    else:
+        return
+
+    # Defining the other parameters of the line with the strongest intensity as found previously
+    max_lamb_cnts = lamb_cnts[max_index]
+    max_up_lev = up_lev[max_index]
+    max_low_lev = low_lev[max_index]
+    max_intensity = intensities[max_index]
+    max_einstein = einstein[max_index]
+    max_e_up = e_up[max_index]
+    max_g_up = g_up[max_index]
+    max_tau = tau[max_index]
+    
+    # Finding the index of the minimum and maximum flux for both the data and model to be used in scaling the zoom graph (section below)
+    model_indmin, model_indmax = np.searchsorted(lambdas_h2o, (xmin, xmax))
+    data_indmin, data_indmax = np.searchsorted(wave_data, (xmin, xmax))
+    # this below is to avoid taking too few pixels for the plot, useful in case of e.g. MIRI spectra
+    data_indmin = data_indmin - 1
+    data_indmax = data_indmax + 1
+    model_indmax = min(len(lambdas_h2o) - 1, model_indmax)
+    data_indmax = min(len(wave_data) - 1, data_indmax)
+
+    # Dynamically set the x variable
+    model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
+    model_region_x = eval(model_region_x_str)
+
+    # Scaling the zoom graph
+    # First, it's determined if the max intensity of the model is bigger than that of the max intensity of the data or vice versa
+    # Then, the max for the y-axis is determined by the max intensity of either the model or data, whichever is bigger
+    # The minimum for the y-axis of the zoom graph is set to zero here
+
+    # model_region_y = fluxes_h2o[model_indmin:model_indmax]
+    # Dynamically set the variable
+    model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
+    model_region_y = eval(model_region_y_str)
+    data_region_x = wave_data[data_indmin:data_indmax]
+    data_region_y = flux_data[data_indmin:data_indmax]
+    max_data_y = np.nanmax(data_region_y)
+    max_model_y = np.nanmax(model_region_y)
+    if (max_model_y) >= (max_data_y):
+        max_y = max_model_y
+    else:
+        max_y = max_data_y
+    ax2.set_ylim(0, max_y)
+    
+    # Define a small range around the selected wavelength
+    padding = 0.1  # Fixed padding as per your request
+    xmin_new = lamb - padding
+    xmax_new = lamb + padding
+
+    # Find the indices corresponding to this range in wave_data
+    data_indmin, data_indmax = np.searchsorted(wave_data, (xmin_new, xmax_new))
+
+    ax2.clear()
+
+    # Extract and plot the observed data within the new range
+    data_region_x = wave_data[data_indmin:data_indmax]
+    data_region_y = flux_data[data_indmin:data_indmax]
+    ax2.plot(data_region_x, data_region_y, color='black', label='Observed Data')
+
+    # Extract and plot the model data within the new range
+    # (Assuming model data is stored in similar arrays as wave_data and flux_data)
+    model_region_x = wave_data[data_indmin:data_indmax]  # Replace with model x-data if available
+    model_region_y = flux_data[data_indmin:data_indmax]  # Replace with model y-data if available
+    ax2.plot(model_region_x, model_region_y, color='red', linestyle='--', label='Model Data')
+
+    # Plot vertical lines for each line in the selected range
+    for i in range(len(lamb_cnts)):
+        if xmin_new <= lamb_cnts[i] <= xmax_new:
+            lineheight = (intensities[i] / max_intensity) * max_y
+            ax2.vlines(lamb_cnts[i], 0, lineheight, linestyles='dashed', color='green')
+            ax2.text(lamb_cnts[i], lineheight, f'{e_up[i]:.0f}, {einstein[i]:.3f}', color='green', fontsize='small')
+
+    # Highlight the selected line in orange
+    lineheight = (max_intensity / max_intensity) * max_y  # Full height for selected line
+    ax2.vlines(lamb, 0, lineheight, linestyles='dashed', color='orange')
+    ax2.text(lamb, lineheight, f'{e_up[i]:.0f}, {einstein[i]:.3f}', color='orange', fontsize='small')
+
+    # Set axes labels and title
+    ax2.set_xlim(xmin_new, xmax_new)
+    ax2.set_xlabel('Wavelength (μm)')
+    ax2.set_ylabel('Flux density (Jy)')
+    ax2.set_title(f'Spectrum around {lamb:.4f} μm', fontsize='medium')
+    ax2.grid(False)
+
+    # Redraw the canvas to update the plot
+    canvas.draw()
+    
+    def onpick3(event):
+        global default_line, line2save, intensities, lamb_cnts
+
+        # Check if the clicked artist is a line in ax2 or a scatter point in ax3
+        if event.artist in green_lines or event.artist in green_scatter: 
+            idx = green_lines.index(event.artist) if event.artist in green_lines else green_scatter.index(event.artist)  # Get the index of the clicked line
+            lam = lamb_cnts[idx]  # Wavelength of the selected line
+            lineheight = (intensities[idx] / max_intensity) * max_y  # Height of the selected line
+
+            # Reset the previous default strongest line
+            if default_line is not None:
+                # Reset the color and style of the previous default line
+                
+
+                prev_scatter = default_line[5]  # Get the previous scatter point
+                prev_scatter.set_color('green')  # Reset scatter point color to green
+                prev_scatter.set_edgecolors('black')  # Reset scatter edge color to black
+
+
+            # Find the corresponding scatter point for this line
+            scatter = green_scatter[idx]
+            scatter.set_color('orange')  # Change the color of the scatter point to orange
+            scatter.set_edgecolors('black')  # Optional: change the edge color
+
+            # Update default_line
+            default_line = (idx, lamb_cnts[idx], lineheight, e_up[idx], einstein[idx], scatter)
+
+            # Update the line2save DataFrame
+            try:
+                line2save = {
+                    'species': [spanmol.upper()],
+                    'lev_up': [up_lev[idx]],
+                    'lev_low': [low_lev[idx]],
+                    'lam': [lamb_cnts[idx]],
+                    'tau': [tau[idx]],
+                    'intens': [intensities[idx]],
+                    'a_stein': [einstein[idx]],
+                    'e_up': [e_up[idx]],
+                    'g_up': [g_up[idx]],
+                    'xmin': [f'{xmin:.{4}f}'],
+                    'xmax': [f'{xmax:.{4}f}']
+                }
+                line2save = pd.DataFrame(line2save)
+            except KeyError as e:
+                pass  # Silencing the KeyError, so it doesn't affect functionality
+
+            # Update the data field with the selected line's details
+            try:
+                line_flux = flux_integral(lam = wave_data, flux = flux_data, lam_min = xmin, lam_max = xmax, err = err_data)
+                data_field.delete('1.0', "end")
+                data_field.insert('1.0', (
+                    'Strongest line:' + '\nUpper level = ' + str(up_lev[idx]) +
+                    '\nLower level = ' + str(low_lev[idx]) +
+                    '\nWavelength (μm) = ' + str(lamb_cnts[idx]) +
+                    '\nEinstein-A coeff. (1/s) = ' + str(einstein[idx]) +
+                    '\nUpper level energy (K) = ' + str(f'{e_up[idx]:.{0}f}') +
+                    '\nOpacity = ' + str(f'{tau[idx]:.{3}f}') +
+                    '\nFlux in sel. range (erg/s/cm2) = ' + str(f'{line_flux[0]:.{3}e}')
+                ))
+            except KeyError as e:
+                pass  # Silencing the KeyError, so it doesn't affect functionality
+
+            fig.canvas.draw()
+
+
+    fig.canvas.mpl_connect('pick_event', onpick3)
 
 
 """
@@ -1012,7 +1035,238 @@ def print_atomic_lines():
     canvas.draw()
 
 
+def onselect(xmin, xmax):
+    global wave_data, flux_data, line2save, selectedline, spanmol, model_indmin, model_indmax, data_region_x, model_line_select, green_lines, green_scatter, default_line, current_selected_line, intensities, lamb_cnts, e_up, einstein, err_data
 
+    xdif = xmax - xmin
+    if xdif > 0:
+        # Clearing the bottom two graphs
+        ax3.clear()
+        ax2.clear()
+
+        int_pars = eval(f"{spanmol}_intensity.get_table")
+        int_pars.index = range(len(int_pars.index))
+
+        # Clearing the text feed box.
+        data_field.delete('1.0', "end")
+
+        # Repopulating the population diagram graph with all the lines of the water molecule (gray dots)
+        pop_diagram()
+
+        # Resetting the labels of graphs after they were deleted by the clear function above
+        ax2.set_xlabel('Wavelength (μm)')
+        ax2.set_ylabel('Flux density (Jy)')
+        ax2.set_title('Line inspection plot', fontsize='medium')
+
+        linevar = eval(f"{spanmol}_line")
+        linecolor = linevar.get_color()
+
+        # Make empty lines for the zoom plot
+        model_line_select, = ax2.plot([], [], color=linecolor, linewidth=3, ls='--')
+        data_line_select, = ax2.plot([],[],color=foreground,linewidth=1)
+
+        # Getting all the water lines for the selected range
+        int_pars_line = int_pars[(int_pars['lam'] > xmin) & (int_pars['lam'] < xmax)]
+        int_pars_line.index = range(len(int_pars_line.index))
+
+        # Parsing out the columns of the lines in int_pars_line to be used later
+        lamb_cnts = int_pars_line['lam']
+        intensities = int_pars_line['intens']
+        einstein = int_pars_line['a_stein']
+        e_up = int_pars_line['e_up']
+        up_lev = int_pars_line['lev_up']
+        low_lev = int_pars_line['lev_low']
+        g_up = int_pars_line['g_up']
+        tau = int_pars_line['tau']
+
+        # Creating zero variables to be used later
+        max_value = intensities[0]
+        max_index = 0
+
+        # Checking to see if there are any lines in the range selected
+        if len(intensities) >= 1:
+            selectedline = True
+            for i in range(len(intensities)):
+                if intensities[i] > max_value:
+                    max_value = intensities[i]
+                    max_index = i
+        else:
+            return
+
+        # Defining the other parameters of the line with the strongest intensity
+        max_lamb_cnts = lamb_cnts[max_index]
+        max_up_lev = up_lev[max_index]
+        max_low_lev = low_lev[max_index]
+        max_intensity = intensities[max_index]
+        max_einstein = einstein[max_index]
+        max_e_up = e_up[max_index]
+        max_g_up = g_up[max_index]
+        max_tau = tau[max_index]
+
+        # Finding the index of the minimum and maximum flux for both the data and model
+        model_indmin, model_indmax = np.searchsorted(lambdas_h2o, (xmin, xmax))
+        data_indmin, data_indmax = np.searchsorted(wave_data, (xmin, xmax))
+        data_indmin = data_indmin - 1
+        data_indmax = data_indmax + 1
+        model_indmax = min(len(lambdas_h2o) - 1, model_indmax)
+        data_indmax = min(len(wave_data) - 1, data_indmax)
+
+        # Dynamically set the x variable
+        model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
+        model_region_x = eval(model_region_x_str)
+
+        # Scaling the zoom graph
+        model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
+        model_region_y = eval(model_region_y_str)
+        data_region_x = wave_data[data_indmin:data_indmax]
+        data_region_y = flux_data[data_indmin:data_indmax]
+        max_data_y = np.nanmax(data_region_y)
+        max_model_y = np.nanmax(model_region_y)
+        max_y = max(max_model_y, max_data_y)
+        ax2.set_ylim(0, max_y)
+
+        # Calling the flux function to calculate the flux for the data in the range selected
+        line_flux = flux_integral(lam = wave_data, flux = flux_data, lam_min = xmin, lam_max = xmax, err = err_data)
+
+        data_field.delete('1.0', "end")
+        data_field.insert('1.0', (
+            'Strongest line:' + '\nUpper level = ' + str(max_up_lev) +
+            '\nLower level = ' + str(max_low_lev) +
+            '\nWavelength (μm) = ' + str(max_lamb_cnts) +
+            '\nEinstein-A coeff. (1/s) = ' + str(max_einstein) +
+            '\nUpper level energy (K) = ' + str(f'{max_e_up:.{0}f}') +
+            '\nOpacity = ' + str(f'{max_tau:.{3}f}') +
+            '\nFlux in sel. range (erg/s/cm2) = ' + str(f'{line_flux[0]:.{3}e}')
+        ))
+
+        # Creating a pandas dataframe for all the info of the strongest line in the selected range
+        line2save = {
+            'species': [spanmol.upper()],
+            'lev_up': [max_up_lev],
+            'lev_low': [max_low_lev],
+            'lam': [max_lamb_cnts],
+            'tau': [max_tau],
+            'intens': [max_intensity],
+            'a_stein': [max_einstein],
+            'e_up': [max_e_up],
+            'g_up': [max_g_up],
+            'xmin': [f'{xmin:.{4}f}'],
+            'xmax': [f'{xmax:.{4}f}']
+        }
+        line2save = pd.DataFrame(line2save)
+        
+        default_line = None
+       
+        green_lines = []
+        green_scatter = []
+
+        # Plot the lines in the zoom range
+        if len(model_region_x) >= 1:
+            k = 0
+            model_line_select.set_data(model_region_x, model_region_y)
+            data_line_select.set_data(data_region_x, data_region_y)
+            ax2.set_xlim(model_region_x[0], model_region_x[-1])
+
+            for j in range(len(lamb_cnts)):
+                lineheight = (intensities[j] / max_intensity) * max_y
+                #if intensities[j] > max_intensity / 50:
+                line = ax2.vlines(lamb_cnts[j], 0, lineheight, linestyles='dashed', color='green', picker=True) if j != max_index else ax2.vlines(lamb_cnts[j], 0, lineheight, linestyles='dashed', color='orange', picker=True)
+                green_lines.append(line)
+                text = ax2.text(lamb_cnts[j], lineheight, (str(f'{e_up[j]:.{0}f}') + ', ' + str(f'{einstein[j]:.{3}f}')), color='green', fontsize='small')
+                area = eval(f"np.pi*({spanmol}_radius*au*1e2)**2")  # In cm^2
+                Dist = dist * pc
+                beam_s = area / Dist ** 2
+                F = intensities[j] * beam_s
+                freq = ccum / lamb_cnts[j]
+                rd_yax = np.log(4 * np.pi * F / (einstein[j] * hh * freq * g_up[j]))
+                scatter = ax3.scatter(e_up[j], rd_yax, s=30, color='green', edgecolors='black', picker=True) if j != max_index else ax3.scatter(e_up[j], rd_yax, s=30, color='orange', edgecolors='black', picker=True)
+                green_scatter.append(scatter)
+                # If the intensity is below the threshold, remove the line and scatter
+                threshold_intensity = max_intensity/50
+                if intensities[j] < threshold_intensity:
+                    green_lines[j].remove()
+                    text.remove()
+                    green_scatter[j].remove()
+                if j == max_index:
+                    default_line = (j, lamb_cnts[j], lineheight, e_up[j], einstein[j], scatter)
+
+            fig.canvas.flush_events()
+
+            def onpick(event):
+                global default_line, line2save, intensities, lamb_cnts
+                
+                # Check if the clicked artist is a line in ax2 or a scatter point in ax3
+                if event.artist in green_lines or event.artist in green_scatter: 
+                    idx = green_lines.index(event.artist) if event.artist in green_lines else green_scatter.index(event.artist)  # Get the index of the clicked line
+
+                    lineheight = (intensities[idx] / max_intensity) * max_y  # Height of the selected line
+
+                    # Reset the previous default strongest line
+                    if default_line is not None:
+                        # Reset the color and style of the previous default line
+                        prev_line = green_lines[default_line[0]]  # Get the previous line from green_lines
+                        prev_line.set_color('green')  # Reset color to green
+                        prev_line.set_linewidth(1)  # Reset line width (if needed)
+
+                        prev_scatter = default_line[5]  # Get the previous scatter point
+                        prev_scatter.set_color('green')  # Reset scatter point color to green
+                        prev_scatter.set_edgecolors('black')  # Reset scatter edge color to black
+
+                    # Highlight the selected line
+                    selected_line = green_lines[idx]  # Get the existing line
+                    selected_line.set_color('orange')  # Change the color to orange
+                    selected_line.set_linewidth(2)  # Optionally increase line width for highlight
+
+                    # Find the corresponding scatter point for this line
+                    scatter = green_scatter[idx]
+                    scatter.set_color('orange')  # Change the color of the scatter point to orange
+                    scatter.set_edgecolors('black')  # Optional: change the edge color
+
+                    # Update default_line
+                    default_line = (idx, lamb_cnts[idx], lineheight, e_up[idx], einstein[idx], scatter)
+
+                    
+                    # Update the line2save DataFrame
+                    try:
+                        line2save = {
+                            'species': [spanmol.upper()],
+                            'lev_up': [up_lev[idx]],
+                            'lev_low': [low_lev[idx]],
+                            'lam': [lamb_cnts[idx]],
+                            'tau': [tau[idx]],
+                            'intens': [intensities[idx]],
+                            'a_stein': [einstein[idx]],
+                            'e_up': [e_up[idx]],
+                            'g_up': [g_up[idx]],
+                            'xmin': [f'{xmin:.{4}f}'],
+                            'xmax': [f'{xmax:.{4}f}']
+                        }
+                        line2save = pd.DataFrame(line2save)
+
+
+                    # Update the data field with the selected line's details
+                    
+                        flux_integral(lam = wave_data, flux = flux_data, lam_min = xmin, lam_max = xmax, err = err_data)
+                        data_field.delete('1.0', "end")
+                        data_field.insert('1.0', (
+                            'Strongest line:' + '\nUpper level = ' + str(up_lev[idx]) +
+                            '\nLower level = ' + str(low_lev[idx]) +
+                            '\nWavelength (μm) = ' + str(lamb_cnts[idx]) +
+                            '\nEinstein-A coeff. (1/s) = ' + str(einstein[idx]) +
+                            '\nUpper level energy (K) = ' + str(f'{e_up[idx]:.{0}f}') +
+                            '\nOpacity = ' + str(f'{tau[idx]:.{3}f}') +
+                            '\nFlux in sel. range (erg/s/cm2) = ' + str(f'{line_flux[0]:.{3}e}')
+                        ))
+                    except KeyError as e:
+                        pass  # Silencing the KeyError, so it doesn't affect functionality
+                    
+                    fig.canvas.draw()
+
+
+            fig.canvas.mpl_connect('pick_event', onpick)
+    else:
+        pop_diagram()
+        ax2.clear()
 
         
 
@@ -2828,7 +3082,7 @@ def generate_all_csv():
             csv_writer.writerow (row)
 
     data_field.delete ('1.0', "end")
-    data_field.insert ('1.0', f'All models exported!')
+    data_field.insert ('1.0', f'All models exported into iSLAT/MODELS!')
 
 
 def generate_csv(mol_name):
@@ -2859,7 +3113,7 @@ def generate_csv(mol_name):
                 csv_writer.writerow (row)
 
         data_field.delete ('1.0', "end")
-        data_field.insert ('1.0', 'SUM model exported!')
+        data_field.insert ('1.0', 'SUM model exported into iSLAT/MODELS!')
 
     if mol_name == "ALL":
         generate_all_csv ()
@@ -2898,7 +3152,7 @@ def generate_csv(mol_name):
                 csv_writer.writerow (row)
 
         data_field.delete ('1.0', "end")
-        data_field.insert ('1.0', f'{mol_name} model exported!')
+        data_field.insert ('1.0', f'{mol_name} model exported into iSLAT/MODELS!')
 
 
 def export_spectrum():
