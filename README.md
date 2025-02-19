@@ -2,6 +2,7 @@
 **Current version: v4.05.01**\
 **What's new:** Single Slab Fit function, and interactive selection in the Line Inspection and Population Diagram.\
 *If you are running a previous version, make sure to update to the latest one (see below for instructions)!*\
+
 **Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper) and [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code)
 
 [![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)
