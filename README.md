@@ -176,6 +176,9 @@ the value in "Line separ." as their spectral separation.
 - **Molecule drop-down menu**: select which molecule is considered for
 the zoomed-in plot, the rotation diagram, the "Find single
 lines" function, and the "Save line" function.
+- **Single slab fit**: fit single slab model for molecule selected in the
+drop-down menu; it needs a line flux measurement file as "Input line list",
+which can be made by running the "Fit saved lines" function (see above).
 
 ## Data examples
 iSLAT's release includes some continuum-subtracted spectra of 
