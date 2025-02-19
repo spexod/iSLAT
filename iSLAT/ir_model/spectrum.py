@@ -130,7 +130,7 @@ class Spectrum:
         # 3. calculation mask (=range around the lines, where the kernel needs to be evaluated)
         #    * index_lam contains the points of the wavelength grid that should be calculated
         #    * index_line contains the index of the line
-        max_sigma = np.max(sigma)
+        max_sigma = np.nanmax(sigma)
         kernel_range = np.arange(-15 * max_sigma / self._dlambda, 15 * max_sigma / self._dlambda, dtype=np.int64)
         lam_grid_position = (self._lamgrid.shape[0] * (lam - self._lam_min) /
                              (self._lam_max - self._lam_min)).astype(np.int64)
