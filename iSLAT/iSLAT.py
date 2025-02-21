@@ -2865,11 +2865,6 @@ def write_default_csv(data):
 write_default_csv (default_data)
 
 
-def loadparams_button_clicked():
-    load_variables_from_file (file_name)
-    # plt.draw(), canvas.draw()
-    # fig.canvas.flush_events()
-
 
 files_frame = tk.Frame (window, borderwidth=2, relief="groove")
 files_frame.grid (row=outer_frame.grid_info ()['row'] + outer_frame.grid_info ()['rowspan'], column=0, rowspan=7,
@@ -3392,7 +3387,7 @@ saveparams_button.grid (row=0, column=3)
 
 # Create the 'Load Save' button
 loadparams_button = tk.Button (title_frame, text='Load Parameters', bg='lightgray', activebackground='gray',
-                               command=lambda: loadparams_button_clicked (), width=12, height=1)
+                               command=lambda: load_variables_from_file(file_name), width=12, height=1)
 loadparams_button.grid (row=0, column=4)
 
 export_button = tk.Button (title_frame, text='Export Models', bg='lightgray', command=export_spectrum, width=12,
