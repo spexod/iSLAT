@@ -3982,31 +3982,40 @@ CreateToolTip (linesave_button, text='Select output file\n'
 
 # ---------------------------------------------------------
 CreateToolTip (xp1_entry, text='Start wavelength\n'
-                               'for the upper plot')
+                               'for the upper plot\n'
+                               'units: μm')
 
 CreateToolTip (rng_entry, text='Wavelength range\n'
-                               'for the upper plot')
+                               'for the upper plot\n'
+                               'units: μm')
 
 CreateToolTip (min_lamb_entry, text='Minimum wavelength\n'
-                                    'to calculate the models')
+                                    'to calculate the models\n'
+                                    'units: μm')
 
 CreateToolTip (max_lamb_entry, text='Maximum wavelength\n'
-                                    'to calculate the models')
+                                    'to calculate the models\n'
+                                    'units: μm')
 
 CreateToolTip (dist_entry, text='Distance to the\n'
-                                'observed target')
+                                'observed target\n'
+                                'units: pc')
 
-CreateToolTip (star_rv_entry, text='Radial velocity\n'
-                                   'of the observed target')
+CreateToolTip (star_rv_entry, text='Radial velocity (helioc.)\n'
+                                   'of the observed target\n'
+                                   'units: km/s')
 
 CreateToolTip (fwhm_entry, text='FWHM for convolution\n'
-                                'of the model spectra')
+                                'of the model spectra\n'
+                                'units: km/s')
 
-CreateToolTip (intrinsic_line_width_entry, text='Line broadening\n'
-                                                '(thermal/turbulence)')
+CreateToolTip (intrinsic_line_width_entry, text='Line broadening (FWHM)\n'
+                                                '(thermal/turbulence)\n'
+                                                'units: km/s')
 
-CreateToolTip (specsep_entry, text='Seperation threshold\n'
-                                   'for "Find Single Lines"')
+CreateToolTip (specsep_entry, text='Separation threshold\n'
+                                   'for "Find Single Lines"\n'
+                                   'units: μm')
 
 CreateToolTip (spandropd, text='Select molecule for line inspection,\n'
                                'the population diagram, the "Save Line"\n'
