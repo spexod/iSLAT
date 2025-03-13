@@ -1,6 +1,8 @@
 # iSLAT
-**Current version: v4.04.01**\
-*If you are running a previous version, make sure to update to the latest one (see below for instructions)!*\
+**Current version: v4.05.01**\
+**What's new:** Single Slab Fit function, and interactive selection in the Line Inspection and Population Diagram.\
+*If you are running a previous version, make sure to update to the latest one (see below for instructions)!*
+
 **Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper) and [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code)
 
 [![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)
@@ -12,7 +14,8 @@
 for the visualization, exploration, and analysis of molecular spectra.
 Synthetic spectra are made using a simple slab model written by Simon 
 Bruderer and originally described in [Banzatti et al. 2012](https://ui.adsabs.harvard.edu/abs/2012ApJ...745...90B/abstract);
-the code uses molecular data from [HITRAN](https://hitran.org/).
+the code uses molecular data from [HITRAN](https://hitran.org/) 
+([Gordon et al. 2022](https://www.sciencedirect.com/science/article/pii/S0022407321004416)).
 iSLAT has been developed and currently tested on spectra at infrared wavelengths 
 as observed at different resolving powers (R = 700-90,000) with: 
 JWST-MIRI, Spitzer-IRS, VLT-CRIRES, IRTF-ISHELL. Examples of these spectra are
@@ -174,6 +177,9 @@ the value in "Line separ." as their spectral separation.
 - **Molecule drop-down menu**: select which molecule is considered for
 the zoomed-in plot, the rotation diagram, the "Find single
 lines" function, and the "Save line" function.
+- **Single slab fit**: fit single slab model for molecule selected in the
+drop-down menu; it needs a line flux measurement file as "Input line list",
+which can be made by running the "Fit saved lines" function (see above).
 
 ## Data examples
 iSLAT's release includes some continuum-subtracted spectra of 
