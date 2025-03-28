@@ -1,6 +1,6 @@
 # iSLAT
-**Current version: v4.05.01**\
-**What's new:** Single Slab Fit function, and interactive selection in the Line Inspection and Population Diagram.\
+**Current version: v4.06.01**\
+**Recent updates:** Line De-blender and Single Slab Fit functions.\
 *If you are running a previous version, make sure to update to the latest one (see below for instructions)!*
 
 **Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper) and [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code)
@@ -85,7 +85,10 @@ HCN, HC<sub>3</sub>N and some of their isotopologues.
 These datafiles are stored into the folder "HITRANdata" and are available to 
 load and use in iSLAT (see below). Any additional molecule or isotopologue can be downloaded from HITRAN using the "HITRAN query" function in iSLAT. 
 The current HITRAN data release as of 2024 is described in 
-[Gordon et al. 2022](https://ui.adsabs.harvard.edu/abs/2022JQSRT.27707949G/abstract).
+[Gordon et al. 2022](https://ui.adsabs.harvard.edu/abs/2022JQSRT.27707949G/abstract). As of version 4.05, we have included two line lists
+provided in [Arabhavi et al. 2024](https://ui.adsabs.harvard.edu/abs/2024Sci...384.1086A/abstract) and the HITEMP line lists for CO and H<sub>2</sub>O; 
+if you use these, please cite the respective references.
+A new HITRAN release (2024) is expected in 2025.
 
 ## Parameters definitions and units
 (Definitions and instructions are also available by hovering over GUI elements.)
@@ -117,7 +120,9 @@ also select each molecule color by using the "Color" button.
   broadening due to thermal motion or turbulence
   - **line separation** is in μm, and is used to identify isolated lines
   in the model for the molecule selected in the drop-down menu
-
+  - **FWHM and centroid tol.** are in the same units as their parameters,
+  and they control the tolerance range used in the de-blended fit (see below).
+  
 ## Quick reference for main functions
 (Definitions and instructions are also available by hovering over GUI elements.)
 
@@ -180,6 +185,11 @@ lines" function, and the "Save line" function.
 - **Single slab fit**: fit single slab model for molecule selected in the
 drop-down menu; it needs a line flux measurement file as "Input line list",
 which can be made by running the "Fit saved lines" function (see above).
+- **Line De-blender**: extract individual transitions from blended feature
+selected in the Line Inspection Plot; it uses LMFIT and gaussian functions,
+where centroid and FWHM can be given a tolerance range in the GUI (the fit
+assumes line centroids from HITRAN for the selected molecule, and FWHM as
+fixed by the user in the FWHM box). The results are saved into /LINESAVES.
 
 ## Data examples
 iSLAT's release includes some continuum-subtracted spectra of 
