@@ -1,4 +1,5 @@
 # iSLAT
+[![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)\
 **Current version: v4.06.01**\
 **Recent updates:** Line De-blender and Single Slab Fit functions.\
 *If you are running a previous version, make sure to update to the latest one (see below for instructions)!*
@@ -7,7 +8,7 @@
 [Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract) (if you use the "MIRI_general" line list), 
 [LMFIT](https://lmfit.github.io/lmfit-py/index.html) (if you use any of the fitting functions in iSLAT), plus other packages as appropriate.
 
-[![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)
+
 
 *If you are running iSLAT on an Apple silicon processor, please read "Caveats" below*
 
