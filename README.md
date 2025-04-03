@@ -3,7 +3,9 @@
 **Recent updates:** Line De-blender and Single Slab Fit functions.\
 *If you are running a previous version, make sure to update to the latest one (see below for instructions)!*
 
-**Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper) and [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code)
+**Please cite:** [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (paper), [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (code), 
+[Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract) (if you use the "MIRI_general" line list), 
+[LMFIT](https://lmfit.github.io/lmfit-py/index.html) (if you use any of the fitting functions in iSLAT), plus other packages as appropriate.
 
 [![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)
 
@@ -51,7 +53,8 @@ folder where you wish your local copy of iSLAT to be:
     cd iSLAT
     pip install -r requirements.txt
 
-To launch iSLAT, simply type:
+To launch iSLAT, simply type (if something goes wrong, 
+you might just need to update some of your python packages):
 
     cd iSLAT
     python iSLAT.py
