@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.06.01'
+iSLAT_version = 'v4.06.02'
 print (' ')
 print ('Loading iSLAT ' + iSLAT_version + ': Please Wait ...')
 
@@ -3076,16 +3076,18 @@ def selectfile():
             else:
                 err_data = np.full_like(flux_data, np.nanmedian(flux_data)/100)  # assumed, if not present
 
-            # Set initial values of xp1 and rng
-            fig_max_limit = np.nanmax (wave_data)
-            fig_min_limit = np.nanmin (wave_data)
-            xp1 = fig_min_limit + (fig_max_limit - fig_min_limit) / 2
-            rng = (fig_max_limit - fig_min_limit) / 10
-            xp2 = xp1 + rng
-            xp1_entry.delete (0, "end")
-            xp1_entry.insert (0, np.around (xp1, decimals=2))
-            rng_entry.delete (0, "end")
-            rng_entry.insert (0, np.around (rng, decimals=2))
+            # Set new values of xp1 and rng only if the new spectrum is in a different wave range
+            fig_max_limit = np.nanmax(wave_data)
+            fig_min_limit = np.nanmin(wave_data)
+            xp1_current = float(xp1_entry.get ())
+            if xp1_current > fig_max_limit or xp1_current < fig_min_limit:
+                xp1 = fig_min_limit + (fig_max_limit - fig_min_limit) / 2
+                rng = (fig_max_limit - fig_min_limit) / 10
+                xp2 = xp1 + rng
+                xp1_entry.delete (0, "end")
+                xp1_entry.insert (0, np.around (xp1, decimals=2))
+                rng_entry.delete (0, "end")
+                rng_entry.insert (0, np.around (rng, decimals=2))
 
             # now = dt.now()
             # dateandtime = now.strftime("%d-%m-%Y-%H-%M-%S")

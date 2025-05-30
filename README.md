@@ -1,6 +1,6 @@
 # iSLAT
 [![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)\
-**Current version: v4.06.01**\
+**Current version: v4.06.02**\
 **Recent updates:** Line De-blender and Single Slab Fit functions.\
 *If you are running a previous version, make sure to update to the latest one (see below for instructions)!*
 
