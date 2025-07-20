@@ -124,9 +124,6 @@ class BottomOptions(ResizableFrame):
             # Plot the saved lines on the main plot
             self.main_plot.plot_saved_lines(saved_lines)
             
-            # Update the main plot
-            #self.main_plot.update_all_plots()
-            
             self.data_field.insert_text(f"Displayed {len(saved_lines)} saved lines on plot.\n")
             
         except Exception as e:

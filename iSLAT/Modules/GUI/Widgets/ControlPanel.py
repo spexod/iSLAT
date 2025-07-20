@@ -521,10 +521,6 @@ class ControlPanel(ResizableFrame):
         if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot') and hasattr(self.islat.GUI.plot, 'on_molecule_visibility_changed'):
             self.islat.GUI.plot.on_molecule_visibility_changed(molecule_name, new_visibility)
             print(f"ControlPanel: Triggered selective plot refresh for visibility change")
-        elif hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot') and hasattr(self.islat.GUI.plot, 'update_all_plots'):
-            # Fallback to full refresh if selective rendering not available
-            self.islat.GUI.plot.update_all_plots()
-            print(f"ControlPanel: Triggered full plot refresh for visibility change")
 
     def _on_color_button_clicked(self):
         """Handle color button clicks to open color chooser"""
@@ -553,11 +549,6 @@ class ControlPanel(ResizableFrame):
             # since color is not a property with a setter
             if hasattr(active_mol, '_notify_my_parameter_change'):
                 active_mol._notify_my_parameter_change('color', old_color, color_code)
-            
-            # Trigger plot refresh to show color change
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot') and hasattr(self.islat.GUI.plot, 'update_all_plots'):
-                self.islat.GUI.plot.update_all_plots()
-                print(f"ControlPanel: Triggered plot refresh for color change")
 
     def _get_active_molecule_object(self):
         """Get the active molecule object, similar to MoleculeWindow logic"""
