@@ -14,7 +14,7 @@ def _get_spectrum_module():
     if _spectrum_module is None:
         with _import_lock:
             if _spectrum_module is None:  # Double-check pattern
-                from .ir_model.spectrum import Spectrum
+                from .Spectrum import Spectrum
                 _spectrum_module = Spectrum
     return _spectrum_module
 
@@ -24,7 +24,7 @@ def _get_intensity_module():
     if _intensity_module is None:
         with _import_lock:
             if _intensity_module is None:  # Double-check pattern
-                from .ir_model.intensity import Intensity
+                from .Intensity import Intensity
                 _intensity_module = Intensity
     return _intensity_module
 

@@ -41,11 +41,11 @@ def _get_pandas():
 
 if TYPE_CHECKING:
     import pandas as pd
-    from ..MoleculeLineList import MoleculeLineList
+    from .MoleculeLineList import MoleculeLineList
 else:
     # Lazy import for runtime
     def _get_molecule_line_list():
-        from ..MoleculeLineList import MoleculeLineList
+        from .MoleculeLineList import MoleculeLineList
         return MoleculeLineList
 
 __all__ = ["Intensity"]

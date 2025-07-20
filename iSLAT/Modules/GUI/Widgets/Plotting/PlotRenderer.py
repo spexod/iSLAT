@@ -50,8 +50,8 @@ if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.MoleculeLineList import MoleculeLineList
     from iSLAT.Modules.DataTypes.MoleculeLine import MoleculeLine
-    from iSLAT.Modules.DataTypes.ir_model.intensity import Intensity
-    from iSLAT.Modules.DataTypes.ir_model.spectrum import Spectrum
+    from iSLAT.Modules.DataTypes.Intensity import Intensity
+    from iSLAT.Modules.DataTypes.Spectrum import Spectrum
 
 class PlotRenderer:
     """

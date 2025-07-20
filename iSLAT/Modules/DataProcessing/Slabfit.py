@@ -31,7 +31,10 @@ Example Usage:
 import os
 import numpy as np
 from scipy.optimize import fmin
-from iSLAT.Modules.DataTypes.ir_model import Chi2Spectrum, Intensity, Spectrum
+#from iSLAT.Modules.DataProcessing.Chi2Spectrum import Chi2Spectrum
+from iSLAT.Modules.DataProcessing import Chi2Spectrum
+#from iSLAT.Modules.DataTypes import FluxMeasurement
+from iSLAT.Modules.DataTypes import Intensity, Spectrum
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 import iSLAT.Constants as c
 
