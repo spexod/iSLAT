@@ -1,7 +1,9 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
 import os
-from .Widgets.Plotting.MainPlot import iSLATPlot
+
+from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
+
 from .Widgets.DataField import DataField
 from .Widgets.MoleculeWindow import MoleculeWindow
 from .Widgets.ControlPanel import ControlPanel
