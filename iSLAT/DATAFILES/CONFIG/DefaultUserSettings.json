@@ -2,7 +2,7 @@
     "first_startup": false,
     "reload_default_files": false,
     "fit_line_uncertainty": 1,
-    "line_threshold": 0.03,
+    "line_threshold": 0.3,
     "line_detection_strategy": "user_selection",
     "centrtolerance": 0.0001,
     "fwhmtolerance": 5,

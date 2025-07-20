@@ -6,30 +6,35 @@ from ..GUIFunctions import create_button
 from iSLAT.Modules.DataProcessing.Slabfit import SlabFit as SlabModel
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
+from .ResizableFrame import ResizableFrame
 
-class BottomOptions:
+class BottomOptions(ResizableFrame):
     def __init__(self, master, islat, theme, main_plot, data_field, config):
+        # Initialize the ResizableFrame with theme
+        super().__init__(master, theme=theme, borderwidth=2, relief="groove")
+        
         self.master = master
         self.islat = islat
-        self.theme = theme
         self.main_plot = main_plot
         self.data_field = data_field
         self.config = config
-        #self.theme = self.master.theme
 
-        # Create the frame for top options
-        self.frame = tk.Frame(master, borderwidth=2, relief="groove")
-        #self.frame.grid(row=1, column=0, columnspan=2, sticky="ew")
-
-        # Create buttons for top options
-        create_button(self.frame, self.theme, "Save Line", self.save_line, 0, 0)
-        create_button(self.frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 1)
-        create_button(self.frame, self.theme, "Fit Line", self.fit_selected_line, 0, 2)
-        create_button(self.frame, self.theme, "Fit Saved Lines", self.fit_saved_lines, 0, 3)
-        create_button(self.frame, self.theme, "Find Single Lines", self.find_single_lines, 0, 4)
-        create_button(self.frame, self.theme, "Line De-blender", lambda: self.fit_selected_line(deblend=True), 0, 5)
-        create_button(self.frame, self.theme, "Single Slab Fit", self.single_slab_fit, 0, 6)
-        create_button(self.frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 7)
+        # Create buttons for options
+        self._create_buttons()
+        
+        # Apply initial theme
+        self.apply_theme(theme)
+    
+    def _create_buttons(self):
+        """Create all the button widgets."""
+        create_button(self, self.theme, "Save Line", self.save_line, 0, 0)
+        create_button(self, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 1)
+        create_button(self, self.theme, "Fit Line", self.fit_selected_line, 0, 2)
+        create_button(self, self.theme, "Fit Saved Lines", self.fit_saved_lines, 0, 3)
+        create_button(self, self.theme, "Find Single Lines", self.find_single_lines, 0, 4)
+        create_button(self, self.theme, "Line De-blender", lambda: self.fit_selected_line(deblend=True), 0, 5)
+        create_button(self, self.theme, "Single Slab Fit", self.single_slab_fit, 0, 6)
+        create_button(self, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 7)
     
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file using the new MoleculeLine approach."""
@@ -446,45 +451,3 @@ class BottomOptions:
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
             traceback.print_exc()
-    
-    def apply_theme(self, theme=None):
-        """Apply theme to all buttons and widgets in BottomOptions"""
-        if theme:
-            self.theme = theme
-            
-        # Apply theme to the main frame
-        try:
-            self.frame.configure(bg=self.theme.get("background", "#181A1B"))
-        except:
-            pass
-            
-        # Apply theme to all child widgets recursively
-        self._apply_theme_to_widget(self.frame)
-    
-    def _apply_theme_to_widget(self, widget):
-        """Apply theme to any widget recursively"""
-        try:
-            widget_class = widget.winfo_class()
-            
-            if widget_class in ['Frame']:
-                widget.configure(bg=self.theme.get("background", "#181A1B"))
-            elif widget_class == 'Button':
-                btn_theme = self.theme.get("buttons", {}).get("DefaultBotton", {})
-                widget.configure(
-                    bg=btn_theme.get("background", "lightgray"),
-                    fg=self.theme.get("foreground", "#F0F0F0"),
-                    activebackground=btn_theme.get("active_background", self.theme.get("selection_color", "#00FF99")),
-                    activeforeground=self.theme.get("foreground", "#F0F0F0")
-                )
-            elif widget_class == 'Label':
-                widget.configure(
-                    bg=self.theme.get("background", "#181A1B"),
-                    fg=self.theme.get("foreground", "#F0F0F0")
-                )
-                
-            # Recursively apply to children
-            for child in widget.winfo_children():
-                self._apply_theme_to_widget(child)
-                
-        except tk.TclError:
-            pass

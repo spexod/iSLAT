@@ -1,31 +1,32 @@
 import tkinter as tk
 from tkinter import ttk
 import os
+from .ResizableFrame import ResizableFrame
 
-class FileInteractionPane:
+class FileInteractionPane(ResizableFrame):
     def __init__(self, parent, islat_class, theme):
         """
         Initialize the File Interaction Pane widget.
+        Now inherits from ResizableFrame for consolidated theming.
         
         Args:
             parent: The parent widget to contain this pane
             islat_class: Reference to the main iSLAT class instance
             theme: Theme dictionary for styling
         """
+        # Initialize ResizableFrame with theme
+        super().__init__(parent, theme=theme)
+        
         self.parent = parent
         self.islat_class = islat_class
-        self.theme = theme
         
-        # Create the main frame
-        self.frame = tk.LabelFrame(parent, text="Spectrum File")
-        self.frame.pack(fill="both", expand=True, padx=5, pady=5)
+        # Create the label frame for grouping
+        self.label_frame = tk.LabelFrame(self, text="Spectrum File")
+        self.label_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Apply initial theme to the frame
-        self._apply_theme_to_frame()
-        
-        # Configure grid layout for the frame
-        self.frame.grid_columnconfigure(0, weight=1)  # Label column
-        self.frame.grid_columnconfigure(1, weight=0)  # Button column
+        # Configure grid layout for the label frame
+        self.label_frame.grid_columnconfigure(0, weight=1)  # Label column
+        self.label_frame.grid_columnconfigure(1, weight=0)  # Button column
         
         # Initialize with default text or show loaded file name if available
         default_text = "No file loaded"
@@ -33,11 +34,11 @@ class FileInteractionPane:
             default_text = f"Loaded: {self.islat_class.loaded_spectrum_name}"
         
         # Row 0: Spectrum file
-        self.file_label = tk.Label(self.frame, text=default_text, wraplength=180, anchor="w")
+        self.file_label = tk.Label(self.label_frame, text=default_text, wraplength=180, anchor="w")
         self.file_label.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=2)
         
         self.load_spectrum_btn = tk.Button(
-            self.frame, 
+            self.label_frame, 
             text="Load Spectrum", 
             command=self.islat_class.load_spectrum
         )
@@ -45,7 +46,7 @@ class FileInteractionPane:
         
         # Row 1: Input line list
         self.input_line_list_label = tk.Label(
-            self.frame, 
+            self.label_frame, 
             text="Input Line List: None", 
             wraplength=180, 
             anchor="w",
@@ -54,7 +55,7 @@ class FileInteractionPane:
         self.input_line_list_label.grid(row=1, column=0, sticky="ew", padx=(5, 5), pady=2)
         
         self.input_line_list_btn = tk.Button(
-            self.frame,
+            self.label_frame,
             text="Load Line List",
             command=self._load_input_line_list
         )
@@ -62,7 +63,7 @@ class FileInteractionPane:
         
         # Row 2: Output line measurements
         self.output_measurements_label = tk.Label(
-            self.frame, 
+            self.label_frame, 
             text="Output Measurements: None", 
             wraplength=180, 
             anchor="w",
@@ -71,138 +72,15 @@ class FileInteractionPane:
         self.output_measurements_label.grid(row=2, column=0, sticky="ew", padx=(5, 5), pady=2)
         
         self.output_line_measurements_btn = tk.Button(
-            self.frame,
+            self.label_frame,
             text="Set Output File",
             command=self._load_output_line_measurements
         )
         self.output_line_measurements_btn.grid(row=2, column=1, sticky="e", padx=(5, 5), pady=2)
         
         # Apply theme to all widgets
-        self.apply_theme(self.theme)
+        self.apply_theme()
     
-    def _apply_theme_to_frame(self):
-        """Apply theme to the main frame."""
-        self.frame.configure(
-            bg=self.theme["background"],
-            fg=self.theme["foreground"]
-        )
-    
-    def apply_theme(self, theme):
-        """
-        Apply theme to all widgets in the file interaction pane.
-        
-        Args:
-            theme: Theme dictionary containing color and style information
-        """
-        self.theme = theme
-        
-        # Apply theme to the main frame
-        self.frame.configure(
-            bg=theme["background"],
-            fg=theme["foreground"]
-        )
-        
-        # Apply theme to the file label
-        self.file_label.configure(
-            bg=theme["background"],
-            fg=theme["foreground"]
-        )
-        
-        # Apply theme to the additional status labels
-        self.input_line_list_label.configure(
-            bg=theme["background"],
-            fg=theme["foreground"]
-        )
-        
-        self.output_measurements_label.configure(
-            bg=theme["background"],
-            fg=theme["foreground"]
-        )
-        
-        # Apply theme to the load spectrum button
-        btn_theme = theme["buttons"].get("DefaultBotton", theme["buttons"]["DefaultBotton"])
-        self.load_spectrum_btn.configure(
-            bg=btn_theme["background"],
-            fg=theme["foreground"],
-            activebackground=btn_theme["active_background"],
-            activeforeground=theme["foreground"]
-        )
-        
-        # Apply theme to the input line list button
-        self.input_line_list_btn.configure(
-            bg=btn_theme["background"],
-            fg=theme["foreground"],
-            activebackground=btn_theme["active_background"],
-            activeforeground=theme["foreground"]
-        )
-        
-        # Apply theme to the output line measurements button
-        self.output_line_measurements_btn.configure(
-            bg=btn_theme["background"],
-            fg=theme["foreground"],
-            activebackground=btn_theme["active_background"],
-            activeforeground=theme["foreground"]
-        )
-        
-        # Apply theme recursively to all child widgets
-        self._apply_theme_to_widget(self.frame)
-    
-    def _apply_theme_to_widget(self, widget):
-        """
-        Recursively apply theme to a widget and its children.
-        
-        Args:
-            widget: The widget to apply theme to
-        """
-        try:
-            widget_class = widget.winfo_class()
-            
-            if widget_class in ['Frame', 'Toplevel', 'Tk']:
-                widget.configure(bg=self.theme["background"])
-            elif widget_class == 'LabelFrame':
-                widget.configure(
-                    bg=self.theme["background"],
-                    fg=self.theme["foreground"]
-                )
-            elif widget_class == 'Label':
-                widget.configure(
-                    bg=self.theme["background"],
-                    fg=self.theme["foreground"]
-                )
-            elif widget_class == 'Button':
-                btn_theme = self.theme["buttons"].get("DefaultBotton", self.theme["buttons"]["DefaultBotton"])
-                widget.configure(
-                    bg=btn_theme["background"],
-                    fg=self.theme["foreground"],
-                    activebackground=btn_theme["active_background"],
-                    activeforeground=self.theme["foreground"]
-                )
-            elif widget_class == 'Entry':
-                widget.configure(
-                    bg=self.theme["background"],
-                    fg=self.theme["foreground"],
-                    insertbackground=self.theme["foreground"]
-                )
-            elif widget_class == 'Text':
-                widget.configure(
-                    bg=self.theme["background"],
-                    fg=self.theme["foreground"],
-                    insertbackground=self.theme["foreground"]
-                )
-            elif widget_class == 'Scrollbar':
-                widget.configure(
-                    bg=self.theme["background"],
-                    troughcolor=self.theme["background"],
-                    activebackground=self.theme["foreground"]
-                )
-            
-            # Recursively apply theme to children
-            for child in widget.winfo_children():
-                self._apply_theme_to_widget(child)
-                
-        except tk.TclError:
-            # Some widgets might not support certain options
-            pass
     
     def update_file_label(self, filename=None):
         """
@@ -227,7 +105,7 @@ class FileInteractionPane:
         """
         self.update_file_label()
         self._update_status_labels()
-        self.apply_theme(self.theme)
+        self.apply_theme()
     
     def _update_status_labels(self):
         """Update all status labels to reflect current loaded files."""

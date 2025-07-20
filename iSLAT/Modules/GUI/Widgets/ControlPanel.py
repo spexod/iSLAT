@@ -2,27 +2,24 @@ import tkinter as tk
 from tkinter import ttk, colorchooser
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
+from .ResizableFrame import ResizableFrame
 
-class ControlPanel:
+class ControlPanel(ResizableFrame):
     def __init__(self, master, islat):
+        # Get theme from islat
+        theme = getattr(islat, 'config', {}).get('theme', {})
+        
+        # Initialize the ResizableFrame with theme
+        super().__init__(master, theme=theme, borderwidth=2, relief="groove")
+        
         self.master = master
         self.islat = islat
         
         # Load field configurations from JSON file using iSLAT file handling
         self._load_field_configurations()
         
-        # Get theme from islat
-        self.theme = getattr(islat, 'config', {}).get('theme', {})
-
-        # Create the control panel frame
-        self.frame = tk.Frame(master, borderwidth=2, relief="groove")
-        self.frame.pack(side="left", fill="y")
-        
-        # Apply theme to the main frame immediately
-        self.frame.configure(
-            bg=self.theme.get("background", "#181A1B"),
-            highlightbackground=self.theme.get("foreground", "#F0F0F0")
-        )
+        # Pack to the left side and fill vertically
+        self.pack(side="left", fill="y")
 
         # Initialize all UI components
         self._create_all_components()
@@ -30,7 +27,7 @@ class ControlPanel:
         self._register_callbacks()
         
         # Apply theming after everything is created
-        self.frame.after(50, lambda: self.apply_theme(self.theme))
+        self.after(50, lambda: self.apply_theme(theme))
 
     def _load_field_configurations(self):
         """Load field configurations from JSON file using iSLAT file handling"""
@@ -116,7 +113,7 @@ class ControlPanel:
 
     def _create_simple_entry(self, label_text, initial_value, row, col, on_change_callback, width=8):
         """Create a simple entry field with label and change callback"""
-        label = tk.Label(self.frame, text=label_text)
+        label = tk.Label(self, text=label_text)
         label.grid(row=row, column=col, padx=5, pady=5)
         
         # Apply theme to the label
@@ -128,7 +125,7 @@ class ControlPanel:
         var = tk.StringVar()
         var.set(str(initial_value))
         
-        entry = tk.Entry(self.frame, textvariable=var, width=width)
+        entry = tk.Entry(self, textvariable=var, width=width)
         entry.grid(row=row, column=col + 1, padx=5, pady=5)
         
         # Apply theme to the entry
@@ -194,7 +191,7 @@ class ControlPanel:
     def _create_global_parameter_controls(self, start_row, start_col):
         """Create global parameter entry fields using MoleculeDict properties"""
         if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
-            label = tk.Label(self.frame, text="Global parameters not available")
+            label = tk.Label(self, text="Global parameters not available")
             label.grid(row=start_row, column=start_col, columnspan=4, padx=5, pady=5)
             # Apply theme to the label
             label.configure(
@@ -408,7 +405,7 @@ class ControlPanel:
 
     def _create_molecule_selector(self, row, column):
         """Create molecule dropdown selector"""
-        label = tk.Label(self.frame, text="Molecule:")
+        label = tk.Label(self, text="Molecule:")
         label.grid(row=row, column=column, padx=5, pady=5)
         
         # Apply theme to the label
@@ -417,18 +414,18 @@ class ControlPanel:
             fg=self.theme.get("foreground", "#F0F0F0")
         )
 
-        self.molecule_var = tk.StringVar(self.frame)
-        self.dropdown = ttk.Combobox(self.frame, textvariable=self.molecule_var)
+        self.molecule_var = tk.StringVar(self)
+        self.dropdown = ttk.Combobox(self, textvariable=self.molecule_var)
         self.dropdown.grid(row=row, column=column + 1, padx=5, pady=5)
         self.dropdown.bind("<<ComboboxSelected>>", self._on_molecule_selected)
         
         # Apply theming to the control panel after all components are created
-        self.frame.after(10, self._apply_theming)
+        self.after(10, self._apply_theming)
 
     def _create_molecule_color_and_visibility_controls(self, row, column):
         """Create color button and visibility checkbox for the active molecule"""
         # Visibility checkbox
-        visibility_label = tk.Label(self.frame, text="Visible:")
+        visibility_label = tk.Label(self, text="Visible:")
         visibility_label.grid(row=row, column=column, padx=5, pady=5)
         
         # Apply theme to the label
@@ -439,7 +436,7 @@ class ControlPanel:
         
         self.visibility_var = tk.BooleanVar()
         self.visibility_checkbox = tk.Checkbutton(
-            self.frame, 
+            self, 
             variable=self.visibility_var, 
             command=self._on_visibility_changed
         )
@@ -455,7 +452,7 @@ class ControlPanel:
         )
         
         # Color button
-        color_label = tk.Label(self.frame, text="Color:")
+        color_label = tk.Label(self, text="Color:")
         color_label.grid(row=row, column=column + 2, padx=5, pady=5)
         
         # Apply theme to the label
@@ -469,7 +466,7 @@ class ControlPanel:
         default_color = default_colors[0]
         
         self.color_button = tk.Button(
-            self.frame, 
+            self, 
             bg=default_color, 
             width=4,
             command=self._on_color_button_clicked
@@ -629,56 +626,57 @@ class ControlPanel:
         except Exception as e:
             print(f"Could not apply TTK theming: {e}")
         
-        # Apply theme to regular tk widgets recursively
-        self._apply_theme_to_widget(self.frame, self.theme)
+        # Apply inherited theme method
+        super().apply_theme()
     
-    def _apply_theme_to_widget(self, widget, theme):
-        """Apply theme to tkinter widgets recursively"""
+    def apply_theme(self, theme=None):
+        """Public method to apply theme to the control panel and all its widgets"""
+        # Call parent's apply_theme first
+        super().apply_theme(theme)
+        
+        # Apply specialized TTK styling for Combobox
+        self._apply_ttk_styling()
+    
+    def _apply_ttk_styling(self):
+        """Apply specialized TTK styling for control panel widgets"""
+        try:
+            # Apply TTK styling for Combobox and other TTK widgets
+            style = ttk.Style()
+            style.theme_use('clam')
+            
+            # Configure Combobox styling
+            style.configure("TCombobox",
+                          fieldbackground=self.theme.get("background_accent_color", "#23272A"),
+                          background=self.theme.get("background_accent_color", "#23272A"),
+                          foreground=self.theme.get("foreground", "#F0F0F0"),
+                          bordercolor=self.theme.get("foreground", "#F0F0F0"),
+                          arrowcolor=self.theme.get("foreground", "#F0F0F0"),
+                          selectbackground=self.theme.get("selection_color", "#00FF99"),
+                          selectforeground=self.theme.get("background", "#181A1B"))
+            
+            style.map("TCombobox",
+                     fieldbackground=[('active', self.theme.get("background_accent_color", "#23272A")),
+                                    ('focus', self.theme.get("background_accent_color", "#23272A"))],
+                     background=[('active', self.theme.get("background_accent_color", "#23272A")),
+                               ('focus', self.theme.get("background_accent_color", "#23272A"))],
+                     foreground=[('active', self.theme.get("foreground", "#F0F0F0")),
+                               ('focus', self.theme.get("foreground", "#F0F0F0"))])
+                               
+        except Exception as e:
+            print(f"Could not apply TTK theming: {e}")
+    
+    def _apply_theme_to_widget(self, widget):
+        """Override to add special handling for color buttons"""
         try:
             widget_class = widget.winfo_class()
             
-            if widget_class in ['Frame', 'LabelFrame']:
-                widget.configure(bg=theme.get("background", "#181A1B"))
-                if widget_class == 'LabelFrame':
-                    widget.configure(fg=theme.get("foreground", "#F0F0F0"))
-            elif widget_class == 'Label':
-                widget.configure(
-                    bg=theme.get("background", "#181A1B"),
-                    fg=theme.get("foreground", "#F0F0F0")
-                )
-            elif widget_class == 'Entry':
-                widget.configure(
-                    bg=theme.get("background_accent_color", "#23272A"),
-                    fg=theme.get("foreground", "#F0F0F0"),
-                    insertbackground=theme.get("foreground", "#F0F0F0"),
-                    selectbackground=theme.get("selection_color", "#00FF99"),
-                    selectforeground=theme.get("background", "#181A1B")
-                )
-            elif widget_class == 'Button':
-                # Check if this is a marked color selection button - never theme these
-                if hasattr(widget, '_is_color_button') and widget._is_color_button:
-                    # This is a color selection button - preserve its molecule color
-                    pass
-                else:
-                    btn_theme = theme.get("buttons", {}).get("DefaultBotton", {})
-                    widget.configure(
-                        bg=btn_theme.get("background", theme.get("background_accent_color", "#23272A")),
-                        fg=theme.get("foreground", "#F0F0F0"),
-                        activebackground=btn_theme.get("active_background", theme.get("selection_color", "#00FF99")),
-                        activeforeground=theme.get("foreground", "#F0F0F0")
-                    )
-            elif widget_class == 'Checkbutton':
-                widget.configure(
-                    bg=theme.get("background", "#181A1B"),
-                    fg=theme.get("foreground", "#F0F0F0"),
-                    activebackground=theme.get("background", "#181A1B"),
-                    activeforeground=theme.get("foreground", "#F0F0F0"),
-                    selectcolor=theme.get("background_accent_color", "#23272A")
-                )
-                
-            # Recursively apply to children
-            for child in widget.winfo_children():
-                self._apply_theme_to_widget(child, theme)
+            # Special handling for color buttons
+            if widget_class == 'Button' and hasattr(widget, '_is_color_button') and widget._is_color_button:
+                # This is a color selection button - preserve its molecule color, don't theme it
+                pass
+            else:
+                # Use parent's theming logic for all other widgets
+                super()._apply_theme_to_widget(widget)
                 
         except tk.TclError:
             pass
@@ -815,40 +813,6 @@ class ControlPanel:
                 self.islat.remove_active_molecule_change_callback(self._on_active_molecule_change)
         except Exception as e:
             print(f"Error during ControlPanel cleanup: {e}")
-    
-    def apply_theme(self, theme=None):
-        """Public method to apply theme to the control panel and all its widgets"""
-        if theme:
-            self.theme = theme
-        
-        try:
-            # Apply TTK styling for Combobox and other TTK widgets
-            style = ttk.Style()
-            style.theme_use('clam')
-            
-            # Configure Combobox styling
-            style.configure("TCombobox",
-                          fieldbackground=self.theme.get("background_accent_color", "#23272A"),
-                          background=self.theme.get("background_accent_color", "#23272A"),
-                          foreground=self.theme.get("foreground", "#F0F0F0"),
-                          bordercolor=self.theme.get("foreground", "#F0F0F0"),
-                          arrowcolor=self.theme.get("foreground", "#F0F0F0"),
-                          selectbackground=self.theme.get("selection_color", "#00FF99"),
-                          selectforeground=self.theme.get("background", "#181A1B"))
-            
-            style.map("TCombobox",
-                     fieldbackground=[('active', self.theme.get("background_accent_color", "#23272A")),
-                                    ('focus', self.theme.get("background_accent_color", "#23272A"))],
-                     background=[('active', self.theme.get("background_accent_color", "#23272A")),
-                               ('focus', self.theme.get("background_accent_color", "#23272A"))],
-                     foreground=[('active', self.theme.get("foreground", "#F0F0F0")),
-                               ('focus', self.theme.get("foreground", "#F0F0F0"))])
-                               
-        except Exception as e:
-            print(f"Could not apply TTK theming: {e}")
-        
-        # Apply theme to regular tk widgets recursively
-        self._apply_theme_to_widget(self.frame, self.theme)
 
     def _update_molecule_parameter_fields(self):
         """Update all molecule-specific parameter fields with values from the active molecule"""

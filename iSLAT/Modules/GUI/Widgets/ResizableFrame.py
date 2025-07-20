@@ -1,9 +1,10 @@
 import tkinter as tk
+from tkinter import ttk
 
 class ResizableFrame(tk.Frame):
-    """A frame that can be resized by dragging its borders."""
+    """A frame that can be resized by dragging its borders and provides consolidated theming."""
     
-    def __init__(self, parent, orientation='vertical', sash_size=4, **kwargs):
+    def __init__(self, parent, orientation='vertical', sash_size=4, theme=None, **kwargs):
         super().__init__(parent, **kwargs)
         self.orientation = orientation
         self.sash_size = sash_size
@@ -13,6 +14,10 @@ class ResizableFrame(tk.Frame):
         self.drag_data = {"x": 0, "y": 0, "sash": None}
         self.total_weight = 0
         self.initialized = False
+        self.theme = theme or {}
+        
+        # Apply initial theme
+        self._apply_base_theme()
         
     def add_frame(self, frame, weight=1, minsize=50, dynamic_minsize=False):
         """Add a frame to the resizable container."""
@@ -314,3 +319,124 @@ class ResizableFrame(tk.Frame):
                     sash = self.sashes[i]
                     sash.place(x=current_pos, y=0, width=self.sash_size, relheight=1)
                     current_pos += self.sash_size
+    
+    def _apply_base_theme(self):
+        """Apply base theme to the frame itself."""
+        if self.theme:
+            try:
+                self.configure(
+                    bg=self.theme.get("background", "#181A1B"),
+                    highlightbackground=self.theme.get("foreground", "#F0F0F0")
+                )
+            except tk.TclError:
+                pass
+    
+    def apply_theme(self, theme=None):
+        """Apply theme to this frame and all its children recursively."""
+        if theme:
+            self.theme = theme
+            
+        # Apply theme to self
+        self._apply_base_theme()
+        
+        # Apply theme to sashes
+        self._apply_theme_to_sashes(self.theme)
+        
+        # Apply theme to all child widgets recursively
+        for child in self.winfo_children():
+            self._apply_theme_to_widget(child)
+    
+    def _apply_theme_to_widget(self, widget):
+        """Apply theme to any widget recursively."""
+        try:
+            widget_class = widget.winfo_class()
+            
+            # Apply theming based on widget type
+            if widget_class in ['Frame', 'LabelFrame']:
+                widget.configure(
+                    bg=self.theme.get("background", "#181A1B"),
+                    fg=self.theme.get("foreground", "#F0F0F0")
+                )
+                if widget_class == 'LabelFrame':
+                    widget.configure(
+                        highlightbackground=self.theme.get("foreground", "#F0F0F0")
+                    )
+            elif widget_class == 'Button':
+                btn_theme = self.theme.get("buttons", {}).get("DefaultBotton", {})
+                widget.configure(
+                    bg=btn_theme.get("background", "lightgray"),
+                    fg=self.theme.get("foreground", "#F0F0F0"),
+                    activebackground=btn_theme.get("active_background", self.theme.get("selection_color", "#00FF99")),
+                    activeforeground=self.theme.get("foreground", "#F0F0F0")
+                )
+            elif widget_class == 'Label':
+                widget.configure(
+                    bg=self.theme.get("background", "#181A1B"),
+                    fg=self.theme.get("foreground", "#F0F0F0")
+                )
+            elif widget_class == 'Entry':
+                widget.configure(
+                    bg=self.theme.get("background_accent_color", "#23272A"),
+                    fg=self.theme.get("foreground", "#F0F0F0"),
+                    insertbackground=self.theme.get("foreground", "#F0F0F0"),
+                    selectbackground=self.theme.get("selection_color", "#00FF99"),
+                    selectforeground=self.theme.get("background", "#181A1B")
+                )
+            elif widget_class == 'Text':
+                widget.configure(
+                    bg=self.theme.get("data_field_background", "#23272A"),
+                    fg=self.theme.get("foreground", "#F0F0F0"),
+                    insertbackground=self.theme.get("foreground", "#F0F0F0"),
+                    selectbackground=self.theme.get("selection_color", "#00FF99"),
+                    selectforeground=self.theme.get("background", "#181A1B")
+                )
+            elif widget_class == 'Listbox':
+                widget.configure(
+                    bg=self.theme.get("background_accent_color", "#23272A"),
+                    fg=self.theme.get("foreground", "#F0F0F0"),
+                    selectbackground=self.theme.get("selection_color", "#00FF99"),
+                    selectforeground=self.theme.get("background", "#181A1B")
+                )
+            elif widget_class == 'Checkbutton':
+                widget.configure(
+                    bg=self.theme.get("background", "#181A1B"),
+                    fg=self.theme.get("foreground", "#F0F0F0"),
+                    selectcolor=self.theme.get("background_accent_color", "#23272A"),
+                    activebackground=self.theme.get("background", "#181A1B"),
+                    activeforeground=self.theme.get("foreground", "#F0F0F0")
+                )
+            # Handle TTK widgets
+            elif hasattr(widget, '__class__') and 'ttk' in str(widget.__class__):
+                self._apply_ttk_theme(widget)
+                
+            # Recursively apply to children
+            for child in widget.winfo_children():
+                self._apply_theme_to_widget(child)
+                
+        except tk.TclError:
+            # Widget doesn't support certain configurations, skip silently
+            pass
+    
+    def _apply_ttk_theme(self, widget):
+        """Apply theme to TTK widgets using styles."""
+        try:
+            style = ttk.Style()
+            widget_class = widget.winfo_class()
+            
+            if widget_class == 'TCombobox':
+                style.configure("Themed.TCombobox",
+                              fieldbackground=self.theme.get("background_accent_color", "#23272A"),
+                              background=self.theme.get("background", "#181A1B"),
+                              foreground=self.theme.get("foreground", "#F0F0F0"),
+                              selectbackground=self.theme.get("selection_color", "#00FF99"))
+                widget.configure(style="Themed.TCombobox")
+            elif widget_class == 'TScrollbar':
+                style.configure("Themed.Vertical.TScrollbar",
+                              background=self.theme.get("background_accent_color", "#23272A"),
+                              troughcolor=self.theme.get("background", "#181A1B"),
+                              bordercolor=self.theme.get("background_accent_color", "#23272A"),
+                              arrowcolor=self.theme.get("foreground", "#F0F0F0"))
+                widget.configure(style="Themed.Vertical.TScrollbar")
+        except:
+            # TTK styling can be complex, fail silently
+            pass

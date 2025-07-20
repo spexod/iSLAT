@@ -230,13 +230,11 @@ class GUI:
         if hasattr(self, 'window'):
             self._apply_theme_to_widget(self.window)
         if hasattr(self, 'left_resizable'):
-            self._apply_theme_to_widget(self.left_resizable)
-            self.left_resizable._apply_theme_to_sashes(self.theme)
+            self.left_resizable.apply_theme(self.theme)
         if hasattr(self, 'main_resizable'):
-            self._apply_theme_to_widget(self.main_resizable)
-            self.main_resizable._apply_theme_to_sashes(self.theme)
+            self.main_resizable.apply_theme(self.theme)
             
-        # Apply theme to all major components
+        # Apply theme to all major components - they now handle their own theming
         if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'apply_theme'):
             self.control_panel.apply_theme(self.theme)
             
@@ -255,10 +253,6 @@ class GUI:
         # Apply theme to file interaction pane
         if hasattr(self, 'file_interaction_pane') and hasattr(self.file_interaction_pane, 'apply_theme'):
             self.file_interaction_pane.apply_theme(self.theme)
-            
-        # Apply theme to control frame
-        if hasattr(self, 'control_frame'):
-            self._apply_theme_to_widget(self.control_frame)
 
     def _configure_initial_size(self):
         """Configure initial window size based on screen resolution."""
@@ -303,12 +297,8 @@ class GUI:
 
     def build_left_panel(self, parent: tk.Frame):
         # Create a resizable frame container for the left panel
-        self.left_resizable = ResizableFrame(parent, orientation='vertical', sash_size=4)
+        self.left_resizable = ResizableFrame(parent, orientation='vertical', sash_size=4, theme=self.theme)
         self.left_resizable.pack(fill="both", expand=True, padx=2, pady=2)
-        
-        # Apply theme to the resizable frame
-        self.left_resizable.configure(bg=self.theme["background"])
-        self.left_resizable._apply_theme_to_sashes(self.theme)
         
         # Create individual frames for each component
         top_options_frame = tk.Frame(self.left_resizable)
@@ -328,43 +318,26 @@ class GUI:
         self.left_resizable.add_frame(data_field_frame, weight=4, minsize=200, dynamic_minsize=False)
 
         # Main data field - create this first so we can pass it to other components
-        self.data_field = DataField("Main Data Field", "", data_field_frame)
-        self.data_field.frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.data_field = DataField("Main Data Field", "", data_field_frame, theme=self.theme)
+        self.data_field.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Apply theme to data field
-        self._apply_theme_to_widget(self.data_field.frame)
-        # Apply theme to text widget and scrollbar specifically
-        if hasattr(self.data_field, 'text'):
-            self._apply_theme_to_widget(self.data_field.text)
-        if hasattr(self.data_field, 'scrollbar'):
-            self._apply_theme_to_widget(self.data_field.scrollbar)
+        # DataField now handles its own theming through ResizableFrame inheritance
 
         # Top control buttons - now we can pass data_field
         self.top_options = TopOptions(top_options_frame, self.islat_class, theme=self.theme, data_field=self.data_field)
-        self.top_options.frame.pack(fill="both", expand=True, padx=5, pady=2)
+        self.top_options.pack(fill="both", expand=True, padx=5, pady=2)
         
-        # Apply theme to top options
-        self._apply_theme_to_widget(self.top_options.frame)
+        # TopOptions now handles its own theming through ResizableFrame inheritance
 
-        # Control panel for input parameters
-        self.control_frame = tk.LabelFrame(control_panel_frame, text="Control Panel")
-        self.control_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        # Control panel for input parameters - ControlPanel now inherits from ResizableFrame
+        self.control_panel = ControlPanel(control_panel_frame, self.islat_class)
+        self.control_panel.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Apply theme to the control frame immediately
-        self.control_frame.configure(
-            bg=self.theme["background"],
-            fg=self.theme["foreground"]
-        )
-        
-        self.control_panel = ControlPanel(self.control_frame, self.islat_class)
-        
-        # Apply theme to control panel and all its widgets
-        self._apply_theme_to_widget(self.control_frame)
-        if hasattr(self.control_panel, 'apply_theme'):
-            self.control_panel.apply_theme(self.theme)
+        # ControlPanel now handles its own theming through ResizableFrame inheritance
 
         # Spectrum file selector
         self.file_interaction_pane = FileInteractionPane(file_selector_frame, self.islat_class, self.theme)
+        self.file_interaction_pane.pack(fill="both", expand=True, padx=5, pady=5)
     
     def update_frame_sizes(self):
         """Update dynamic frame sizes based on current content."""
@@ -387,12 +360,8 @@ class GUI:
         main_container.grid(row=0, column=0, sticky="nsew")
         
         # Create horizontal resizable frame for left panel and plot area
-        self.main_resizable = ResizableFrame(main_container, orientation='horizontal', sash_size=6)
+        self.main_resizable = ResizableFrame(main_container, orientation='horizontal', sash_size=6, theme=self.theme)
         self.main_resizable.pack(fill="both", expand=True)
-        
-        # Apply theme to main resizable frame
-        self.main_resizable.configure(bg=self.theme["background"])
-        self.main_resizable._apply_theme_to_sashes(self.theme)
         
         # Create frames for left panel and right panel (plot)
         left_main_frame = tk.Frame(self.main_resizable)
@@ -432,10 +401,9 @@ class GUI:
 
         # Bottom function buttons
         self.bottom_options = BottomOptions(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.config)
-        self.bottom_options.frame.grid(row=1, column=0, columnspan=2, sticky="ew")
+        self.bottom_options.grid(row=1, column=0, columnspan=2, sticky="ew")
         
-        # Apply theme to bottom options frame
-        self._apply_theme_to_widget(self.bottom_options.frame)
+        # BottomOptions now handles its own theming through ResizableFrame inheritance
 
         # Force theme updates to catch any missed widgets
         self.window.after(100, self._force_theme_update)
