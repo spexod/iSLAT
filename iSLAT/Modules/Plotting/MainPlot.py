@@ -111,17 +111,6 @@ class iSLATPlot:
         # Register callbacks for parameter and molecule changes
         self._register_update_callbacks()
         
-        # Use update coordination if available
-        if hasattr(self.islat, '_update_coordinator') and self.islat._update_coordinator:
-            self.islat.request_update('model_spectrum')
-            self.islat.request_update('plots')
-        else:
-            # Use molecule's built-in caching directly - no need for data processor duplication
-            # The molecules handle their own flux calculation and caching efficiently
-            if hasattr(self.islat, 'update_model_spectrum'):
-                self.islat.update_model_spectrum()
-            self.update_all_plots()
-        
         # Set initial zoom range to display_range if available
         self._set_initial_zoom_range()
 

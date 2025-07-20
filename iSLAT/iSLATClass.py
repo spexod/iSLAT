@@ -16,41 +16,6 @@ from .Modules.DataTypes.Molecule import Molecule
 from .Modules.DataTypes.MoleculeDict import MoleculeDict
 from .Modules.Debug.DebugConfig import debug_config
 
-class UpdateCoordinator:
-    """Centralized update coordinator to manage and debounce plot updates"""
-    
-    def __init__(self, islat_instance : 'iSLAT'):
-        self.islat = islat_instance
-        self._update_after_id = None
-        self._pending_updates = set()
-        
-    def request_update(self, update_type):
-        """Request an update of a specific type, with debouncing"""
-        self._pending_updates.add(update_type)
-        
-        # Cancel previous pending update
-        if self._update_after_id is not None:
-            self.islat.GUI.master.after_cancel(self._update_after_id)
-        
-        # Schedule new update
-        self._update_after_id = self.islat.GUI.master.after(50, self._execute_updates)
-    
-    def _execute_updates(self):
-        """Execute all pending updates in the correct order"""
-        if not self._pending_updates:
-            return
-            
-        updates = self._pending_updates.copy()
-        self._pending_updates.clear()
-        self._update_after_id = None
-        
-        # Execute updates in dependency order
-        if 'model_spectrum' in updates and hasattr(self.islat, 'molecules_dict') and hasattr(self.islat, 'wave_data'):
-            self.islat.molecules_dict.update_molecule_fluxes(self.islat.wave_data)
-        
-        if 'plots' in updates and hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot'):
-            self.islat.GUI.plot.update_all_plots()
-
 class iSLAT:
     """
     iSLAT class to handle the iSLAT functionalities.
@@ -94,9 +59,6 @@ class iSLAT:
         
         self.input_line_list = None
         self.output_line_measurements = None
-
-        # Initialize update coordinator (will be set up after GUI init)
-        self.update_coordinator = None
         
         # Parallel processing disabled by default for stability
         self._use_parallel_processing = False
@@ -106,10 +68,6 @@ class iSLAT:
         Initialize the GUI components of iSLAT.
         This function sets up the main window, menus, and other GUI elements.
         """
-        # Initialize update coordinator once
-        if self.update_coordinator is None:
-            self.update_coordinator = UpdateCoordinator(self)
-
         if not hasattr(self, "GUI"):
             self.GUI = GUI(
                 master=None,
@@ -606,21 +564,6 @@ class iSLAT:
             print(f"Error updating model spectrum: {e}")
             self.sum_spectrum_flux = np.zeros_like(self.wave_data) if hasattr(self, 'wave_data') else np.array([])
     
-    def request_update(self, update_type='plots'):
-        """
-        Request an update through the optimized coordinator system.
-        
-        Parameters
-        ----------
-        update_type : str
-            Type of update to request ('plots', 'model_spectrum', etc.)
-        """
-        if self.update_coordinator:
-            self.update_coordinator.request_update(update_type)
-        elif update_type == 'model_spectrum':
-            # Fallback for direct model spectrum update
-            self.update_model_spectrum()
-    
     def bulk_update_molecule_parameters(self, parameter_dict, molecule_names=None, update_plots=True):
         """
         Bulk update parameters for multiple molecules using the optimized MoleculeDict methods.
@@ -645,7 +588,6 @@ class iSLAT:
             # Update model spectrum and plots if requested
             if update_plots:
                 self.update_model_spectrum()
-                self.request_update('plots')
                 
         except Exception as e:
             print(f"Error in bulk parameter update: {e}")
@@ -683,7 +625,6 @@ class iSLAT:
             
             # Update model spectrum and plots
             self.update_model_spectrum()
-            self.request_update('plots')
             
         except Exception as e:
             print(f"Error setting global parameters: {e}")
