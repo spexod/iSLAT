@@ -453,9 +453,9 @@ class iSLAT:
                 hasattr(self.GUI.control_panel, "reload_molecule_dropdown")):
                 self.GUI.control_panel.reload_molecule_dropdown()
             
-            # Update plots if they exist
+            '''# Update plots if they exist
             if (hasattr(self.GUI, "plot") and self.GUI.plot is not None):
-                self.GUI.plot.update_all_plots()
+                self.GUI.plot.update_all_plots()'''
                 
         except Exception as e:
             print(f"Warning: Error updating GUI after molecule load: {e}")

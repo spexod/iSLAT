@@ -183,6 +183,8 @@ class PlotRenderer:
                 line.remove()
             if line in self.model_lines:
                 self.model_lines.remove(line)
+        
+        self.ax1.legend()
 
     def update_summed_spectrum_only(self, wave_data: np.ndarray, summed_flux: np.ndarray) -> None:
         """Update only the summed spectrum without affecting individual molecule plots"""
@@ -219,7 +221,7 @@ class PlotRenderer:
         
         # Early return if no data
         if wave_data is None or len(wave_data) == 0:
-            self.ax1.set_title("No spectrum data loaded")
+            self.ax1.set_title("No spectrum data loaded", color=self._get_theme_value("foreground", "black"))
             return
         
         # Plot observed spectrum
@@ -288,10 +290,10 @@ class PlotRenderer:
     
     def _configure_main_plot_appearance(self) -> None:
         """Configure the appearance of the main plot"""
-        self.ax1.set_xlabel('Wavelength (μm)')
-        self.ax1.set_ylabel('Flux density (Jy)')
-        self.ax1.set_title("Full Spectrum with Line Inspection")
-        
+        self.ax1.set_xlabel('Wavelength (μm)', color=self._get_theme_value("foreground", "black"))
+        self.ax1.set_ylabel('Flux density (Jy)', color=self._get_theme_value("foreground", "black"))
+        self.ax1.set_title("Full Spectrum with Line Inspection", color=self._get_theme_value("foreground", "black"))
+
         # Only show legend if there are labeled items
         handles, labels = self.ax1.get_legend_handles_labels()
         if handles:
@@ -309,15 +311,163 @@ class PlotRenderer:
                          color=self._get_theme_value("foreground", "black"), 
                          linewidth=1, 
                          label="Observed")
-            
-            self.ax2.set_xlabel("Wavelength (μm)")
-            self.ax2.set_ylabel("Flux (Jy)")
-            self.ax2.set_title("Line inspection plot")
+
+            self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
+            self.ax2.set_ylabel("Flux (Jy)", color=self._get_theme_value("foreground", "black"))
+            self.ax2.set_title("Line inspection plot", color=self._get_theme_value("foreground", "black"))
             
             # Show legend if there are labeled items
             handles, labels = self.ax2.get_legend_handles_labels()
             if handles:
                 self.ax2.legend()
+    
+    def render_complete_line_inspection_plot(self, wave_data: np.ndarray, flux_data: np.ndarray,
+                                           xmin: float, xmax: float, active_molecule: Optional['Molecule'] = None,
+                                           fit_result: Optional[Any] = None) -> None:
+        """
+        Render complete line inspection plot with observed data and active molecule model.
+        Uses PlotRenderer logic exclusively with molecule caching.
+        
+        Parameters
+        ----------
+        wave_data : np.ndarray
+            Full wavelength array
+        flux_data : np.ndarray
+            Full flux array
+        xmin : float
+            Minimum wavelength for selected range
+        xmax : float
+            Maximum wavelength for selected range
+        active_molecule : Molecule, optional
+            Active molecule to plot model for
+        fit_result : Any, optional
+            Fit results to plot if available
+        """
+        # Clear old fit results if setting is enabled
+        if self._should_clear_old_fits():
+            self._clear_old_fit_results_in_range(xmin, xmax)
+        
+        self.ax2.clear()
+        
+        if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
+            return
+        
+        # Plot observed data in selected range
+        data_mask = (wave_data >= xmin) & (wave_data <= xmax)
+        observed_wave = wave_data[data_mask]
+        observed_flux = flux_data[data_mask]
+        
+        if len(observed_wave) > 0 and len(observed_flux) > 0:
+            self.ax2.plot(observed_wave, observed_flux, 
+                         color=self._get_theme_value("foreground", "black"), 
+                         linewidth=1, label="Observed")
+        
+        # Calculate max_y for plot scaling
+        max_y = np.nanmax(observed_flux) if len(observed_flux) > 0 else 1.0
+        
+        # Plot the active molecule model using PlotRenderer's molecule spectrum method
+        if active_molecule is not None:
+            try:
+                # Use PlotRenderer's get_molecule_spectrum_data which leverages molecule caching
+                plot_lam, model_flux = self.get_molecule_spectrum_data(active_molecule, wave_data)
+                
+                if plot_lam is not None and model_flux is not None and len(model_flux) == len(wave_data):
+                    # Filter to selected range
+                    model_wave_range = wave_data[data_mask]
+                    model_flux_range = model_flux[data_mask]
+                    
+                    if len(model_wave_range) > 0 and len(model_flux_range) > 0:
+                        label = self._get_molecule_display_name(active_molecule)
+                        color = self._get_molecule_color(active_molecule)
+                        self.ax2.plot(model_wave_range, model_flux_range, 
+                                     color=color, linestyle="--", 
+                                     linewidth=1, label=label)
+            except Exception as e:
+                mol_name = self._get_molecule_display_name(active_molecule)
+                debug_config.warning("plot_renderer", f"Could not get model data for molecule {mol_name}: {e}")
+        
+        '''if self._should_clear_old_fits():
+            self._clear_old_fit_results_in_range(xmin, xmax)'''
+
+        # Plot fit results if available
+        if fit_result is not None:
+            self._render_fit_results_in_line_inspection(fit_result, xmin, xmax, max_y)
+        
+        # Set plot properties
+        self.ax2.set_xlim(xmin, xmax)
+        self.ax2.set_ylim(0, max_y * 1.1)
+        self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
+        self.ax2.set_ylabel("Flux (Jy)", color=self._get_theme_value("foreground", "black"))
+        self.ax2.set_title("Line inspection plot", color=self._get_theme_value("foreground", "black"))
+        
+        # Show legend if there are labeled items
+        handles, labels = self.ax2.get_legend_handles_labels()
+        if handles:
+            self.ax2.legend()
+    
+    def _render_fit_results_in_line_inspection(self, fit_result: Any, xmin: float, xmax: float, max_y: float) -> None:
+        """Helper method to render fit results in the line inspection plot."""
+        try:
+            gauss_fit, fitted_wave, fitted_flux = fit_result
+            if gauss_fit is not None and fitted_wave is not None and fitted_flux is not None:
+                # Filter fit data to range
+                fit_mask = (fitted_wave >= xmin) & (fitted_wave <= xmax)
+                if np.any(fit_mask):
+                    self.ax2.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], 
+                                 color='red', linewidth=2, label='Fit')
+        except Exception as e:
+            debug_config.warning("plot_renderer", f"Could not render fit results: {e}")
+    
+    def _should_clear_old_fits(self) -> bool:
+        """Check if old fit results should be cleared when making new selections."""
+        try:
+            if hasattr(self.islat, 'user_settings'):
+                return self.islat.user_settings.get('clear_old_fits', True)
+            return True  # Default to True if setting not found
+        except Exception as e:
+            debug_config.warning("plot_renderer", f"Could not check clear_old_fits setting: {e}")
+            return True
+    
+    def set_clear_old_fits(self, clear_old_fits: bool) -> None:
+        """Set whether old fit results should be cleared when making new selections."""
+        try:
+            if hasattr(self.islat, 'user_settings'):
+                self.islat.user_settings['clear_old_fits'] = clear_old_fits
+                debug_config.info("plot_renderer", f"Set clear_old_fits to {clear_old_fits}")
+                
+                # Save settings if method exists
+                if hasattr(self.islat, 'save_user_settings'):
+                    try:
+                        self.islat.save_user_settings()
+                    except Exception as e:
+                        debug_config.warning("plot_renderer", f"Could not save user settings: {e}")
+            else:
+                debug_config.warning("plot_renderer", "user_settings not available, cannot set clear_old_fits")
+        except Exception as e:
+            debug_config.warning("plot_renderer", f"Could not set clear_old_fits setting: {e}")
+    
+    def _clear_old_fit_results_in_range(self, xmin: float, xmax: float) -> None:
+        """Clear old fit results that overlap with the new selection range."""
+        # Remove existing fit lines from the line inspection plot
+        lines_to_remove = []
+        for line in self.ax2.lines:
+            if hasattr(line, '_islat_fit_result') or (hasattr(line, 'get_label') and 
+                                                     line.get_label() and 
+                                                     ('Fit' in line.get_label() or 'Component' in line.get_label())):
+                # Check if the fit line overlaps with the current selection
+                if hasattr(line, 'get_xdata'):
+                    line_xdata = line.get_xdata()
+                    if len(line_xdata) > 0:
+                        line_xmin = np.min(line_xdata)
+                        line_xmax = np.max(line_xdata)
+                        # Check for overlap
+                        if (line_xmin <= xmax and line_xmax >= xmin):
+                            lines_to_remove.append(line)
+        
+        # Remove the overlapping fit lines
+        for line in lines_to_remove:
+            line.remove()
+            debug_config.trace("plot_renderer", f"Removed old fit result line: {line.get_label()}")
     
     def _get_molecule_parameters_hash(self, molecule: 'Molecule') -> Optional[int]:
         if molecule is None:
@@ -352,7 +502,7 @@ class PlotRenderer:
             int_pars = self.get_intensity_data(molecule)
             if int_pars is None:
                 mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f"{mol_label} - No intensity data")
+                self.ax3.set_title(f"{mol_label} - No intensity data", color=self._get_theme_value("foreground", "black"))
                 return
 
             wavelength = int_pars['lam']
@@ -384,19 +534,19 @@ class PlotRenderer:
                 self.ax3.scatter(eu, rd_yax, s=0.5, color=self._get_theme_value("scatter_main_color", '#838B8B'))
 
                 # Set labels
-                self.ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))')
-                self.ax3.set_xlabel(r'$E_{u}$ (K)')
+                self.ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))', color=self._get_theme_value("foreground", "black"))
+                self.ax3.set_xlabel(r'$E_{u}$ (K)', color=self._get_theme_value("foreground", "black"))
                 mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f'{mol_label} Population diagram', fontsize='medium')
+                self.ax3.set_title(f'{mol_label} Population diagram', fontsize='medium', color=self._get_theme_value("foreground", "black"))
             else:
                 mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f"{mol_label} - No valid data for population diagram")
-            
+                self.ax3.set_title(f"{mol_label} - No valid data for population diagram", color=self._get_theme_value("foreground", "black"))
+
         except Exception as e:
             debug_config.error("plot_renderer", f"Error rendering population diagram: {e}")
             mol_label = self._get_molecule_display_name(molecule)
-            self.ax3.set_title(f"{mol_label} - Error in calculation")
-    
+            self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
+
     def plot_saved_lines(self, saved_lines: pd.DataFrame) -> None:
         """Plot saved lines on the main spectrum"""
         if saved_lines.empty:
@@ -586,6 +736,97 @@ class PlotRenderer:
         # Update canvas once at the end
         self.canvas.draw_idle()
     
+    def handle_molecule_visibility_change(self, molecule_name: str, is_visible: bool, 
+                                        molecules_dict: Union['MoleculeDict', Dict], 
+                                        wave_data: np.ndarray,
+                                        active_molecule: Optional['Molecule'] = None,
+                                        current_selection: Optional[Tuple[float, float]] = None) -> None:
+        """
+        Handle molecule visibility changes with comprehensive PlotRenderer logic.
+        Leverages MoleculeDict's advanced caching and visibility management.
+        
+        Parameters
+        ----------
+        molecule_name : str
+            Name of the molecule whose visibility changed
+        is_visible : bool
+            New visibility state
+        molecules_dict : Union[MoleculeDict, Dict]
+            Dictionary containing all molecules
+        wave_data : np.ndarray
+            Wavelength data for plotting
+        active_molecule : Molecule, optional
+            Currently active molecule for line inspection
+        current_selection : Tuple[float, float], optional
+            Current wavelength selection range (xmin, xmax)
+        """
+        if molecule_name not in molecules_dict:
+            debug_config.warning("plot_renderer", f"Molecule {molecule_name} not found in molecules_dict")
+            return
+        
+        molecule = molecules_dict[molecule_name]
+        
+        # Handle visibility change using PlotRenderer methods
+        if is_visible:
+            # Add molecule spectrum using PlotRenderer
+            success = self.render_individual_molecule_spectrum(molecule, wave_data)
+            if not success:
+                debug_config.warning("plot_renderer", f"Failed to render molecule {molecule_name}")
+        else:
+            # Remove molecule spectrum using PlotRenderer
+            self.remove_molecule_lines(molecule_name)
+        
+        # Update summed spectrum using MoleculeDict's optimized caching system
+        self._update_summed_spectrum_with_molecules(molecules_dict, wave_data)
+        
+        # Optional: Clear MoleculeDict's flux caches if needed after visibility change
+        if hasattr(molecules_dict, '_clear_flux_caches'):
+            try:
+                # This ensures that the next summed flux calculation uses fresh visibility state
+                molecules_dict._clear_flux_caches()
+                debug_config.trace("plot_renderer", f"Cleared MoleculeDict flux caches after visibility change for {molecule_name}")
+            except Exception as e:
+                debug_config.trace("plot_renderer", f"Could not clear MoleculeDict flux caches: {e}")
+        
+        # Handle active molecule line inspection update if needed
+        if (active_molecule and 
+            hasattr(active_molecule, 'name') and 
+            active_molecule.name == molecule_name and 
+            current_selection):
+            
+            # Delegate line inspection update to plot manager
+            # This is the only callback needed to MainPlot
+            if hasattr(self.plot_manager, 'plot_spectrum_around_line'):
+                xmin, xmax = current_selection
+                self.plot_manager.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
+    
+    def _update_summed_spectrum_with_molecules(self, molecules_dict: Union['MoleculeDict', Dict], 
+                                             wave_data: np.ndarray) -> None:
+        """
+        Update summed spectrum using MoleculeDict's advanced caching system.
+        This method leverages the built-in summed flux calculations with optimal caching.
+        """
+        if not molecules_dict or len(molecules_dict) == 0:
+            # Clear summed spectrum if no molecules
+            self.update_summed_spectrum_only(wave_data, np.zeros_like(wave_data))
+            return
+        
+        try:
+            # Check if molecules_dict is a MoleculeDict with advanced methods
+            if hasattr(molecules_dict, 'get_summed_flux_optimized'):
+                # Use MoleculeDict's optimized summed flux calculation with caching
+                debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux_optimized() with advanced caching")
+                summed_flux = molecules_dict.get_summed_flux_optimized(wave_data, visible_only=True)
+            elif hasattr(molecules_dict, 'get_summed_flux'):
+                # Use MoleculeDict's standard summed flux calculation with caching
+                debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux() with caching")
+                summed_flux = molecules_dict.get_summed_flux(wave_data, visible_only=True)
+        except Exception as e:
+            debug_config.warning("plot_renderer", f"Error in summed flux calculation: {e}")
+        
+        # Update summed spectrum using PlotRenderer
+        self.update_summed_spectrum_only(wave_data, summed_flux)
+    
     def get_plot_performance_stats(self) -> Dict[str, Any]:
         """Get simplified performance statistics"""
         return {
@@ -593,8 +834,7 @@ class PlotRenderer:
             'active_lines_count': len(self.active_lines),
             'total_renders': self._plot_stats.get('renders_count', 0),
             'molecules_rendered': self._plot_stats.get('molecules_rendered', 0),
-            'caching_strategy': 'molecule_only',  # Document our strategy
-            'line_intensity_threshold_percent': self.get_line_intensity_threshold() * 100
+            'caching_strategy': 'molecule_only'
         }
     
     def clear_active_lines(self, active_lines_list: List[Any]) -> None:
@@ -1046,6 +1286,8 @@ class PlotRenderer:
                 label=label,
                 zorder=self._get_theme_value("zorder_model", 2)
             )
+
+            self.ax1.legend()
             
             # Store molecule name in line metadata for selective removal
             line._molecule_name = getattr(molecule, 'name', molecule_name)
@@ -1118,16 +1360,6 @@ class PlotRenderer:
             traceback.print_exc()
             return None
         
-    def get_plot_performance_stats(self) -> Dict[str, Any]:
-        """Get simplified performance statistics"""
-        return {
-            'model_lines_count': len(self.model_lines),
-            'active_lines_count': len(self.active_lines),
-            'total_renders': self._plot_stats.get('renders_count', 0),
-            'molecules_rendered': self._plot_stats.get('molecules_rendered', 0),
-            'caching_strategy': 'molecule_only'  # Document our strategy
-        }
-    
     def debug_molecule_cache_status(self, molecule: 'Molecule') -> Dict[str, Any]:
         """
         Debug the cache status of a molecule to understand why plots aren't updating.
@@ -1252,9 +1484,6 @@ class PlotRenderer:
         self.islat.user_settings['line_threshold'] = threshold_percent
         
         print(f"Line intensity threshold updated to {threshold_percent*100:.1f}%")
-        
-        # Optionally trigger a plot refresh if plots are currently visible
-        # This could be enhanced to automatically refresh active plots
     
     def filter_lines_by_threshold(self, line_data: List[Tuple['MoleculeLine', float, Optional[float]]], 
                                  threshold_percent: Optional[float] = None) -> List[Tuple['MoleculeLine', float, Optional[float]]]:
@@ -1296,38 +1525,3 @@ class PlotRenderer:
                          if intensity >= threshold_intensity]
         
         return filtered_lines
-    
-    def get_threshold_debug_info(self, line_data: List[Tuple['MoleculeLine', float, Optional[float]]]) -> Dict[str, Any]:
-        """
-        Get debugging information about threshold filtering.
-        
-        Parameters
-        ----------
-        line_data : List[Tuple]
-            List of (MoleculeLine, intensity, tau) tuples
-            
-        Returns
-        -------
-        Dict[str, Any]
-            Debug information about threshold filtering
-        """
-        if not line_data:
-            return {'total_lines': 0, 'filtered_lines': 0, 'threshold_percent': 0}
-            
-        threshold_percent = self.get_line_intensity_threshold()
-        filtered_lines = self.filter_lines_by_threshold(line_data, threshold_percent)
-        
-        intensities = [intensity for _, intensity, _ in line_data]
-        max_intensity = max(intensities) if intensities else 0
-        min_intensity = min(intensities) if intensities else 0
-        threshold_intensity = max_intensity * threshold_percent if max_intensity > 0 else 0
-        
-        return {
-            'total_lines': len(line_data),
-            'filtered_lines': len(filtered_lines),
-            'threshold_percent': threshold_percent * 100,
-            'max_intensity': max_intensity,
-            'min_intensity': min_intensity,
-            'threshold_intensity': threshold_intensity,
-            'lines_below_threshold': len(line_data) - len(filtered_lines)
-        }

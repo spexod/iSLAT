@@ -43,7 +43,6 @@ class iSLATPlot:
     
     Architecture:
     - PlotRenderer: Handles matplotlib rendering and visual updates
-    - DataProcessor: Manages data processing and caching operations  
     - InteractionHandler: Processes mouse/keyboard interactions
     - FittingEngine: Handles line fitting operations
     - LineAnalyzer: Provides line detection and analysis capabilities
@@ -82,9 +81,6 @@ class iSLATPlot:
         self.interaction_handler = InteractionHandler(self)
         self.fitting_engine = FittingEngine(self.islat)
         self.line_analyzer = LineAnalyzer(self.islat)
-
-        # Legacy attribute for compatibility - actual line management is in PlotRenderer
-        self.model_lines = []  # This will be kept in sync with plot_renderer.model_lines
 
         # Set up interaction handler callbacks
         self.interaction_handler.set_span_select_callback(self.onselect)
@@ -282,26 +278,20 @@ class iSLATPlot:
         visible_molecules = [mol for mol in self.islat.molecules_dict.values() 
                            if self._convert_visibility_to_bool(mol.is_visible)]
         
-        # Calculate summed flux using molecules' built-in caching
-        # Each molecule will use its own cache based on parameter hashes
-        # IMPORTANT: Use prepare_plot_data() to match the same caching method used by PlotRenderer
-        summed_flux = np.zeros_like(self.islat.wave_data)
-        
-        for molecule in visible_molecules:
-            try:
-                # Use prepare_plot_data() which has proper parameter-hash-aware caching
-                # This matches the same caching method used by PlotRenderer.render_individual_molecule_spectrum()
-                result = molecule.prepare_plot_data(self.islat.wave_data)
-                if result is not None and len(result) == 2:
-                    plot_lam, plot_flux = result
-                    if plot_flux is not None and len(plot_flux) == len(summed_flux):
-                        summed_flux += plot_flux
-            except Exception as e:
-                # Continue with other molecules if one fails
-                mol_name = self._get_molecule_display_name(molecule)
-                debug_config.warning("main_plot", f"Could not get flux for molecule {mol_name}: {e}")
-                continue
-        
+        # Calculate summed flux using MoleculeDict's advanced caching system
+        try:
+            if hasattr(self.islat.molecules_dict, 'get_summed_flux_optimized'):
+                # Use MoleculeDict's optimized summed flux calculation with advanced caching
+                debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux_optimized() for model plot")
+                summed_flux = self.islat.molecules_dict.get_summed_flux_optimized(self.islat.wave_data, visible_only=True)
+            elif hasattr(self.islat.molecules_dict, 'get_summed_flux'):
+                # Use MoleculeDict's standard summed flux calculation with caching
+                debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
+                summed_flux = self.islat.molecules_dict.get_summed_flux(self.islat.wave_data, visible_only=True)
+        except Exception as e:
+                #mol_name = self._get_molecule_display_name(molecule)
+                debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
+    
         # Delegate rendering to PlotRenderer for clean separation of concerns
         self.plot_renderer.render_main_spectrum_plot(
             self.islat.wave_data,
@@ -314,9 +304,6 @@ class iSLATPlot:
         # Recreate span selector and redraw
         self.make_span_selector()
         self.canvas.draw_idle()
-        
-        # Synchronize legacy attributes for backwards compatibility
-        self.sync_model_lines()
 
     def onselect(self, xmin, xmax):
         self.current_selection = (xmin, xmax)
@@ -397,7 +384,7 @@ class iSLATPlot:
             self._display_line_info(picked_value)
         self.canvas.draw_idle()
 
-    def find_strongest_line_from_data(self):
+    '''def find_strongest_line_from_data(self):
         """
         Find strongest line directly from molecule's cached line data.
         
@@ -451,7 +438,7 @@ class iSLATPlot:
             return line_info
         except Exception as e:
             debug_config.warning("main_plot", f"Could not find strongest line: {e}")
-            return None
+            return None'''
 
     def flux_integral_basic(self, wave_data, flux_data, err_data, xmin, xmax):
         """
@@ -629,98 +616,36 @@ class iSLATPlot:
     def update_line_inspection_plot(self, xmin=None, xmax=None):
         """
         Update the line inspection plot showing data and active molecule model in the selected range.
-        Uses molecule's built-in caching for optimal performance.
+        Uses only PlotRenderer logic with molecule's built-in caching for optimal performance.
         """
-        self.ax2.clear()
-
         if xmin is None:
             xmin = self.last_xmin if hasattr(self, 'last_xmin') else None
         if xmax is None:
             xmax = self.last_xmax if hasattr(self, 'last_xmax') else None
 
         if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
+            self.plot_renderer.ax2.clear()
             self.canvas.draw_idle()
             return
 
-        # Plot observed data in selected range
-        data_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
-        observed_wave = self.islat.wave_data[data_mask]
-        observed_flux = self.islat.flux_data[data_mask]
-        
-        self.ax2.plot(observed_wave, observed_flux, 
-                     color=self.theme["foreground"], linewidth=1, label="Observed")
-
-        # Plot the active molecule model using its built-in caching
-        active_molecule = self.islat.active_molecule
-        if active_molecule is not None:
-            try:
-                # Use prepare_plot_data method which has proper parameter-hash-aware caching
-                # This matches the same caching method used by PlotRenderer and main spectrum plot
-                result = active_molecule.prepare_plot_data(self.islat.wave_data)
-                
-                if result is not None and len(result) == 2:
-                    plot_lam, model_flux = result
-                    if model_flux is not None and len(model_flux) == len(self.islat.wave_data):
-                        # Filter to selected range
-                        model_wave_range = self.islat.wave_data[data_mask]
-                        model_flux_range = model_flux[data_mask]
-                        
-                        if len(model_wave_range) > 0 and len(model_flux_range) > 0:
-                            label = getattr(active_molecule, 'displaylabel', getattr(active_molecule, 'name', 'Model'))
-                            color = getattr(active_molecule, 'color', 'blue')
-                            self.ax2.plot(model_wave_range, model_flux_range, 
-                                         color=color, linestyle="--", 
-                                         linewidth=1, label=label)
-            except Exception as e:
-                mol_name = self._get_molecule_display_name(active_molecule)
-                debug_config.warning("main_plot", f"Could not get model data for molecule {mol_name}: {e}")
-
-        # Calculate max_y for plot scaling
-        max_y = np.nanmax(observed_flux) if len(observed_flux) > 0 else 1.0
-
-        # Plot fit results if available
-        if self.fit_result is not None:
-            self._plot_fit_results_in_range(xmin, xmax, max_y)
-
-        # Set plot properties
-        self.ax2.set_xlim(xmin, xmax)
-        self.ax2.set_ylim(0, max_y * 1.1)
-        self.ax2.legend()
-        self.ax2.set_title("Line inspection plot")
-        self.ax2.set_xlabel("Wavelength (μm)")
-        self.ax2.set_ylabel("Flux (Jy)")
+        # Delegate all rendering logic to PlotRenderer
+        fit_result = getattr(self, 'fit_result', None)
+        if hasattr(self, 'old_fit_result'):
+            if fit_result == self.old_fit_result:
+                self.old_fit_result = fit_result
+                fit_result = None  # Avoid re-rendering if fit result hasn't changed
+        else:
+            self.old_fit_result = fit_result
+        self.plot_renderer.render_complete_line_inspection_plot(
+            wave_data=self.islat.wave_data,
+            flux_data=self.islat.flux_data,
+            xmin=xmin,
+            xmax=xmax,
+            active_molecule=self.islat.active_molecule,
+            fit_result=fit_result
+        )
 
         self.canvas.draw_idle()
-    
-    def _plot_fit_results_in_range(self, xmin, xmax, max_y):
-        """Helper method to plot fit results in the line inspection plot."""
-        gauss_fit, fitted_wave, fitted_flux = self.fit_result
-        if gauss_fit is not None:
-            # Create x_fit array for plotting (use intersection of fitted_wave and current range)
-            x_fit_mask = (fitted_wave >= xmin) & (fitted_wave <= xmax)
-            x_fit = fitted_wave[x_fit_mask]
-            
-            if len(x_fit) > 0:
-                # Plot the total fit line
-                total_flux = gauss_fit.eval(x=x_fit)
-                self.ax2.plot(x_fit, total_flux, 
-                             color=self.theme.get("total_fit_line_color", "red"), 
-                             linestyle='-', linewidth=1, label="Total Fit Line")
-
-                # Plot individual component lines if it's a multi-component fit
-                if self.fitting_engine.is_multi_component_fit():
-                    components = self.fitting_engine.evaluate_fit_components(x_fit)
-                    component_prefixes = self.fitting_engine.get_component_prefixes()
-                    
-                    for i, prefix in enumerate(component_prefixes):
-                        if prefix in components:
-                            component_flux = components[prefix]
-                            self.ax2.plot(x_fit, component_flux, 
-                                         linestyle='--', linewidth=1, 
-                                         label=f"Component {i+1}")
-
-        # Reset fit_result after plotting
-        self.fit_result = None
 
     def toggle_legend(self):
         ax1_leg = self.ax1.get_legend()
@@ -796,9 +721,6 @@ class iSLATPlot:
         Delegates to PlotRenderer for efficient line management.
         """
         self.plot_renderer.clear_model_lines()
-        # Keep legacy attribute in sync
-        self.model_lines.clear()
-        self.canvas.draw_idle()
     
     def clear_all_plots(self):
         """
@@ -807,14 +729,6 @@ class iSLATPlot:
         """
         self.plot_renderer.clear_all_plots()
         self.canvas.draw_idle()
-    
-    def invalidate_population_diagram_cache(self):
-        """
-        Force the population diagram to re-render on next call.
-        Since we no longer use PlotRenderer caching, this is a no-op.
-        """
-        # Population diagram no longer uses PlotRenderer cache - molecules handle their own caching
-        pass
     
     def optimize_plot_memory(self):
         """
@@ -970,7 +884,8 @@ class iSLATPlot:
     
     def on_molecule_visibility_changed(self, molecule_name, is_visible):
         """
-        Handle molecule visibility changes with selective rendering.
+        Handle molecule visibility changes by delegating to PlotRenderer.
+        Minimal logic here - PlotRenderer handles all the complexity and caching.
         
         Parameters
         ----------
@@ -979,73 +894,46 @@ class iSLATPlot:
         is_visible : bool
             New visibility state
         """
-        if not hasattr(self.islat, 'molecules_dict') or molecule_name not in self.islat.molecules_dict:
+        if not hasattr(self.islat, 'molecules_dict'):
             return
         
-        molecule = self.islat.molecules_dict[molecule_name]
+        # Get current selection for potential line inspection update
+        current_selection = getattr(self, 'current_selection', None)
+        active_molecule = getattr(self.islat, 'active_molecule', None)
         
-        if is_visible:
-            # Add this molecule's spectrum to the plot
-            self._add_molecule_to_plot(molecule)
-            # Update summed spectrum
-            self._update_summed_spectrum()
-        else:
-            # Remove this molecule's spectrum from the plot
-            self._remove_molecule_from_plot(molecule_name)
-            # Update summed spectrum
-            self._update_summed_spectrum()
+        # Delegate everything to PlotRenderer's comprehensive method
+        self.plot_renderer.handle_molecule_visibility_change(
+            molecule_name=molecule_name,
+            is_visible=is_visible,
+            molecules_dict=self.islat.molecules_dict,
+            wave_data=self.islat.wave_data,
+            active_molecule=active_molecule,
+            current_selection=current_selection
+        )
         
-        # If the active molecule's visibility changed, update line inspection
-        if (hasattr(self.islat, 'active_molecule') and 
-            self.islat.active_molecule and 
-            hasattr(self.islat.active_molecule, 'name') and
-            self.islat.active_molecule.name == molecule_name and
-            hasattr(self, 'current_selection') and self.current_selection):
-            
-            xmin, xmax = self.current_selection
-            self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
-        
+        # Only canvas update needed in MainPlot
         self.canvas.draw_idle()
 
     def _add_molecule_to_plot(self, molecule):
-        """Add a single molecule's spectrum to the plot without affecting others"""
+        """Add a single molecule's spectrum using PlotRenderer - minimal logic"""
         if not self._convert_visibility_to_bool(molecule.is_visible):
             return
         
-        # Use PlotRenderer to add just this molecule
-        success = self.plot_renderer.render_individual_molecule_spectrum(
+        # Delegate to PlotRenderer with minimal logic
+        return self.plot_renderer.render_individual_molecule_spectrum(
             molecule, self.islat.wave_data
         )
-        if success:
-            # Keep legacy model_lines in sync
-            self.sync_model_lines()
-
-    def _remove_molecule_from_plot(self, molecule_name):
-        """Remove a single molecule's spectrum from the plot without affecting others"""
-        # Remove lines associated with this molecule from the plot
-        self.plot_renderer.remove_molecule_lines(molecule_name)
-        # Keep legacy model_lines in sync
-        self.sync_model_lines()
 
     def _update_summed_spectrum(self):
-        """Update only the summed spectrum without re-rendering individual molecules"""
-        visible_molecules = [mol for mol in self.islat.molecules_dict.values() 
-                            if self._convert_visibility_to_bool(mol.is_visible)]
+        """Update summed spectrum by delegating to PlotRenderer - minimal logic"""
+        if not hasattr(self.islat, 'molecules_dict'):
+            return
         
-        # Calculate new summed flux using cached data
-        summed_flux = np.zeros_like(self.islat.wave_data)
-        for molecule in visible_molecules:
-            try:
-                result = molecule.prepare_plot_data(self.islat.wave_data)
-                if result is not None and len(result) == 2:
-                    plot_lam, plot_flux = result
-                    if plot_flux is not None and len(plot_flux) == len(summed_flux):
-                        summed_flux += plot_flux
-            except Exception as e:
-                continue
-        
-        # Update only the summed spectrum plot
-        self.plot_renderer.update_summed_spectrum_only(self.islat.wave_data, summed_flux)
+        # Delegate to PlotRenderer's optimized method that uses advanced caching
+        self.plot_renderer._update_summed_spectrum_with_molecules(
+            self.islat.molecules_dict, 
+            self.islat.wave_data
+        )
     
     def batch_update_molecule_colors(self, molecule_color_map):
         """
@@ -1185,43 +1073,8 @@ class iSLATPlot:
                 self.update_all_plots()
         except:
             pass
-
-    @property 
-    def model_lines_sync(self):
-        """
-        Synchronized access to model lines from PlotRenderer.
-        Ensures legacy code has access to current model lines.
-        """
-        if hasattr(self, 'plot_renderer') and self.plot_renderer:
-            # Keep legacy attribute in sync
-            self.model_lines = self.plot_renderer.model_lines.copy()
-        return self.model_lines
     
-    def sync_model_lines(self):
-        """
-        Synchronize legacy model_lines attribute with PlotRenderer.
-        Call this after operations that modify model lines.
-        """
-        if hasattr(self, 'plot_renderer') and self.plot_renderer:
-            self.model_lines = self.plot_renderer.model_lines.copy()
-    
-    def update_model_plot_with_sync(self):
-        """
-        Update the model plot and ensure legacy attributes are synchronized.
-        This method ensures backwards compatibility while using optimized rendering.
-        """
-        self.update_model_plot()
-        self.sync_model_lines()
-    
-    def refresh_all_plots_with_sync(self):
-        """
-        Refresh all plots and synchronize legacy attributes.
-        Use this method when you need to ensure complete consistency.
-        """
-        self.update_all_plots()
-        self.sync_model_lines()
-    
-    def on_cached_data_loaded(self, molecules_dict=None):
+    '''def on_cached_data_loaded(self, molecules_dict=None):
         """
         Called when cached molecular data is loaded from file.
         
@@ -1238,10 +1091,7 @@ class iSLATPlot:
             molecules_dict = self.islat.molecules_dict
         
         if not molecules_dict:
-            return
-        
-        # Don't invalidate caches - the issue is in plot rendering, not cache validity
-        # The loaded molecules should already have their cached calculations
+            return'''
         
     def on_cached_data_loaded(self, molecules_dict=None):
         """
