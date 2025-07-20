@@ -1,16 +1,16 @@
 import matplotlib
 matplotlib.use("TkAgg")
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+
 import numpy as np
 
 import iSLAT.Constants as c
-from iSLAT.Modules.DataTypes.Molecule import Molecule
 
-# Import the new modular classes
 from .PlotRenderer import PlotRenderer
+from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 
