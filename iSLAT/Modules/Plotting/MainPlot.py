@@ -11,7 +11,6 @@ from iSLAT.Modules.DataTypes.Molecule import Molecule
 
 # Import the new modular classes
 from .PlotRenderer import PlotRenderer
-from iSLAT.Modules.DataProcessing.DataProcessor import DataProcessor
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 
@@ -80,7 +79,6 @@ class iSLATPlot:
 
         # Initialize the modular classes
         self.plot_renderer = PlotRenderer(self)
-        self.data_processor = DataProcessor(self)
         self.interaction_handler = InteractionHandler(self)
         self.fitting_engine = FittingEngine(self.islat)
         self.line_analyzer = LineAnalyzer(self.islat)
