@@ -1,0 +1,55 @@
+{
+    "theme_name": "Dark Pink Theme",
+    "description": "A dark pink theme for iSLAT with electric pink accents, dark backgrounds, and high-contrast neon elements.",
+    "foreground": "#FFFFFF",
+    "background": "#0D0812",
+    "background_accent_color": "#1A0F1F",
+    "toolbar": "#1A0F1F",
+    "graph_fill_color": "#120A18",
+    "axis_text_label_color": "#FFFFFF",
+    "selection_color": "#FF1493",
+    "uncertainty_band_color": "#2D1B35",
+    "toolbar_highlight_background": "#1A0F1F",
+    "toolbar_highlight_color": "#FF1493",
+    "toolbar_active_color": "#FFFFFF",
+    "highlight": "#FF00FF",
+    "fit_line_color": "#FF69B4",
+    "scatter_main_color": "#DA70D6",
+    "active_scatter_line_color": "#FF1493",
+    "active_scatter_selected_line_color": "#FF00FF",
+    "total_fit_line_color": "#FF69B4",
+    "single_line_plot_color": "#FF1493",
+    "summed_spectra_color": "#8B008B",
+    "saved_line_color": "#FF00FF",
+    "saved_line_color_two": "#FF69B4",
+    "highlighted_line_color": "#FF00FF",
+    "delete_button_bg_color": "#DC143C",
+    "delete_button_fg_color": "#FFFFFF",
+    "data_field_background": "#1A0F1F",
+    "buttons": {
+        "DefaultBotton": {
+            "background": "#1A0F1F",
+            "active_background": "#FF1493",
+            "description": "If a button is not specified, this will be used as the default button style."
+        },
+        "ToggleLegend": {
+            "background": "#1A0F1F",
+            "active_background": "#FF1493"
+        }
+    },
+    "default_molecule_colors": [
+        "#FF1493",
+        "#FF69B4",
+        "#FF00FF",
+        "#DA70D6",
+        "#FF00AA",
+        "#FF3399",
+        "#FF0080",
+        "#E6007A",
+        "#CC0066",
+        "#B30059",
+        "#99004D",
+        "#800040",
+        "#660033"
+    ]
+}

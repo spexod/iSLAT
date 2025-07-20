@@ -1,0 +1,47 @@
+{
+    "default_initial_params": {
+        "scale_exponent": 17,
+        "scale_number": 1,
+        "t_kin": 600,
+        "radius_init": 0.5
+    },
+
+    "initial_parameters": {
+        "H2O": {
+            "scale_exponent": 18,
+            "scale_number": 1,
+            "t_kin": 850,
+            "radius_init": 0.5
+        },
+        "OH": {
+            "scale_exponent": 16,
+            "scale_number": 1,
+            "t_kin": 2000,
+            "radius_init": 0.3
+        },
+        "HCN": {
+            "scale_exponent": 16,
+            "scale_number": 1,
+            "t_kin": 850,
+            "radius_init": 0.5
+        },
+        "C2H2": {
+            "scale_exponent": 17,
+            "scale_number": 1,
+            "t_kin": 600,
+            "radius_init": 0.1
+        },
+        "CO2": {
+            "scale_exponent": 17,
+            "scale_number": 1,
+            "t_kin": 300,
+            "radius_init": 0.5
+        },
+        "CO": {
+            "scale_exponent": 18,
+            "scale_number": 1,
+            "t_kin": 1200,
+            "radius_init": 0.4
+        }
+    }
+}

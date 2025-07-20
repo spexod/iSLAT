@@ -1,0 +1,62 @@
+{
+    "global_fields": {
+        "distance": {
+            "label": "Distance:",
+            "property": "global_distance",
+            "datatype": "float",
+            "format": "{:.2f}",
+            "default": 140.0,
+            "width": 12
+        }
+    },
+    "molecule_fields": {
+        "temp": {
+            "label": "Temperature:",
+            "attribute": "temp",
+            "datatype": "float",
+            "format": "{:.2f}",
+            "default": 300.0,
+            "width": 12
+        },
+        "radius": {
+            "label": "Radius:",
+            "attribute": "radius",
+            "datatype": "float",
+            "format": "{:.2f}",
+            "default": 1.0,
+            "width": 12
+        },
+        "n_mol": {
+            "label": "Column Density:",
+            "attribute": "n_mol",
+            "datatype": "float",
+            "format": "{:.2e}",
+            "default": 1e15,
+            "width": 12
+        },
+        "stellar_rv": {
+            "label": "Stellar RV:",
+            "attribute": "stellar_rv",
+            "datatype": "float",
+            "format": "{:.2f}",
+            "default": 0.0,
+            "width": 12
+        },
+        "fwhm": {
+            "label": "FWHM:",
+            "attribute": "fwhm",
+            "datatype": "float",
+            "format": "{:.2f}",
+            "default": 0.1,
+            "width": 12
+        },
+        "broad": {
+            "label": "Broadening:",
+            "attribute": "broad",
+            "datatype": "float",
+            "format": "{:.2f}",
+            "default": 0.1,
+            "width": 12
+        }
+    }
+}
