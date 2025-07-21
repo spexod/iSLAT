@@ -11,13 +11,14 @@ from .ResizableFrame import ResizableFrame
 class BottomOptions(ResizableFrame):
     def __init__(self, master, islat, theme, main_plot, data_field, config):
         # Initialize the ResizableFrame with theme
-        super().__init__(master, theme=theme, borderwidth=2, relief="groove")
+        super().__init__(master, theme=theme, borderwidth=1, relief="groove")
         
         self.master = master
         self.islat = islat
         self.main_plot = main_plot
         self.data_field = data_field
         self.config = config
+
 
         # Create buttons for options
         self._create_buttons()

@@ -353,13 +353,13 @@ class GUI:
         self.window.title("iSLAT Version 5.00.00")
         
         # Configure main window for resizable layout
-        self.window.grid_rowconfigure(0, weight=1)
-        self.window.grid_rowconfigure(1, weight=0, minsize=60)
+        self.window.grid_rowconfigure(0, weight=0)
+        self.window.grid_rowconfigure(1, weight=1)
         self.window.grid_columnconfigure(0, weight=1)
         
         # Create a main container frame
         main_container = tk.Frame(self.window)
-        main_container.grid(row=0, column=0, sticky="nsew")
+        main_container.grid(row=1, column=0, sticky="nsew")
         
         # Create horizontal resizable frame for left panel and plot area
         self.main_resizable = ResizableFrame(main_container, orientation='horizontal', sash_size=6, theme=self.theme)
@@ -403,8 +403,8 @@ class GUI:
 
         # Bottom function buttons
         self.bottom_options = BottomOptions(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.config)
-        self.bottom_options.grid(row=1, column=0, columnspan=2, sticky="ew")
-        
+        self.bottom_options.grid(row=0, column=0, columnspan=2, sticky="nsew")
+
         # BottomOptions now handles its own theming through ResizableFrame inheritance
 
         # Force theme updates to catch any missed widgets
