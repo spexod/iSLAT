@@ -9,6 +9,7 @@ from .Widgets.MoleculeWindow import MoleculeWindow
 from .Widgets.ControlPanel import ControlPanel
 from .Widgets.TopOptions import TopOptions
 from .Widgets.BottomOptions import BottomOptions
+from .Widgets.TopBar import TopBar
 from .Widgets.ResizableFrame import ResizableFrame
 from .Widgets.FileInteractionPane import FileInteractionPane
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -249,8 +250,8 @@ class GUI:
         if hasattr(self, 'top_options') and hasattr(self.top_options, 'apply_theme'):
             self.top_options.apply_theme(self.theme)
             
-        if hasattr(self, 'bottom_options') and hasattr(self.bottom_options, 'apply_theme'):
-            self.bottom_options.apply_theme(self.theme)
+        if hasattr(self, 'top_bar') and hasattr(self.top_bar, 'apply_theme'):
+            self.top_bar.apply_theme(self.theme)
             
         # Apply theme to file interaction pane
         if hasattr(self, 'file_interaction_pane') and hasattr(self.file_interaction_pane, 'apply_theme'):
@@ -402,8 +403,8 @@ class GUI:
         self.build_left_panel(left_frame)
 
         # Bottom function buttons
-        self.bottom_options = BottomOptions(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.config)
-        self.bottom_options.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.top_bar = TopBar(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.config)
+        self.top_bar.grid(row=0, column=0, columnspan=2, sticky="nsew")
 
         # BottomOptions now handles its own theming through ResizableFrame inheritance
 
