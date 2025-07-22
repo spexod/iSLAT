@@ -304,18 +304,16 @@ class GUI:
         self.left_resizable.pack(fill="both", expand=True, padx=2, pady=2)
         
         # Create individual frames for each component
-        top_options_frame = tk.Frame(self.left_resizable)
         control_panel_frame = tk.Frame(self.left_resizable)
         file_selector_frame = tk.Frame(self.left_resizable)
         data_field_frame = tk.Frame(self.left_resizable)
         
         # Apply theme to frames
-        for frame in [top_options_frame, control_panel_frame, file_selector_frame, data_field_frame]:
+        for frame in [control_panel_frame, file_selector_frame, data_field_frame]:
             frame.configure(bg=self.theme["background"])
         
         # Add frames to resizable container with different weights and minimum sizes
         # Enable dynamic sizing for frames that can have variable content
-        self.left_resizable.add_frame(top_options_frame, weight=0, minsize=80, dynamic_minsize=True)
         self.left_resizable.add_frame(control_panel_frame, weight=2, minsize=120, dynamic_minsize=True)
         self.left_resizable.add_frame(file_selector_frame, weight=0, minsize=80, dynamic_minsize=True)
         self.left_resizable.add_frame(data_field_frame, weight=4, minsize=200, dynamic_minsize=False)
@@ -326,11 +324,7 @@ class GUI:
         
         # DataField now handles its own theming through ResizableFrame inheritance
 
-        # Top control buttons - now we can pass data_field
-        self.top_options = TopOptions(top_options_frame, self.islat_class, theme=self.theme, data_field=self.data_field)
-        self.top_options.pack(fill="both", expand=True, padx=5, pady=2)
         
-        # TopOptions now handles its own theming through ResizableFrame inheritance
 
         # Control panel for input parameters - ControlPanel now inherits from ResizableFrame
         self.control_panel = ControlPanel(control_panel_frame, self.islat_class)
