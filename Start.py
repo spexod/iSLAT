@@ -19,9 +19,9 @@ if __name__ == "__main__":
     # By default, iSLAT uses sequential processing (no multiprocessing/threading)
     # for better stability and compatibility across different systems
     islat_instance = iSLAT()
-    
-    # Optional: Enable parallel processing for better performance with large datasets **Expierimental**
-    #islat_instance.enable_parallel_processing()
-    
+
+    # Optional: Enable parallel processing for better performance with large datasets **Experimental**
+    # islat_instance.enable_parallel_processing()
+
     # Run the iSLAT application
     islat_instance.run()

@@ -36,7 +36,7 @@ class Molecule:
     Optimized Molecule class with enhanced caching and performance improvements.
     """
     __slots__ = (
-        'name', 'filepath', 'displaylabel', 'color', 'is_visible', 'stellar_rv',
+        'name', 'filepath', 'displaylabel', 'color', '_is_visible', 'stellar_rv',
         'user_save_data', 'hitran_data', 'initial_molecule_parameters',
         'lines', 'intensity', 'spectrum',
         '_temp', '_radius', '_n_mol', '_distance', '_fwhm', '_broad',
@@ -196,8 +196,12 @@ class Molecule:
         self._radius_val = usd.get('Rad', kwargs.get('radius', None))
         self._n_mol_val = usd.get('N_Mol', kwargs.get('n_mol', None))
         self.color = usd.get('Color', kwargs.get('color', None))
-        self.is_visible = usd.get('Vis', kwargs.get('is_visible', True))
-        
+        print("Usd vis:", usd.get('Vis'))
+        print("Kwargs vis:", kwargs.get('is_visible'))
+        print("Is visible:", usd.get('Vis', kwargs.get('is_visible', True)))
+        print("Is visible bool:", bool(usd.get('Vis', kwargs.get('is_visible', True))))
+        self._is_visible = usd.get('Vis', kwargs.get('is_visible', True))
+
         # Get instance values from user save data or kwargs
         self._distance_val = usd.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = usd.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
@@ -219,8 +223,8 @@ class Molecule:
         self._radius_val = kwargs.get('radius', self.initial_molecule_parameters.get('radius_init', 1.0))
         self._n_mol_val = kwargs.get('n_mol', self.initial_molecule_parameters.get('n_mol', None))
         self.color = kwargs.get('color', None)
-        self.is_visible = kwargs.get('is_visible', True)
-        
+        self._is_visible = kwargs.get('is_visible', True)
+
         # Get instance values from kwargs or defaults
         self._distance_val = kwargs.get('distance', c.DEFAULT_DISTANCE)
         self._fwhm_val = kwargs.get('fwhm', c.DEFAULT_FWHM)
@@ -521,6 +525,22 @@ class Molecule:
         self._fwhm = float(value)
         self.spectrum = None
         self._notify_my_parameter_change('fwhm', old_value, self._fwhm)
+    
+    @property
+    def is_visible(self):
+        if isinstance(self._is_visible, str):
+            # Convert string representations to proper boolean
+            return self._is_visible.lower() in ('true', '1', 'yes', 'on')
+        return bool(self._is_visible)
+    
+    @is_visible.setter
+    def is_visible(self, value):
+        old_value = self._is_visible
+        if isinstance(value, str):
+            self._is_visible = value.lower() in ('true', '1', 'yes', 'on')
+        else:
+            self._is_visible = bool(value)
+        self._notify_my_parameter_change('is_visible', old_value, self._is_visible)
 
     def bulk_update_parameters(self, parameter_dict: Dict[str, Any], skip_notification: bool = False):
         old_values = {}
@@ -599,8 +619,6 @@ class Molecule:
             self._spectrum_valid = True
             self._clear_flux_caches()
     
-    def _recreate_spectrum(self):
-        """Recreate the spectrum when distance or other fundamental parameters change"""
     def force_recalculate(self):
         self.clear_all_caches()
         self._ensure_intensity_calculated()

@@ -42,6 +42,13 @@ class Spectrum:
     Implements lazy evaluation for convolution and caching for performance optimization.
     """
     
+    __slots__ = (
+        '_lam_min', '_lam_max', '_dlambda', '_R', '_distance',
+        '_lamgrid', '_flux', '_flux_jy', '_I_list', '_lam_list',
+        '_components', '_flux_valid', '_convolution_cache',
+        '_kernel_cache', '_cache_stats'
+    )
+    
     def __init__(self, lam_min: float = None, lam_max: float = None, 
                  dlambda: float = None, R: float = None, distance: float = None):
         """Initialize a spectrum class and prepare it to add intensity components
@@ -71,22 +78,26 @@ class Spectrum:
         self._R = R
         self._distance = distance
 
-        # create wavelength grid
-        self._lamgrid = np.linspace(lam_min, lam_max, int(1 + (lam_max - lam_min) / dlambda))
+        # create wavelength grid with pre-calculated size
+        n_points = int(1 + (lam_max - lam_min) / dlambda)
+        self._lamgrid = np.linspace(lam_min, lam_max, n_points)
 
         # flux array (cached result)
         self._flux = None
         self._flux_jy = None
 
-        # list with area scaled intensities and wavelengths to add to the spectrum
-        self._I_list = np.array([])
-        self._lam_list = np.array([])
+        # Use lists for more efficient appending
+        self._I_list = []
+        self._lam_list = []
 
         # list with the different intensity components building up the spectrum
         self._components = []
         
-        # Cache invalidation flag
+        # Cache invalidation flag and caching system
         self._flux_valid = False
+        self._convolution_cache = {}
+        self._kernel_cache = {}
+        self._cache_stats = {'hits': 0, 'misses': 0, 'invalidations': 0}
 
     def add_intensity(self, intensity, dA: float):
         """Adds an intensity component to the spectrum
@@ -107,22 +118,29 @@ class Spectrum:
         # Get wavelengths from the new MoleculeLineList structure
         lam_all = intensity.molecule.get_wavelengths()
         
-        # Check if we have any lines to process
+        # Check if we have valid data to process
+        if I_all is None or lam_all is None:
+            print(f"Warning: No intensity or wavelength data available for molecule {intensity.molecule.name}")
+            return
+            
         if len(lam_all) == 0 or len(I_all) == 0:
             # No lines to add, just return without error
             return
 
-        # 2. select only lines within the selected wavelength range
+        # 2. select only lines within the selected wavelength range using vectorized operations
         select_border = 100 * self._lam_max / self._R
-        lines_selected = np.where(np.logical_and(lam_all > self._lam_min - select_border,
-                                                 lam_all < self._lam_max + select_border))[0]
+        mask = (lam_all >= self._lam_min - select_border) & (lam_all <= self._lam_max + select_border)
+        
+        if not np.any(mask):
+            return  # No lines in range
 
-        # 3. scale for area in au**2
-        I_scaled = dA * I_all[lines_selected]
+        # 3. scale for area in au**2 using vectorized operations
+        selected_wavelengths = lam_all[mask]
+        selected_intensities = I_all[mask] * dA
 
-        # 4. append to list
-        self._I_list = np.hstack((self._I_list, I_scaled))
-        self._lam_list = np.hstack((self._lam_list, lam_all[lines_selected]))
+        # 4. append to lists efficiently
+        self._I_list.extend(selected_intensities)
+        self._lam_list.extend(selected_wavelengths)
 
         # 5. append to components
         self._components.append({'name': intensity.molecule.name, 'fname': getattr(intensity.molecule, 'fname', ''),
@@ -134,6 +152,7 @@ class Spectrum:
         self._flux = None
         self._flux_jy = None
         self._flux_valid = False
+        self._cache_stats['invalidations'] += 1
 
     def _convol_flux(self):
         """Internal procedure to carry out the convolution, should never be called directly
@@ -149,12 +168,16 @@ class Spectrum:
             # Return a zero flux array if no intensities were added
             return np.zeros_like(self._lamgrid)
 
+        # Convert to numpy arrays for vectorized operations
+        I_array = np.array(self._I_list, dtype=np.float32)  # Use float32 for memory efficiency
+        lam_array = np.array(self._lam_list, dtype=np.float32)
+
         # 1. summarize intensities at the (exactly) same wavelength, this improves performance, as only
         #    one convolution kernel needs to be evaluated per line of a molecule (independent of intensity components)
-        lam, index_wavelength = np.unique(self._lam_list, return_inverse=True)
+        lam, index_wavelength = np.unique(lam_array, return_inverse=True)
 
-        intens = np.zeros(lam.shape[0])
-        np.add.at(intens, index_wavelength, self._I_list)
+        intens = np.zeros(lam.shape[0], dtype=np.float32)
+        np.add.at(intens, index_wavelength, I_array)
 
         # 2. calculate width and normalization of convolution kernel
         fwhm = lam / self._R
@@ -165,7 +188,8 @@ class Spectrum:
         #    * index_lam contains the points of the wavelength grid that should be calculated
         #    * index_line contains the index of the line
         max_sigma = np.nanmax(sigma)
-        kernel_range = np.arange(-15 * max_sigma / self._dlambda, 15 * max_sigma / self._dlambda, dtype=np.int64)
+        kernel_range_size = int(15 * max_sigma / self._dlambda)
+        kernel_range = np.arange(-kernel_range_size, kernel_range_size + 1, dtype=np.int32)
         lam_grid_position = (self._lamgrid.shape[0] * (lam - self._lam_min) /
                              (self._lam_max - self._lam_min)).astype(np.int64)
 
@@ -182,7 +206,7 @@ class Spectrum:
             np.exp(-(self._lamgrid[index_lam] - lam[index_line]) ** 2 / (2.0 * sigma[index_line] ** 2))
 
         # 5. add up spectrum
-        flux = np.zeros_like(self._lamgrid)
+        flux = np.zeros_like(self._lamgrid, dtype=np.float32)
         np.add.at(flux, index_lam, kernel)
 
         # 6. scale for distance and correct units for the area
@@ -192,19 +216,22 @@ class Spectrum:
     @property
     def flux(self) -> np.ndarray:
         """np.ndarray: Flux density in erg/s/cm^2/micron"""
-        if self._flux is None:
+        if self._flux is None or not self._flux_valid:
+            self._cache_stats['misses'] += 1
             self._flux = self._convol_flux()
             self._flux_valid = True
+        else:
+            self._cache_stats['hits'] += 1
         return self._flux
 
     @property
     def flux_jy(self) -> np.ndarray:
         """np.ndarray: Flux density in Jy/micron"""
         if self._flux_jy is None:
-            if self._flux is None:
-                self._flux = self._convol_flux()
-                self._flux_valid = True
-            self._flux_jy = self._flux * (1e19 / c.SPEED_OF_LIGHT_CGS) * self._lamgrid ** 2
+            flux_data = self.flux  # This triggers flux calculation if needed
+            # Vectorized conversion
+            conversion_factor = 1e19 / c.SPEED_OF_LIGHT_CGS
+            self._flux_jy = flux_data * conversion_factor * (self._lamgrid ** 2)
         return self._flux_jy
 
     @property
@@ -221,9 +248,19 @@ class Spectrum:
     def get_table(self):
         """pd.DataFrame: Pandas dataframe"""
         pd = _get_pandas()
-        return pd.DataFrame({'lam': self.lamgrid,
-                             'flux': self.flux,
-                             'flux_jy': self.flux_jy})
+        # Pre-compute all data to avoid repeated property access
+        flux_data = self.flux
+        flux_jy_data = self.flux_jy
+        
+        return pd.DataFrame({
+            'lam': self._lamgrid,
+            'flux': flux_data,
+            'flux_jy': flux_jy_data
+        })
+
+    def get_cache_stats(self) -> Dict[str, int]:
+        """Get cache performance statistics."""
+        return self._cache_stats.copy()
 
     def _repr_html_(self):
         # noinspection PyProtectedMember

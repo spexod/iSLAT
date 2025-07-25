@@ -96,12 +96,6 @@ class PlotRenderer:
         # Remove molecule change callbacks since we don't cache data anymore
     
     # Helper methods for common operations
-    def _convert_visibility_to_bool(self, is_visible_raw: Any) -> bool:
-        """Convert various visibility representations to boolean"""
-        if isinstance(is_visible_raw, str):
-            return is_visible_raw.lower() in ('true', '1', 'yes', 'on')
-        return bool(is_visible_raw)
-    
     def _get_molecule_display_name(self, molecule: 'Molecule') -> str:
         """Get display name for a molecule"""
         return getattr(molecule, 'displaylabel', getattr(molecule, 'name', 'unknown'))
@@ -385,9 +379,6 @@ class PlotRenderer:
             except Exception as e:
                 mol_name = self._get_molecule_display_name(active_molecule)
                 debug_config.warning("plot_renderer", f"Could not get model data for molecule {mol_name}: {e}")
-        
-        '''if self._should_clear_old_fits():
-            self._clear_old_fit_results_in_range(xmin, xmax)'''
 
         # Plot fit results if available
         if fit_result is not None:
@@ -414,7 +405,31 @@ class PlotRenderer:
                 fit_mask = (fitted_wave >= xmin) & (fitted_wave <= xmax)
                 if np.any(fit_mask):
                     self.ax2.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], 
-                                 color='red', linewidth=2, label='Fit')
+                                color='red', linewidth=2, label='Total Fit')
+                    
+                    # Check if this is a multi-component fit by looking at the fit result structure
+                    if hasattr(gauss_fit, 'params') and gauss_fit.params:
+                        # Count components by looking for numbered prefixes (g1_, g2_, etc.)
+                        component_prefixes = set()
+                        for param_name in gauss_fit.params:
+                            if '_' in param_name:
+                                prefix = param_name.split('_')[0] + '_'
+                                if prefix.startswith('g') and prefix[1:-1].isdigit():
+                                    component_prefixes.add(prefix)
+                        
+                        # If multi-component, plot individual components
+                        if len(component_prefixes) > 1:
+                            try:
+                                components = gauss_fit.eval_components(x=fitted_wave[fit_mask])
+                                for i, prefix in enumerate(sorted(component_prefixes)):
+                                    if prefix in components:
+                                        component_flux = components[prefix]
+                                        self.ax2.plot(fitted_wave[fit_mask], component_flux, 
+                                                    linestyle='--', linewidth=1, 
+                                                    label=f"Component {i+1}")
+                            except Exception as e:
+                                debug_config.warning("plot_renderer", f"Could not plot fit components: {e}")
+
         except Exception as e:
             debug_config.warning("plot_renderer", f"Could not render fit results: {e}")
     
@@ -620,70 +635,14 @@ class PlotRenderer:
                            alpha=0.8, picker=True, zorder=5)
     
     def get_visible_molecules(self, molecules: Union['MoleculeDict', List['Molecule']]) -> List['Molecule']:
-        """Get visible molecules using the most efficient method available"""
+        """Get visible molecules using the MoleculeDict's optimized method"""
         
         debug_config.trace("plot_renderer", f"molecules type = {type(molecules)}")
-        debug_config.trace("plot_renderer", f"hasattr(molecules, 'get_visible_molecules_fast') = {hasattr(molecules, 'get_visible_molecules_fast')}")
-        debug_config.trace("plot_renderer", f"hasattr(molecules, 'values') = {hasattr(molecules, 'values')}")
-        debug_config.trace("plot_renderer", f"hasattr(molecules, '__iter__') = {hasattr(molecules, '__iter__')}")
         
-        if hasattr(molecules, 'get_visible_molecules_fast'):
-            # MoleculeDict with fast access
-            visible_names = molecules.get_visible_molecules_fast()
-            visible_molecules = [molecules[name] for name in visible_names if name in molecules]
-            debug_config.trace("plot_renderer", f"get_visible_molecules_fast(): {len(visible_molecules)}/{len(molecules)} molecules visible: {visible_names}")
-            return visible_molecules
-        elif hasattr(molecules, 'values'):
-            # Regular dict-like object - check each molecule's is_visible attribute
-            debug_config.trace("plot_renderer", "Using values() path for dict-like object")
-            visible_molecules = []
-            for mol in molecules.values():
-                is_visible_raw = getattr(mol, 'is_visible', False)
-                mol_name = getattr(mol, 'name', 'unknown')
-                
-                # Use consolidated conversion method
-                is_visible = self._convert_visibility_to_bool(is_visible_raw)
-                    
-                debug_config.trace("plot_renderer", f"Checking {mol_name}: is_visible_raw = {is_visible_raw} -> is_visible = {is_visible}")
-                if is_visible:
-                    visible_molecules.append(mol)
-            debug_config.trace("plot_renderer", f"values() path result: {len(visible_molecules)}/{len(molecules)} molecules visible")
-            return visible_molecules
-        elif hasattr(molecules, '__iter__'):
-            # List-like object
-            debug_config.trace("plot_renderer", "Using __iter__ path for list-like object")
-            visible_molecules = []
-            total_count = 0
-            for mol in molecules:
-                total_count += 1
-                is_visible_raw = getattr(mol, 'is_visible', False)
-                mol_name = getattr(mol, 'name', 'unknown')
-                mol_id = id(mol)
-                
-                # Use consolidated conversion method
-                is_visible = self._convert_visibility_to_bool(is_visible_raw)
-                
-                debug_config.trace("plot_renderer", f"Checking {mol_name} (id:{mol_id}): is_visible_raw = {is_visible_raw} (type: {type(is_visible_raw)}) -> is_visible = {is_visible}")
-                
-                if is_visible:
-                    visible_molecules.append(mol)
-                    debug_config.trace("plot_renderer", f"ADDED {mol_name} to visible_molecules list (list length now: {len(visible_molecules)})")
-                else:
-                    debug_config.trace("plot_renderer", f"SKIPPED {mol_name} (not visible)")
-                
-            debug_config.trace("plot_renderer", f"Final visible_molecules list length: {len(visible_molecules)}")
-            debug_config.trace("plot_renderer", f"__iter__ path result: {len(visible_molecules)}/{total_count} molecules visible")
-            return visible_molecules
-        else:
-            # Single molecule
-            is_visible_raw = getattr(molecules, 'is_visible', False)
-            
-            # Use consolidated conversion method
-            is_visible = self._convert_visibility_to_bool(is_visible_raw)
-                
-            result = [molecules] if is_visible else []
-            debug_config.trace("plot_renderer", f"Single molecule visibility: is_visible_raw = {is_visible_raw} -> is_visible = {is_visible} -> {'visible' if is_visible else 'hidden'}")
-            return result
+        visible_names = molecules.get_visible_molecules()
+        visible_molecules = [molecules[name] for name in visible_names if name in molecules]
+        debug_config.trace("plot_renderer", f"get_visible_molecules(): {len(visible_molecules)}/{len(molecules)} molecules visible: {visible_names}")
+        return visible_molecules
     
     def render_visible_molecules(self, wave_data: np.ndarray, molecules: Union['MoleculeDict', List['Molecule']]) -> None:
         """
@@ -1223,10 +1182,9 @@ class PlotRenderer:
     def render_individual_molecule_spectrum(self, molecule: 'Molecule', wave_data: np.ndarray, 
                                          plot_name: Optional[str] = None) -> bool:
         """
-        Render a single molecule spectrum using ONLY the molecule's cached data.
+        Render a single molecule spectrum using the molecule's cached data.
         
         No additional caching layers - complete reliance on molecule's caching system.
-        Enhanced with cache debugging to diagnose 850°→950°→850° issues.
         
         Parameters
         ----------
@@ -1295,7 +1253,9 @@ class PlotRenderer:
             self.model_lines.append(line)
             self._plot_stats['molecules_rendered'] += 1
             
-            print(f"Successfully rendered spectrum for {molecule_name} with {len(plot_flux)} data points")
+            # Only print success message if not in batch update mode (to reduce console spam)
+            if not getattr(self.islat, '_batch_update_in_progress', False):
+                print(f"Successfully rendered spectrum for {molecule_name} with {len(plot_flux)} data points")
             return True
             
         except Exception as e:
@@ -1363,8 +1323,6 @@ class PlotRenderer:
     def debug_molecule_cache_status(self, molecule: 'Molecule') -> Dict[str, Any]:
         """
         Debug the cache status of a molecule to understand why plots aren't updating.
-        
-        This helps diagnose issues like 850°→950°→850° not updating correctly.
         """
         if molecule is None:
             return {'error': 'No molecule provided'}

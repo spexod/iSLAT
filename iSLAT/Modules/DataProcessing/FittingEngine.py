@@ -220,7 +220,9 @@ class FittingEngine:
         fwhmtolerance = self.islat.user_settings.get('fwhmtolerance', 5)
         
         # Get FWHM from the molecule dict (can be updated at runtime)
-        fwhm = self.islat.molecules_dict.global_fwhm  # km/s
+        #fwhm = self.islat.molecules_dict.global_fwhm  # km/s
+        fwhm = self.islat.active_molecule.fwhm  # km/s
+        print(f"Using FWHM: {fwhm} km/s")
         mean_wavelength = np.mean([xmin or wave_data.min(), xmax or wave_data.max()])
         fwhm_um = mean_wavelength / 299792.458 * fwhm  # Convert km/s to μm
         sig = fwhm_um / 2.35482  # Convert FWHM to sigma
@@ -652,12 +654,12 @@ class FittingEngine:
                 save_folder="EXAMPLE-data",
                 mol=molecule_name,
                 molpath=mol_data['file'],
-                dist=self.islat.molecules_dict.global_dist,
-                fwhm=self.islat.molecules_dict.global_fwhm,
+                dist=self.islat.active_molecule.dist,
+                fwhm=self.islat.active_molecule.fwhm,
                 min_lamb=self.islat.wavelength_range[0],
                 max_lamb=self.islat.wavelength_range[1],
                 pix_per_fwhm=10,
-                intrinsic_line_width=self.islat.molecules_dict.global_intrinsic_line_width,
+                intrinsic_line_width=self.islat.active_molecule.intrinsic_line_width,
                 cc=3e8,
                 data_field=getattr(self.islat.gui, 'data_field', None)
             )

@@ -31,17 +31,32 @@ class DataField(ResizableFrame):
         if theme:
             self.apply_theme(theme)
     def insert_text(self, content, clear_first=True, console_print = False):
-        if clear_first:
-            self.clear()
+        try:
+            # Check if the widget still exists and is valid
+            if not hasattr(self, 'text') or not self.text.winfo_exists():
+                return
+                
+            if clear_first:
+                self.clear()
 
-        if console_print:
-            print(content)
+            if console_print:
+                print(content)
 
-        self.text.insert("end", str(content) + "\n")
-        self.text.see("end")
+            self.text.insert("end", str(content) + "\n")
+            self.text.see("end")
+        except Exception as e:
+            # Silently handle GUI destruction errors
+            if console_print:
+                print(content)  # At least print to console if GUI is destroyed
 
     def clear(self):
-        self.text.delete("1.0", "end")
+        try:
+            # Check if the widget still exists and is valid
+            if hasattr(self, 'text') and self.text.winfo_exists():
+                self.text.delete("1.0", "end")
+        except Exception as e:
+            # Silently handle GUI destruction errors
+            pass
 
     def delete(self, start="1.0", end="end"):
         self.text.delete(start, end)
