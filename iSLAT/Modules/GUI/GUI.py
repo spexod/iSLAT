@@ -9,6 +9,7 @@ from .Widgets.MoleculeWindow import MoleculeWindow
 from .Widgets.ControlPanel import ControlPanel
 from .Widgets.TopOptions import TopOptions
 from .Widgets.BottomOptions import BottomOptions
+from .Widgets.TopBar import TopBar
 from .Widgets.ResizableFrame import ResizableFrame
 from .Widgets.FileInteractionPane import FileInteractionPane
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -249,8 +250,8 @@ class GUI:
         if hasattr(self, 'top_options') and hasattr(self.top_options, 'apply_theme'):
             self.top_options.apply_theme(self.theme)
             
-        if hasattr(self, 'bottom_options') and hasattr(self.bottom_options, 'apply_theme'):
-            self.bottom_options.apply_theme(self.theme)
+        if hasattr(self, 'top_bar') and hasattr(self.top_bar, 'apply_theme'):
+            self.top_bar.apply_theme(self.theme)
             
         # Apply theme to file interaction pane
         if hasattr(self, 'file_interaction_pane') and hasattr(self.file_interaction_pane, 'apply_theme'):
@@ -303,18 +304,16 @@ class GUI:
         self.left_resizable.pack(fill="both", expand=True, padx=2, pady=2)
         
         # Create individual frames for each component
-        top_options_frame = tk.Frame(self.left_resizable)
         control_panel_frame = tk.Frame(self.left_resizable)
         file_selector_frame = tk.Frame(self.left_resizable)
         data_field_frame = tk.Frame(self.left_resizable)
         
         # Apply theme to frames
-        for frame in [top_options_frame, control_panel_frame, file_selector_frame, data_field_frame]:
+        for frame in [control_panel_frame, file_selector_frame, data_field_frame]:
             frame.configure(bg=self.theme["background"])
         
         # Add frames to resizable container with different weights and minimum sizes
         # Enable dynamic sizing for frames that can have variable content
-        self.left_resizable.add_frame(top_options_frame, weight=0, minsize=80, dynamic_minsize=True)
         self.left_resizable.add_frame(control_panel_frame, weight=2, minsize=120, dynamic_minsize=True)
         self.left_resizable.add_frame(file_selector_frame, weight=0, minsize=80, dynamic_minsize=True)
         self.left_resizable.add_frame(data_field_frame, weight=4, minsize=200, dynamic_minsize=False)
@@ -325,11 +324,7 @@ class GUI:
         
         # DataField now handles its own theming through ResizableFrame inheritance
 
-        # Top control buttons - now we can pass data_field
-        self.top_options = TopOptions(top_options_frame, self.islat_class, theme=self.theme, data_field=self.data_field)
-        self.top_options.pack(fill="both", expand=True, padx=5, pady=2)
         
-        # TopOptions now handles its own theming through ResizableFrame inheritance
 
         # Control panel for input parameters - ControlPanel now inherits from ResizableFrame
         self.control_panel = ControlPanel(control_panel_frame, self.islat_class)
@@ -353,13 +348,13 @@ class GUI:
         self.window.title("iSLAT Version 5.00.00")
         
         # Configure main window for resizable layout
-        self.window.grid_rowconfigure(0, weight=1)
-        self.window.grid_rowconfigure(1, weight=0, minsize=60)
+        self.window.grid_rowconfigure(0, weight=0)
+        self.window.grid_rowconfigure(1, weight=1)
         self.window.grid_columnconfigure(0, weight=1)
         
         # Create a main container frame
         main_container = tk.Frame(self.window)
-        main_container.grid(row=0, column=0, sticky="nsew")
+        main_container.grid(row=1, column=0, sticky="nsew")
         
         # Create horizontal resizable frame for left panel and plot area
         self.main_resizable = ResizableFrame(main_container, orientation='horizontal', sash_size=6, theme=self.theme)
@@ -402,9 +397,9 @@ class GUI:
         self.build_left_panel(left_frame)
 
         # Bottom function buttons
-        self.bottom_options = BottomOptions(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.config)
-        self.bottom_options.grid(row=1, column=0, columnspan=2, sticky="ew")
-        
+        self.top_bar = TopBar(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.config)
+        self.top_bar.grid(row=0, column=0, columnspan=2, sticky="nsew")
+
         # BottomOptions now handles its own theming through ResizableFrame inheritance
 
         # Force theme updates to catch any missed widgets

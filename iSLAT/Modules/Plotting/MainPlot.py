@@ -88,12 +88,6 @@ class iSLATPlot:
         
         self.toolbar.pack(side="top", fill="x", padx=0, pady=0)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
-        
-        # Apply tight layout to maximize space usage
-        try:
-            self.fig.tight_layout(pad=0.5)
-        except:
-            pass  # Fallback if tight_layout fails
             
         self.canvas.draw()
 
