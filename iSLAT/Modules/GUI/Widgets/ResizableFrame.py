@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 
+
+
 class ResizableFrame(tk.Frame):
     """A frame that can be resized by dragging its borders and provides consolidated theming."""
     
@@ -349,6 +351,7 @@ class ResizableFrame(tk.Frame):
     def _apply_theme_to_widget(self, widget):
         """Apply theme to any widget recursively."""
         try:
+    
             widget_class = widget.winfo_class()
             
             # Apply theming based on widget type

@@ -28,9 +28,18 @@ class TopBar(ResizableFrame):
 
         # Create buttons for options
         self._create_buttons()
+
+        # Create and add toolbar 
+        toolbar_frame = tk.Frame(self)
+        toolbar_frame.grid(row=0, column=6, sticky="nsew")
+        
+        self.toolbar = self.main_plot.create_toolbar(toolbar_frame)
         
         # Apply initial theme
         self.apply_theme(theme)
+
+        
+
     
     def _create_buttons(self):
         """Create all the button widgets."""
@@ -60,8 +69,11 @@ class TopBar(ResizableFrame):
 
         create_button(self, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3)
         create_button(self, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4)
-        create_button(self, self.theme, "Export Model", self.show_atomic_lines, 0, 7)
-    
+        create_button(self, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
+
+
+
+
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file using the new MoleculeLine approach."""
         if not hasattr(self.main_plot, 'current_selection') or self.main_plot.current_selection is None:
