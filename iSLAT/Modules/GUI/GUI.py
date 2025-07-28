@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
-from ttkthemes import ThemedTk
+# from ttkthemes import ThemedTk
 import os
 
 
