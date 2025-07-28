@@ -19,7 +19,7 @@ class DataField(ResizableFrame):
         self.label.pack(fill="x")
 
         # Text widget with scrollbar
-        self.text = tk.Text(self, height=20, width=60, wrap="word")
+        self.text = tk.Text(self, height=13, width=24, wrap="word")
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.text.yview)
         self.text.configure(yscrollcommand=self.scrollbar.set)
 

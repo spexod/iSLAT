@@ -19,7 +19,7 @@ class ControlPanel(ResizableFrame):
         self._load_field_configurations()
         
         # Pack to the left side and fill vertically
-        self.pack(side="left", fill="y")
+        # self.pack(side="left", fill="y")
 
         # Initialize all UI components
         self._create_all_components()

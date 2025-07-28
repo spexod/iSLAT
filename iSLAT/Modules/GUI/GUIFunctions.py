@@ -5,6 +5,7 @@ def create_button(frame, theme, text, command, row, column):
         btn_theme = theme["buttons"].get(
             text.replace(" ", ""), theme["buttons"]["DefaultBotton"]
         )
+        
         btn = tk.Button(
             frame, text=text,
             command=command

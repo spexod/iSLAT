@@ -26,13 +26,15 @@ class TopBar(ResizableFrame):
         self.data_field = data_field
         self.config = config
 
+        self.button_frame = tk.Frame(self)
+        self.button_frame.grid(row=0, column=1)
 
         # Create buttons for options
         self._create_buttons()
-
+        
         # Create and add toolbar 
         toolbar_frame = tk.Frame(self)
-        toolbar_frame.grid(row=0, column=6, sticky="nsew")
+        toolbar_frame.grid(row=0, column=2, sticky="nsew")
         
         self.toolbar = self.main_plot.create_toolbar(toolbar_frame)
         
@@ -46,9 +48,9 @@ class TopBar(ResizableFrame):
         """Create all the button widgets."""
         os_name = platform.system()
         if os_name == "Darwin":
-            molecule_drpdwn = create_menu_btn(self, self.theme, "Manage Molecules", 0, 0)
+            molecule_drpdwn = create_menu_btn(self.button_frame, self.theme, "Manage Molecules", 0, 0)
         else:
-            molecule_drpdwn = create_menu_btn(self, self.theme, "Manage Molecules ▼", 0, 0)
+            molecule_drpdwn = create_menu_btn(self.button_frame, self.theme, "Manage Molecules ▼", 0, 0)
 
         molecule_menu = tk.Menu(molecule_drpdwn, tearoff=0)
         molecule_menu.add_command(label="HITRAN Query", command=self.hitran_query)
@@ -57,16 +59,18 @@ class TopBar(ResizableFrame):
         molecule_drpdwn.config(menu=molecule_menu)
 
         if os_name == "Darwin":
-            spectrum_drpdwn = create_menu_btn(self, self.theme, "Spectrum Parameters", 0, 1)
+            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters", 0, 1)
         else:
-            spectrum_drpdwn = create_menu_btn(self, self.theme, "Spectrum Parameters ▼", 0, 1)
-
+            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters ▼", 0, 1)
         spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
         spectrum_menu.add_command(label="Save Parameters", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters", command=self.load_parameters)
         spectrum_drpdwn.config(menu=spectrum_menu)
 
-        spec_functions_drpwn = create_menu_btn(self, self.theme, "Spectral Functions", 0, 2)
+        if os_name == "Darwin":
+            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters", 0, 1)
+        else:
+            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions ▼", 0, 1)
         spec_functions_menu = tk.Menu(spec_functions_drpwn, tearoff=0)
         spec_functions_menu.add_command(label="Save Line", command=self.save_line)
         spec_functions_menu.add_command(label="Fit Line", command=self.fit_selected_line)
@@ -77,9 +81,9 @@ class TopBar(ResizableFrame):
         spec_functions_menu.add_command(label="Show Atomic Lines", command=self.show_atomic_lines)
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
-        create_button(self, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3)
-        create_button(self, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4)
-        create_button(self, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
+        create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3)
+        create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4)
+        create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
 
 
 
