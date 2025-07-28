@@ -395,7 +395,7 @@ class ControlPanel(ResizableFrame):
         label.grid(row=row, column=column, padx=5, pady=5)
 
         self.molecule_var = tk.StringVar(self)
-        self.dropdown = ttk.Combobox(self, textvariable=self.molecule_var)
+        self.dropdown = ttk.Combobox(self, textvariable=self.molecule_var, state="readonly")
         self.dropdown.grid(row=row, column=column + 1, padx=5, pady=5)
         self.dropdown.bind("<<ComboboxSelected>>", self._on_molecule_selected)
         
@@ -704,6 +704,7 @@ class ControlPanel(ResizableFrame):
 
     def _on_molecule_selected(self, event=None):
         """Handle molecule selection - uses iSLAT's active_molecule property"""
+        self.dropdown.selection_clear()
         selected_label = self.molecule_var.get()
         
         try:
