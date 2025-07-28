@@ -1,4 +1,5 @@
 import numpy as np
+import platform
 import os 
 import csv
 import tkinter as tk
@@ -43,14 +44,23 @@ class TopBar(ResizableFrame):
     
     def _create_buttons(self):
         """Create all the button widgets."""
-        molecule_drpdwn = create_menu_btn(self, self.theme, "Manage Molecules", 0, 0)
+        os_name = platform.system()
+        if os_name == "Darwin":
+            molecule_drpdwn = create_menu_btn(self, self.theme, "Manage Molecules", 0, 0)
+        else:
+            molecule_drpdwn = create_menu_btn(self, self.theme, "Manage Molecules ▼", 0, 0)
+
         molecule_menu = tk.Menu(molecule_drpdwn, tearoff=0)
         molecule_menu.add_command(label="HITRAN Query", command=self.hitran_query)
         molecule_menu.add_command(label="Default Molecules", command=self.default_molecules)
         molecule_menu.add_command(label="Add Molecules", command=self.add_molecule)
         molecule_drpdwn.config(menu=molecule_menu)
 
-        spectrum_drpdwn = create_menu_btn(self, self.theme, "Spectrum Parameters", 0, 1)
+        if os_name == "Darwin":
+            spectrum_drpdwn = create_menu_btn(self, self.theme, "Spectrum Parameters", 0, 1)
+        else:
+            spectrum_drpdwn = create_menu_btn(self, self.theme, "Spectrum Parameters ▼", 0, 1)
+
         spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
         spectrum_menu.add_command(label="Save Parameters", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters", command=self.load_parameters)
