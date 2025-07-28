@@ -36,7 +36,7 @@ class TopBar(ResizableFrame):
         self.toolbar = self.main_plot.create_toolbar(toolbar_frame)
         
         # Apply initial theme
-        self.apply_theme(theme)
+        # self.apply_theme(theme)
 
         
 
