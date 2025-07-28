@@ -19,7 +19,7 @@ class ResizableFrame(tk.Frame):
         self.theme = theme or {}
         
         # Apply initial theme
-        self._apply_base_theme()
+        # self._apply_base_theme()
         
     def add_frame(self, frame, weight=1, minsize=50, dynamic_minsize=False):
         """Add a frame to the resizable container."""
@@ -410,7 +410,8 @@ class ResizableFrame(tk.Frame):
                 )
             # Handle TTK widgets
             elif hasattr(widget, '__class__') and 'ttk' in str(widget.__class__):
-                self._apply_ttk_theme(widget)
+                # self._apply_ttk_theme(widget)
+                pass
                 
             # Recursively apply to children
             for child in widget.winfo_children():

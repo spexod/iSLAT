@@ -221,6 +221,7 @@ class iSLAT:
             self.init_molecules()
             
             # Load spectrum data (usually fast)
+            print("entering load spectrum")
             self.load_spectrum()
             
             # Finally initialize GUI (requires other components)
@@ -517,6 +518,7 @@ class iSLAT:
             # Update any dependent components if spectrum is loaded after first start
             if hasattr(self, "GUI"):
                 if hasattr(self.GUI, "plot"):
+                    print("entering update_all_plots")
                     self.GUI.plot.update_all_plots()
                 if hasattr(self.GUI, "file_interaction_pane"):
                     self.GUI.file_interaction_pane.update_file_label(self.loaded_spectrum_name)

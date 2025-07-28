@@ -27,7 +27,7 @@ class ControlPanel(ResizableFrame):
         self._register_callbacks()
         
         # Apply theming after everything is created
-        self.after(50, lambda: self.apply_theme(theme))
+        # self.after(50, lambda: self.apply_theme(theme))
 
     def _load_field_configurations(self):
         """Load field configurations from JSON file using iSLAT file handling"""
@@ -113,30 +113,16 @@ class ControlPanel(ResizableFrame):
 
     def _create_simple_entry(self, label_text, initial_value, row, col, on_change_callback, width=8):
         """Create a simple entry field with label and change callback"""
-        label = tk.Label(self, text=label_text)
+        label = ttk.Label(self, text=label_text)
         label.grid(row=row, column=col, padx=5, pady=5)
-        
-        # Apply theme to the label
-        label.configure(
-            bg=self.theme.get("background", "#181A1B"),
-            fg=self.theme.get("foreground", "#F0F0F0")
-        )
+
         
         var = tk.StringVar()
         var.set(str(initial_value))
         
         entry = tk.Entry(self, textvariable=var, width=width)
         entry.grid(row=row, column=col + 1, padx=5, pady=5)
-        
-        # Apply theme to the entry
-        entry.configure(
-            bg=self.theme.get("background_accent_color", "#23272A"),
-            fg=self.theme.get("foreground", "#F0F0F0"),
-            insertbackground=self.theme.get("foreground", "#F0F0F0"),
-            selectbackground=self.theme.get("selection_color", "#00FF99"),
-            selectforeground=self.theme.get("background", "#181A1B")
-        )
-        
+
         def on_change(*args):
             on_change_callback(var.get())
         
@@ -405,14 +391,8 @@ class ControlPanel(ResizableFrame):
 
     def _create_molecule_selector(self, row, column):
         """Create molecule dropdown selector"""
-        label = tk.Label(self, text="Molecule:")
+        label = ttk.Label(self, text="Molecule:")
         label.grid(row=row, column=column, padx=5, pady=5)
-        
-        # Apply theme to the label
-        label.configure(
-            bg=self.theme.get("background", "#181A1B"),
-            fg=self.theme.get("foreground", "#F0F0F0")
-        )
 
         self.molecule_var = tk.StringVar(self)
         self.dropdown = ttk.Combobox(self, textvariable=self.molecule_var)
@@ -420,22 +400,17 @@ class ControlPanel(ResizableFrame):
         self.dropdown.bind("<<ComboboxSelected>>", self._on_molecule_selected)
         
         # Apply theming to the control panel after all components are created
-        self.after(10, self._apply_theming)
+        # self.after(10, self._apply_theming)
 
     def _create_molecule_color_and_visibility_controls(self, row, column):
         """Create color button and visibility checkbox for the active molecule"""
         # Visibility checkbox
-        visibility_label = tk.Label(self, text="Visible:")
+        visibility_label = ttk.Label(self, text="Visible:")
         visibility_label.grid(row=row, column=column, padx=5, pady=5)
         
-        # Apply theme to the label
-        visibility_label.configure(
-            bg=self.theme.get("background", "#181A1B"),
-            fg=self.theme.get("foreground", "#F0F0F0")
-        )
         
         self.visibility_var = tk.BooleanVar()
-        self.visibility_checkbox = tk.Checkbutton(
+        self.visibility_checkbox = ttk.Checkbutton(
             self, 
             variable=self.visibility_var, 
             command=self._on_visibility_changed
@@ -443,23 +418,23 @@ class ControlPanel(ResizableFrame):
         self.visibility_checkbox.grid(row=row, column=column + 1, padx=5, pady=5)
         
         # Apply theme to checkbutton
-        self.visibility_checkbox.configure(
-            bg=self.theme.get("background", "#181A1B"),
-            fg=self.theme.get("foreground", "#F0F0F0"),
-            activebackground=self.theme.get("background", "#181A1B"),
-            activeforeground=self.theme.get("foreground", "#F0F0F0"),
-            selectcolor=self.theme.get("background_accent_color", "#23272A")
-        )
+        # self.visibility_checkbox.configure(
+        #     bg=self.theme.get("background", "#181A1B"),
+        #     fg=self.theme.get("foreground", "#F0F0F0"),
+        #     activebackground=self.theme.get("background", "#181A1B"),
+        #     activeforeground=self.theme.get("foreground", "#F0F0F0"),
+        #     selectcolor=self.theme.get("background_accent_color", "#23272A")
+        # )
         
         # Color button
-        color_label = tk.Label(self, text="Color:")
+        color_label = ttk.Label(self, text="Color:")
         color_label.grid(row=row, column=column + 2, padx=5, pady=5)
         
         # Apply theme to the label
-        color_label.configure(
-            bg=self.theme.get("background", "#181A1B"),
-            fg=self.theme.get("foreground", "#F0F0F0")
-        )
+        # color_label.configure(
+        #     bg=self.theme.get("background", "#181A1B"),
+        #     fg=self.theme.get("foreground", "#F0F0F0")
+        # )
         
         # Get default color for initialization
         default_colors = self.theme.get("default_molecule_colors", ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7"])
@@ -618,7 +593,7 @@ class ControlPanel(ResizableFrame):
             print(f"Could not apply TTK theming: {e}")
         
         # Apply inherited theme method
-        super().apply_theme()
+        # super().apply_theme()
     
     def apply_theme(self, theme=None):
         """Public method to apply theme to the control panel and all its widgets"""
@@ -626,7 +601,7 @@ class ControlPanel(ResizableFrame):
         super().apply_theme(theme)
         
         # Apply specialized TTK styling for Combobox
-        self._apply_ttk_styling()
+        # self._apply_ttk_styling()
     
     def _apply_ttk_styling(self):
         """Apply specialized TTK styling for control panel widgets"""

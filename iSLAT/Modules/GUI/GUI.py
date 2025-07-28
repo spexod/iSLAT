@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
+from ttkthemes import ThemedTk
 import os
+
 
 from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
 
@@ -36,7 +38,7 @@ class GUI:
         self.islat_class = islat_class_ref
         
         # Apply theme to root window
-        self._apply_theme_to_widget(self.master)
+        # self._apply_theme_to_widget(self.master)
 
     def _apply_theme_to_widget(self, widget):
         """Apply theme colors to a tkinter widget and its children."""
@@ -222,7 +224,8 @@ class GUI:
             
             # Recursively apply theme to children
             for child in widget.winfo_children():
-                self._apply_theme_to_widget(child)
+                pass
+                # self._apply_theme_to_widget(child)
                 
         except tk.TclError:
             # Some widgets might not support certain options
@@ -231,31 +234,40 @@ class GUI:
     def _force_theme_update(self):
         """Force theme update on all widgets in the window."""
         if hasattr(self, 'window'):
-            self._apply_theme_to_widget(self.window)
+            pass
+            # self._apply_theme_to_widget(self.window)
         if hasattr(self, 'left_resizable'):
-            self.left_resizable.apply_theme(self.theme)
+            pass
+            # self.left_resizable.apply_theme(self.theme)
         if hasattr(self, 'main_resizable'):
-            self.main_resizable.apply_theme(self.theme)
+            pass
+            # self.main_resizable.apply_theme(self.theme)
             
         # Apply theme to all major components - they now handle their own theming
         if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'apply_theme'):
-            self.control_panel.apply_theme(self.theme)
+            pass
+            # self.control_panel.apply_theme(self.theme)
             
         if hasattr(self, 'plot') and hasattr(self.plot, 'apply_theme'):
+            print("applying theme to plot")
             self.plot.apply_theme(self.theme)
             
         if hasattr(self, 'data_field') and hasattr(self.data_field, 'apply_theme'):
-            self.data_field.apply_theme(self.theme)
+            pass
+            # self.data_field.apply_theme(self.theme)
             
         if hasattr(self, 'top_options') and hasattr(self.top_options, 'apply_theme'):
-            self.top_options.apply_theme(self.theme)
+            pass
+            # self.top_options.apply_theme(self.theme)
             
         if hasattr(self, 'top_bar') and hasattr(self.top_bar, 'apply_theme'):
-            self.top_bar.apply_theme(self.theme)
+            pass
+            # self.top_bar.apply_theme(self.theme)
             
         # Apply theme to file interaction pane
         if hasattr(self, 'file_interaction_pane') and hasattr(self.file_interaction_pane, 'apply_theme'):
-            self.file_interaction_pane.apply_theme(self.theme)
+            pass
+            # self.file_interaction_pane.apply_theme(self.theme)
 
     def _configure_initial_size(self):
         """Configure initial window size based on screen resolution."""
@@ -365,8 +377,8 @@ class GUI:
         right_main_frame = tk.Frame(self.main_resizable)
         
         # Apply theme to main frames
-        left_main_frame.configure(bg=self.theme["background"])
-        right_main_frame.configure(bg=self.theme["background"])
+        # left_main_frame.configure(bg=self.theme["background"])
+        # right_main_frame.configure(bg=self.theme["background"])
         
         # Add frames to horizontal resizable container
         # Reduced weight for left panel to start with less horizontal space
@@ -382,7 +394,7 @@ class GUI:
         right_frame.grid_columnconfigure(0, weight=1)
         
         # Apply theme to right frame
-        self._apply_theme_to_widget(right_frame)
+        # self._apply_theme_to_widget(right_frame)
         
         # Create the plot directly in right_frame without extra container
         self.plot = iSLATPlot(right_frame, self.wave_data, self.flux_data, self.theme, self.islat_class)
@@ -392,7 +404,7 @@ class GUI:
         left_frame.pack(fill="both", expand=True)
         
         # Apply theme to left frame
-        self._apply_theme_to_widget(left_frame)
+        # self._apply_theme_to_widget(left_frame)
         
         self.build_left_panel(left_frame)
 
