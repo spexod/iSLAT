@@ -2,15 +2,12 @@ import tkinter as tk
 from tkinter import ttk, colorchooser
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
-from .ResizableFrame import ResizableFrame
+from .RegularFrame import RegularFrame
 
-class ControlPanel(ResizableFrame):
+class ControlPanel(ttk.Frame):
     def __init__(self, master, islat):
-        # Get theme from islat
-        theme = getattr(islat, 'config', {}).get('theme', {})
-        
-        # Initialize the ResizableFrame with theme
-        super().__init__(master, theme=theme, borderwidth=2, relief="groove")
+
+        super().__init__(master)
         
         self.master = master
         self.islat = islat
@@ -22,12 +19,27 @@ class ControlPanel(ResizableFrame):
         # self.pack(side="left", fill="y")
 
         # Initialize all UI components
+        self._create_general_config_frame()
         self._create_all_components()
         
         self._register_callbacks()
         
         # Apply theming after everything is created
         # self.after(50, lambda: self.apply_theme(theme))
+
+    def _create_general_config_frame(self):
+        wrapper = tk.LabelFrame(self, borderwidth=1, relief="flat", bg="darkgrey")
+        wrapper.grid(row=0, column=0, columnspan= 4, sticky="nsew")
+        wrapper.grid_rowconfigure(0, weight=1)
+        wrapper.grid_columnconfigure(0, weight=1)
+
+        general_param_frame = ttk.Frame(wrapper)
+        general_param_frame.grid(row=0, column=0, sticky="nsew")
+
+
+        test_label = ttk.Label(general_param_frame, text="test label")
+        test_label.grid(row=0, column=0, sticky="nsew")
+
 
     def _load_field_configurations(self):
         """Load field configurations from JSON file using iSLAT file handling"""
@@ -103,7 +115,7 @@ class ControlPanel(ResizableFrame):
 
     def _create_all_components(self):
         """Create all control panel components in order"""
-        self._create_display_controls(0, 0)
+        # self._create_display_controls(0, 0)
         self._create_wavelength_controls(1, 0)  
         self._create_global_parameter_controls(2, 0)  # Only distance now
         self._create_molecule_specific_controls(3, 0)  # All other params here
@@ -111,16 +123,16 @@ class ControlPanel(ResizableFrame):
         self._create_molecule_color_and_visibility_controls(10, 0)  # Add color and visibility controls
         self._reload_molecule_dropdown()
 
-    def _create_simple_entry(self, label_text, initial_value, row, col, on_change_callback, width=8):
+    def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=8):
         """Create a simple entry field with label and change callback"""
-        label = ttk.Label(self, text=label_text)
+        label = ttk.Label(parent, text=label_text)
         label.grid(row=row, column=col, padx=5, pady=5)
 
         
         var = tk.StringVar()
         var.set(str(initial_value))
         
-        entry = tk.Entry(self, textvariable=var, width=width)
+        entry = tk.Entry(parent, textvariable=var, width=width)
         entry.grid(row=row, column=col + 1, padx=5, pady=5)
 
         def on_change(*args):
@@ -146,19 +158,19 @@ class ControlPanel(ResizableFrame):
             except (ValueError, AttributeError):
                 pass
         
-        return self._create_simple_entry(label_text, current_value, row, col, update_parameter, width)
+        return self._create_simple_entry(self, label_text, current_value, row, col, update_parameter, width)
 
     def _create_display_controls(self, start_row, start_col):
         """Create plot start and range controls for display view"""
         # Plot start
         initial_start = getattr(self.islat, 'display_range', [4.5, 5.5])[0]
-        self.plot_start_entry, self.plot_start_var = self._create_simple_entry(
+        self.plot_start_entry, self.plot_start_var = self._create_simple_entry( self,
             "Plot start:", initial_start, start_row, start_col, self._update_display_range)
         
         # Plot range  
         display_range = getattr(self.islat, 'display_range', [4.5, 5.5])
         initial_range = display_range[1] - display_range[0]
-        self.plot_range_entry, self.plot_range_var = self._create_simple_entry(
+        self.plot_range_entry, self.plot_range_var = self._create_simple_entry( self,
             "Plot range:", initial_range, start_row, start_col + 2, self._update_display_range)
 
     def _create_wavelength_controls(self, start_row, start_col):
@@ -169,9 +181,9 @@ class ControlPanel(ResizableFrame):
         molecules_dict = self.islat.molecules_dict
         min_wave, max_wave = molecules_dict.global_wavelength_range
         
-        self.min_wavelength_entry, self.min_wavelength_var = self._create_simple_entry(
+        self.min_wavelength_entry, self.min_wavelength_var = self._create_simple_entry( self,
             "Min. Wave:", min_wave, start_row, start_col, self._update_wavelength_range)
-        self.max_wavelength_entry, self.max_wavelength_var = self._create_simple_entry(
+        self.max_wavelength_entry, self.max_wavelength_var = self._create_simple_entry( self,
             "Max. Wave:", max_wave, start_row, start_col + 2, self._update_wavelength_range)
 
     def _create_global_parameter_controls(self, start_row, start_col):
@@ -259,7 +271,7 @@ class ControlPanel(ResizableFrame):
         if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
             current_value = getattr(self.islat.molecules_dict, property_name, 0.0)
         
-        return self._create_simple_entry(label_text, current_value, row, col, update_global_parameter, width)
+        return self._create_simple_entry(self, label_text, current_value, row, col, update_global_parameter, width)
 
     def _create_molecule_specific_controls(self, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""
@@ -350,7 +362,7 @@ class ControlPanel(ResizableFrame):
         # Get initial value from active molecule
         initial_value = self._get_active_molecule_parameter_value(param_name)
         
-        return self._create_simple_entry(label_text, initial_value, row, col, update_active_molecule_parameter, width)
+        return self._create_simple_entry(self, label_text, initial_value, row, col, update_active_molecule_parameter, width)
 
     def _get_active_molecule_parameter_value(self, param_name):
         """Get the current value of a parameter from the active molecule"""
@@ -437,7 +449,7 @@ class ControlPanel(ResizableFrame):
         # )
         
         # Get default color for initialization
-        default_colors = self.theme.get("default_molecule_colors", ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7"])
+        default_colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7"] # REPLACE WITH DEFAULT MOLECULE COLORS MAYBE FROM ISLAT CLASS ? 
         default_color = default_colors[0]
         
         self.color_button = tk.Button(

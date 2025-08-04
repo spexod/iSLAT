@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
-# from ttkthemes import ThemedTk
+from ttkthemes import ThemedTk
 import os
 
 
@@ -20,6 +20,7 @@ class GUI:
     def __init__(self, master, molecule_data, wave_data, flux_data, config, islat_class_ref):
         if master is None:
             self.master = tk.Tk()
+            # self.master = ThemedTk()
             self.master.title("iSLAT - Interactive Spectral-Line Analysis Tool")
             self.master.resizable(True, True)
             # Set minimum size to maintain usability

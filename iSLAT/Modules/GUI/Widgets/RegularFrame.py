@@ -3,20 +3,14 @@ from tkinter import ttk
 
 
 
-class RegularFrame(tk.Frame):
+class RegularFrame(ttk.Frame):
     """A frame that can be resized by dragging its borders and provides consolidated theming."""
     
-    def __init__(self, parent, orientation='vertical', sash_size=4, theme=None, **kwargs):
+    def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
-        self.orientation = orientation
-        self.sash_size = sash_size
         self.frames = []
-        self.sashes = []
-        self.dragging = False
-        self.drag_data = {"x": 0, "y": 0, "sash": None}
         self.total_weight = 0
         self.initialized = False
-        self.theme = theme or {}
         
         # Apply initial theme
         # self._apply_base_theme()
