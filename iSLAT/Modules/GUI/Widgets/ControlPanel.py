@@ -12,6 +12,7 @@ class ControlPanel(ttk.Frame):
         
         self.master = master
         self.islat = islat
+        self.mol_list = []
         
         # Load field configurations from JSON file using iSLAT file handling
         self._load_field_configurations()
@@ -23,9 +24,11 @@ class ControlPanel(ttk.Frame):
         
         self._register_callbacks()
 
+        print(self.mol_list)
+
 
     def _create_general_config_frame(self):
-        wrapper = create_wrapper_frame(self, 0, 0)
+        wrapper = create_wrapper_frame(self, 0, 0, columnspan = 2)
 
         general_param_frame = ttk.Frame(wrapper)
         general_param_frame.grid(row=0, column=0, sticky="nsew")
@@ -36,11 +39,18 @@ class ControlPanel(ttk.Frame):
         return general_param_frame
     
     def _create_molecule_param_frame(self):
-       wrapper = create_wrapper_frame(self, 1, 0)
-       molecule_param_frame = create_scrollable_frame(wrapper, height=250)
+       wrapper = create_wrapper_frame(self, 1, 1)
+       molecule_param_frame = create_scrollable_frame(wrapper, height=250, horizontal=True)
 
        return molecule_param_frame
 
+    def _create_color_and_vis_frame(self):
+        wrapper = create_wrapper_frame(self, 1, 0, sticky="ns")
+
+        color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 50, vertical=True)
+        color_vis_frame.grid(row=0, column=0, sticky="ns")
+
+        return color_vis_frame
 
 
     def _load_field_configurations(self):
@@ -120,6 +130,7 @@ class ControlPanel(ttk.Frame):
         # self._create_display_controls(0, 0)
         gen_config_frame = self._create_general_config_frame()
         molecule_param_frame = self._create_molecule_param_frame()
+        constant_frame = self._create_color_and_vis_frame()
 
         self._create_wavelength_controls(gen_config_frame, 0, 0)  
         self._create_global_parameter_controls(gen_config_frame, 1, 0)  # Only distance now
@@ -129,8 +140,11 @@ class ControlPanel(ttk.Frame):
         self._create_molecule_color_and_visibility_controls(molecule_param_frame, 10, 0)  # Add color and visibility controls
         self._reload_molecule_dropdown()
 
+        self._create_color_and_vis_controls(constant_frame)
+
         self.grid_rowconfigure(1, weight=1)  # Because you placed the wrapper at row 1
-        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
 
     def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=8):
         """Create a simple entry field with label and change callback"""
@@ -371,6 +385,11 @@ class ControlPanel(ttk.Frame):
         initial_value = self._get_active_molecule_parameter_value(param_name)
         
         return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width)
+    
+    def _create_color_and_vis_controls(self, parent):
+        
+
+        pass
 
     def _get_active_molecule_parameter_value(self, param_name):
         """Get the current value of a parameter from the active molecule"""
@@ -670,9 +689,9 @@ class ControlPanel(ttk.Frame):
                 mol_name for mol_name in self.islat.molecules_dict
             ]
             options = molecule_options
+            self.mol_list = options
         
         self.dropdown['values'] = options
-        
         # Set default value if current selection is invalid
         current_value = self.molecule_var.get()
         if current_value not in options and options:
@@ -704,10 +723,8 @@ class ControlPanel(ttk.Frame):
         
         # Update molecule-specific parameter fields
         self._update_molecule_parameter_fields()
-        
         self._reload_molecule_dropdown()
         
-        self.apply_theme()
 
     def cleanup(self):
         try:
