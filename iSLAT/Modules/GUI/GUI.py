@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
-from ttkthemes import ThemedTk
+# from ttkthemes import ThemedTk
 import os
 
 
@@ -276,8 +276,8 @@ class GUI:
         screen_height = self.master.winfo_screenheight()
         
         # Use 80% of screen width and 75% of screen height
-        window_width = int(screen_width * 0.8)
-        window_height = int(screen_height * 0.75)
+        window_width = int(screen_width * 0.9)
+        window_height = int(screen_height * 0.87)
         
         # Ensure minimum size constraints
         window_width = max(window_width, 800)

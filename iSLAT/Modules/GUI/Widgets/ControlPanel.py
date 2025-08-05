@@ -21,7 +21,6 @@ class ControlPanel(ttk.Frame):
         
         # Load field configurations from JSON file using iSLAT file handling
         self._load_field_configurations()
-    
 
         # Initialize all UI components
 
@@ -54,7 +53,7 @@ class ControlPanel(ttk.Frame):
 
 
     def _create_general_config_frame(self):
-        wrapper = create_wrapper_frame(self, 0, 0, columnspan = 2)
+        wrapper = create_wrapper_frame(self, 1, 0, columnspan = 2)
 
         general_param_frame = ttk.Frame(wrapper)
         general_param_frame.grid(row=0, column=0, sticky="nsew")
@@ -62,13 +61,13 @@ class ControlPanel(ttk.Frame):
         return general_param_frame
     
     def _create_molecule_param_frame(self):
-       wrapper = create_wrapper_frame(self, 1, 1)
+       wrapper = create_wrapper_frame(self, 0, 1)
        molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 250, horizontal=True)
 
        return molecule_param_frame
 
     def _create_color_and_vis_frame(self):
-        wrapper = create_wrapper_frame(self, 1, 0, sticky="nsew")
+        wrapper = create_wrapper_frame(self, 0, 0, sticky="nsew")
 
         color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 125, vertical=True)
 
@@ -463,7 +462,7 @@ class ControlPanel(ttk.Frame):
         label.grid(row=row, column=column, padx=5, pady=5)
 
         self.molecule_var = tk.StringVar(parent)
-        self.dropdown = ttk.Combobox(parent, textvariable=self.molecule_var, state="readonly")
+        self.dropdown = ttk.Combobox(parent, textvariable=self.molecule_var, state="readonly", width=7)
         self.dropdown.grid(row=row, column=column + 1, padx=5, pady=5)
         self.dropdown.bind("<<ComboboxSelected>>", self._on_molecule_selected)
         

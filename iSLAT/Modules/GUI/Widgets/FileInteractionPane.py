@@ -47,7 +47,7 @@ class FileInteractionPane(ResizableFrame):
         # Row 1: Input line list
         self.input_line_list_label = tk.Label(
             self.label_frame, 
-            text="Input Line List: None", 
+            text="None", 
             wraplength=180, 
             anchor="w",
             #font=("TkDefaultFont", 8)
@@ -64,7 +64,7 @@ class FileInteractionPane(ResizableFrame):
         # Row 2: Output line measurements
         self.output_measurements_label = tk.Label(
             self.label_frame, 
-            text="Output Measurements: None", 
+            text="None", 
             wraplength=180, 
             anchor="w",
             #font=("TkDefaultFont", 8)
