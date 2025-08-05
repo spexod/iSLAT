@@ -31,7 +31,7 @@ def create_scrollable_frame(parent, height = 150, width = 300, vertical = False,
         canvas_frame = ttk.Frame(parent)
         canvas_frame.grid(row=0, column=0, sticky="nsew")
 
-        canvasscroll = tk.Canvas(canvas_frame, height=height, width=width)
+        canvasscroll = tk.Canvas(canvas_frame, height=height, width=width, highlightthickness=0)
         canvasscroll.grid(row=0, column=0, sticky="nsew")
         if vertical is True:
                 vscrollbar = tk.Scrollbar(canvas_frame, orient="vertical", command=canvasscroll.yview)

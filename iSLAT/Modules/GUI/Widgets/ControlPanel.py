@@ -13,6 +13,11 @@ class ControlPanel(ttk.Frame):
         self.master = master
         self.islat = islat
         self.mol_list = []
+        self.mol_visibility = {}
+        self.COLOR_CYCLE = ['dodgerblue', 'darkorange', 'orangered', 'limegreen', 'mediumorchid', 'magenta',
+                               'hotpink', 'cyan', 'gold', 'turquoise', 'chocolate', 'royalblue', 'sienna', 'lime',
+                               'darkviolet', 'blue']
+
         
         # Load field configurations from JSON file using iSLAT file handling
         self._load_field_configurations()
@@ -26,29 +31,46 @@ class ControlPanel(ttk.Frame):
 
         print(self.mol_list)
 
+    def _create_all_components(self):
+        """Create all control panel components in order"""
+        # self._create_display_controls(0, 0)
+        gen_config_frame = self._create_general_config_frame()
+        molecule_param_frame = self._create_molecule_param_frame()
+        constant_frame = self._create_color_and_vis_frame()
+
+        self._create_wavelength_controls(gen_config_frame, 0, 0)  
+        self._create_global_parameter_controls(gen_config_frame, 1, 0)  # Only distance now
+
+        self._create_molecule_specific_controls(molecule_param_frame, 0, 0)  # All other params here
+        self._create_molecule_selector(molecule_param_frame, 9, 0)  # Move down to accommodate molecule params
+        self._create_molecule_color_and_visibility_controls(molecule_param_frame, 10, 0)  # Add color and visibility controls
+        self._reload_molecule_dropdown()
+
+        self._build_color_and_vis_controls(constant_frame)
+
+        self.grid_rowconfigure(1, weight=1)  # Because you placed the wrapper at row 1
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
+
 
     def _create_general_config_frame(self):
         wrapper = create_wrapper_frame(self, 0, 0, columnspan = 2)
 
         general_param_frame = ttk.Frame(wrapper)
         general_param_frame.grid(row=0, column=0, sticky="nsew")
-
-        # canvas = tk.Canvas(general_param_frame, bg="red")
-        # canvas.grid(row=0, column=0)
         
         return general_param_frame
     
     def _create_molecule_param_frame(self):
        wrapper = create_wrapper_frame(self, 1, 1)
-       molecule_param_frame = create_scrollable_frame(wrapper, height=250, horizontal=True)
+       molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 250, horizontal=True)
 
        return molecule_param_frame
 
     def _create_color_and_vis_frame(self):
-        wrapper = create_wrapper_frame(self, 1, 0, sticky="ns")
+        wrapper = create_wrapper_frame(self, 1, 0, sticky="nsew")
 
-        color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 50, vertical=True)
-        color_vis_frame.grid(row=0, column=0, sticky="ns")
+        color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 125, vertical=True)
 
         return color_vis_frame
 
@@ -125,28 +147,9 @@ class ControlPanel(ttk.Frame):
             if var.get() != str(new_value):
                 var.set(str(new_value))
 
-    def _create_all_components(self):
-        """Create all control panel components in order"""
-        # self._create_display_controls(0, 0)
-        gen_config_frame = self._create_general_config_frame()
-        molecule_param_frame = self._create_molecule_param_frame()
-        constant_frame = self._create_color_and_vis_frame()
+    
 
-        self._create_wavelength_controls(gen_config_frame, 0, 0)  
-        self._create_global_parameter_controls(gen_config_frame, 1, 0)  # Only distance now
-
-        self._create_molecule_specific_controls(molecule_param_frame, 0, 0)  # All other params here
-        self._create_molecule_selector(molecule_param_frame, 9, 0)  # Move down to accommodate molecule params
-        self._create_molecule_color_and_visibility_controls(molecule_param_frame, 10, 0)  # Add color and visibility controls
-        self._reload_molecule_dropdown()
-
-        self._create_color_and_vis_controls(constant_frame)
-
-        self.grid_rowconfigure(1, weight=1)  # Because you placed the wrapper at row 1
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=1)
-
-    def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=8):
+    def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7):
         """Create a simple entry field with label and change callback"""
         label = ttk.Label(parent, text=label_text)
         label.grid(row=row, column=col, padx=5, pady=5)
@@ -155,8 +158,8 @@ class ControlPanel(ttk.Frame):
         var = tk.StringVar()
         var.set(str(initial_value))
         
-        entry = tk.Entry(parent, textvariable=var, width=width)
-        entry.grid(row=row, column=col + 1, padx=5, pady=5)
+        entry = ttk.Entry(parent, textvariable=var, width=width, justify="left")
+        entry.grid(row=row, column=col + 1, padx=5, sticky="w")
 
         def on_change(*args):
             on_change_callback(var.get())
@@ -302,11 +305,13 @@ class ControlPanel(ttk.Frame):
         # Create fields based on the class-level dictionary
         row_offset = 1
         col_offset = 0
-        
+        col = 0
+        row = start_row 
         for field_key, field_config in self.MOLECULE_FIELDS.items():
             # Calculate grid position (2 fields per row)
-            row = start_row + row_offset + (col_offset // 2)
-            col = start_col + (col_offset % 2) * 2
+            
+            # col = start_col + (col_offset % 2) * 2
+            
             
             entry, var = self._create_molecule_parameter_entry(
                 parent,
@@ -314,15 +319,15 @@ class ControlPanel(ttk.Frame):
                 field_config['attribute'], 
                 row, 
                 col, 
-                field_config['width']
             )
             
             if entry and var:
                 self._molecule_parameter_entries[field_config['attribute']] = (entry, var)
-            
+            row +=1
+
             col_offset += 1
 
-    def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=12):
+    def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7):
         """Create an entry bound to the active molecule's parameter"""
         
         def update_active_molecule_parameter(value_str):
@@ -386,10 +391,34 @@ class ControlPanel(ttk.Frame):
         
         return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width)
     
-    def _create_color_and_vis_controls(self, parent):
+    def _build_color_and_vis_controls(self, parent):
+        for row, label in enumerate(self.mol_list):
+            mol_btn = tk.Button(parent, text=label, width=3)
+            mol_btn.grid(row=row, column=1)
         
+            visibility_var = tk.BooleanVar()
+            visibility_checkbox = ttk.Checkbutton(
+                parent, 
+                variable=visibility_var, 
+                command=self._on_visibility_changed
+            )
+            visibility_checkbox.grid(row=row, column=0)
+            
+            if label not in self.mol_visibility:
+                self.mol_visibility[label] = visibility_var
 
-        pass
+            color = self.COLOR_CYCLE[row % len(self.COLOR_CYCLE)]
+
+            color_button = tk.Button(
+                parent, 
+                bg = color,
+                width=1, # tofu commit -> bhgfhg
+                command=self._on_color_button_clicked
+            )
+            color_button.grid(row=row, column=2)
+
+        # self._update_color_and_visibility_controls()
+
 
     def _get_active_molecule_parameter_value(self, param_name):
         """Get the current value of a parameter from the active molecule"""
@@ -438,36 +467,27 @@ class ControlPanel(ttk.Frame):
         self.dropdown.grid(row=row, column=column + 1, padx=5, pady=5)
         self.dropdown.bind("<<ComboboxSelected>>", self._on_molecule_selected)
         
-        # Apply theming to the control panel after all components are created
-        # self.after(10, self._apply_theming)
 
     def _create_molecule_color_and_visibility_controls(self, parent, row, column):
         """Create color button and visibility checkbox for the active molecule"""
         # Visibility checkbox
-        visibility_label = ttk.Label(parent, text="Visible:")
-        visibility_label.grid(row=row, column=column, padx=5, pady=5)
+        # visibility_label = ttk.Label(parent, text="Visible:")
+        # visibility_label.grid(row=row, column=column, padx=5, pady=5)
         
         
-        self.visibility_var = tk.BooleanVar()
-        self.visibility_checkbox = ttk.Checkbutton(
-            parent, 
-            variable=self.visibility_var, 
-            command=self._on_visibility_changed
-        )
-        self.visibility_checkbox.grid(row=row, column=column + 1, padx=5, pady=5)
-        
-        # Apply theme to checkbutton
-        # self.visibility_checkbox.configure(
-        #     bg=self.theme.get("background", "#181A1B"),
-        #     fg=self.theme.get("foreground", "#F0F0F0"),
-        #     activebackground=self.theme.get("background", "#181A1B"),
-        #     activeforeground=self.theme.get("foreground", "#F0F0F0"),
-        #     selectcolor=self.theme.get("background_accent_color", "#23272A")
+        # self.visibility_var = tk.BooleanVar()
+        # self.visibility_checkbox = ttk.Checkbutton(
+        #     parent, 
+        #     variable=self.visibility_var, 
+        #     command=self._on_visibility_changed
         # )
+        # self.visibility_checkbox.grid(row=row, column=column + 1, padx=5, pady=5)
+        
+
         
         # Color button
-        color_label = ttk.Label(parent, text="Color:")
-        color_label.grid(row=row, column=column + 2, padx=5, pady=5)
+        # color_label = ttk.Label(parent, text="Color:")
+        # color_label.grid(row=row, column=column + 2, padx=5, pady=5)
         
         # Apply theme to the label
         # color_label.configure(
@@ -477,20 +497,20 @@ class ControlPanel(ttk.Frame):
         
         # Get default color for initialization
         default_colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7"] # REPLACE WITH DEFAULT MOLECULE COLORS MAYBE FROM ISLAT CLASS ? 
-        default_color = default_colors[0]
+        # default_color = default_colors[0]
         
-        self.color_button = tk.Button(
-            parent, 
-            bg=default_color, 
-            width=4,
-            command=self._on_color_button_clicked
-        )
-        self.color_button.grid(row=row, column=column + 3, padx=5, pady=5)
+        # self.color_button = tk.Button(
+        #     parent, 
+        #     bg=default_color, 
+        #     width=4,
+        #     command=self._on_color_button_clicked
+        # )
+        # self.color_button.grid(row=row, column=column + 3, padx=5, pady=5)
         # Mark this as a color selection button so theming will ignore it
-        self.color_button._is_color_button = True
+        # self.color_button._is_color_button = True
         
         # Initialize with current active molecule data
-        self._update_color_and_visibility_controls()
+        # self._update_color_and_visibility_controls()
 
     def _ensure_molecule_color_initialized(self, mol_obj):
         """Ensure molecule has a color assigned, using MoleculeWindow logic"""
