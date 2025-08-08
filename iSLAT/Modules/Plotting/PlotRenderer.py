@@ -269,7 +269,7 @@ class PlotRenderer:
             self.ax2.plot(line_wave, line_flux, 
                          color=self._get_theme_value("foreground", "black"), 
                          linewidth=1, 
-                         label="Observed")
+                         label="Data")
 
             self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
             self.ax2.set_ylabel("Flux (Jy)", color=self._get_theme_value("foreground", "black"))
@@ -585,27 +585,12 @@ class PlotRenderer:
         for mol in visible_molecules:
             mol_name = getattr(mol, 'name', 'unknown')
             try:
-                # The render_individual_molecule_spectrum method will use the molecule's
-                # built-in caching via get_flux() which respects parameter hash validation
                 success = self.render_individual_molecule_spectrum(mol, wave_data)
                 if not success:
                     debug_config.warning("plot_renderer", f"Could not render molecule {mol_name}")
             except Exception as e:
                 print(f"Error rendering molecule {mol_name}: {e}")
                 continue
-    
-    def optimize_plot_memory_usage(self) -> None:
-        """Optimize memory usage for plotting operations"""
-        # Limit the number of cached model lines
-        if len(self.model_lines) > 50:
-            # Remove oldest lines from plot
-            for line in self.model_lines[:25]:
-                if line in self.ax1.lines:
-                    line.remove()
-            self.model_lines = self.model_lines[25:]
-        
-        # Clear inactive lines
-        self.active_lines = [line for line in self.active_lines if line in self.ax2.lines]
     
     def handle_molecule_visibility_change(self, molecule_name: str, is_visible: bool, 
                                         molecules_dict: Union['MoleculeDict', Dict], 
@@ -639,10 +624,11 @@ class PlotRenderer:
         
         # Handle visibility change using PlotRenderer methods
         if is_visible:
+            pass
             # Add molecule spectrum using PlotRenderer
-            success = self.render_individual_molecule_spectrum(molecule, wave_data)
-            if not success:
-                debug_config.warning("plot_renderer", f"Failed to render molecule {molecule_name}")
+            #success = self.render_individual_molecule_spectrum(molecule, wave_data)
+            #if not success:
+            #    debug_config.warning("plot_renderer", f"Failed to render molecule {molecule_name}")
         else:
             # Remove molecule spectrum using PlotRenderer
             self.remove_molecule_lines(molecule_name)

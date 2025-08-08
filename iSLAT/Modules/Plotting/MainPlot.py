@@ -817,16 +817,6 @@ class iSLATPlot:
         # Only canvas update needed in MainPlot
         self.canvas.draw_idle()
 
-    def _add_molecule_to_plot(self, molecule):
-        """Add a single molecule's spectrum using PlotRenderer - minimal logic"""
-        if not molecule.is_visible:
-            return
-        
-        # Delegate to PlotRenderer with minimal logic
-        return self.plot_renderer.render_individual_molecule_spectrum(
-            molecule, self.islat.wave_data
-        )
-
     def _update_summed_spectrum(self):
         """Update summed spectrum by delegating to PlotRenderer - minimal logic"""
         if not hasattr(self.islat, 'molecules_dict'):
