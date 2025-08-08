@@ -269,18 +269,10 @@ class iSLATPlot:
             self.plot_renderer.clear_model_lines()
             self.canvas.draw_idle()
             return
-            
-        '''# Get visible molecules - use their own visibility property
-        visible_molecules = [mol for mol in self.islat.molecules_dict.values() 
-                           if self._convert_visibility_to_bool(mol.is_visible)]'''
         
         # Calculate summed flux using MoleculeDict's advanced caching system
         try:
-            if hasattr(self.islat.molecules_dict, 'get_summed_flux_optimized'):
-                # Use MoleculeDict's optimized summed flux calculation with advanced caching
-                debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux_optimized() for model plot")
-                summed_flux = self.islat.molecules_dict.get_summed_flux_optimized(self.islat.wave_data, visible_only=True)
-            elif hasattr(self.islat.molecules_dict, 'get_summed_flux'):
+            if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
                 # Use MoleculeDict's standard summed flux calculation with caching
                 debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
                 summed_flux = self.islat.molecules_dict.get_summed_flux(self.islat.wave_data, visible_only=True)
