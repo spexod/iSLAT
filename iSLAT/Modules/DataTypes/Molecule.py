@@ -54,7 +54,7 @@ class Molecule:
     _cache_lock = threading.Lock()
     
     INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad'}
-    SPECTRUM_AFFECTING_PARAMS = {'distance', 'fwhm', 'stellar_rv'}
+    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'stellar_rv'}
     FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS
     
     @classmethod
@@ -181,10 +181,10 @@ class Molecule:
         return hash((self._temp, self._n_mol, self._broad))
     
     def _compute_spectrum_hash(self):
-        return hash((self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
+        return hash((self._radius, self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
     
     def _compute_full_parameter_hash(self):
-        return hash((self._compute_spectrum_hash(), self._radius))
+        return hash((self._compute_spectrum_hash()))#, self._radius))
 
     def _load_from_user_save_data(self, kwargs):
         """Load parameters from user save data"""
@@ -372,6 +372,7 @@ class Molecule:
         """Get hash of current parameters for intensity calculation"""
         param_tuple = (
             getattr(self, '_temp', self.t_kin),
+            getattr(self, '_radius', self.radius_init),
             getattr(self, '_n_mol', self.n_mol_init),
             getattr(self, '_broad', c.INTRINSIC_LINE_WIDTH),  # Use broad for intensity dv parameter
             getattr(self, '_fwhm', c.DEFAULT_FWHM),  # Include FWHM for spectrum resolution
