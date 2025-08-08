@@ -754,8 +754,9 @@ class ControlPanel(ResizableFrame):
             
         options = []
         if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-            molecule_options = [
-                mol_name for mol_name in self.islat.molecules_dict
+            molecule_options = [ #reverted change on next line. The mol name is used for identification in a lot of places and so the change broke selection
+                getattr(mol_obj, 'displaylabel', mol_name) 
+                for mol_name, mol_obj in self.islat.molecules_dict.items()
             ]
             options = molecule_options
         
