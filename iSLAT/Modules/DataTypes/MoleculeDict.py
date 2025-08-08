@@ -27,7 +27,7 @@ class MoleculeDict(dict):
         
         self._wave_data: Optional[np.ndarray] = None
         self._global_dist: float = default_parms.DEFAULT_DISTANCE
-        self._global_star_rv: float = default_parms.DEFAULT_STELLAR_RV
+        self._global_stellar_rv: float = default_parms.DEFAULT_STELLAR_RV
         #self._global_fwhm: float = default_parms.DEFAULT_FWHM
         self._global_intrinsic_line_width: float = default_parms.INTRINSIC_LINE_WIDTH
         self._global_wavelength_range: Tuple[float, float] = default_parms.WAVELENGTH_RANGE
@@ -38,7 +38,7 @@ class MoleculeDict(dict):
             "wavelength_range": self._global_wavelength_range,
             "distance": self._global_dist,
             #"fwhm": getattr(self, '_global_fwhm', None),
-            "stellar_rv": getattr(self, '_global_star_rv', None),
+            "stellar_rv": getattr(self, '_global_stellar_rv', None),
             "intrinsic_line_width": self._global_intrinsic_line_width,
             "model_pixel_res": self._global_model_pixel_res,
             "model_line_width": self._global_model_line_width
@@ -76,7 +76,7 @@ class MoleculeDict(dict):
             model_line_width=effective_model_line_width,
             distance=effective_distance,
             fwhm=self._global_fwhm,
-            stellar_rv=self._global_star_rv,
+            stellar_rv=self._global_stellar_rv,
             radius=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Rad", None),
             temp=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Temp", None),
             n_mol=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("N_Mol", None),
@@ -977,7 +977,7 @@ class MoleculeDict(dict):
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
                 fwhm=getattr(self, '_global_fwhm', None),
-                stellar_rv=getattr(self, '_global_star_rv', None),
+                stellar_rv=getattr(self, '_global_stellar_rv', None),
                 broad=self._global_intrinsic_line_width,
                 model_pixel_res=self._global_model_pixel_res,
                 model_line_width=self._global_model_line_width,
@@ -1165,10 +1165,9 @@ class MoleculeDict(dict):
     def global_distance(self, value: float) -> None:
         """Set global distance and update all molecules"""
         old_value = self._global_dist
-        if abs(old_value - value) > 1e-10:
-            self._global_dist = value
-            self.bulk_update_parameters({'distance': value})
-            self._notify_global_parameter_change('distance', old_value, value)
+        self._global_dist = value
+        self.bulk_update_parameters({'distance': value})
+        self._notify_global_parameter_change('distance', old_value, value)
     
     @property
     def global_wavelength_range(self) -> Tuple[float, float]:
@@ -1182,6 +1181,18 @@ class MoleculeDict(dict):
         if value != old_value:
             self._global_wavelength_range = value
             self._notify_global_parameter_change('wavelength_range', old_value, value)
+    
+    @property
+    def global_stellar_rv(self) -> float:
+        """Global stellar radial velocity parameter"""
+        return self._global_stellar_rv
+    
+    @global_stellar_rv.setter
+    def global_stellar_rv(self, value: float) -> None:
+        """Set global stellar radial velocity and update all molecules"""
+        old_value = self._global_stellar_rv
+        self._global_stellar_rv = value
+        self._notify_global_parameter_change('stellar_rv', old_value, value)
 
     def __del__(self):
         """Cleanup when object is destroyed."""
