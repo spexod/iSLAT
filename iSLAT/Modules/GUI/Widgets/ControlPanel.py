@@ -12,7 +12,7 @@ class ControlPanel(ttk.Frame):
         
         self.master = master
         self.islat = islat
-        self.mol_list = []
+        self.mol_list = {}
         self.mol_visibility = {}
         self.COLOR_CYCLE = ['dodgerblue', 'darkorange', 'orangered', 'limegreen', 'mediumorchid', 'magenta',
                                'hotpink', 'cyan', 'gold', 'turquoise', 'chocolate', 'royalblue', 'sienna', 'lime',
@@ -25,10 +25,9 @@ class ControlPanel(ttk.Frame):
         # Initialize all UI components
 
         self._create_all_components()
-        
         self._register_callbacks()
 
-        print(self.mol_list)
+        print(f"self.mol_list is: {self.mol_list}")
 
     def _create_all_components(self):
         """Create all control panel components in order"""
@@ -106,9 +105,8 @@ class ControlPanel(ttk.Frame):
         # Update the dropdown selection to match the new active molecule
         if hasattr(self, 'molecule_var') and hasattr(self, 'dropdown'):
             # Get the display label for the new molecule
-            if hasattr(new_molecule, 'displaylabel'):
-                display_label = new_molecule.displaylabel
-            elif hasattr(new_molecule, 'name'):
+            
+            if hasattr(new_molecule, 'name'):
                 display_label = new_molecule.name
             elif isinstance(new_molecule, str):
                 display_label = new_molecule
@@ -116,6 +114,7 @@ class ControlPanel(ttk.Frame):
                 display_label = str(new_molecule)
             
             # Update dropdown without triggering callback
+            print(f"changing molecule_var to {display_label}")
             self.molecule_var.set(display_label)
         
         self._update_molecule_parameter_fields()
@@ -680,7 +679,8 @@ class ControlPanel(ttk.Frame):
     def _on_molecule_selected(self, event=None):
         """Handle molecule selection - uses iSLAT's active_molecule property"""
         self.dropdown.selection_clear()
-        selected_label = self.molecule_var.get()
+        selected_label = self.mol_list[self.molecule_var.get()]
+
         
         try:
             if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
@@ -705,16 +705,19 @@ class ControlPanel(ttk.Frame):
             
         options = []
         if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-            molecule_options = [
-                mol_name for mol_name in self.islat.molecules_dict
-            ]
-            options = molecule_options
-            self.mol_list = options
-        
+
+            for mol_name, mol_obj in self.islat.molecules_dict.items():
+                mol_label = getattr(mol_obj, 'displaylabel', mol_name)
+                self.mol_list[mol_name] = mol_label
+            
+            options = list(self.mol_list.keys())
+
+        print(f"options are: {options}")
         self.dropdown['values'] = options
         # Set default value if current selection is invalid
         current_value = self.molecule_var.get()
         if current_value not in options and options:
+            print("current value not in options")
             self.molecule_var.set(options[0])
             self._on_molecule_selected()
 
