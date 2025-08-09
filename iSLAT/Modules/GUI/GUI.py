@@ -20,6 +20,8 @@ class GUI:
     def __init__(self, master, molecule_data, wave_data, flux_data, config, islat_class_ref):
         if master is None:
             self.master = tk.Tk()
+            self.style = ttk.Style()
+            self._style_config()
             # self.master = ThemedTk()
             self.master.title("iSLAT - Interactive Spectral-Line Analysis Tool")
             self.master.resizable(True, True)
@@ -40,6 +42,10 @@ class GUI:
         
         # Apply theme to root window
         # self._apply_theme_to_widget(self.master)
+
+    def _style_config(self):
+        self.style.configure("Small.TButton", padding=(0, 5))
+
 
     def _apply_theme_to_widget(self, widget):
         """Apply theme colors to a tkinter widget and its children."""
