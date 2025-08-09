@@ -17,6 +17,12 @@ class ControlPanel(ttk.Frame):
         self.COLOR_CYCLE = ['dodgerblue', 'darkorange', 'orangered', 'limegreen', 'mediumorchid', 'magenta',
                                'hotpink', 'cyan', 'gold', 'turquoise', 'chocolate', 'royalblue', 'sienna', 'lime',
                                'darkviolet', 'blue']
+        
+        # Populate mol_list with {normal mol name: formatted name}
+        if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
+            for mol_name, mol_obj in self.islat.molecules_dict.items():
+                    mol_label = getattr(mol_obj, 'displaylabel', mol_name)
+                    self.mol_list[mol_name] = mol_label
 
         
         # Load field configurations from JSON file using iSLAT file handling
@@ -702,17 +708,9 @@ class ControlPanel(ttk.Frame):
         """Reload molecule dropdown options"""
         if not hasattr(self, 'dropdown'):
             return
-            
-        options = []
-        if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
+        
+        options = list(self.mol_list.keys())
 
-            for mol_name, mol_obj in self.islat.molecules_dict.items():
-                mol_label = getattr(mol_obj, 'displaylabel', mol_name)
-                self.mol_list[mol_name] = mol_label
-            
-            options = list(self.mol_list.keys())
-
-        print(f"options are: {options}")
         self.dropdown['values'] = options
         # Set default value if current selection is invalid
         current_value = self.molecule_var.get()
