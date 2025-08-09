@@ -31,6 +31,9 @@ def create_scrollable_frame(parent, height = 150, width = 300, vertical = False,
         canvas_frame = ttk.Frame(parent)
         canvas_frame.grid(row=row, column=col, sticky="nsew")
 
+        parent.grid_rowconfigure(row, weight=1)
+        parent.grid_columnconfigure(col, weight=1)
+
         canvasscroll = tk.Canvas(canvas_frame, height=height, width=width, highlightthickness=0)
         canvasscroll.grid(row=0, column=0, sticky="nsew")
         if vertical is True:

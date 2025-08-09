@@ -65,6 +65,8 @@ class ControlPanel(ttk.Frame):
        wrapper = create_wrapper_frame(self, 0, 1)
        self._create_selected_frame(wrapper, 0, 0)
        molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 250, horizontal=True, row=1, col=0)
+       
+       # self._create_delete_frame(wrapper, 2, 0)
 
        return molecule_param_frame
 
@@ -84,6 +86,7 @@ class ControlPanel(ttk.Frame):
 
         selected_frame.grid_rowconfigure(0, weight=1)
         selected_frame.grid_columnconfigure(0, weight=1)
+    
 
     def _load_field_configurations(self):
         """Load field configurations from JSON file using iSLAT file handling"""
@@ -298,6 +301,10 @@ class ControlPanel(ttk.Frame):
         # Store references for later updates
         self._molecule_parameter_entries = {}
 
+        parameters_frame = tk.Frame(parent)
+        parameters_frame.grid(row=0, column=0, sticky="nsew")
+        parameters_frame.rowconfigure(0, weight=1)
+        parameters_frame.columnconfigure(0, weight=1)
         
         # Create fields based on the class-level dictionary
         row_offset = 1
@@ -308,7 +315,7 @@ class ControlPanel(ttk.Frame):
             
             
             entry, var = self._create_molecule_parameter_entry(
-                parent,
+                parameters_frame,
                 field_config['label'], 
                 field_config['attribute'], 
                 row, 
@@ -320,7 +327,14 @@ class ControlPanel(ttk.Frame):
             row +=1
 
             col_offset += 1
-
+            
+        
+        delete_frame = tk.Frame(parent)
+        delete_frame.grid(row=1, column=0, sticky="sw")
+        delete_btn = ttk.Button(delete_frame, text="Delete Molecule",
+                                )
+        
+        delete_btn.grid(row=0, column=0)
         
 
     def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7):
@@ -747,7 +761,7 @@ class ControlPanel(ttk.Frame):
 
     def cleanup(self):
         try:
-            if hasattr(self.islat, 'remove_active_molecule_change_callback'):
+            if hasattr(self.islat, '2_active_molecule_change_callback'):
                 self.islat.remove_active_molecule_change_callback(self._on_active_molecule_change)
         except Exception as e:
             print(f"Error during ControlPanel cleanup: {e}")
