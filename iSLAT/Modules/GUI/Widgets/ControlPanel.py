@@ -574,12 +574,13 @@ class ControlPanel(ttk.Frame):
             
         # Get molecule name for the color chooser title
         mol_name = getattr(selected_mol, 'displaylabel', getattr(selected_mol, 'name', 'Molecule'))
+        old_color = getattr(selected_mol, 'color', None)
         
         # Open color chooser
-        color_code = colorchooser.askcolor(title=f"Pick color for {mol_name}")[1]
+        color_code = colorchooser.askcolor(title=f"Pick color for {mol_name}", color=old_color)[1]
         if color_code:
             # Store old color for notification
-            old_color = getattr(selected_mol, 'color', None)
+            
             
             # Update molecule color
             selected_mol.color = color_code
