@@ -45,7 +45,6 @@ class ControlPanel(ttk.Frame):
         self._create_global_parameter_controls(gen_config_frame, 2, 0)  # Only distance now
 
         self._create_molecule_specific_controls(molecule_param_frame, 0, 0)  # All other params here
-        # self._reload_molecule_dropdown()
 
         self._build_color_and_vis_controls(constant_frame) # my implementation
 
@@ -298,6 +297,7 @@ class ControlPanel(ttk.Frame):
         """Create controls for molecule-specific parameters that update with active molecule"""
         # Store references for later updates
         self._molecule_parameter_entries = {}
+
         
         # Create fields based on the class-level dictionary
         row_offset = 1
@@ -320,6 +320,8 @@ class ControlPanel(ttk.Frame):
             row +=1
 
             col_offset += 1
+
+        
 
     def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7):
         """Create an entry bound to the active molecule's parameter"""
@@ -741,7 +743,6 @@ class ControlPanel(ttk.Frame):
         
         # Update molecule-specific parameter fields
         self._update_molecule_parameter_fields()
-        self._reload_molecule_dropdown()
         
 
     def cleanup(self):
