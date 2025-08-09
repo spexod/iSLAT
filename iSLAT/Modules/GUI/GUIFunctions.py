@@ -26,10 +26,10 @@ def create_menu_btn(frame, theme, text, row, column):
         drpdwn.grid(row=row, column=column, padx=2, pady=2, sticky="nsew")
         return drpdwn
 
-def create_scrollable_frame(parent, height = 150, width = 300, vertical = False, horizontal = False, **kwargs):
+def create_scrollable_frame(parent, height = 150, width = 300, vertical = False, horizontal = False, row=0, col = 0):
         
         canvas_frame = ttk.Frame(parent)
-        canvas_frame.grid(row=0, column=0, sticky="nsew")
+        canvas_frame.grid(row=row, column=col, sticky="nsew")
 
         canvasscroll = tk.Canvas(canvas_frame, height=height, width=width, highlightthickness=0)
         canvasscroll.grid(row=0, column=0, sticky="nsew")
