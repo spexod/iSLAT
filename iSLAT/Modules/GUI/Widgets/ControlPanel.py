@@ -397,20 +397,21 @@ class ControlPanel(ttk.Frame):
         return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width)
     
     def _build_color_and_vis_controls(self, parent):
-        for row, label in enumerate(self.mol_list):
-            mol_btn = tk.Button(parent, text=label, width=3)
+
+        for row, mol_name in enumerate(self.mol_list):
+            mol_btn = tk.Button(parent, text=mol_name, width=3)
             mol_btn.grid(row=row, column=1)
         
             visibility_var = tk.BooleanVar()
             visibility_checkbox = ttk.Checkbutton(
                 parent, 
                 variable=visibility_var, 
-                command=self._on_visibility_changed
+                command=lambda name = mol_name: self._on_visibility_changed(name)
             )
             visibility_checkbox.grid(row=row, column=0)
             
-            if label not in self.mol_visibility:
-                self.mol_visibility[label] = visibility_var
+            if mol_name not in self.mol_visibility:
+                self.mol_visibility[mol_name] = visibility_var
 
             color = self.COLOR_CYCLE[row % len(self.COLOR_CYCLE)]
 
@@ -422,7 +423,9 @@ class ControlPanel(ttk.Frame):
             )
             color_button.grid(row=row, column=2)
 
-        # self._update_color_and_visibility_controls()
+            is_visible = getattr(self.islat.molecules_dict[mol_name], 'is_visible', False)
+            visibility_var.set(is_visible)
+
 
 
     def _get_active_molecule_parameter_value(self, param_name):
@@ -534,27 +537,25 @@ class ControlPanel(ttk.Frame):
                 
             mol_obj.color = default_colors[mol_index % len(default_colors)]
 
-    def _on_visibility_changed(self):
+    def _on_visibility_changed(self, mol_name):
         """Handle visibility checkbox changes for individual molecule plotting"""
-        if not hasattr(self.islat, 'active_molecule') or not self.islat.active_molecule:
-            return
-            
-        # Get the active molecule object
-        active_mol = self._get_active_molecule_object()
-        if not active_mol:
-            return
-            
+        
         if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
             return
         
-        new_visibility = self.visibility_var.get()
-        molecule_name = active_mol.name
+        # Get the active molecule object
+        selected_mol = self.islat.molecules_dict[mol_name]
+        if not selected_mol:
+            return
+            
+        new_visibility = self.mol_visibility[mol_name].get()
+        molecule_name = selected_mol.name
         
         # Simply toggle this molecule's visibility - don't affect other molecules
         self.islat.molecules_dict.bulk_set_visibility(new_visibility, [molecule_name])
         
         # Debug: Verify the visibility was actually set
-        print(f"ControlPanel: Set {molecule_name} visibility to {new_visibility}, actual value: {getattr(active_mol, 'is_visible', 'UNDEFINED')}")
+        print(f"ControlPanel: Set {molecule_name} visibility to {new_visibility}, actual value: {getattr(selected_mol, 'is_visible', 'UNDEFINED')}")
         
         # Trigger selective plot refresh to show/hide the molecule
         if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot') and hasattr(self.islat.GUI.plot, 'on_molecule_visibility_changed'):
@@ -604,17 +605,8 @@ class ControlPanel(ttk.Frame):
 
     def _update_color_and_visibility_controls(self):
         """Update color button and visibility checkbox based on active molecule"""
-        if not hasattr(self, 'color_button') or not hasattr(self, 'visibility_checkbox'):
-            return
-            
-        # Enable controls for molecules
-        self.visibility_checkbox.configure(state='normal')
-        self.color_button.configure(state='normal')
-        
-        # Get the active molecule object
-        active_mol = self._get_active_molecule_object()
-        if not active_mol:
-            return
+        pass
+ 
             
         # Ensure molecule has a color
         self._ensure_molecule_color_initialized(active_mol)
@@ -725,6 +717,11 @@ class ControlPanel(ttk.Frame):
             return
             
         molecules_dict = self.islat.molecules_dict
+
+        for mol_name, mol_obj in molecules_dict.items():
+                    mol_label = getattr(mol_obj, 'displaylabel', mol_name)
+                    self.mol_list[mol_name] = mol_label
+
         
         # Re-register callbacks in case molecules_dict was created after ControlPanel
         try:
@@ -741,6 +738,8 @@ class ControlPanel(ttk.Frame):
             min_val, max_val = molecules_dict.global_wavelength_range
             self.min_wavelength_var.set(str(min_val))
             self.max_wavelength_var.set(str(max_val))
+
+        
         
         # Update molecule-specific parameter fields
         self._update_molecule_parameter_fields()
