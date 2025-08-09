@@ -241,15 +241,18 @@ class PlotRenderer:
     def _plot_observed_spectrum(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                error_data: Optional[np.ndarray] = None) -> None:
         """Plot the observed spectrum data"""
+        print("plotting spectrum")
         if flux_data is not None and len(flux_data) > 0:
+            print("flux data not None")
             if error_data is not None and len(error_data) == len(flux_data):
+                print("error_data not None")
                 # Plot with error bars
                 self.ax1.errorbar(
                     wave_data, 
                     flux_data,
                     yerr=error_data,
                     fmt='-', 
-                    color=self._get_theme_value("foreground", "black"),
+                    color="black", # self._get_theme_value("foreground", "black")
                     linewidth=1,
                     label='Observed',
                     zorder=self._get_theme_value("zorder_observed", 3),

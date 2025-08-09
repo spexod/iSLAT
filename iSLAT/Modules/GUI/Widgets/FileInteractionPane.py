@@ -31,10 +31,10 @@ class FileInteractionPane(ResizableFrame):
         # Initialize with default text or show loaded file name if available
         default_text = "No file loaded"
         if hasattr(self.islat_class, 'loaded_spectrum_name'):
-            default_text = f"Loaded: {self.islat_class.loaded_spectrum_name}"
+            default_text = f"{self.islat_class.loaded_spectrum_name}"
         
         # Row 0: Spectrum file
-        self.file_label = tk.Label(self.label_frame, text=default_text, wraplength=180, anchor="w")
+        self.file_label = tk.Label(self.label_frame, text=default_text, wraplength=200, anchor="w")
         self.file_label.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=2)
         
         self.load_spectrum_btn = tk.Button(
@@ -47,7 +47,7 @@ class FileInteractionPane(ResizableFrame):
         # Row 1: Input line list
         self.input_line_list_label = tk.Label(
             self.label_frame, 
-            text="Input Line List: None", 
+            text="None", 
             wraplength=180, 
             anchor="w",
             #font=("TkDefaultFont", 8)
@@ -64,7 +64,7 @@ class FileInteractionPane(ResizableFrame):
         # Row 2: Output line measurements
         self.output_measurements_label = tk.Label(
             self.label_frame, 
-            text="Output Measurements: None", 
+            text="None", 
             wraplength=180, 
             anchor="w",
             #font=("TkDefaultFont", 8)

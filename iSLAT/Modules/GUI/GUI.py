@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
+# from ttkthemes import ThemedTk
 import os
+
 
 from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
 
@@ -18,6 +20,9 @@ class GUI:
     def __init__(self, master, molecule_data, wave_data, flux_data, config, islat_class_ref):
         if master is None:
             self.master = tk.Tk()
+            self.style = ttk.Style()
+            self._style_config()
+            # self.master = ThemedTk()
             self.master.title("iSLAT - Interactive Spectral-Line Analysis Tool")
             self.master.resizable(True, True)
             # Set minimum size to maintain usability
@@ -36,7 +41,11 @@ class GUI:
         self.islat_class = islat_class_ref
         
         # Apply theme to root window
-        self._apply_theme_to_widget(self.master)
+        # self._apply_theme_to_widget(self.master)
+
+    def _style_config(self):
+        self.style.configure("Small.TButton", padding=(0, 5))
+
 
     def _apply_theme_to_widget(self, widget):
         """Apply theme colors to a tkinter widget and its children."""
@@ -222,7 +231,8 @@ class GUI:
             
             # Recursively apply theme to children
             for child in widget.winfo_children():
-                self._apply_theme_to_widget(child)
+                pass
+                # self._apply_theme_to_widget(child)
                 
         except tk.TclError:
             # Some widgets might not support certain options
@@ -231,31 +241,40 @@ class GUI:
     def _force_theme_update(self):
         """Force theme update on all widgets in the window."""
         if hasattr(self, 'window'):
-            self._apply_theme_to_widget(self.window)
+            pass
+            # self._apply_theme_to_widget(self.window)
         if hasattr(self, 'left_resizable'):
-            self.left_resizable.apply_theme(self.theme)
+            pass
+            # self.left_resizable.apply_theme(self.theme)
         if hasattr(self, 'main_resizable'):
-            self.main_resizable.apply_theme(self.theme)
+            pass
+            # self.main_resizable.apply_theme(self.theme)
             
         # Apply theme to all major components - they now handle their own theming
         if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'apply_theme'):
-            self.control_panel.apply_theme(self.theme)
+            pass
+            # self.control_panel.apply_theme(self.theme)
             
         if hasattr(self, 'plot') and hasattr(self.plot, 'apply_theme'):
+            print("applying theme to plot")
             self.plot.apply_theme(self.theme)
             
         if hasattr(self, 'data_field') and hasattr(self.data_field, 'apply_theme'):
-            self.data_field.apply_theme(self.theme)
+            pass
+            # self.data_field.apply_theme(self.theme)
             
         if hasattr(self, 'top_options') and hasattr(self.top_options, 'apply_theme'):
-            self.top_options.apply_theme(self.theme)
+            pass
+            # self.top_options.apply_theme(self.theme)
             
         if hasattr(self, 'top_bar') and hasattr(self.top_bar, 'apply_theme'):
-            self.top_bar.apply_theme(self.theme)
+            pass
+            # self.top_bar.apply_theme(self.theme)
             
         # Apply theme to file interaction pane
         if hasattr(self, 'file_interaction_pane') and hasattr(self.file_interaction_pane, 'apply_theme'):
-            self.file_interaction_pane.apply_theme(self.theme)
+            pass
+            # self.file_interaction_pane.apply_theme(self.theme)
 
     def _configure_initial_size(self):
         """Configure initial window size based on screen resolution."""
@@ -263,8 +282,8 @@ class GUI:
         screen_height = self.master.winfo_screenheight()
         
         # Use 80% of screen width and 75% of screen height
-        window_width = int(screen_width * 0.8)
-        window_height = int(screen_height * 0.75)
+        window_width = int(screen_width * 0.9)
+        window_height = int(screen_height * 0.87)
         
         # Ensure minimum size constraints
         window_width = max(window_width, 800)
@@ -299,42 +318,40 @@ class GUI:
         return file_path
 
     def build_left_panel(self, parent: tk.Frame):
+
+        # tk.Label(parent, text="LEFT PANEL", bg="red").pack(fill="both", expand=True)
         # Create a resizable frame container for the left panel
-        self.left_resizable = ResizableFrame(parent, orientation='vertical', sash_size=4, theme=self.theme)
-        self.left_resizable.pack(fill="both", expand=True, padx=2, pady=2)
+        # self.left_resizable = ResizableFrame(parent, orientation='vertical', sash_size=4, theme=self.theme)
+        # self.left_resizable.pack(fill="both", expand=True, padx=2, pady=2)
         
-        # Create individual frames for each component
-        control_panel_frame = tk.Frame(self.left_resizable)
-        file_selector_frame = tk.Frame(self.left_resizable)
-        data_field_frame = tk.Frame(self.left_resizable)
+        # # Create individual frames for each component
+        # control_panel_frame = tk.Frame(self.left_resizable)
+        # file_selector_frame = tk.Frame(self.left_resizable)
+        # data_field_frame = tk.Frame(self.left_resizable)
         
         # Apply theme to frames
-        for frame in [control_panel_frame, file_selector_frame, data_field_frame]:
-            frame.configure(bg=self.theme["background"])
+        # for frame in [control_panel_frame, file_selector_frame, data_field_frame]:
+        #     frame.configure(bg=self.theme["background"])
         
         # Add frames to resizable container with different weights and minimum sizes
         # Enable dynamic sizing for frames that can have variable content
-        self.left_resizable.add_frame(control_panel_frame, weight=2, minsize=120, dynamic_minsize=True)
-        self.left_resizable.add_frame(file_selector_frame, weight=0, minsize=80, dynamic_minsize=True)
-        self.left_resizable.add_frame(data_field_frame, weight=4, minsize=200, dynamic_minsize=False)
-
-        # Main data field - create this first so we can pass it to other components
-        self.data_field = DataField("Main Data Field", "", data_field_frame, theme=self.theme)
-        self.data_field.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # DataField now handles its own theming through ResizableFrame inheritance
-
-        
+        # self.left_resizable.add_frame(control_panel_frame, weight=2, minsize=120, dynamic_minsize=True)
+        # self.left_resizable.add_frame(file_selector_frame, weight=0, minsize=80, dynamic_minsize=True)
+        # self.left_resizable.add_frame(data_field_frame, weight=4, minsize=200, dynamic_minsize=False)
 
         # Control panel for input parameters - ControlPanel now inherits from ResizableFrame
-        self.control_panel = ControlPanel(control_panel_frame, self.islat_class)
-        self.control_panel.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # ControlPanel now handles its own theming through ResizableFrame inheritance
+        self.control_panel = ControlPanel(parent, self.islat_class)
+        self.control_panel.pack(padx=5, fill = "both", expand=True, pady=5)
 
         # Spectrum file selector
-        self.file_interaction_pane = FileInteractionPane(file_selector_frame, self.islat_class, self.theme)
-        self.file_interaction_pane.pack(fill="both", expand=True, padx=5, pady=5)
+        self.file_interaction_pane = FileInteractionPane(parent, self.islat_class, self.theme)
+        self.file_interaction_pane.pack(padx=5, fill = "both", expand=True, pady=5)
+
+        # Main data field - create this first so we can pass it to other components
+        self.data_field = DataField("Main Data Field", "", parent, theme=self.theme)
+        self.data_field.pack(padx=5, fill = "both", expand=True, pady=5)
+
+        
     
     def update_frame_sizes(self):
         """Update dynamic frame sizes based on current content."""
@@ -353,48 +370,45 @@ class GUI:
         self.window.grid_columnconfigure(0, weight=1)
         
         # Create a main container frame
-        main_container = tk.Frame(self.window)
+        main_container = ttk.Frame(self.window)
         main_container.grid(row=1, column=0, sticky="nsew")
+
+        
         
         # Create horizontal resizable frame for left panel and plot area
-        self.main_resizable = ResizableFrame(main_container, orientation='horizontal', sash_size=6, theme=self.theme)
-        self.main_resizable.pack(fill="both", expand=True)
+        # self.main_resizable = ResizableFrame(main_container, orientation='horizontal', sash_size=6, theme=self.theme)
+        # self.main_resizable.pack(fill="both", expand=True)
         
         # Create frames for left panel and right panel (plot)
-        left_main_frame = tk.Frame(self.main_resizable)
-        right_main_frame = tk.Frame(self.main_resizable)
-        
-        # Apply theme to main frames
-        left_main_frame.configure(bg=self.theme["background"])
-        right_main_frame.configure(bg=self.theme["background"])
-        
-        # Add frames to horizontal resizable container
-        # Reduced weight for left panel to start with less horizontal space
-        self.main_resizable.add_frame(left_main_frame, weight=1, minsize=300)
-        self.main_resizable.add_frame(right_main_frame, weight=3, minsize=450)
+        left_main_frame = tk.Frame(main_container)
+        left_main_frame.grid(row= 0, column= 0, sticky="nsew")
+
+        right_main_frame = tk.Frame(main_container)
+        right_main_frame.grid(row= 0, column= 1, sticky="nsew")
 
         # Right side: plots
-        right_frame = tk.Frame(right_main_frame)
-        right_frame.pack(fill="both", expand=True, padx=0, pady=0)
+        # right_frame = ttk.Frame(right_main_frame)
+        # right_frame.pack(fill="both", expand=True, padx=0, pady=0)
         
         # Configure right frame for responsive plot
-        right_frame.grid_rowconfigure(0, weight=1)
-        right_frame.grid_columnconfigure(0, weight=1)
-        
+        main_container.grid_rowconfigure(0, weight=1)
+        main_container.grid_columnconfigure(0, weight=0)
+        main_container.grid_columnconfigure(1, weight=1)
+
         # Apply theme to right frame
-        self._apply_theme_to_widget(right_frame)
+        # self._apply_theme_to_widget(right_frame)
         
         # Create the plot directly in right_frame without extra container
-        self.plot = iSLATPlot(right_frame, self.wave_data, self.flux_data, self.theme, self.islat_class)
+        self.plot = iSLATPlot(right_main_frame, self.wave_data, self.flux_data, self.theme, self.islat_class)
 
         # Left side: all controls
-        left_frame = tk.Frame(left_main_frame)
-        left_frame.pack(fill="both", expand=True)
+        # left_frame = ttk.Frame(left_main_frame)
+        # left_frame.pack(fill="both", expand=True)
         
         # Apply theme to left frame
-        self._apply_theme_to_widget(left_frame)
+        # self._apply_theme_to_widget(left_frame)
         
-        self.build_left_panel(left_frame)
+        self.build_left_panel(left_main_frame)
 
         # Bottom function buttons
         self.top_bar = TopBar(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.config)

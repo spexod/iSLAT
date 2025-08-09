@@ -6,7 +6,15 @@
             "datatype": "float",
             "format": "{:.2f}",
             "default": 140.0,
-            "width": 12
+            "width": 6
+        },
+        "stellar_rv": {
+            "label": "Stellar RV:",
+            "property": "stellar_rv",
+            "datatype": "float",
+            "format": "{:.2f}",
+            "default": 0.0,
+            "width": 7
         }
     },
     "molecule_fields": {
@@ -14,9 +22,9 @@
             "label": "Temperature:",
             "attribute": "temp",
             "datatype": "float",
-            "format": "{:.2f}",
+            "format": "{:.1f}",
             "default": 300.0,
-            "width": 12
+            "width": 4
         },
         "radius": {
             "label": "Radius:",
@@ -24,7 +32,7 @@
             "datatype": "float",
             "format": "{:.2f}",
             "default": 1.0,
-            "width": 12
+            "width": 4
         },
         "n_mol": {
             "label": "Column Density:",
@@ -32,15 +40,7 @@
             "datatype": "float",
             "format": "{:.2e}",
             "default": 1e15,
-            "width": 12
-        },
-        "stellar_rv": {
-            "label": "Stellar RV:",
-            "attribute": "stellar_rv",
-            "datatype": "float",
-            "format": "{:.2f}",
-            "default": 0.0,
-            "width": 12
+            "width": 7
         },
         "fwhm": {
             "label": "FWHM:",
@@ -48,7 +48,7 @@
             "datatype": "float",
             "format": "{:.2f}",
             "default": 0.1,
-            "width": 12
+            "width": 7
         },
         "broad": {
             "label": "Broadening:",
@@ -56,7 +56,7 @@
             "datatype": "float",
             "format": "{:.2f}",
             "default": 0.1,
-            "width": 12
+            "width": 7
         }
     }
 }

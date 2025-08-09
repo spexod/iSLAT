@@ -67,11 +67,12 @@ class iSLATPlot:
         self.ax3 = self.population_diagram = self.fig.add_subplot(gs[1, 1])
 
         self.ax1.set_title("Full Spectrum with Line Inspection")
+        self.ax1.set_ylabel('Flux density (Jy)')
         self.ax2.set_title("Line inspection plot")
         self.ax3.set_title(f"{self.islat.active_molecule.displaylabel} Population diagram")
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=parent_frame)
-        self.toolbar = NavigationToolbar2Tk(self.canvas, window = parent_frame)
+        # self.toolbar = NavigationToolbar2Tk(self.canvas, window = parent_frame)
         
         # Apply theme to matplotlib figure and toolbar
         self._apply_plot_theming()
@@ -86,7 +87,7 @@ class iSLATPlot:
         self.interaction_handler.set_span_select_callback(self.onselect)
         self.interaction_handler.set_click_callback(self.on_click)
         
-        self.toolbar.pack(side="top", fill="x", padx=0, pady=0)
+        # self.toolbar.pack(side="top", fill="x", padx=0, pady=0)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
             
         self.canvas.draw()
@@ -103,6 +104,10 @@ class iSLATPlot:
         
         # Set initial zoom range to display_range if available
         self._set_initial_zoom_range()
+
+    def create_toolbar(self, frame):
+        self.toolbar = NavigationToolbar2Tk(self.canvas, window = frame)
+        return self.toolbar
 
     def _apply_plot_theming(self):
         """Apply theme colors to matplotlib figure and toolbar"""
@@ -129,26 +134,26 @@ class iSLATPlot:
                 # Set grid colors if grid is enabled
                 #ax.grid(True, color=self.theme.get("axis_text_label_color", self.theme.get("foreground", "#F0F0F0")), alpha=0.3, linestyle='-', linewidth=0.5)
             
-            # Apply theme to toolbar if possible
-            if hasattr(self.toolbar, 'configure'):
-                try:
-                    self.toolbar.configure(bg=self.theme.get("toolbar", "#23272A"))
-                except:
-                    pass
+            # # Apply theme to toolbar if possible
+            # if hasattr(self.toolbar, 'configure'):
+            #     try:
+            #         self.toolbar.configure(bg=self.theme.get("toolbar", "#23272A"))
+            #     except:
+            #         pass
             
-            # Try to style toolbar buttons
-            if hasattr(self.toolbar, 'winfo_children'):
-                for child in self.toolbar.winfo_children():
-                    try:
-                        if hasattr(child, 'configure'):
-                            child.configure(
-                                bg=self.theme.get("toolbar", "#23272A"),
-                                fg=self.theme.get("foreground", "#F0F0F0"),
-                                activebackground=self.theme.get("selection_color", "#00FF99"),
-                                activeforeground=self.theme.get("foreground", "#F0F0F0")
-                            )
-                    except:
-                        pass
+            # # Try to style toolbar buttons
+            # if hasattr(self.toolbar, 'winfo_children'):
+            #     for child in self.toolbar.winfo_children():
+            #         try:
+            #             if hasattr(child, 'configure'):
+            #                 child.configure(
+            #                     bg=self.theme.get("toolbar", "#23272A"),
+            #                     fg=self.theme.get("foreground", "#F0F0F0"),
+            #                     activebackground=self.theme.get("selection_color", "#00FF99"),
+            #                     activeforeground=self.theme.get("foreground", "#F0F0F0")
+            #                 )
+            #         except:
+            #             pass
                     
             # Apply theme to canvas
             if hasattr(self.canvas.get_tk_widget(), 'configure'):
@@ -287,7 +292,7 @@ class iSLATPlot:
         except Exception as e:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
-    
+        print("enter render _main_spectrum_plot")
         # Delegate rendering to PlotRenderer for clean separation of concerns
         self.plot_renderer.render_main_spectrum_plot(
             self.islat.wave_data,
