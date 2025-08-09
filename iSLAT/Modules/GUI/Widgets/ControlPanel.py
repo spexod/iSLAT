@@ -419,7 +419,7 @@ class ControlPanel(ttk.Frame):
                 parent, 
                 bg = color,
                 width=1, # tofu commit -> bhgfhg
-                command=self._on_color_button_clicked
+                command=lambda name = mol_name: self._on_color_button_clicked(name)
             )
             color_button.grid(row=row, column=2)
 
@@ -562,33 +562,33 @@ class ControlPanel(ttk.Frame):
             self.islat.GUI.plot.on_molecule_visibility_changed(molecule_name, new_visibility)
             print(f"ControlPanel: Triggered selective plot refresh for visibility change")
 
-    def _on_color_button_clicked(self):
+    def _on_color_button_clicked(self, mol_name):
         """Handle color button clicks to open color chooser"""
-        if not hasattr(self.islat, 'active_molecule') or not self.islat.active_molecule:
+        if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
             return
             
         # Get the active molecule object
-        active_mol = self._get_active_molecule_object()
-        if not active_mol:
+        selected_mol = self.islat.molecules_dict[mol_name]
+        if not selected_mol:
             return
             
         # Get molecule name for the color chooser title
-        mol_name = getattr(active_mol, 'displaylabel', getattr(active_mol, 'name', 'Molecule'))
+        mol_name = getattr(selected_mol, 'displaylabel', getattr(selected_mol, 'name', 'Molecule'))
         
         # Open color chooser
         color_code = colorchooser.askcolor(title=f"Pick color for {mol_name}")[1]
         if color_code:
             # Store old color for notification
-            old_color = getattr(active_mol, 'color', None)
+            old_color = getattr(selected_mol, 'color', None)
             
             # Update molecule color
-            active_mol.color = color_code
-            self.color_button.config(bg=color_code)
+            selected_mol.color = color_code
+            # self.color_button.config(bg=color_code)
             
             # Manually trigger the molecule parameter change notification
             # since color is not a property with a setter
-            if hasattr(active_mol, '_notify_my_parameter_change'):
-                active_mol._notify_my_parameter_change('color', old_color, color_code)
+            if hasattr(selected_mol, '_notify_my_parameter_change'):
+                selected_mol._notify_my_parameter_change('color', old_color, color_code)
 
     def _get_active_molecule_object(self):
         """Get the active molecule object, similar to MoleculeWindow logic"""
