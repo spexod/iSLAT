@@ -32,20 +32,21 @@ class ControlPanel(ttk.Frame):
 
     def _create_all_components(self):
         """Create all control panel components in order"""
-        # self._create_display_controls(0, 0)
+        # 
         gen_config_frame = self._create_general_config_frame()
         molecule_param_frame = self._create_molecule_param_frame()
         constant_frame = self._create_color_and_vis_frame()
 
-        self._create_wavelength_controls(gen_config_frame, 0, 0)  
-        self._create_global_parameter_controls(gen_config_frame, 1, 0)  # Only distance now
+        self._create_display_controls(gen_config_frame, 0, 0)
+        self._create_wavelength_controls(gen_config_frame, 1, 0)  
+        self._create_global_parameter_controls(gen_config_frame, 2, 0)  # Only distance now
 
         self._create_molecule_specific_controls(molecule_param_frame, 0, 0)  # All other params here
         self._create_molecule_selector(molecule_param_frame, 9, 0)  # Move down to accommodate molecule params
         self._create_molecule_color_and_visibility_controls(molecule_param_frame, 10, 0)  # Add color and visibility controls
         self._reload_molecule_dropdown()
 
-        self._build_color_and_vis_controls(constant_frame)
+        self._build_color_and_vis_controls(constant_frame) # my implementation
 
         self.grid_rowconfigure(1, weight=1)  # Because you placed the wrapper at row 1
         self.grid_columnconfigure(0, weight=0)
@@ -185,17 +186,17 @@ class ControlPanel(ttk.Frame):
         
         return self._create_simple_entry(self, label_text, current_value, row, col, update_parameter, width)
 
-    def _create_display_controls(self, start_row, start_col):
+    def _create_display_controls(self,parent,  start_row, start_col):
         """Create plot start and range controls for display view"""
         # Plot start
         initial_start = getattr(self.islat, 'display_range', [4.5, 5.5])[0]
-        self.plot_start_entry, self.plot_start_var = self._create_simple_entry( self,
+        self.plot_start_entry, self.plot_start_var = self._create_simple_entry( parent,
             "Plot start:", initial_start, start_row, start_col, self._update_display_range)
         
         # Plot range  
         display_range = getattr(self.islat, 'display_range', [4.5, 5.5])
         initial_range = display_range[1] - display_range[0]
-        self.plot_range_entry, self.plot_range_var = self._create_simple_entry( self,
+        self.plot_range_entry, self.plot_range_var = self._create_simple_entry( parent,
             "Plot range:", initial_range, start_row, start_col + 2, self._update_display_range)
 
     def _create_wavelength_controls(self, parent, start_row, start_col):
