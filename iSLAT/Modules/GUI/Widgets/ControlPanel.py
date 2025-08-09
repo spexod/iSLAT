@@ -34,8 +34,6 @@ class ControlPanel(ttk.Frame):
         self._create_all_components()
         self._register_callbacks()
 
-        print(f"self.mol_list is: {self.mol_list}")
-
     def _create_all_components(self):
         """Create all control panel components in order"""
         gen_config_frame = self._create_general_config_frame()
@@ -687,7 +685,6 @@ class ControlPanel(ttk.Frame):
         """Handle molecule selection - uses iSLAT's active_molecule property"""
         # self.dropdown.selection_clear()
         old_active_mol = self._get_active_molecule_object().name
-        print(old_active_mol)
         self.mol_frames[old_active_mol].config(bg = self.bg_color)
             
         
@@ -711,20 +708,6 @@ class ControlPanel(ttk.Frame):
         except Exception as e:
             print(f"Error setting active molecule: {e}")
 
-    def _reload_molecule_dropdown(self):
-        """Reload molecule dropdown options"""
-        if not hasattr(self, 'dropdown'):
-            return
-        
-        options = list(self.mol_list.keys())
-
-        self.dropdown['values'] = options
-        # Set default value if current selection is invalid
-        current_value = self.molecule_var.get()
-        if current_value not in options and options:
-            print("current value not in options")
-            self.molecule_var.set(options[0])
-            self._on_molecule_selected()
 
     def refresh_from_molecules_dict(self):
         """Refresh all fields from current molecules_dict values"""
