@@ -111,7 +111,7 @@ class InteractionHandler:
         
         # Handle different types of clicks
         if event.button == 1:  # Left click
-            if is_double_click and event.inaxes != self.ax1:  # No double-click zoom on main plot
+            if is_double_click and event.inaxes != self.ax1:
                 self._on_double_click(event)
             elif not is_double_click:  # Single click
                 self._on_single_click(event)
@@ -144,7 +144,6 @@ class InteractionHandler:
     
     def _on_double_click(self, event):
         """Handle double click events"""
-        # Disable double-click zoom as requested by user
         pass
     
     def _on_right_click(self, event):
@@ -226,8 +225,7 @@ class InteractionHandler:
             data_field.insert_text(info_text, console_print=True, clear_first=False)
     
     def _on_scroll(self, event):
-        """Handle scroll events for zooming"""
-        # Disable scroll zoom as requested by user
+        """Handle scroll events for zooming"""        
         pass
     
     def _on_key_press(self, event):

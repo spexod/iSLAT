@@ -713,7 +713,8 @@ class PlotRenderer:
         for line_data in active_lines_list:
             if len(line_data) >= 2:
                 line_artist = line_data[0]  # Line artist (vlines)
-                scatter_artist = line_data[1]  # Scatter artist
+                text_artist = line_data[1]
+                scatter_artist = line_data[2]  # Scatter artist
                 
                 # Remove line artist if it exists
                 if line_artist is not None:
@@ -722,6 +723,13 @@ class PlotRenderer:
                     except (ValueError, AttributeError):
                         pass
                 
+                # Remove text artist if it exists
+                if text_artist is not None:
+                    try:
+                        text_artist.remove()
+                    except (ValueError, AttributeError):
+                        pass
+
                 # Remove scatter artist if it exists
                 if scatter_artist is not None:
                     try:
@@ -804,11 +812,11 @@ class PlotRenderer:
                 # Update existing entry or create new one
                 if idx < len(active_lines_list):
                     # Update existing entry with scatter artist
-                    active_lines_list[idx][1] = sc  # Set scatter artist
-                    active_lines_list[idx][2].update(value_data)  # Update value data
+                    active_lines_list[idx][2] = sc  # Set scatter artist
+                    active_lines_list[idx][3].update(value_data)  # Update value data
                 else:
-                    # Create new entry: [line_artist, scatter_artist, value_data]
-                    active_lines_list.append([None, sc, value_data])
+                    # Create new entry: [line_artist, text_obj, scatter_artist, value_data]
+                    active_lines_list.append([None, None, sc, value_data])
     
     def render_active_lines_in_line_inspection(self, line_data: List[Tuple['MoleculeLine', float, Optional[float]]], active_lines_list: List[Any], 
                                               max_y: float) -> None:
@@ -874,7 +882,7 @@ class PlotRenderer:
                     'up_lev': line.lev_up if line.lev_up else 'N/A',
                     'low_lev': line.lev_low if line.lev_low else 'N/A',
                     'tau': tau_val if tau_val is not None else 'N/A',
-                    'text_obj': text,
+                    #'text_obj': text,
                     'lineheight': lineheight,
                     'intensity_percent': (intensity / max_intensity) * 100  # Store percentage for debugging
                 }
@@ -883,10 +891,11 @@ class PlotRenderer:
                 if idx < len(active_lines_list):
                     # Update existing entry
                     active_lines_list[idx][0] = vline  # Set line artist
-                    active_lines_list[idx][2].update(value_data)  # Update value data
+                    active_lines_list[idx][1] = text  # Set text artist
+                    active_lines_list[idx][3].update(value_data)  # Update value data
                 else:
-                    # Create new entry: [line_artist, scatter_artist, value_data]
-                    active_lines_list.append([vline, None, value_data])
+                    # Create new entry: [line_artist, text_obj, scatter_artist, value_data]
+                    active_lines_list.append([vline, text, None, value_data])
     
     def highlight_strongest_line(self, active_lines_list: List[Any]) -> Any:
         """
@@ -906,35 +915,35 @@ class PlotRenderer:
             return None
             
         # Reset all lines to green first
-        for line, scatter, value in active_lines_list:
+        for line, text_obj, scatter, value in active_lines_list:
             if line is not None:
                 line.set_color('green')
             if scatter is not None:
                 scatter.set_facecolor('green')
                 scatter.set_zorder(1)  # Reset z-order
-            if 'text_obj' in value and value['text_obj'] is not None:
-                value['text_obj'].set_color('green')
-        
+            if text_obj is not None:
+                text_obj.set_color('green')
+
         # Find the line with the highest intensity
         highest_intensity = -float('inf')
         strongest_triplet = None
         
-        for line, scatter, value in active_lines_list:
+        for line, text_obj, scatter, value in active_lines_list:
             intensity = value.get('inten', 0) if value else 0
             if intensity > highest_intensity:
                 highest_intensity = intensity
-                strongest_triplet = [line, scatter, value]
+                strongest_triplet = [line, text_obj, scatter, value]
         
         # Highlight the strongest line in orange
         if strongest_triplet is not None:
-            line, scatter, value = strongest_triplet
+            line, text_obj, scatter, value = strongest_triplet
             if line is not None:
                 line.set_color('orange')
             if scatter is not None:
                 scatter.set_facecolor('orange')
                 scatter.set_zorder(10)  # Bring to front
-            if 'text_obj' in value and value['text_obj'] is not None:
-                value['text_obj'].set_color('orange')
+            if text_obj is not None:
+                text_obj.set_color('orange')
         
         return strongest_triplet
     
@@ -957,7 +966,7 @@ class PlotRenderer:
         picked_value = None
         
         # Find which entry in active_lines was picked and reset colors
-        for line, scatter, value in active_lines_list:
+        for line, text_obj, scatter, value in active_lines_list:
             is_picked = (picked_artist is line or picked_artist is scatter)
             
             # Reset all to green first
@@ -965,9 +974,9 @@ class PlotRenderer:
                 line.set_color('green')
             if scatter is not None:
                 scatter.set_facecolor('green')
-            if 'text_obj' in value and value['text_obj'] is not None:
-                value['text_obj'].set_color('green')
-            
+            if text_obj is not None:
+                text_obj.set_color('green')
+
             # If this was the picked item, highlight in orange
             if is_picked:
                 picked_value = value
@@ -975,9 +984,9 @@ class PlotRenderer:
                     line.set_color('orange')
                 if scatter is not None:
                     scatter.set_facecolor('orange')
-                if 'text_obj' in value and value['text_obj'] is not None:
-                    value['text_obj'].set_color('orange')
-        
+                if text_obj is not None:
+                    text_obj.set_color('orange')
+
         return picked_value
     
     def get_molecule_spectrum_data(self, molecule: 'Molecule', wave_data: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -1077,7 +1086,6 @@ class PlotRenderer:
                     else:
                         # Return lines with zero intensity
                         return [(line, 0.0, None) for line in lines_in_range]
-            
             return []
             
         except Exception as e:
