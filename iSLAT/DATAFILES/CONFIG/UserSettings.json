@@ -3,6 +3,7 @@
     "reload_default_files": false,
     "fit_line_uncertainty": 1,
     "line_threshold": 0.03,
+    "model_pixel_res": 0.01,
     "line_detection_strategy": "user_selection",
     "centrtolerance": 0.0001,
     "fwhmtolerance": 5,
@@ -16,6 +17,6 @@
     "zorder_model": 2,
     "zorder_summed": 1,
     "start_on_top": true,
-    "theme": "LightTheme",
-    "clear_old_fits": true
+    "clear_old_fits": true,
+    "theme": "LightTheme"
 }

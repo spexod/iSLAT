@@ -26,23 +26,18 @@ class MoleculeDict(dict):
         self._dirty_molecules: set = set()
         
         self._wave_data: Optional[np.ndarray] = None
-        self._global_dist: float = default_parms.DEFAULT_DISTANCE
-        self._global_stellar_rv: float = default_parms.DEFAULT_STELLAR_RV
-        #self._global_fwhm: float = default_parms.DEFAULT_FWHM
-        self._global_intrinsic_line_width: float = default_parms.INTRINSIC_LINE_WIDTH
-        self._global_wavelength_range: Tuple[float, float] = default_parms.WAVELENGTH_RANGE
-        self._global_model_line_width: float = default_parms.MODEL_LINE_WIDTH
-        self._global_model_pixel_res: float = default_parms.MODEL_PIXEL_RESOLUTION
-
         self._global_parms = {
-            "wavelength_range": self._global_wavelength_range,
-            "distance": self._global_dist,
-            #"fwhm": getattr(self, '_global_fwhm', None),
-            "stellar_rv": getattr(self, '_global_stellar_rv', None),
-            "intrinsic_line_width": self._global_intrinsic_line_width,
-            "model_pixel_res": self._global_model_pixel_res,
-            "model_line_width": self._global_model_line_width
+            'dist': kwargs.pop('global_distance', default_parms.DEFAULT_DISTANCE),
+            'stellar_rv': kwargs.pop('global_stellar_rv', default_parms.DEFAULT_STELLAR_RV),
+            'intrinsic_line_width': kwargs.pop('global_intrinsic_line_width', default_parms.INTRINSIC_LINE_WIDTH),
+            'wavelength_range': kwargs.pop('global_wavelength_range', default_parms.WAVELENGTH_RANGE),
+            'model_line_width': kwargs.pop('global_model_line_width', default_parms.MODEL_LINE_WIDTH),
+            'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
         }
+        
+        # Create individual properties for backward compatibility
+        for param, value in self._global_parms.items():
+            setattr(self, f'_global_{param}', value)
         
         self._global_parameter_change_callbacks: List[Callable] = []
         
@@ -75,7 +70,6 @@ class MoleculeDict(dict):
             model_pixel_res=effective_model_pixel_res,
             model_line_width=effective_model_line_width,
             distance=effective_distance,
-            fwhm=self._global_fwhm,
             stellar_rv=self._global_stellar_rv,
             radius=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Rad", None),
             temp=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Temp", None),

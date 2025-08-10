@@ -24,7 +24,6 @@ class ControlPanel(ttk.Frame):
             for mol_name, mol_obj in self.islat.molecules_dict.items():
                     mol_label = getattr(mol_obj, 'displaylabel', mol_name)
                     self.mol_list[mol_name] = mol_label
-
         
         # Load field configurations from JSON file using iSLAT file handling
         self._load_field_configurations()
@@ -52,7 +51,6 @@ class ControlPanel(ttk.Frame):
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
 
-
     def _create_general_config_frame(self):
         wrapper = create_wrapper_frame(self, 1, 0, columnspan = 2)
 
@@ -73,7 +71,7 @@ class ControlPanel(ttk.Frame):
     def _create_color_and_vis_frame(self):
         wrapper = create_wrapper_frame(self, 0, 0, sticky="nsew")
 
-        color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 128, vertical=True)
+        self._color_vis_parent_frame = color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 128, vertical=True)
 
         return color_vis_frame
 
@@ -86,7 +84,6 @@ class ControlPanel(ttk.Frame):
 
         selected_frame.grid_rowconfigure(0, weight=1)
         selected_frame.grid_columnconfigure(0, weight=1)
-    
 
     def _load_field_configurations(self):
         """Load field configurations from JSON file using iSLAT file handling"""
@@ -145,8 +142,6 @@ class ControlPanel(ttk.Frame):
             entry, var = self._global_parameter_entries[parameter_name]
             if var.get() != str(new_value):
                 var.set(str(new_value))
-
-    
 
     def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7):
         """Create a simple entry field with label and change callback"""
@@ -313,7 +308,6 @@ class ControlPanel(ttk.Frame):
         row = start_row 
         for field_key, field_config in self.MOLECULE_FIELDS.items():
             
-            
             entry, var = self._create_molecule_parameter_entry(
                 parameters_frame,
                 field_config['label'], 
@@ -327,7 +321,6 @@ class ControlPanel(ttk.Frame):
             row +=1
 
             col_offset += 1
-            
         
         delete_frame = tk.Frame(parent)
         delete_frame.grid(row=1, column=0, sticky="sw")
@@ -335,7 +328,6 @@ class ControlPanel(ttk.Frame):
                                 )
         
         delete_btn.grid(row=0, column=0)
-        
 
     def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7):
         """Create an entry bound to the active molecule's parameter"""
@@ -420,7 +412,6 @@ class ControlPanel(ttk.Frame):
                                 )
             mol_btn.config(command=lambda name=mol_name, frame=mol_frame: self._on_molecule_selected(selected_mol=name, selected_frame=frame))
             mol_btn.grid(row=row, column=1, pady=2)
-
             
             checkbox_frame = tk.Frame(mol_frame)
             checkbox_frame.grid(row=row, column=0, pady=2, sticky="nsew")
@@ -433,7 +424,6 @@ class ControlPanel(ttk.Frame):
                 command=lambda name = mol_name: self._on_visibility_changed(name)
             )
             visibility_checkbox.grid(row=0, column=0, sticky="w")
-           
             
             if mol_name not in self.mol_visibility:
                 self.mol_visibility[mol_name] = visibility_var
@@ -456,7 +446,6 @@ class ControlPanel(ttk.Frame):
             visibility_var.set(is_visible)
 
             self._update_color_and_visibility_controls()
-
 
     def _get_active_molecule_parameter_value(self, param_name):
         """Get the current value of a parameter from the active molecule"""
@@ -504,51 +493,6 @@ class ControlPanel(ttk.Frame):
         self.dropdown = ttk.Combobox(parent, textvariable=self.molecule_var, state="readonly", width=7)
         self.dropdown.grid(row=row, column=column + 1, padx=5, pady=5)
         self.dropdown.bind("<<ComboboxSelected>>", self._on_molecule_selected)
-        
-
-    def _create_molecule_color_and_visibility_controls(self, parent, row, column):
-        """Create color button and visibility checkbox for the active molecule"""
-        # Visibility checkbox
-        # visibility_label = ttk.Label(parent, text="Visible:")
-        # visibility_label.grid(row=row, column=column, padx=5, pady=5)
-        
-        
-        # self.visibility_var = tk.BooleanVar()
-        # self.visibility_checkbox = ttk.Checkbutton(
-        #     parent, 
-        #     variable=self.visibility_var, 
-        #     command=self._on_visibility_changed
-        # )
-        # self.visibility_checkbox.grid(row=row, column=column + 1, padx=5, pady=5)
-        
-
-        
-        # Color button
-        # color_label = ttk.Label(parent, text="Color:")
-        # color_label.grid(row=row, column=column + 2, padx=5, pady=5)
-        
-        # Apply theme to the label
-        # color_label.configure(
-        #     bg=self.theme.get("background", "#181A1B"),
-        #     fg=self.theme.get("foreground", "#F0F0F0")
-        # )
-        
-        # Get default color for initialization
-        default_colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7"] # REPLACE WITH DEFAULT MOLECULE COLORS MAYBE FROM ISLAT CLASS ? 
-        # default_color = default_colors[0]
-        
-        # self.color_button = tk.Button(
-        #     parent, 
-        #     bg=default_color, 
-        #     width=4,
-        #     command=self._on_color_button_clicked
-        # )
-        # self.color_button.grid(row=row, column=column + 3, padx=5, pady=5)
-        # Mark this as a color selection button so theming will ignore it
-        # self.color_button._is_color_button = True
-        
-        # Initialize with current active molecule data
-        # self._update_color_and_visibility_controls()
 
     def _ensure_molecule_color_initialized(self, mol_obj):
         """Ensure molecule has a color assigned, using MoleculeWindow logic"""
@@ -639,8 +583,7 @@ class ControlPanel(ttk.Frame):
         active_mol = self._get_active_molecule_object()
         self.mol_frames[active_mol.name].config(bg=self.selected_color)
 
-        self.selected_label.config(text=f"Selected Molecule: {active_mol.name}")
-        
+        self.selected_label.config(text=f"Selected Molecule: {active_mol.name}")  
 
     def _update_display_range(self, value_str=None):
         """Update display range from either start or range change"""
@@ -703,12 +646,10 @@ class ControlPanel(ttk.Frame):
         old_active_mol = self._get_active_molecule_object().name
         self.mol_frames[old_active_mol].config(bg = self.bg_color)
             
-        
         if selected_mol:
             selected_label = self.mol_list[selected_mol]
         else:
             selected_label = self.mol_list[self.molecule_var.get()]
-
 
         try:
             if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
@@ -724,28 +665,7 @@ class ControlPanel(ttk.Frame):
         except Exception as e:
             print(f"Error setting active molecule: {e}")
 
-    def _reload_molecule_dropdown(self):
-        """Reload molecule dropdown options"""
-        if not hasattr(self, 'dropdown'):
-            return
-            
-        options = []
-        if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-            molecule_options = [ #reverted change on next line. The mol name is used for identification in a lot of places and so the change broke selection
-                getattr(mol_obj, 'displaylabel', mol_name) 
-                for mol_name, mol_obj in self.islat.molecules_dict.items()
-            ]
-            options = molecule_options
-        
-        self.dropdown['values'] = options
-        
-        # Set default value if current selection is invalid
-        current_value = self.molecule_var.get()
-        if current_value not in options and options:
-            self.molecule_var.set(options[0])
-            self._on_molecule_selected()
-
-    def refresh_from_molecules_dict(self):
+    '''def refresh_from_molecules_dict(self):
         """Refresh all fields from current molecules_dict values"""
         if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
             return
@@ -773,7 +693,54 @@ class ControlPanel(ttk.Frame):
             self.max_wavelength_var.set(str(max_val))
         
         # Update molecule-specific parameter fields
+        self._update_molecule_parameter_fields()'''
+    
+    def refresh_from_molecules_dict(self):
+        """Refresh all fields from current molecules_dict values"""
+        if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
+            return
+            
+        molecules_dict = self.islat.molecules_dict
+
+        # Update molecule list
+        for mol_name, mol_obj in molecules_dict.items():
+            mol_label = getattr(mol_obj, 'displaylabel', mol_name)
+            self.mol_list[mol_name] = mol_label
+        
+        # Re-register callbacks in case molecules_dict was created after ControlPanel
+        try:
+            molecules_dict.add_global_parameter_change_callback(self._on_global_parameter_change)
+        except:
+            pass  # Callback might already be registered
+        
+        # Update global parameter fields
+        self._update_global_parameter_fields()
+        
+        # Update wavelength range fields
+        if (hasattr(self, 'min_wavelength_var') and hasattr(self, 'max_wavelength_var') 
+            and hasattr(molecules_dict, 'global_wavelength_range')):
+            min_val, max_val = molecules_dict.global_wavelength_range
+            self.min_wavelength_var.set(str(min_val))
+            self.max_wavelength_var.set(str(max_val))
+        
+        # Update molecule-specific parameter fields
         self._update_molecule_parameter_fields()
+        
+        # Rebuild color and visibility controls for new molecules
+        self._rebuild_color_and_vis_controls()
+
+    def _rebuild_color_and_vis_controls(self):
+        """Rebuild color and visibility controls when molecules are added/removed"""
+        if hasattr(self, 'mol_frames'):
+            # Clear existing frames
+            for frame in self.mol_frames.values():
+                frame.destroy()
+            self.mol_frames.clear()
+            self.mol_visibility.clear()
+        
+        # Get the parent frame
+        if hasattr(self, '_color_vis_parent_frame'):
+            self._build_color_and_vis_controls(self._color_vis_parent_frame)
 
     def cleanup(self):
         try:

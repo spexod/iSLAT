@@ -40,9 +40,6 @@ class TopBar(ResizableFrame):
         
         # Apply initial theme
         # self.apply_theme(theme)
-
-        
-
     
     def _create_buttons(self):
         """Create all the button widgets."""
@@ -84,9 +81,6 @@ class TopBar(ResizableFrame):
         create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3)
         create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4)
         create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
-
-
-
 
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file using the new MoleculeLine approach."""

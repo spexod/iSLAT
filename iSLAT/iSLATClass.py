@@ -137,9 +137,9 @@ class iSLAT:
             print(f"Error loading molecules: {e}")
 
     def add_molecule_from_hitran(self, refresh=True, hitran_files=None, molecule_names=None, 
-                                base_molecules=None, isotopes=None, use_parallel=False): # needs updated
+                                base_molecules=None, isotopes=None, use_parallel=False):
         """
-        Adds one or more molecules to the iSLAT instance from HITRAN files with sequential loading by default.
+        Adds one or more molecules to the iSLAT instance from HITRAN files.
         
         Parameters:
         -----------
@@ -154,7 +154,7 @@ class iSLAT:
         isotopes : int or list
             Single isotope or list of isotopes (currently unused)
         use_parallel : bool, default False
-            Whether to use parallel loading (multiprocessing). Default is False for sequential loading.
+            Whether to prefer parallel loading when beneficial
         """
         if hitran_files is None:
             hitran_files = GUI.file_selector(title='Choose HITRAN Data Files (select multiple with Ctrl/Cmd)',
@@ -202,56 +202,45 @@ class iSLAT:
             }
             molecules_data.append(mol_data)
         
-        # Use sequential loading by default, parallel only if explicitly enabled
-        success_count = 0
-        use_parallel_loading = use_parallel or self.use_parallel_processing
+        print(f"Loading {len(molecules_data)} HITRAN molecule(s)...")
         
-        if use_parallel_loading and len(molecules_data) > 1:
-            print(f"Loading {len(molecules_data)} HITRAN molecules using parallel method...")
+        try:
+            start_time = time.time()
+            
             results = self.molecules_dict.load_molecules(
                 molecules_data, 
                 self.initial_molecule_parameters,
-                force_multiprocessing=True
+                strategy="auto",
+                force_multiprocessing=use_parallel or self.use_parallel_processing
             )
+            
+            elapsed_time = time.time() - start_time
             success_count = results["success"]
+            
+            print(f"Loading completed in {elapsed_time:.3f}s")
+            
+            if success_count > 0:
+                print(f"Successfully loaded {success_count} molecules.")
+                
+                # Trigger GUI refresh if requested
+                if refresh and hasattr(self, 'GUI') and self.GUI is not None:
+                    try:
+                        self.GUI.control_panel.refresh_from_molecules_dict()
+                        self.GUI.plot.update_model_plot()
+                        print("GUI molecule list and plot refreshed.")
+                    except Exception as e:
+                        print(f"Warning: Could not refresh GUI: {e}")
+            else:
+                print("No molecules were successfully loaded.")
             
             if results["failed"] > 0:
                 print(f"Failed to load {results['failed']} molecules:")
-                for error in results["errors"]:
+                for error in results.get("errors", []):
                     print(f"  - {error}")
-        else:
-            # Sequential loading (default)
-            print(f"Loading {len(molecules_data)} HITRAN molecule(s) sequentially...")
-            start_time = time.time()
-            
-            for mol_data in molecules_data:
-                molecule_name = mol_data["name"]
-                hitran_file = mol_data["file"]
-                
-                print(f"Loading molecule '{molecule_name}' from file: {hitran_file}")
-                
-                try:
-                    new_molecule = Molecule(
-                        hitran_data=hitran_file,
-                        name=molecule_name,
-                        wavelength_range=self.wavelength_range,
-                        initial_molecule_parameters=self.initial_molecule_parameters.get(molecule_name, self.molecules_parameters_default)
-                    )
-                    self.molecules_dict[molecule_name] = new_molecule
-                    success_count += 1
-                    print(f"Successfully created molecule: {molecule_name}")
                     
-                except Exception as e:
-                    print(f"Error loading molecule '{molecule_name}' from {hitran_file}: {str(e)}")
-                    continue
-            
-            elapsed_time = time.time() - start_time
-            print(f"Sequential loading completed in {elapsed_time:.3f}s")
-        
-        if success_count > 0:
-            print(f"Successfully loaded {success_count} molecules.")
-        else:
-            print("No molecules were successfully loaded.")
+        except Exception as e:
+            print(f"Error during molecule loading: {e}")
+            print("No molecules were loaded due to the error.")
 
     def check_HITRAN(self):
         """
