@@ -43,7 +43,7 @@ class Molecule:
         '_temp_val', '_radius_val', '_n_mol_val', '_distance_val', '_fwhm_val', '_broad_val',
         '_lines_filepath',
         't_kin', 'scale_exponent', 'scale_number', 'radius_init', 'n_mol_init',
-        'wavelength_range', 'model_pixel_res', 'model_line_width',
+        '_wavelength_range', 'model_pixel_res', 'model_line_width',
         'plot_lam', 'plot_flux',
         '_intensity_cache', '_spectrum_cache', '_flux_cache', '_wave_data_cache',
         '_param_hash_cache', '_dirty_flags', '_cache_stats'
@@ -53,8 +53,8 @@ class Molecule:
     _shared_calculation_cache = {}
     _cache_lock = threading.Lock()
     
-    INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad'}
-    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'stellar_rv'}
+    INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad', 'wavelength_range'}
+    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'stellar_rv', 'wavelength_range'}
     FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS
     
     @classmethod
@@ -144,7 +144,7 @@ class Molecule:
         self._fwhm = float(self._fwhm_val if self._fwhm_val is not None else c.DEFAULT_FWHM)
         self._broad = float(self._broad_val if self._broad_val is not None else c.INTRINSIC_LINE_WIDTH)
 
-        self.wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
+        self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
         self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
         self.model_line_width = kwargs.get('model_line_width', c.MODEL_LINE_WIDTH)
 
@@ -181,10 +181,11 @@ class Molecule:
         return hash((self._temp, self._n_mol, self._broad))
     
     def _compute_spectrum_hash(self):
-        return hash((self._radius, self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
+        #return hash((self._radius, self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
+        return hash((self._radius, self._distance, self._fwhm, self._wavelength_range, self._compute_intensity_hash()))
     
     def _compute_full_parameter_hash(self):
-        return hash((self._compute_spectrum_hash()))#, self._radius))
+        return hash((self._compute_spectrum_hash()))
 
     def _load_from_user_save_data(self, kwargs):
         """Load parameters from user save data"""
@@ -368,20 +369,6 @@ class Molecule:
             return self._param_hash_cache[cache_type]
         return self._compute_full_parameter_hash()
 
-    def _get_current_parameter_hash(self):
-        """Get hash of current parameters for intensity calculation"""
-        param_tuple = (
-            getattr(self, '_temp', self.t_kin),
-            getattr(self, '_radius', self.radius_init),
-            getattr(self, '_n_mol', self.n_mol_init),
-            getattr(self, '_broad', c.INTRINSIC_LINE_WIDTH),  # Use broad for intensity dv parameter
-            getattr(self, '_fwhm', c.DEFAULT_FWHM),  # Include FWHM for spectrum resolution
-            getattr(self, '_stellar_rv', c.DEFAULT_STELLAR_RV),  # Include stellar RV
-            # Include line data hash if available
-            hash(str(self.lines.molecule_id)) if self.lines else 0
-        )
-        return hash(param_tuple)
-
     def _clear_flux_caches(self):
         self._flux_cache.clear()
         # DO NOT clear _wave_data_cache - it uses parameter hashes for validation
@@ -516,6 +503,16 @@ class Molecule:
         old_value = self._distance
         self._distance = float(value)
         self._notify_my_parameter_change('distance', old_value, self._distance)
+
+    @property
+    def wavelength_range(self):
+        return self._wavelength_range
+
+    @wavelength_range.setter
+    def wavelength_range(self, value):
+        old_value = self._wavelength_range
+        self._wavelength_range = value
+        self._notify_my_parameter_change('wavelength_range', old_value, self._wavelength_range)
     
     @property
     def fwhm(self):
@@ -551,7 +548,8 @@ class Molecule:
         for param_name, value in parameter_dict.items():
             if hasattr(self, f'_{param_name}'):
                 old_values[param_name] = getattr(self, f'_{param_name}')
-                setattr(self, f'_{param_name}', float(value))
+                #setattr(self, f'_{param_name}', float(value))
+                setattr(self, f'_{param_name}', value)
                 affected_params.add(param_name)
             elif param_name == 'intrinsic_line_width':
                 old_values[param_name] = self._broad

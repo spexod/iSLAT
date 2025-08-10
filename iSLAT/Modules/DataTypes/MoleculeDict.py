@@ -1174,6 +1174,7 @@ class MoleculeDict(dict):
         old_value = self._global_wavelength_range
         if value != old_value:
             self._global_wavelength_range = value
+            self.bulk_update_parameters({'wavelength_range': value})
             self._notify_global_parameter_change('wavelength_range', old_value, value)
     
     @property

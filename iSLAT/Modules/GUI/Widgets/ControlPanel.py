@@ -211,8 +211,6 @@ class ControlPanel(ttk.Frame):
         if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
             label = tk.Label(parent, text="Global parameters not available")
             label.grid(row=start_row, column=start_col, columnspan=4, padx=5, pady=5)
-            # Apply theme to the label
-
             return
 
         # Store references for later updates
@@ -610,8 +608,8 @@ class ControlPanel(ttk.Frame):
             if min_val < max_val:
                 molecules_dict = self.islat.molecules_dict
                 molecules_dict.global_wavelength_range = (min_val, max_val)
-                if hasattr(self.islat, 'wavelength_range'):
-                    self.islat.wavelength_range = (min_val, max_val)
+                '''if hasattr(self.islat, 'wavelength_range'):
+                    self.islat.wavelength_range = (min_val, max_val)'''
         except (ValueError, AttributeError):
             pass
 
@@ -664,36 +662,6 @@ class ControlPanel(ttk.Frame):
                     self.islat.active_molecule = first_mol
         except Exception as e:
             print(f"Error setting active molecule: {e}")
-
-    '''def refresh_from_molecules_dict(self):
-        """Refresh all fields from current molecules_dict values"""
-        if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
-            return
-            
-        molecules_dict = self.islat.molecules_dict
-
-        for mol_name, mol_obj in molecules_dict.items():
-                    mol_label = getattr(mol_obj, 'displaylabel', mol_name)
-                    self.mol_list[mol_name] = mol_label
-        
-        # Re-register callbacks in case molecules_dict was created after ControlPanel
-        try:
-            molecules_dict.add_global_parameter_change_callback(self._on_global_parameter_change)
-        except:
-            pass  # Callback might already be registered
-        
-        # Update global parameter fields
-        self._update_global_parameter_fields()
-        
-        # Update wavelength range fields
-        if (hasattr(self, 'min_wavelength_var') and hasattr(self, 'max_wavelength_var') 
-            and hasattr(molecules_dict, 'global_wavelength_range')):
-            min_val, max_val = molecules_dict.global_wavelength_range
-            self.min_wavelength_var.set(str(min_val))
-            self.max_wavelength_var.set(str(max_val))
-        
-        # Update molecule-specific parameter fields
-        self._update_molecule_parameter_fields()'''
     
     def refresh_from_molecules_dict(self):
         """Refresh all fields from current molecules_dict values"""
