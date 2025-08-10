@@ -43,7 +43,7 @@ class Molecule:
         '_temp_val', '_radius_val', '_n_mol_val', '_distance_val', '_fwhm_val', '_broad_val',
         '_lines_filepath',
         't_kin', 'scale_exponent', 'scale_number', 'radius_init', 'n_mol_init',
-        '_wavelength_range', 'model_pixel_res', 'model_line_width',
+        '_wavelength_range', 'pixels_per_fwhm', 'model_pixel_res', 'model_line_width',
         'plot_lam', 'plot_flux',
         '_intensity_cache', '_spectrum_cache', '_flux_cache', '_wave_data_cache',
         '_param_hash_cache', '_dirty_flags', '_cache_stats'
@@ -145,7 +145,12 @@ class Molecule:
         self._broad = float(self._broad_val if self._broad_val is not None else c.INTRINSIC_LINE_WIDTH)
 
         self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
-        self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
+        #self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
+        self.pixels_per_fwhm = kwargs.get('pixels_per_fwhm', c.PIXELS_PER_FWHM)
+        if self.pixels_per_fwhm is not None:
+            self.model_pixel_res = (np.mean(self._wavelength_range) / c.SPEED_OF_LIGHT_KMS * self._fwhm) / self.pixels_per_fwhm
+        else:
+            self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
         self.model_line_width = kwargs.get('model_line_width', c.MODEL_LINE_WIDTH)
 
         self.intensity = None

@@ -16,8 +16,6 @@ class MoleculeDict(dict):
     """
     
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
         self.fluxes: Dict[str, np.ndarray] = {}
         self._summed_flux_cache: Dict[int, np.ndarray] = {}
         self._cache_wave_data_hash: Optional[int] = None
@@ -32,9 +30,12 @@ class MoleculeDict(dict):
             'intrinsic_line_width': kwargs.pop('global_intrinsic_line_width', default_parms.INTRINSIC_LINE_WIDTH),
             'wavelength_range': kwargs.pop('global_wavelength_range', default_parms.WAVELENGTH_RANGE),
             'model_line_width': kwargs.pop('global_model_line_width', default_parms.MODEL_LINE_WIDTH),
-            'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
+            #'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
+            'pixels_per_fwhm': kwargs.pop('global_pixels_per_fwhm', default_parms.PIXELS_PER_FWHM),
         }
         
+        super().__init__(*args, **kwargs)
+
         # Create individual properties for backward compatibility
         for param, value in self._global_parms.items():
             setattr(self, f'_global_{param}', value)
@@ -46,7 +47,7 @@ class MoleculeDict(dict):
 
     def add_molecule(self, mol_entry: Dict[str, Any], intrinsic_line_width: Optional[float] = None, 
                      wavelength_range: Optional[Tuple[float, float]] = None, 
-                     model_pixel_res: Optional[float] = None, model_line_width: Optional[float] = None, 
+                     pixels_per_fwhm: Optional[float] = None, model_line_width: Optional[float] = None, 
                      distance: Optional[float] = None, hitran_data: Optional[Any] = None) -> Molecule:
         """Add a new molecule to the dictionary using molecule entry data."""
         mol_name = mol_entry["name"]
@@ -54,7 +55,7 @@ class MoleculeDict(dict):
         # Use global parameters if not specifically provided
         effective_intrinsic_line_width = intrinsic_line_width if intrinsic_line_width is not None else self._global_intrinsic_line_width
         effective_wavelength_range = wavelength_range if wavelength_range is not None else self._global_wavelength_range
-        effective_model_pixel_res = model_pixel_res if model_pixel_res is not None else self._global_model_pixel_res
+        effective_pixels_per_fwhm = pixels_per_fwhm if pixels_per_fwhm is not None else self._global_pixels_per_fwhm
         effective_model_line_width = model_line_width if model_line_width is not None else self._global_model_line_width
         effective_distance = distance if distance is not None else self._global_dist
 
@@ -67,7 +68,7 @@ class MoleculeDict(dict):
             initial_molecule_parameters=getattr(self, 'initial_molecule_parameters', {}).get(mol_name, {}),
             wavelength_range=effective_wavelength_range,
             broad=effective_intrinsic_line_width,
-            model_pixel_res=effective_model_pixel_res,
+            pixels_per_fwhm=effective_pixels_per_fwhm,
             model_line_width=effective_model_line_width,
             distance=effective_distance,
             stellar_rv=self._global_stellar_rv,
@@ -973,7 +974,7 @@ class MoleculeDict(dict):
                 fwhm=getattr(self, '_global_fwhm', None),
                 stellar_rv=getattr(self, '_global_stellar_rv', None),
                 broad=self._global_intrinsic_line_width,
-                model_pixel_res=self._global_model_pixel_res,
+                pixels_per_fwhm=self._global_pixels_per_fwhm,
                 model_line_width=self._global_model_line_width,
                 
                 # Molecule-specific parameters

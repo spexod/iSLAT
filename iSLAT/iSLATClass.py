@@ -25,18 +25,18 @@ class iSLAT:
         Initialize the iSLAT application with minimal setup.
         """
         # === CORE STATE ===
+        self._user_settings = None
         self._active_molecule = None
         self.GUI = None
         
         # Initialize collections
-        self.molecules_dict = MoleculeDict()
+        self.molecules_dict = MoleculeDict(global_pixels_per_fwhm=self.user_settings.get("pixels_per_fwhm"))
         self.callbacks = {}
         
         # === CALLBACK SYSTEM ===
         self._active_molecule_change_callbacks = []
         
         # === LAZY LOADING FLAGS ===
-        self._user_settings = None
         self._initial_molecule_parameters = None
         self._molecules_parameters_default = None
         self._default_molecule_csv_data = None
