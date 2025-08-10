@@ -274,28 +274,21 @@ class iSLATPlot:
             self.plot_renderer.clear_model_lines()
             self.canvas.draw_idle()
             return
-            
-        '''# Get visible molecules - use their own visibility property
-        visible_molecules = [mol for mol in self.islat.molecules_dict.values() 
-                           if self._convert_visibility_to_bool(mol.is_visible)]'''
         
         # Calculate summed flux using MoleculeDict's advanced caching system
         try:
-            if hasattr(self.islat.molecules_dict, 'get_summed_flux_optimized'):
-                # Use MoleculeDict's optimized summed flux calculation with advanced caching
-                debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux_optimized() for model plot")
-                summed_flux = self.islat.molecules_dict.get_summed_flux_optimized(self.islat.wave_data, visible_only=True)
-            elif hasattr(self.islat.molecules_dict, 'get_summed_flux'):
+            if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
                 # Use MoleculeDict's standard summed flux calculation with caching
                 debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
                 summed_flux = self.islat.molecules_dict.get_summed_flux(self.islat.wave_data, visible_only=True)
         except Exception as e:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
-        print("enter render _main_spectrum_plot")
-        # Delegate rendering to PlotRenderer for clean separation of concerns
+    
+        wave_data = self.islat.wave_data - (self.islat.wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
+        
         self.plot_renderer.render_main_spectrum_plot(
-            self.islat.wave_data,
+            wave_data,
             self.islat.flux_data,
             molecules=self.islat.molecules_dict,
             summed_flux=summed_flux,
@@ -682,20 +675,6 @@ class iSLATPlot:
         """
         self.plot_renderer.clear_all_plots()
         self.canvas.draw_idle()
-    
-    def optimize_plot_memory(self):
-        """
-        Optimize memory usage for plotting operations.
-        Delegates to PlotRenderer for memory management.
-        """
-        self.plot_renderer.optimize_plot_memory_usage()
-    
-    def get_plot_performance_stats(self):
-        """
-        Get performance statistics for debugging.
-        Returns dict with plot performance metrics.
-        """
-        return self.plot_renderer.get_plot_performance_stats()
 
     def highlight_line_selection(self, xmin, xmax):
         """
@@ -712,20 +691,6 @@ class iSLATPlot:
         """
         self.plot_renderer.plot_vertical_lines(wavelengths, heights, colors, labels)
         self.canvas.draw_idle()
-    
-    def update_plot_display(self):
-        """
-        Update the plot display.
-        Delegates to PlotRenderer for display updates.
-        """
-        self.plot_renderer.update_plot_display()
-    
-    def force_plot_refresh(self):
-        """
-        Force a complete plot refresh.
-        Delegates to PlotRenderer for comprehensive refresh.
-        """
-        self.plot_renderer.force_plot_refresh()
 
     def on_click(self, event):
         """Handle mouse click events on the plot."""
@@ -860,16 +825,6 @@ class iSLATPlot:
         # Only canvas update needed in MainPlot
         self.canvas.draw_idle()
 
-    def _add_molecule_to_plot(self, molecule):
-        """Add a single molecule's spectrum using PlotRenderer - minimal logic"""
-        if not molecule.is_visible:
-            return
-        
-        # Delegate to PlotRenderer with minimal logic
-        return self.plot_renderer.render_individual_molecule_spectrum(
-            molecule, self.islat.wave_data
-        )
-
     def _update_summed_spectrum(self):
         """Update summed spectrum by delegating to PlotRenderer - minimal logic"""
         if not hasattr(self.islat, 'molecules_dict'):
@@ -880,19 +835,6 @@ class iSLATPlot:
             self.islat.molecules_dict, 
             self.islat.wave_data
         )
-    
-    def batch_update_molecule_colors(self, molecule_color_map):
-        """
-        Update multiple molecule colors.
-        
-        Parameters
-        ----------
-        molecule_color_map : dict
-            Dictionary mapping molecule names to colors
-        """
-        self.plot_renderer.batch_update_molecule_colors(molecule_color_map)
-    
-    # Convenience methods that delegate to specialized modules
     
     def compute_fit_line(self, xmin=None, xmax=None, deblend=False):
         """

@@ -724,6 +724,26 @@ class ControlPanel(ttk.Frame):
         except Exception as e:
             print(f"Error setting active molecule: {e}")
 
+    def _reload_molecule_dropdown(self):
+        """Reload molecule dropdown options"""
+        if not hasattr(self, 'dropdown'):
+            return
+            
+        options = []
+        if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
+            molecule_options = [ #reverted change on next line. The mol name is used for identification in a lot of places and so the change broke selection
+                getattr(mol_obj, 'displaylabel', mol_name) 
+                for mol_name, mol_obj in self.islat.molecules_dict.items()
+            ]
+            options = molecule_options
+        
+        self.dropdown['values'] = options
+        
+        # Set default value if current selection is invalid
+        current_value = self.molecule_var.get()
+        if current_value not in options and options:
+            self.molecule_var.set(options[0])
+            self._on_molecule_selected()
 
     def refresh_from_molecules_dict(self):
         """Refresh all fields from current molecules_dict values"""
@@ -735,7 +755,6 @@ class ControlPanel(ttk.Frame):
         for mol_name, mol_obj in molecules_dict.items():
                     mol_label = getattr(mol_obj, 'displaylabel', mol_name)
                     self.mol_list[mol_name] = mol_label
-
         
         # Re-register callbacks in case molecules_dict was created after ControlPanel
         try:
@@ -752,12 +771,9 @@ class ControlPanel(ttk.Frame):
             min_val, max_val = molecules_dict.global_wavelength_range
             self.min_wavelength_var.set(str(min_val))
             self.max_wavelength_var.set(str(max_val))
-
-        
         
         # Update molecule-specific parameter fields
         self._update_molecule_parameter_fields()
-        
 
     def cleanup(self):
         try:

@@ -36,7 +36,7 @@ class Molecule:
     Optimized Molecule class with enhanced caching and performance improvements.
     """
     __slots__ = (
-        'name', 'filepath', 'displaylabel', 'color', '_is_visible', 'stellar_rv',
+        'name', 'filepath', 'displaylabel', 'color', '_is_visible', '_stellar_rv',
         'user_save_data', 'hitran_data', 'initial_molecule_parameters',
         'lines', 'intensity', 'spectrum',
         '_temp', '_radius', '_n_mol', '_distance', '_fwhm', '_broad',
@@ -54,7 +54,7 @@ class Molecule:
     _cache_lock = threading.Lock()
     
     INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad'}
-    SPECTRUM_AFFECTING_PARAMS = {'distance', 'fwhm', 'stellar_rv'}
+    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'stellar_rv'}
     FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS
     
     @classmethod
@@ -181,10 +181,10 @@ class Molecule:
         return hash((self._temp, self._n_mol, self._broad))
     
     def _compute_spectrum_hash(self):
-        return hash((self._distance, self._fwhm, self.stellar_rv, self._compute_intensity_hash()))
+        return hash((self._radius, self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
     
     def _compute_full_parameter_hash(self):
-        return hash((self._compute_spectrum_hash(), self._radius))
+        return hash((self._compute_spectrum_hash()))#, self._radius))
 
     def _load_from_user_save_data(self, kwargs):
         """Load parameters from user save data"""
@@ -206,7 +206,7 @@ class Molecule:
         self._distance_val = usd.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = usd.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = usd.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self.stellar_rv = kwargs.get('stellar_rv', c.DEFAULT_STELLAR_RV)
+        self._stellar_rv = kwargs.get('stellar_rv', c.DEFAULT_STELLAR_RV)
         
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -229,7 +229,7 @@ class Molecule:
         self._distance_val = kwargs.get('distance', c.DEFAULT_DISTANCE)
         self._fwhm_val = kwargs.get('fwhm', c.DEFAULT_FWHM)
         self._broad_val = kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH)
-        self.stellar_rv = kwargs.get('stellar_rv', c.DEFAULT_STELLAR_RV)
+        self._stellar_rv = kwargs.get('stellar_rv', c.DEFAULT_STELLAR_RV)
         
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -351,7 +351,8 @@ class Molecule:
             self._temp, self._radius, self._n_mol, self._distance, 
             self._fwhm, self._broad, self.wavelength_range, 
             self.model_pixel_res, self.model_line_width,
-            getattr(self, 'stellar_rv', c.DEFAULT_STELLAR_RV)  # Include stellar RV in hash
+            #getattr(self, 'stellar_rv', c.DEFAULT_STELLAR_RV)  # Include stellar RV in hash
+            self._stellar_rv
         )
         self._parameter_hash = hash(param_tuple)
     
@@ -371,10 +372,11 @@ class Molecule:
         """Get hash of current parameters for intensity calculation"""
         param_tuple = (
             getattr(self, '_temp', self.t_kin),
+            getattr(self, '_radius', self.radius_init),
             getattr(self, '_n_mol', self.n_mol_init),
             getattr(self, '_broad', c.INTRINSIC_LINE_WIDTH),  # Use broad for intensity dv parameter
             getattr(self, '_fwhm', c.DEFAULT_FWHM),  # Include FWHM for spectrum resolution
-            getattr(self, 'stellar_rv', c.DEFAULT_STELLAR_RV),  # Include stellar RV
+            getattr(self, '_stellar_rv', c.DEFAULT_STELLAR_RV),  # Include stellar RV
             # Include line data hash if available
             hash(str(self.lines.molecule_id)) if self.lines else 0
         )
@@ -570,15 +572,15 @@ class Molecule:
                     self._notify_my_parameter_change(param_name, old_value, value)
 
     @property
-    def star_rv(self):
-        return getattr(self, 'stellar_rv', c.DEFAULT_STELLAR_RV)
+    def stellar_rv(self):
+        return self._stellar_rv
     
-    @star_rv.setter
-    def star_rv(self, value):
-        old_value = getattr(self, 'stellar_rv', c.DEFAULT_STELLAR_RV)
-        self.stellar_rv = float(value)
-        self._notify_my_parameter_change('stellar_rv', old_value, self.stellar_rv)
-    
+    @stellar_rv.setter
+    def stellar_rv(self, value):
+        old_value = self._stellar_rv
+        self._stellar_rv = float(value)
+        self._notify_my_parameter_change('stellar_rv', old_value, self._stellar_rv)
+
     @property
     def broad(self):
         return self._broad

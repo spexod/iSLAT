@@ -25,13 +25,24 @@ class MoleculeDict(dict):
         self._visible_molecules: set = set()
         self._dirty_molecules: set = set()
         
+        self._wave_data: Optional[np.ndarray] = None
         self._global_dist: float = default_parms.DEFAULT_DISTANCE
-        #self._global_star_rv: float = default_parms.DEFAULT_STELLAR_RV
+        self._global_stellar_rv: float = default_parms.DEFAULT_STELLAR_RV
         #self._global_fwhm: float = default_parms.DEFAULT_FWHM
         self._global_intrinsic_line_width: float = default_parms.INTRINSIC_LINE_WIDTH
         self._global_wavelength_range: Tuple[float, float] = default_parms.WAVELENGTH_RANGE
         self._global_model_line_width: float = default_parms.MODEL_LINE_WIDTH
         self._global_model_pixel_res: float = default_parms.MODEL_PIXEL_RESOLUTION
+
+        self._global_parms = {
+            "wavelength_range": self._global_wavelength_range,
+            "distance": self._global_dist,
+            #"fwhm": getattr(self, '_global_fwhm', None),
+            "stellar_rv": getattr(self, '_global_stellar_rv', None),
+            "intrinsic_line_width": self._global_intrinsic_line_width,
+            "model_pixel_res": self._global_model_pixel_res,
+            "model_line_width": self._global_model_line_width
+        }
         
         self._global_parameter_change_callbacks: List[Callable] = []
         
@@ -65,7 +76,7 @@ class MoleculeDict(dict):
             model_line_width=effective_model_line_width,
             distance=effective_distance,
             fwhm=self._global_fwhm,
-            stellar_rv=self._global_star_rv,
+            stellar_rv=self._global_stellar_rv,
             radius=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Rad", None),
             temp=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Temp", None),
             n_mol=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("N_Mol", None),
@@ -249,175 +260,6 @@ class MoleculeDict(dict):
                     print(f"Failed to calculate flux for {mol_name}: {e}")
         
         return summed_flux
-
-    def batch_flux_calculation(self, wave_data_list: List[np.ndarray], visible_only: bool = True) -> List[np.ndarray]:
-        """Calculate fluxes for multiple wavelength arrays using vectorized operations.
-        
-        Parameters
-        ----------
-        wave_data_list: List[np.ndarray]
-            List of wavelength arrays to calculate fluxes for
-        visible_only: bool, default True
-            If True, only calculate flux from visible molecules
-            
-        Returns
-        -------
-        List[np.ndarray]
-            List of summed flux arrays corresponding to input wavelength arrays
-        """
-        if not wave_data_list:
-            return []
-            
-        visible_molecules = list(self.get_visible_molecules() if visible_only else self.keys())
-        
-        if not visible_molecules:
-            return [np.zeros_like(wd, dtype=np.float32) if wd is not None else np.array([]) 
-                   for wd in wave_data_list]
-        
-        results = []
-        
-        # Process each wavelength array
-        for wave_data in wave_data_list:
-            if wave_data is None:
-                results.append(np.array([]))
-            else:
-                # Use existing optimized method
-                flux = self.get_summed_flux(wave_data, visible_only)
-                results.append(flux)
-        
-        return results
-
-    def bulk_parameter_update_vectorized(self, parameter_dict: Dict[str, np.ndarray], 
-                                       molecule_names: Optional[List[str]] = None) -> Dict[str, int]:
-        """Vectorized bulk parameter updates for multiple molecules.
-        
-        This method efficiently updates parameters across multiple molecules using
-        vectorized numpy operations where possible.
-        
-        Parameters
-        ----------
-        parameter_dict: Dict[str, np.ndarray]
-            Dictionary mapping parameter names to arrays of values. Each array should
-            have the same length as the number of molecules being updated.
-        molecule_names: Optional[List[str]], default None
-            List of molecule names to update. If None, updates all molecules.
-            
-        Returns
-        -------
-        Dict[str, int]
-            Dictionary with statistics: {'updated': count, 'failed': count}
-        """
-        if molecule_names is None:
-            molecule_names = list(self.keys())
-        
-        # Filter to existing molecules
-        valid_molecules = [name for name in molecule_names if name in self]
-        n_molecules = len(valid_molecules)
-        
-        if n_molecules == 0:
-            return {'updated': 0, 'failed': 0}
-        
-        # Validate parameter arrays
-        param_lengths = set()
-        for param_name, values in parameter_dict.items():
-            values = np.asarray(values)
-            param_lengths.add(len(values))
-            
-        if len(param_lengths) > 1:
-            raise ValueError("All parameter arrays must have the same length")
-        
-        array_length = param_lengths.pop()
-        if array_length != n_molecules and array_length != 1:
-            raise ValueError(f"Parameter arrays must have length {n_molecules} or 1, got {array_length}")
-        
-        updated_count = 0
-        failed_count = 0
-        affected_molecules = []
-        
-        # Vectorized parameter updates
-        for i, mol_name in enumerate(valid_molecules):
-            try:
-                molecule = self[mol_name]
-                old_params = {}
-                changed = False
-                
-                for param_name, values in parameter_dict.items():
-                    values = np.asarray(values)
-                    new_value = values[i] if len(values) == n_molecules else values[0]
-                    old_value = getattr(molecule, param_name, None)
-                    old_params[param_name] = old_value
-                    
-                    if old_value != new_value:
-                        # Update parameter using appropriate method
-                        if hasattr(molecule, f'_{param_name}'):
-                            setattr(molecule, f'_{param_name}', float(new_value))
-                        elif param_name == 'intrinsic_line_width':
-                            molecule._broad = float(new_value)
-                        elif param_name == 'stellar_rv':
-                            molecule.stellar_rv = float(new_value)
-                        elif hasattr(molecule, param_name):
-                            setattr(molecule, param_name, new_value)
-                        
-                        changed = True
-                
-                if changed:
-                    # Invalidate caches for this molecule
-                    molecule._invalidate_caches_for_parameters(list(parameter_dict.keys()))
-                    affected_molecules.append(mol_name)
-                    updated_count += 1
-                    
-            except Exception as e:
-                print(f"Failed to update parameters for molecule {mol_name}: {e}")
-                failed_count += 1
-        
-        # Clear global caches for affected molecules
-        if affected_molecules:
-            self._summed_flux_cache.clear()
-            for mol_name in affected_molecules:
-                self.fluxes.pop(mol_name, None)
-        
-        print(f"Vectorized bulk update: {updated_count} molecules updated, {failed_count} failed")
-        
-        return {'updated': updated_count, 'failed': failed_count}
-
-    def get_parameter_arrays_vectorized(self, parameter_names: List[str], 
-                                      molecule_names: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
-        """Get parameter arrays for multiple molecules using vectorized operations.
-        
-        Parameters
-        ----------
-        parameter_names: List[str]
-            List of parameter names to extract
-        molecule_names: Optional[List[str]], default None
-            List of molecule names to extract from (None for all)
-            
-        Returns
-        -------
-        Dict[str, np.ndarray]
-            Dictionary mapping parameter names to numpy arrays of values
-        """
-        if molecule_names is None:
-            molecule_names = list(self.keys())
-        
-        valid_molecules = [name for name in molecule_names if name in self]
-        n_molecules = len(valid_molecules)
-        
-        if n_molecules == 0:
-            return {param: np.array([]) for param in parameter_names}
-        
-        # Pre-allocate result arrays
-        result = {}
-        for param_name in parameter_names:
-            result[param_name] = np.empty(n_molecules, dtype=np.float64)
-        
-        # Vectorized extraction
-        for i, mol_name in enumerate(valid_molecules):
-            molecule = self[mol_name]
-            for param_name in parameter_names:
-                value = getattr(molecule, param_name, np.nan)
-                result[param_name][i] = value if value is not None else np.nan
-        
-        return result
 
     def batch_intensity_calculation(self, parameter_combinations: List[Dict[str, float]], 
                                    molecule_names: Optional[List[str]] = None,
@@ -951,15 +793,7 @@ class MoleculeDict(dict):
             max_workers = min(len(molecules_data), mp.cpu_count())
         
         # Prepare global parameters
-        global_params = {
-            "wavelength_range": self._global_wavelength_range,
-            "distance": self._global_dist,
-            "fwhm": getattr(self, '_global_fwhm', None),
-            "stellar_rv": getattr(self, '_global_star_rv', None),
-            "intrinsic_line_width": self._global_intrinsic_line_width,
-            "model_pixel_res": self._global_model_pixel_res,
-            "model_line_width": self._global_model_line_width
-        }
+        global_params = self._global_parms
         
         # Prepare worker arguments
         worker_args = [
@@ -1143,7 +977,7 @@ class MoleculeDict(dict):
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
                 fwhm=getattr(self, '_global_fwhm', None),
-                stellar_rv=getattr(self, '_global_star_rv', None),
+                stellar_rv=getattr(self, '_global_stellar_rv', None),
                 broad=self._global_intrinsic_line_width,
                 model_pixel_res=self._global_model_pixel_res,
                 model_line_width=self._global_model_line_width,
@@ -1176,50 +1010,6 @@ class MoleculeDict(dict):
             
             return False
 
-    def get_ndarray_of_attributes(self, attribute_name: str) -> np.ndarray:
-        """Get a numpy array of a specific attribute for all molecules."""
-        # Use optimized pre-allocated array approach
-        values = np.empty(len(self), dtype=np.float64)
-        for i, mol in enumerate(self.values()):
-            values[i] = getattr(mol, attribute_name, np.nan)
-        return values
-    
-    def get_ndarray_of_line_attributes(self, attribute_name: str) -> np.ndarray:
-        """Get a numpy array of a specific line attribute for all molecules."""
-        return np.array([mol.lines.get_ndarray_of_attribute(attribute_name) for mol in self.values() if hasattr(mol, 'lines')])
-
-    # Enhanced bulk parameter update methods
-    def bulk_update_parameter(self, parameter_name: str, value: Any, molecule_names: Optional[List[str]] = None) -> None:
-        if molecule_names is None:
-            molecule_names = list(self.keys())
-        
-        affected_molecules = []
-        
-        for mol_name in molecule_names:
-            if mol_name in self:
-                molecule = self[mol_name]
-                old_value = getattr(molecule, parameter_name, None)
-                
-                if hasattr(molecule, f'_{parameter_name}'):
-                    setattr(molecule, f'_{parameter_name}', float(value))
-                elif parameter_name == 'intrinsic_line_width':
-                    molecule._broad = float(value)
-                elif parameter_name == 'stellar_rv':
-                    molecule.stellar_rv = float(value)
-                elif hasattr(molecule, parameter_name):
-                    setattr(molecule, parameter_name, value)
-                
-                if old_value != value:
-                    molecule._invalidate_caches_for_parameter(parameter_name)
-                    affected_molecules.append(mol_name)
-        
-        if affected_molecules:
-            self._summed_flux_cache.clear()
-            for mol_name in affected_molecules:
-                self.fluxes.pop(mol_name, None)
-        
-        print(f"Bulk updated {parameter_name} to {value} for {len(affected_molecules)} molecules")
-    
     def bulk_update_parameters(self, parameter_dict: Dict[str, Any], molecule_names: Optional[List[str]] = None) -> None:
         if molecule_names is None:
             molecule_names = list(self.keys())
@@ -1242,61 +1032,6 @@ class MoleculeDict(dict):
         
         print(f"Bulk updated parameters for {len(affected_molecules)} molecules")
     
-    def force_recalculate_all(self, molecule_names: Optional[List[str]] = None) -> None:
-        """
-        Force recalculation of intensity and spectrum for specified molecules.
-        
-        Args:
-            molecule_names: List of molecule names to recalculate (None for all)
-        """
-        if molecule_names is None:
-            molecule_names = list(self.keys())
-        
-        recalculated_count = 0
-        
-        for mol_name in molecule_names:
-            if mol_name in self:
-                molecule = self[mol_name]
-                # Force invalidation of all caches
-                molecule._intensity_valid = False
-                molecule._spectrum_valid = False
-                molecule._clear_flux_caches()
-                molecule._invalidate_parameter_hash()
-                recalculated_count += 1
-        
-        # Clear global caches
-        self._clear_flux_caches()
-        
-        print(f"Forced recalculation for {recalculated_count} molecules")
-    
-    def _batch_invalidate_caches(self, updated_molecules: List[Tuple], parameter_name: str) -> None:
-        """
-        Efficiently invalidate caches for batch-updated molecules.
-        
-        Args:
-            updated_molecules: List of (molecule, param_name, old_value, new_value) tuples
-            parameter_name: Name of the parameter that was updated
-        """
-        # Determine what needs to be invalidated based on parameter type
-        invalidate_intensity = parameter_name in ['temp', 'n_mol', 'fwhm', 'intrinsic_line_width']
-        invalidate_spectrum = True  # Most parameters affect spectrum
-        
-        for molecule, param_name, old_value, new_value in updated_molecules:
-            if invalidate_intensity:
-                molecule._intensity_valid = False
-            
-            if invalidate_spectrum:
-                molecule._spectrum_valid = False
-            
-            molecule._clear_flux_caches()
-            molecule._invalidate_parameter_hash()
-            
-            # Send notification for this molecule
-            molecule._notify_my_parameter_change(param_name, old_value, new_value)
-        
-        # Clear global caches once
-        self._clear_flux_caches()
-    
     def _clear_flux_caches(self) -> None:
         """Clear all flux-related caches"""
         self.fluxes.clear()
@@ -1313,55 +1048,6 @@ class MoleculeDict(dict):
             del self.fluxes[molecule_name]
             
         self._dirty_molecules.add(molecule_name)
-    
-    def _batch_invalidate_caches_multiple(self, updated_molecules: List, parameter_names: List[str]) -> None:
-        """
-        Efficiently invalidate caches for molecules with multiple parameter updates.
-        
-        Args:
-            updated_molecules: List of updated molecule objects
-            parameter_names: List of parameter names that were updated
-        """
-        # Determine what needs to be invalidated
-        invalidate_intensity = any(param in ['temp', 'n_mol', 'fwhm', 'intrinsic_line_width'] 
-                                 for param in parameter_names)
-        
-        for molecule in updated_molecules:
-            if invalidate_intensity:
-                molecule._intensity_valid = False
-            
-            molecule._spectrum_valid = False
-            molecule._clear_flux_caches()
-            molecule._invalidate_parameter_hash()
-        
-        # Clear global caches once
-        self._clear_flux_caches()
-    
-    def get_parameter_summary(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Get a summary of all parameters for all molecules.
-        
-        Returns:
-            Dictionary with molecule names as keys and parameter dictionaries as values
-        """
-        summary = {}
-        
-        for mol_name, molecule in self.items():
-            summary[mol_name] = {
-                'temp': molecule.temp,
-                'radius': molecule.radius,
-                'n_mol': molecule.n_mol,
-                'distance': molecule.distance,
-                'fwhm': molecule.fwhm,
-                'intrinsic_line_width': molecule.intrinsic_line_width,
-                'is_visible': molecule.is_visible,
-                'stellar_rv': molecule.star_rv,
-                'wavelength_range': molecule.wavelength_range,
-                'model_pixel_res': molecule.model_pixel_res,
-                'model_line_width': molecule.model_line_width
-            }
-        
-        return summary
     
     # Multiprocessing support for molecule loading
     @staticmethod
@@ -1392,19 +1078,13 @@ class MoleculeDict(dict):
                 name=mol_name,
                 filepath=mol_data.get("file") or mol_data.get("File Path"),
                 displaylabel=mol_data.get("label") or mol_data.get("Molecule Label", mol_name),
-                wavelength_range=global_params.get("wavelength_range"),
-                distance=global_params.get("distance"),
-                fwhm=global_params.get("fwhm"),
-                stellar_rv=global_params.get("stellar_rv"),
-                broad=global_params.get("intrinsic_line_width"),
-                model_pixel_res=global_params.get("model_pixel_res"),
-                model_line_width=global_params.get("model_line_width"),
                 temp=mol_data.get("Temp"),
                 radius=mol_data.get("Rad"),
                 n_mol=mol_data.get("N_Mol"),
                 color=mol_data.get("Color"),
                 is_visible=mol_data.get("Vis", True),
-                initial_molecule_parameters=init_params.get(mol_name, {})
+                initial_molecule_parameters=init_params.get(mol_name, {}),
+                **global_params  # Dynamically unpack all global parameters
             )
             
             return True, molecule, mol_name
@@ -1456,31 +1136,6 @@ class MoleculeDict(dict):
             return True
         else:
             return False
-
-    def bulk_filter_molecules(self, condition_func: Callable[[Dict[str, float]], bool]) -> List[str]:
-        """Filter molecules based on a condition function using vectorized operations."""
-        matching_molecules = []
-        
-        # Get all parameter values efficiently
-        param_dict = {}
-        for param_name in self._parameter_arrays:
-            param_dict[param_name] = self.get_parameter_array(param_name)
-        
-        # Apply condition to each molecule
-        for i, mol_name in enumerate(self._molecule_names_array):
-            mol_params = {param: values[i] for param, values in param_dict.items()}
-            if condition_func(mol_params):
-                matching_molecules.append(mol_name)
-        
-        return matching_molecules
-    
-    def bulk_conditional_update(self, condition_func: Callable[[Dict[str, float]], bool],
-                              parameter_updates: Dict[str, float]) -> None:
-        """Update parameters for molecules that meet a condition."""
-        matching_molecules = self.bulk_filter_molecules(condition_func)
-        if matching_molecules:
-            self.bulk_update_parameters(parameter_updates, matching_molecules)
-            print(f"Conditionally updated {len(matching_molecules)} molecules")
     
     def add_global_parameter_change_callback(self, callback: Callable) -> None:
         """Add a callback function to be called when global parameters change"""
@@ -1510,10 +1165,9 @@ class MoleculeDict(dict):
     def global_distance(self, value: float) -> None:
         """Set global distance and update all molecules"""
         old_value = self._global_dist
-        if abs(old_value - value) > 1e-10:
-            self._global_dist = value
-            self.bulk_update_parameters({'distance': value})
-            self._notify_global_parameter_change('distance', old_value, value)
+        self._global_dist = value
+        self.bulk_update_parameters({'distance': value})
+        self._notify_global_parameter_change('distance', old_value, value)
     
     @property
     def global_wavelength_range(self) -> Tuple[float, float]:
@@ -1527,6 +1181,18 @@ class MoleculeDict(dict):
         if value != old_value:
             self._global_wavelength_range = value
             self._notify_global_parameter_change('wavelength_range', old_value, value)
+    
+    @property
+    def global_stellar_rv(self) -> float:
+        """Global stellar radial velocity parameter"""
+        return self._global_stellar_rv
+    
+    @global_stellar_rv.setter
+    def global_stellar_rv(self, value: float) -> None:
+        """Set global stellar radial velocity and update all molecules"""
+        old_value = self._global_stellar_rv
+        self._global_stellar_rv = value
+        self._notify_global_parameter_change('stellar_rv', old_value, value)
 
     def __del__(self):
         """Cleanup when object is destroyed."""
@@ -1544,30 +1210,3 @@ class MoleculeDict(dict):
                     print(f"Error cleaning up memory-mapped storage: {e}")
         except:
             pass
-
-    def get_molecule_statistics(self) -> Dict[str, Any]:
-        """Get comprehensive statistics about molecules in the dictionary."""
-        if not self:
-            return {"count": 0}
-        
-        # Update parameter arrays for efficient computation
-        #self.update_parameter_arrays()
-        
-        stats = {
-            "count": len(self),
-            "visible_count": len(self.get_visible_molecules()),
-            "parameter_stats": {}
-        }
-        
-        # Compute statistics for each parameter using numpy
-        for param_name, param_array in self._parameter_arrays.items():
-            if len(param_array) > 0:
-                stats["parameter_stats"][param_name] = {
-                    "mean": float(np.mean(param_array)),
-                    "std": float(np.std(param_array)),
-                    "min": float(np.min(param_array)),
-                    "max": float(np.max(param_array)),
-                    "median": float(np.median(param_array))
-                }
-        
-        return stats
