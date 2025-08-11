@@ -6,7 +6,7 @@
             "datatype": "float",
             "format": "{:.2f}",
             "default": 140.0,
-            "width": 6
+            "width": 7
         },
         "stellar_rv": {
             "label": "Stellar RV:",
