@@ -327,19 +327,9 @@ class ControlPanel(ttk.Frame):
             row +=1
 
             col_offset += 1
-            
         
-        delete_frame = tk.Frame(parent)
-        delete_frame.grid(row=1, column=0, sticky="sw")
-        delete_btn = ttk.Button(delete_frame, 
-                               text="Delete Molecule",
-                               command = self._delete_molecule
-                               )
-        
-        delete_btn.grid(row=0, column=0)
-        
-    def _delete_molecule(self):
-        mol_name = self._get_active_molecule_object().name
+    def _delete_molecule(self, mol_name = None):
+        mol_name = mol_name
         del self.islat.molecules_dict[mol_name]
         del self.mol_list[mol_name]
 
@@ -462,6 +452,7 @@ class ControlPanel(ttk.Frame):
             delete_btn = tk.Button(
                             mol_frame, 
                             text= "X",
+                            command= lambda name = mol_name: self._delete_molecule(mol_name=name)
                             )
             delete_btn.grid(row=0, column=2, pady=2,padx=0, sticky="nsew")
             # delete_btn.pack(side = "left", pady=2)
@@ -683,7 +674,6 @@ class ControlPanel(ttk.Frame):
 
     def _on_molecule_selected(self, selected_frame=None, selected_mol = None, event=None):
         """Handle molecule selection - uses iSLAT's active_molecule property"""
-        # self.dropdown.selection_clear()
         old_active_mol = self._get_active_molecule_object().name
         self.mol_frames[old_active_mol].config(bg = self.bg_color)
             
