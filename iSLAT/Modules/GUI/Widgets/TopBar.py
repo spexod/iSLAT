@@ -68,9 +68,9 @@ class TopBar(ResizableFrame):
         spectrum_drpdwn.config(menu=spectrum_menu)
 
         if os_name == "Darwin":
-            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters", 0, 1)
+            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions", 0, 2)
         else:
-            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions ▼", 0, 1)
+            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions ▼", 0, 2)
         spec_functions_menu = tk.Menu(spec_functions_drpwn, tearoff=0)
         spec_functions_menu.add_command(label="Save Line", command=self.save_line)
         spec_functions_menu.add_command(label="Fit Line", command=self.fit_selected_line)
