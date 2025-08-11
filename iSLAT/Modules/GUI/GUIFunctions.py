@@ -69,7 +69,7 @@ def create_wrapper_frame(parent, row, col, bg = "darkgrey", sticky = "nsew", col
 # chatGPT color button 
 class ColorButton(tk.Label):
     def __init__(self, master, color="#4CAF50", command=None, **kwargs):
-        super().__init__(master, bg=color, width=1, height=1,relief="groove", borderwidth=0, **kwargs)
+        super().__init__(master, bg=color, width=2, height=1,relief="flat", **kwargs)
         self.color = self._to_hex_color(color)
         self.command = command
         self.clicked = False
@@ -122,7 +122,7 @@ class ColorButton(tk.Label):
 
     def on_release(self, event):
         self.config(bg=self.hover_color if self._is_inside(event) else self.color,
-                    relief="raised")
+                    relief="flat")
         if self._is_inside(event) and self.command:
             self.command()
     def _is_inside(self, event):
