@@ -328,10 +328,27 @@ class ControlPanel(ttk.Frame):
 
             col_offset += 1
         
-    def _delete_molecule(self, mol_name = None):
+    def _delete_molecule(self, mol_name = None, frame = None):
         mol_name = mol_name
+
+        if mol_name == "H2O":
+            print(f"Cannot delete {mol_name}!")
+
+        frame.destroy()
+
+        self.mol_frames.pop(mol_name, None)
+        self.mol_visibility.pop(mol_name, None)
         del self.islat.molecules_dict[mol_name]
         del self.mol_list[mol_name]
+
+        
+
+
+
+
+
+
+
 
     def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7):
         """Create an entry bound to the active molecule's parameter"""
@@ -421,7 +438,8 @@ class ControlPanel(ttk.Frame):
 
             mol_frame = tk.Frame(content_frame)
             self.mol_frames[mol_name] = mol_frame
-            mol_frame.grid(row=row, column=0, pady=2, sticky="nsew")
+            # mol_frame.grid(row=row, column=0, pady=2, sticky="nsew")
+            mol_frame.pack(pady=2)
             mol_frame.grid_rowconfigure(0, weight=1)
             for col in range(len(self.column_labels)):  # adjust number of columns as needed
                 mol_frame.grid_columnconfigure(col, weight=1)
@@ -452,7 +470,7 @@ class ControlPanel(ttk.Frame):
             delete_btn = tk.Button(
                             mol_frame, 
                             text= "X",
-                            command= lambda name = mol_name: self._delete_molecule(mol_name=name)
+                            command= lambda name = mol_name, frame = mol_frame: self._delete_molecule(mol_name=name, frame=frame)
                             )
             delete_btn.grid(row=0, column=2, pady=2,padx=0, sticky="nsew")
             # delete_btn.pack(side = "left", pady=2)
@@ -511,16 +529,6 @@ class ControlPanel(ttk.Frame):
             return str(value)
         except:
             return ""
-
-    def _create_molecule_selector(self,parent, row, column):
-        """Create molecule dropdown selector"""
-        label = ttk.Label(parent, text="Molecule:")
-        label.grid(row=row, column=column, padx=5, pady=5)
-
-        self.molecule_var = tk.StringVar(parent)
-        self.dropdown = ttk.Combobox(parent, textvariable=self.molecule_var, state="readonly", width=7)
-        self.dropdown.grid(row=row, column=column + 1, padx=5, pady=5)
-        self.dropdown.bind("<<ComboboxSelected>>", self._on_molecule_selected)
         
 
     def _ensure_molecule_color_initialized(self, mol_obj):
@@ -672,7 +680,7 @@ class ControlPanel(ttk.Frame):
         except Exception as e:
             print(f"Error updating molecule parameter UI fields: {e}")
 
-    def _on_molecule_selected(self, selected_frame=None, selected_mol = None, event=None):
+    def _on_molecule_selected(self, selected_mol = None, event=None):
         """Handle molecule selection - uses iSLAT's active_molecule property"""
         old_active_mol = self._get_active_molecule_object().name
         self.mol_frames[old_active_mol].config(bg = self.bg_color)
