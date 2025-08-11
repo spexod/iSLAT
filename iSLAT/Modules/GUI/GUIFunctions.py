@@ -66,5 +66,85 @@ def create_wrapper_frame(parent, row, col, bg = "darkgrey", sticky = "nsew", col
 
         return wrapper
 
+# chatGPT color button 
+class ColorButton(tk.Label):
+    def __init__(self, master, color="#4CAF50", command=None, **kwargs):
+        super().__init__(master, bg=color, width=1, height=1,relief="groove", borderwidth=0, **kwargs)
+        self.color = self._to_hex_color(color)
+        self.command = command
+        self.clicked = False
+
+        # Compute darker shade for click effect
+        self.darker_color = self._darken_color(self.color, 0.7)
+        self.hover_color = self._darken_color(self.color, 0.9)
+
+        self.config(highlightthickness=1, highlightbackground="#ccc")
+
+        # Bind events
+        self.bind("<Enter>", self.on_enter)
+        self.bind("<Leave>", self.on_leave)
+        self.bind("<ButtonPress-1>", self.on_press)
+        self.bind("<ButtonRelease-1>", self.on_release)
+
+    def _to_hex_color(self, color):
+                # Convert any Tk color name or hex string to hex string
+        try:
+        # If color is already hex, just normalize and return
+                if color.startswith("#") and (len(color) == 7 or len(color) == 4):
+                        return color.lower()
+        except Exception:
+                pass
+
+        # Otherwise, convert color name to hex via winfo_rgb
+        r, g, b = self.winfo_rgb(color)
+        r = int(r / 65535 * 255)
+        g = int(g / 65535 * 255)
+        b = int(b / 65535 * 255)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def _darken_color(self, hex_color, factor):
+        """Darken color by factor (0 < factor < 1)."""
+        hex_color = hex_color.lstrip("#")
+        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        dark_rgb = tuple(max(int(c * factor), 0) for c in rgb)
+        return "#%02x%02x%02x" % dark_rgb
+
+    def on_enter(self, event):
+        if not self.clicked:
+            self.config(bg=self.hover_color)
+
+    def on_leave(self, event):
+        if not self.clicked:
+            self.config(bg=self.color)
+
+    def on_press(self, event):
+        self.config(bg=self.darker_color, relief="sunken")
+
+    def on_release(self, event):
+        self.config(bg=self.hover_color if self._is_inside(event) else self.color,
+                    relief="raised")
+        if self._is_inside(event) and self.command:
+            self.command()
+    def _is_inside(self, event):
+        x, y = event.x, event.y
+        return 0 <= x < self.winfo_width() and 0 <= y < self.winfo_height()
+    
+    def change_color(self, color):
+        color = self._to_hex_color(color)
+        self.color = color
+        # self.config(bg = color)
+
+        self.darker_color = self._darken_color(self.color, 0.7)
+        self.hover_color = self._darken_color(self.color, 0.9)
+
+    def add_command(self, command=None):
+        self.command = command
+
+
+
+
+
+
+
 
         
