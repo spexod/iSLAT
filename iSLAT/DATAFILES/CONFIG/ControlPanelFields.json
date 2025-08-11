@@ -6,7 +6,7 @@
             "datatype": "float",
             "format": "{:.2f}",
             "default": 140.0,
-            "width": 12
+            "width": 7
         },
         "stellar_rv": {
             "label": "Stellar RV:",
@@ -14,7 +14,7 @@
             "datatype": "float",
             "format": "{:.2f}",
             "default": 0.0,
-            "width": 12
+            "width": 7
         }
     },
     "molecule_fields": {
