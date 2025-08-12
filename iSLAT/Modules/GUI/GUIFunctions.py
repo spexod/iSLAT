@@ -1,6 +1,8 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, font
 from .Tooltips import CreateToolTip
+
+
 
 def create_button(frame, theme, text, command, row, column):
         btn_theme = theme["buttons"].get(
@@ -9,8 +11,11 @@ def create_button(frame, theme, text, command, row, column):
         
         btn = tk.Button(
             frame, text=text,
-            command=command
+            command=command,
         )
+
+        
+
         btn.grid(row=row, column=column, padx=1, pady=2, sticky="nsew")
         # CreateToolTip(btn, f"{text} button")
         return btn
