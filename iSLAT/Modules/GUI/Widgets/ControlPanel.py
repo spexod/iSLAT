@@ -17,6 +17,9 @@ class ControlPanel(ttk.Frame):
         self.mol_visibility = {}
         self.column_labels = ["On", "Molecule", "Del.", "Color"]
         
+        self.label_frame = tk.LabelFrame(self, text="Molecule Control Panel", relief="solid", borderwidth=1)
+        self.label_frame.grid(row=0, column=0, sticky="nsew", pady=0)
+
         bg_frame = tk.Frame(self)
         self.bg_color = bg_frame.cget('bg')
         bg_frame.destroy()
@@ -57,7 +60,7 @@ class ControlPanel(ttk.Frame):
 
 
     def _create_general_config_frame(self):
-        wrapper = create_wrapper_frame(self, 1, 0, columnspan = 2)
+        wrapper = create_wrapper_frame(self.label_frame, 1, 0, columnspan = 2)
 
         general_param_frame = ttk.Frame(wrapper)
         general_param_frame.grid(row=0, column=0, sticky="nsew")
@@ -65,14 +68,14 @@ class ControlPanel(ttk.Frame):
         return general_param_frame
     
     def _create_molecule_param_frame(self):
-       wrapper = create_wrapper_frame(self, 0, 1)
+       wrapper = create_wrapper_frame(self.label_frame, 0, 1)
        self._create_selected_frame(wrapper, 0, 0)
        molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 215, horizontal=True, row=1, col=0)
 
        return molecule_param_frame
 
     def _create_color_and_vis_frame(self):
-        wrapper = create_wrapper_frame(self, 0, 0, sticky="nsew")
+        wrapper = create_wrapper_frame(self.label_frame, 0, 0, sticky="nsew")
 
         color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 160, vertical=True)
 

@@ -71,7 +71,6 @@ def create_wrapper_frame(parent, row, col, bg = "darkgrey", sticky = "nsew", col
 
         return wrapper
 
-# chatGPT color button 
 class ColorButton(tk.Label):
     def __init__(self, master, color="#4CAF50", command=None, **kwargs):
         super().__init__(master, bg=color, width=2, height=1,relief="flat", **kwargs)
