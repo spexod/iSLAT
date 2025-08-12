@@ -88,7 +88,7 @@ class ControlPanel(ttk.Frame):
         selected_frame.grid_rowconfigure(0, weight=1)
         selected_frame.grid_columnconfigure(0, weight=1)
 
-    def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7):
+    def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7, param_name = None):
         """Create a simple entry field with label and change callback"""
         label = ttk.Label(parent, text=label_text)
         label.grid(row=row, column=col, padx=5, pady=5)
@@ -101,11 +101,18 @@ class ControlPanel(ttk.Frame):
         entry.grid(row=row, column=col + 1, padx=5, sticky="w")
 
         def on_change(*args):
-            on_change_callback(var.get())
+            try:
+                value = float(var.get())
+                on_change_callback(value)
+                value_str = self._format_value(value, param_name)
+                var.set(value_str)
+                
+            except ValueError as e:
+                print(f"Error with new value: {e}")
+                
         
         entry.bind("<Return>", on_change)
         
-        # var.trace_add("write", on_change)
         return entry, var
 
     def _create_bound_parameter_entry(self, label_text, param_name, row, col, width=8):
@@ -125,7 +132,7 @@ class ControlPanel(ttk.Frame):
             except (ValueError, AttributeError):
                 pass
         
-        return self._create_simple_entry(self, label_text, current_value, row, col, update_parameter, width)
+        return self._create_simple_entry(self, label_text, current_value, row, col, update_parameter, width, param_name=param_name)
 
     def _create_display_controls(self,parent,  start_row, start_col):
         """Create plot start and range controls for display view"""
@@ -262,7 +269,7 @@ class ControlPanel(ttk.Frame):
 
     def _create_global_parameter_entry(self, parent, label_text, property_name, row, col, width=12):
         """Create an entry bound to a global parameter in molecules_dict"""
-        
+        print(f"creating {property_name} entry")
         def update_global_parameter(value_str):
             if value_str in ["N/A", ""]:
                 return
@@ -308,7 +315,7 @@ class ControlPanel(ttk.Frame):
         if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
             current_value = getattr(self.islat.molecules_dict, property_name, 0.0)
         
-        return self._create_simple_entry(parent, label_text, current_value, row, col, update_global_parameter, width)
+        return self._create_simple_entry(parent, label_text, current_value, row, col, update_global_parameter, width, param_name=property_name)
 
     def _create_molecule_specific_controls(self, parent, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""
@@ -433,7 +440,7 @@ class ControlPanel(ttk.Frame):
         # Get initial value from active molecule
         initial_value = self._get_active_molecule_parameter_value(param_name)
         
-        return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width)
+        return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width, param_name=param_name)
     
 
     def _load_field_configurations(self):
@@ -498,7 +505,7 @@ class ControlPanel(ttk.Frame):
     
 
 
-    def _get_active_molecule_parameter_value(self, param_name):
+    def _get_active_molecule_parameter_value(self, param_name) -> str:
         """Get the current value of a parameter from the active molecule"""
         if not hasattr(self.islat, 'active_molecule') or not self.islat.active_molecule:
             return ""
@@ -514,27 +521,64 @@ class ControlPanel(ttk.Frame):
         if not active_mol:
             return ""
             
-        try:
-            value = getattr(active_mol, param_name, "")
+        value = getattr(active_mol, param_name, "")
+        return self._format_value(value, param_name)
+        
+        # try:
+        #     print(f"active mol: {active_mol}")
+        #     value = getattr(active_mol, param_name, "")
             
+        #     # Get field configuration for proper formatting
+        #     field_config = None
+        #     for field_key, config in self.MOLECULE_FIELDS.items():
+        #         if config['attribute'] == param_name:
+        #             field_config = config
+        #             break
+            
+        #     # Format value based on field configuration
+        #     if field_config and isinstance(value, (int, float)):
+        #         return field_config['format'].format(value)
+        #     # Fallback formatting for backward compatibility
+        #     elif param_name in ["distance", "stellar_rv", "fwhm", "broad"] and isinstance(value, (int, float)):
+        #         return f"{value:.2f}"
+            
+        #     return str(value)
+        # except:
+        #     return ""
+        
+    def _format_value(self, value, param_name) -> str:
+        print(f"param name: {param_name}")
+        if not param_name:
+            return f"{value:.2f}"
+        
+        try:
             # Get field configuration for proper formatting
             field_config = None
-            for field_key, config in self.MOLECULE_FIELDS.items():
-                if config['attribute'] == param_name:
+            for field_key, config in self.GLOBAL_FIELDS.items():
+                if config['property'] == param_name:
                     field_config = config
                     break
+
+            if field_config is None:
+                for field_key, config in self.MOLECULE_FIELDS.items():
+                    if config['attribute'] == param_name:
+                        field_config = config
+                        break
+            
             
             # Format value based on field configuration
             if field_config and isinstance(value, (int, float)):
                 return field_config['format'].format(value)
             # Fallback formatting for backward compatibility
-            elif param_name in ["distance", "stellar_rv", "fwhm", "broad"] and isinstance(value, (int, float)):
+            elif param_name in ["global_distance", "stellar_rv", "fwhm", "broad"] and isinstance(value, (int, float)):
                 return f"{value:.2f}"
             
             return str(value)
-        except:
+        except Exception as e:
+            print(f"Error with formatting: {e}")
             return ""
-        
+
+
 
     def _ensure_molecule_color_initialized(self, mol_obj):
         """Ensure molecule has a color assigned, using MoleculeWindow logic"""
@@ -624,11 +668,7 @@ class ControlPanel(ttk.Frame):
         active_mol = self._get_active_molecule_object()
         self.mol_frames[active_mol.name].config(bg=self.selected_color)
         self.selected_label.config(text=f"Selected Molecule: {active_mol.name}")
-    
-    def _on_mol_list_change(self):
-        pass
 
-        
 
     def _update_display_range(self, value_str=None):
         """Update display range from either start or range change"""
@@ -687,9 +727,6 @@ class ControlPanel(ttk.Frame):
 
     def _on_molecule_selected(self, mol_name = None, event=None):
         """Handle molecule selection - uses iSLAT's active_molecule property"""
-        # if not selected_mol:
-        #     default_mol = self.islat.user_settings.get("default_active_molecule", "H2O")
-        #     old_active_mol = default_mol
 
         old_active_mol = self._get_active_molecule_object().name
         
@@ -701,25 +738,6 @@ class ControlPanel(ttk.Frame):
             
         self._set_active_molecule(mol_name= mol_name)
         
-        # if selected_mol:
-        #     selected_label = self.mol_list[selected_mol]
-        # else:
-        #     selected_label = self.mol_list[self.molecule_var.get()]
-
-
-        # try:
-        #     if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-        #         for mol_name, mol_obj in self.islat.molecules_dict.items():
-        #             display_label = getattr(mol_obj, 'displaylabel', mol_name)
-        #             if display_label == selected_label:
-        #                 self.islat.active_molecule = mol_name
-        #                 return
-                
-        #         first_mol = next(iter(self.islat.molecules_dict.keys()), None)
-        #         if first_mol:
-        #             self.islat.active_molecule = first_mol
-        # except Exception as e:
-        #     print(f"Error setting active molecule: {e}")
 
     def _set_active_molecule(self, mol_name = None):
         if mol_name:
@@ -789,7 +807,7 @@ class ControlPanel(ttk.Frame):
             return
             
         for param_name, (entry, var) in self._molecule_parameter_entries.items():
-            new_value = self._get_active_molecule_parameter_value(param_name)
+            new_value = self._get_active_molecule_parameter_value(param_name) 
             current_value = var.get()
             if current_value != new_value:
                 var.set(new_value)

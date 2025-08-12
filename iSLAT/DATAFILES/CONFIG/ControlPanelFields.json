@@ -4,7 +4,7 @@
             "label": "Distance:",
             "property": "global_distance",
             "datatype": "float",
-            "format": "{:.2f}",
+            "format": "{:.1f}",
             "default": 140.0,
             "width": 7
         },
@@ -12,7 +12,7 @@
             "label": "Stellar RV:",
             "property": "stellar_rv",
             "datatype": "float",
-            "format": "{:.2f}",
+            "format": "{:.1f}",
             "default": 0.0,
             "width": 7
         }
