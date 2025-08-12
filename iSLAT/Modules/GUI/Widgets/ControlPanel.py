@@ -6,12 +6,13 @@ from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorB
 from .RegularFrame import RegularFrame
 
 class ControlPanel(ttk.Frame):
-    def __init__(self, master, islat):
+    def __init__(self, master, islat, plot):
 
         super().__init__(master)
         
         self.master = master
         self.islat = islat
+        self.plot = plot
         self.mol_list = {}
         self.mol_visibility = {}
         self.column_labels = ["On", "Molecule", "Del.", "Color"]
@@ -86,67 +87,6 @@ class ControlPanel(ttk.Frame):
 
         selected_frame.grid_rowconfigure(0, weight=1)
         selected_frame.grid_columnconfigure(0, weight=1)
-    
-
-    def _load_field_configurations(self):
-        """Load field configurations from JSON file using iSLAT file handling"""
-        try:
-            config = load_control_panel_fields_config()
-            self.GLOBAL_FIELDS = config.get('global_fields', {})
-            self.MOLECULE_FIELDS = config.get('molecule_fields', {})
-        except Exception as e:
-            print(f"Error loading control panel field configurations: {e}")
-            # Use fallback default configurations
-            self.GLOBAL_FIELDS = {}
-            self.MOLECULE_FIELDS = {}
-
-    def _register_callbacks(self):
-        """Register callbacks for UI synchronization only"""
-        try:
-            if hasattr(self.islat, 'add_active_molecule_change_callback'):
-                self.islat.add_active_molecule_change_callback(self._on_active_molecule_change)
-            
-            if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-                self.islat.molecules_dict.add_global_parameter_change_callback(self._on_global_parameter_change)
-            
-            Molecule.add_molecule_parameter_change_callback(self._on_molecule_parameter_change)
-            
-        except Exception as e:
-            print(f"ControlPanel: Error registering callbacks: {e}")
-
-    def _on_active_molecule_change(self, old_molecule, new_molecule):
-        """Handle active molecule changes from the iSLAT callback system"""
-        
-        self._update_molecule_parameter_fields()
-        self._update_active_molecule_changes()
-
-    def _on_molecule_parameter_change(self, molecule_name, parameter_name, old_value, new_value):
-        """Handle molecule parameter changes to update UI fields"""
-        # Only update UI if this is the active molecule
-        if (hasattr(self.islat, 'active_molecule') and 
-            isinstance(self.islat.active_molecule, str) and 
-            self.islat.active_molecule == molecule_name):
-            
-            # Update the specific parameter field if it exists
-            if hasattr(self, '_molecule_parameter_entries') and parameter_name in self._molecule_parameter_entries:
-                entry, var = self._molecule_parameter_entries[parameter_name]
-                new_value_str = self._get_active_molecule_parameter_value(parameter_name)
-                if var.get() != new_value_str:
-                    var.set(new_value_str)
-            
-            # Update color and visibility controls if needed
-            if parameter_name in ['color', 'is_visible']:
-                self._update_active_molecule_changes()
-
-    def _on_global_parameter_change(self, parameter_name, old_value, new_value):
-        """Handle global parameter changes to update UI fields"""
-        # Update the specific global parameter field if it exists
-        if hasattr(self, '_global_parameter_entries') and parameter_name in self._global_parameter_entries:
-            entry, var = self._global_parameter_entries[parameter_name]
-            if var.get() != str(new_value):
-                var.set(str(new_value))
-
-    
 
     def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7):
         """Create a simple entry field with label and change callback"""
@@ -246,6 +186,78 @@ class ControlPanel(ttk.Frame):
             
             col_offset += 1
 
+    def _build_color_and_vis_controls(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        self.mol_frames = {}
+
+        header_frame = tk.Frame(parent)
+        header_frame.grid(row=0, column= 0, sticky="ew")
+
+        content_frame = tk.Frame(parent)
+        content_frame.grid(row=1, column=0, sticky="nsew")
+ 
+        for col, label in enumerate(self.column_labels):
+            padx = 0
+            label_widget = tk.Label(header_frame, text=label)
+            if label == "Del.":
+                padx = (7,0)
+            label_widget.grid(row=0, column=col, sticky="ew", padx=padx)
+            header_frame.grid_columnconfigure(col, weight=1)
+    
+
+        for row, mol_name in enumerate(self.mol_list):
+            current_mol = self.islat.molecules_dict[mol_name]
+
+            mol_frame = tk.Frame(content_frame)
+            self.mol_frames[mol_name] = mol_frame
+            # mol_frame.grid(row=row, column=0, pady=2, sticky="nsew")
+            mol_frame.pack(pady=2)
+            mol_frame.grid_rowconfigure(0, weight=1)
+            for col in range(len(self.column_labels)):  # adjust number of columns as needed
+                mol_frame.grid_columnconfigure(col, weight=1)
+
+            visibility_var = tk.BooleanVar()
+            visibility_checkbox = ttk.Checkbutton(
+                mol_frame, 
+                variable=visibility_var, 
+                command=lambda name = mol_name: self._on_visibility_changed(name)
+            )
+            # visibility_checkbox.pack(side = "left", pady=2)
+            visibility_checkbox.grid(row=0, column=0, sticky="nsew", pady=2, padx=0)
+            if mol_name not in self.mol_visibility:
+                self.mol_visibility[mol_name] = visibility_var
+
+            btn_frame = tk.Frame(mol_frame)
+            btn_frame.grid(row=0, column=1, pady=2, sticky="nsew")
+            mol_btn = tk.Button(btn_frame, 
+                                text=mol_name, 
+                                width=3,
+                                activebackground="white",  # macOS pressed blue
+                                activeforeground="#0a84ff",
+                                )
+            mol_btn.config(command=lambda name=mol_name, frame=mol_frame: self._on_molecule_selected(mol_name=name))
+            mol_btn.grid(row=0, column=0)
+            # mol_btn.pack(side = "left", pady=2)
+
+            delete_btn = tk.Button(
+                            mol_frame, 
+                            text= "X",
+                            command= lambda name = mol_name, frame = mol_frame: self._delete_molecule(mol_name=name, frame=frame)
+                            )
+            delete_btn.grid(row=0, column=2, pady=2,padx=0, sticky="nsew")
+
+            color_button = ColorButton(
+                            mol_frame, 
+                            color= getattr(current_mol,'color', "Blue"),
+                            )
+            color_button.add_command(command= lambda btn = color_button, name=mol_name: self._on_color_button_clicked(name, btn))
+            color_button.grid(row=0, column = 3, sticky="nsew")
+
+            is_visible = getattr(self.islat.molecules_dict[mol_name], 'is_visible', False)
+            visibility_var.set(is_visible)
+
+        self._update_active_molecule_changes()
+
     def _create_global_parameter_entry(self, parent, label_text, property_name, row, col, width=12):
         """Create an entry bound to a global parameter in molecules_dict"""
         
@@ -330,23 +342,31 @@ class ControlPanel(ttk.Frame):
         
     def _delete_molecule(self, mol_name = None, frame = None):
         mol_name = mol_name
+        active_mol = self._get_active_molecule_object().name
+        default_mol = self.islat.user_settings.get("default_active_molecule", "H2O")
+        print(f"current active mol is {active_mol}")
+        print(f"default mol is {default_mol}")
 
-        if mol_name == "H2O":
+        if mol_name == default_mol:
             print(f"Cannot delete {mol_name}!")
+            return
 
+        if mol_name == active_mol:
+            new_active = self.islat.user_settings.get("default_active_molecule", "H2O")
+            print(f"setting {new_active} as active molecule")
+            self._set_active_molecule(mol_name=new_active)
+            
+
+        print(f"destroying {mol_name}")
         frame.destroy()
 
         self.mol_frames.pop(mol_name, None)
         self.mol_visibility.pop(mol_name, None)
+        self.plot.plot_renderer.remove_molecule_lines(mol_name)
         del self.islat.molecules_dict[mol_name]
         del self.mol_list[mol_name]
 
-        
-
-
-
-
-
+        self.plot.canvas.draw_idle()
 
 
 
@@ -414,83 +434,67 @@ class ControlPanel(ttk.Frame):
         
         return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width)
     
-    def _build_color_and_vis_controls(self, parent):
-        parent.grid_columnconfigure(0, weight=1)
-        self.mol_frames = {}
 
-        header_frame = tk.Frame(parent)
-        header_frame.grid(row=0, column= 0, sticky="ew")
+    def _load_field_configurations(self):
+        """Load field configurations from JSON file using iSLAT file handling"""
+        try:
+            config = load_control_panel_fields_config()
+            self.GLOBAL_FIELDS = config.get('global_fields', {})
+            self.MOLECULE_FIELDS = config.get('molecule_fields', {})
+        except Exception as e:
+            print(f"Error loading control panel field configurations: {e}")
+            # Use fallback default configurations
+            self.GLOBAL_FIELDS = {}
+            self.MOLECULE_FIELDS = {}
 
-        content_frame = tk.Frame(parent)
-        content_frame.grid(row=1, column=0, sticky="nsew")
- 
-        for col, label in enumerate(self.column_labels):
-            padx = 0
-            label_widget = tk.Label(header_frame, text=label)
-            if label == "Del.":
-                padx = (7,0)
-            label_widget.grid(row=0, column=col, sticky="ew", padx=padx)
-            header_frame.grid_columnconfigure(col, weight=1)
-    
-
-        for row, mol_name in enumerate(self.mol_list):
-            current_mol = self.islat.molecules_dict[mol_name]
-
-            mol_frame = tk.Frame(content_frame)
-            self.mol_frames[mol_name] = mol_frame
-            # mol_frame.grid(row=row, column=0, pady=2, sticky="nsew")
-            mol_frame.pack(pady=2)
-            mol_frame.grid_rowconfigure(0, weight=1)
-            for col in range(len(self.column_labels)):  # adjust number of columns as needed
-                mol_frame.grid_columnconfigure(col, weight=1)
-
-            visibility_var = tk.BooleanVar()
-            visibility_checkbox = ttk.Checkbutton(
-                mol_frame, 
-                variable=visibility_var, 
-                command=lambda name = mol_name: self._on_visibility_changed(name)
-            )
-            # visibility_checkbox.pack(side = "left", pady=2)
-            visibility_checkbox.grid(row=0, column=0, sticky="nsew", pady=2, padx=0)
-            if mol_name not in self.mol_visibility:
-                self.mol_visibility[mol_name] = visibility_var
-
-            btn_frame = tk.Frame(mol_frame)
-            btn_frame.grid(row=0, column=1, pady=2, sticky="nsew")
-            mol_btn = tk.Button(btn_frame, 
-                                text=mol_name, 
-                                width=3,
-                                activebackground="white",  # macOS pressed blue
-                                activeforeground="#0a84ff",
-                                )
-            mol_btn.config(command=lambda name=mol_name, frame=mol_frame: self._on_molecule_selected(selected_mol=name, selected_frame=frame))
-            mol_btn.grid(row=0, column=0)
-            # mol_btn.pack(side = "left", pady=2)
-
-            delete_btn = tk.Button(
-                            mol_frame, 
-                            text= "X",
-                            command= lambda name = mol_name, frame = mol_frame: self._delete_molecule(mol_name=name, frame=frame)
-                            )
-            delete_btn.grid(row=0, column=2, pady=2,padx=0, sticky="nsew")
-            # delete_btn.pack(side = "left", pady=2)
+    def _register_callbacks(self):
+        """Register callbacks for UI synchronization only"""
+        try:
+            if hasattr(self.islat, 'add_active_molecule_change_callback'):
+                self.islat.add_active_molecule_change_callback(self._on_active_molecule_change)
             
-            # color_frame = tk.Frame(mol_frame)
-            # color_frame.pack(side = "left", fill="x", padx=0)
-            color_button = ColorButton(
-                            mol_frame, 
-                            color= getattr(current_mol,'color', "Blue"),
-                            )
-            color_button.add_command(command= lambda btn = color_button, name=mol_name: self._on_color_button_clicked(name, btn))
-            color_button.grid(row=0, column = 3, sticky="nsew")
-            # color_button.pack(side = "left", fill="both")
-
+            if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
+                self.islat.molecules_dict.add_global_parameter_change_callback(self._on_global_parameter_change)
             
+            Molecule.add_molecule_parameter_change_callback(self._on_molecule_parameter_change)
+            
+        except Exception as e:
+            print(f"ControlPanel: Error registering callbacks: {e}")
 
-            is_visible = getattr(self.islat.molecules_dict[mol_name], 'is_visible', False)
-            visibility_var.set(is_visible)
-
+    def _on_active_molecule_change(self, old_molecule, new_molecule):
+        """Handle active molecule changes from the iSLAT callback system"""
+        
+        self._update_molecule_parameter_fields()
         self._update_active_molecule_changes()
+
+    def _on_molecule_parameter_change(self, molecule_name, parameter_name, old_value, new_value):
+        """Handle molecule parameter changes to update UI fields"""
+        # Only update UI if this is the active molecule
+        if (hasattr(self.islat, 'active_molecule') and 
+            isinstance(self.islat.active_molecule, str) and 
+            self.islat.active_molecule == molecule_name):
+            
+            # Update the specific parameter field if it exists
+            if hasattr(self, '_molecule_parameter_entries') and parameter_name in self._molecule_parameter_entries:
+                entry, var = self._molecule_parameter_entries[parameter_name]
+                new_value_str = self._get_active_molecule_parameter_value(parameter_name)
+                if var.get() != new_value_str:
+                    var.set(new_value_str)
+            
+            # Update color and visibility controls if needed
+            if parameter_name in ['color', 'is_visible']:
+                self._update_active_molecule_changes()
+
+    def _on_global_parameter_change(self, parameter_name, old_value, new_value):
+        """Handle global parameter changes to update UI fields"""
+        # Update the specific global parameter field if it exists
+        if hasattr(self, '_global_parameter_entries') and parameter_name in self._global_parameter_entries:
+            entry, var = self._global_parameter_entries[parameter_name]
+            if var.get() != str(new_value):
+                var.set(str(new_value))
+
+    
+    
 
 
     def _get_active_molecule_parameter_value(self, param_name):
@@ -554,7 +558,7 @@ class ControlPanel(ttk.Frame):
         if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
             return
         
-        # Get the active molecule object
+        # Get the toggled molecule object
         selected_mol = self.islat.molecules_dict[mol_name]
         if not selected_mol:
             return
@@ -680,14 +684,45 @@ class ControlPanel(ttk.Frame):
         except Exception as e:
             print(f"Error updating molecule parameter UI fields: {e}")
 
-    def _on_molecule_selected(self, selected_mol = None, event=None):
+    def _on_molecule_selected(self, mol_name = None, event=None):
         """Handle molecule selection - uses iSLAT's active_molecule property"""
+        # if not selected_mol:
+        #     default_mol = self.islat.user_settings.get("default_active_molecule", "H2O")
+        #     old_active_mol = default_mol
+
         old_active_mol = self._get_active_molecule_object().name
-        self.mol_frames[old_active_mol].config(bg = self.bg_color)
-            
         
-        if selected_mol:
-            selected_label = self.mol_list[selected_mol]
+        try:
+            self.mol_frames[old_active_mol].config(bg = self.bg_color)
+        except KeyError:
+            old_active_mol = self.islat.user_settings.get("default_active_molecule", "H2O")
+            self.mol_frames[old_active_mol].config(bg = self.bg_color)
+            
+        self._set_active_molecule(mol_name= mol_name)
+        
+        # if selected_mol:
+        #     selected_label = self.mol_list[selected_mol]
+        # else:
+        #     selected_label = self.mol_list[self.molecule_var.get()]
+
+
+        # try:
+        #     if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
+        #         for mol_name, mol_obj in self.islat.molecules_dict.items():
+        #             display_label = getattr(mol_obj, 'displaylabel', mol_name)
+        #             if display_label == selected_label:
+        #                 self.islat.active_molecule = mol_name
+        #                 return
+                
+        #         first_mol = next(iter(self.islat.molecules_dict.keys()), None)
+        #         if first_mol:
+        #             self.islat.active_molecule = first_mol
+        # except Exception as e:
+        #     print(f"Error setting active molecule: {e}")
+
+    def _set_active_molecule(self, mol_name = None):
+        if mol_name:
+            selected_label = self.mol_list[mol_name]
         else:
             selected_label = self.mol_list[self.molecule_var.get()]
 
@@ -705,7 +740,6 @@ class ControlPanel(ttk.Frame):
                     self.islat.active_molecule = first_mol
         except Exception as e:
             print(f"Error setting active molecule: {e}")
-
 
     def refresh_from_molecules_dict(self):
         """Refresh all fields from current molecules_dict values"""

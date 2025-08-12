@@ -165,17 +165,22 @@ class PlotRenderer:
 
     def remove_molecule_lines(self, molecule_name: str) -> None:
         """Remove lines associated with a specific molecule"""
+        print(f"removing lines from {molecule_name}")
+
         lines_to_remove = []
         for line in self.model_lines:
             # Check if line belongs to this molecule (by stored metadata first)
             if hasattr(line, '_molecule_name') and line._molecule_name == molecule_name:
+                print("found lines (metadata)")
                 lines_to_remove.append(line)
             # Fallback: check by label if metadata not available
             elif hasattr(line, 'get_label') and line.get_label():
                 label = line.get_label()
                 # Check both the molecule name and display label
                 if molecule_name in label or any(mol_part in label for mol_part in molecule_name.split('_')):
+                    print("found lines (label)")
                     lines_to_remove.append(line)
+
         
         # Remove lines from plot and list
         for line in lines_to_remove:

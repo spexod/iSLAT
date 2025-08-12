@@ -290,7 +290,6 @@ class iSLATPlot:
         except Exception as e:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
-        print("enter render _main_spectrum_plot")
         # Delegate rendering to PlotRenderer for clean separation of concerns
         self.plot_renderer.render_main_spectrum_plot(
             self.islat.wave_data,
