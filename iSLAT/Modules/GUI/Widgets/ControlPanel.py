@@ -103,7 +103,9 @@ class ControlPanel(ttk.Frame):
         def on_change(*args):
             on_change_callback(var.get())
         
-        var.trace_add("write", on_change)
+        entry.bind("<Return>", on_change)
+        
+        # var.trace_add("write", on_change)
         return entry, var
 
     def _create_bound_parameter_entry(self, label_text, param_name, row, col, width=8):
