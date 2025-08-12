@@ -85,6 +85,7 @@ class TopBar(ResizableFrame):
         create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3)
         create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4)
         create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
+        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6)
 
 
     def molecule_vis_check(self):

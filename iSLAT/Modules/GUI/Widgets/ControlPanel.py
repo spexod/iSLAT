@@ -269,7 +269,6 @@ class ControlPanel(ttk.Frame):
 
     def _create_global_parameter_entry(self, parent, label_text, property_name, row, col, width=12):
         """Create an entry bound to a global parameter in molecules_dict"""
-        print(f"creating {property_name} entry")
         def update_global_parameter(value_str):
             if value_str in ["N/A", ""]:
                 return
@@ -526,7 +525,6 @@ class ControlPanel(ttk.Frame):
         
         
     def _format_value(self, value, param_name) -> str:
-        print(f"param name: {param_name}")
         if not param_name:
             return f"{value:.2f}"
         

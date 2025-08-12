@@ -11,8 +11,8 @@ def create_button(frame, theme, text, command, row, column):
             frame, text=text,
             command=command
         )
-        btn.grid(row=row, column=column, padx=2, pady=2, sticky="nsew")
-        CreateToolTip(btn, f"{text} button")
+        btn.grid(row=row, column=column, padx=1, pady=2, sticky="nsew")
+        # CreateToolTip(btn, f"{text} button")
         return btn
 
 def create_menu_btn(frame, theme, text, row, column):
@@ -23,7 +23,7 @@ def create_menu_btn(frame, theme, text, row, column):
             frame, text=text,
             relief=tk.RAISED, 
         )
-        drpdwn.grid(row=row, column=column, padx=2, pady=2, sticky="nsew")
+        drpdwn.grid(row=row, column=column, padx=1, pady=2, sticky="nsew")
         return drpdwn
 
 def create_scrollable_frame(parent, height = 150, width = 300, vertical = False, horizontal = False, row=0, col = 0):
