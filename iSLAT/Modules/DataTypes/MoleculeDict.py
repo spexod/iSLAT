@@ -352,6 +352,7 @@ class MoleculeDict(dict):
     
     def bulk_set_visibility(self, is_visible: bool, molecule_names: Optional[List[str]] = None) -> None:
         """Bulk update visibility for multiple molecules using optimized set operations."""
+        print(f"molecule names for visibliy: {molecule_names}")
         if molecule_names is None:
             molecule_names = list(self.keys())
         

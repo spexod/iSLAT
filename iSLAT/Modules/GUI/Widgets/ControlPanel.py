@@ -344,8 +344,7 @@ class ControlPanel(ttk.Frame):
         mol_name = mol_name
         active_mol = self._get_active_molecule_object().name
         default_mol = self.islat.user_settings.get("default_active_molecule", "H2O")
-        print(f"current active mol is {active_mol}")
-        print(f"default mol is {default_mol}")
+ 
 
         if mol_name == default_mol:
             print(f"Cannot delete {mol_name}!")

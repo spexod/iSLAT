@@ -171,14 +171,14 @@ class PlotRenderer:
         for line in self.model_lines:
             # Check if line belongs to this molecule (by stored metadata first)
             if hasattr(line, '_molecule_name') and line._molecule_name == molecule_name:
-                print("found lines (metadata)")
+                print(f"found lines matching with {line._molecule_name} (metadata)")
                 lines_to_remove.append(line)
             # Fallback: check by label if metadata not available
             elif hasattr(line, 'get_label') and line.get_label():
                 label = line.get_label()
                 # Check both the molecule name and display label
-                if molecule_name in label or any(mol_part in label for mol_part in molecule_name.split('_')):
-                    print("found lines (label)")
+                if molecule_name == label or label in molecule_name.split('_'):
+                    print(f"found lines matching with {line._molecule_name} (label)")
                     lines_to_remove.append(line)
 
         
@@ -773,6 +773,7 @@ class PlotRenderer:
             return
         
         molecule = molecules_dict[molecule_name]
+        print(f"changing plotting of: {molecule}")
         
         # Handle visibility change using PlotRenderer methods
         if is_visible:
