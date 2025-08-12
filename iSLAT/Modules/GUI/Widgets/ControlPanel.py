@@ -524,27 +524,6 @@ class ControlPanel(ttk.Frame):
         value = getattr(active_mol, param_name, "")
         return self._format_value(value, param_name)
         
-        # try:
-        #     print(f"active mol: {active_mol}")
-        #     value = getattr(active_mol, param_name, "")
-            
-        #     # Get field configuration for proper formatting
-        #     field_config = None
-        #     for field_key, config in self.MOLECULE_FIELDS.items():
-        #         if config['attribute'] == param_name:
-        #             field_config = config
-        #             break
-            
-        #     # Format value based on field configuration
-        #     if field_config and isinstance(value, (int, float)):
-        #         return field_config['format'].format(value)
-        #     # Fallback formatting for backward compatibility
-        #     elif param_name in ["distance", "stellar_rv", "fwhm", "broad"] and isinstance(value, (int, float)):
-        #         return f"{value:.2f}"
-            
-        #     return str(value)
-        # except:
-        #     return ""
         
     def _format_value(self, value, param_name) -> str:
         print(f"param name: {param_name}")
@@ -610,6 +589,10 @@ class ControlPanel(ttk.Frame):
             
         new_visibility = self.mol_visibility[mol_name].get()
         molecule_name = selected_mol.name
+
+        # if molecule was toggled on, set as new active molecule (maybe make this a setting)
+        if new_visibility:
+            self._on_molecule_selected(molecule_name)
         
         # Simply toggle this molecule's visibility - don't affect other molecules
         self.islat.molecules_dict.bulk_set_visibility(new_visibility, [molecule_name])
