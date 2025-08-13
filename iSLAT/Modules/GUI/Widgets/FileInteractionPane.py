@@ -17,6 +17,8 @@ class FileInteractionPane(ttk.Frame):
         # Initialize ResizableFrame with theme
         super().__init__(parent)
         
+        self.max_len = 26
+
         self.parent = parent
         self.islat_class = islat_class
         
@@ -32,7 +34,10 @@ class FileInteractionPane(ttk.Frame):
         # Initialize with default text or show loaded file name if available
         default_text = "No file loaded"
         if hasattr(self.islat_class, 'loaded_spectrum_name'):
-            default_text = f"{self.islat_class.loaded_spectrum_name}"
+            default_text = f"{self.truncate_name(self.islat_class.loaded_spectrum_name)}"
+
+        
+            
         
         # Row 0: Spectrum file
         self.file_label = tk.Label(
@@ -82,7 +87,11 @@ class FileInteractionPane(ttk.Frame):
         )
         self.output_line_measurements_btn.grid(row=2, column=1, sticky="e", padx=(5, 5), pady=2)
         
-    
+    def truncate_name(self, filename = None):
+        if len(filename) > self.max_len:
+            return filename[:20 - 3] + "..."
+        else:
+            return filename
     
     def update_file_label(self, filename=None):
         """
@@ -98,7 +107,7 @@ class FileInteractionPane(ttk.Frame):
         else:
             display_text = "No file loaded"
         
-        self.file_label.configure(text=display_text)
+        self.file_label.configure(text=self.truncate_name(display_text))
     
     def refresh(self):
         """

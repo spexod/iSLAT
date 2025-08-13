@@ -70,7 +70,7 @@ class ControlPanel(ttk.Frame):
     def _create_molecule_param_frame(self):
        wrapper = create_wrapper_frame(self.label_frame, 0, 1)
        self._create_selected_frame(wrapper, 0, 0)
-       molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 215, horizontal=True, row=1, col=0)
+       molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 170, horizontal=True, row=1, col=0)
 
        return molecule_param_frame
 
@@ -94,14 +94,14 @@ class ControlPanel(ttk.Frame):
     def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7, param_name = None):
         """Create a simple entry field with label and change callback"""
         label = ttk.Label(parent, text=label_text)
-        label.grid(row=row, column=col, padx=5, pady=5)
+        label.grid(row=row, column=col, padx=1, pady=5)
 
         
         var = tk.StringVar()
         var.set(str(initial_value))
         
         entry = ttk.Entry(parent, textvariable=var, width=width, justify="left")
-        entry.grid(row=row, column=col + 1, padx=5, sticky="w")
+        entry.grid(row=row, column=col + 1, padx=1, sticky="w")
 
         def on_change(*args):
             try:
