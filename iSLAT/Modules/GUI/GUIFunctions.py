@@ -17,7 +17,7 @@ def create_button(frame, theme, text, command, row, column):
         
 
         btn.grid(row=row, column=column, padx=1, pady=2, sticky="nsew")
-        # CreateToolTip(btn, f"{text} button")
+        CreateToolTip(btn, f"{text} button")
         return btn
 
 def create_menu_btn(frame, theme, text, row, column):
