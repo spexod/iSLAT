@@ -107,7 +107,14 @@ class iSLAT:
             return False
 
         # Convert to list format efficiently
-        molecules_list = [mol for mol in mole_save_data.values() if mol.get("Molecule Name") and mol.get("Molecule Name") not in self.molecules_dict]
+        if isinstance(mole_save_data, dict):
+            molecules_list = [mol for mol in mole_save_data.values() if mol.get("Molecule Name") and mol.get("Molecule Name") not in self.molecules_dict]
+            parms = self.initial_molecule_parameters
+        elif isinstance(mole_save_data, list):
+            molecules_list = mole_save_data
+            parms = self.initial_molecule_parameters
+            parms['default'] = self.molecules_parameters_default
+
         if not molecules_list:
             print("No new molecules to load.")
             return False
@@ -116,7 +123,7 @@ class iSLAT:
             start_time = time.time()
             results = self.molecules_dict.load_molecules(
                 molecules_list, 
-                self.initial_molecule_parameters,
+                parms,
             )
             
             elapsed_time = time.time() - start_time
