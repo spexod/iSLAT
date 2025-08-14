@@ -3,7 +3,7 @@ from tkinter import ttk
 import os
 from .ResizableFrame import ResizableFrame
 
-class FileInteractionPane(ResizableFrame):
+class FileInteractionPane(ttk.Frame):
     def __init__(self, parent, islat_class, theme):
         """
         Initialize the File Interaction Pane widget.
@@ -15,29 +15,40 @@ class FileInteractionPane(ResizableFrame):
             theme: Theme dictionary for styling
         """
         # Initialize ResizableFrame with theme
-        super().__init__(parent, theme=theme)
+        super().__init__(parent)
         
+        self.max_len = 25
+
         self.parent = parent
         self.islat_class = islat_class
         
         # Create the label frame for grouping
-        self.label_frame = tk.LabelFrame(self, text="Spectrum File")
-        self.label_frame.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # Configure grid layout for the label frame
-        self.label_frame.grid_columnconfigure(0, weight=1)  # Label column
-        self.label_frame.grid_columnconfigure(1, weight=0)  # Button column
+        self.label_frame = tk.LabelFrame(self, text="Input/Output Files", relief="solid", borderwidth=1)
+        self.label_frame.grid(row=0, column=0, sticky="nsew")
+
+        # Let row 0 and column 0 expand inside FileInteractionPane
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+                
         
         # Initialize with default text or show loaded file name if available
         default_text = "No file loaded"
         if hasattr(self.islat_class, 'loaded_spectrum_name'):
-            default_text = f"{self.islat_class.loaded_spectrum_name}"
+            default_text = f"{self.truncate_name(self.islat_class.loaded_spectrum_name)}"
+
+        
+            
         
         # Row 0: Spectrum file
-        self.file_label = tk.Label(self.label_frame, text=default_text, wraplength=200, anchor="w")
+        self.file_label = tk.Label(
+            self.label_frame, 
+            text=default_text, 
+            anchor="w", 
+            bg="white"
+        )
         self.file_label.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=2)
         
-        self.load_spectrum_btn = tk.Button(
+        self.load_spectrum_btn = ttk.Button(
             self.label_frame, 
             text="Load Spectrum", 
             command=self.islat_class.load_spectrum
@@ -48,13 +59,12 @@ class FileInteractionPane(ResizableFrame):
         self.input_line_list_label = tk.Label(
             self.label_frame, 
             text="None", 
-            wraplength=180, 
             anchor="w",
-            #font=("TkDefaultFont", 8)
+            bg="white"
         )
         self.input_line_list_label.grid(row=1, column=0, sticky="ew", padx=(5, 5), pady=2)
         
-        self.input_line_list_btn = tk.Button(
+        self.input_line_list_btn = ttk.Button(
             self.label_frame,
             text="Load Line List",
             command=self._load_input_line_list
@@ -65,22 +75,23 @@ class FileInteractionPane(ResizableFrame):
         self.output_measurements_label = tk.Label(
             self.label_frame, 
             text="None", 
-            wraplength=180, 
             anchor="w",
-            #font=("TkDefaultFont", 8)
+            bg="white"
         )
         self.output_measurements_label.grid(row=2, column=0, sticky="ew", padx=(5, 5), pady=2)
         
-        self.output_line_measurements_btn = tk.Button(
+        self.output_line_measurements_btn = ttk.Button(
             self.label_frame,
             text="Set Output File",
             command=self._load_output_line_measurements
         )
         self.output_line_measurements_btn.grid(row=2, column=1, sticky="e", padx=(5, 5), pady=2)
         
-        # Apply theme to all widgets
-        self.apply_theme()
-    
+    def truncate_name(self, filename = None):
+        if len(filename) > self.max_len:
+            return filename[:self.max_len - 3] + "..."
+        else:
+            return filename
     
     def update_file_label(self, filename=None):
         """
@@ -96,7 +107,7 @@ class FileInteractionPane(ResizableFrame):
         else:
             display_text = "No file loaded"
         
-        self.file_label.configure(text=display_text)
+        self.file_label.configure(text=self.truncate_name(display_text))
     
     def refresh(self):
         """

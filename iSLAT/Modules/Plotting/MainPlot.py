@@ -108,6 +108,13 @@ class iSLATPlot:
     def create_toolbar(self, frame):
         self.toolbar = NavigationToolbar2Tk(self.canvas, window = frame)
         return self.toolbar
+    
+    def toggle_legend(self):
+        if self.ax1.legend_ is None:
+            self.ax1.legend()
+        else:
+            self.ax1.legend_.remove()
+        self.canvas.draw_idle()
 
     def _apply_plot_theming(self):
         """Apply theme colors to matplotlib figure and toolbar"""

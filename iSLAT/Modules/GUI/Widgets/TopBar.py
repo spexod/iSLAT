@@ -53,6 +53,7 @@ class TopBar(ResizableFrame):
         molecule_menu.add_command(label="HITRAN Query", command=self.hitran_query)
         molecule_menu.add_command(label="Default Molecules", command=self.default_molecules)
         molecule_menu.add_command(label="Add Molecules", command=self.add_molecule)
+        molecule_menu.add_command(label="Check Visibilities", command = self.molecule_vis_check)
         molecule_drpdwn.config(menu=molecule_menu)
 
         if os_name == "Darwin":
@@ -65,9 +66,9 @@ class TopBar(ResizableFrame):
         spectrum_drpdwn.config(menu=spectrum_menu)
 
         if os_name == "Darwin":
-            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters", 0, 1)
+            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions", 0, 2)
         else:
-            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions ▼", 0, 1)
+            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions ▼", 0, 2)
         spec_functions_menu = tk.Menu(spec_functions_drpwn, tearoff=0)
         spec_functions_menu.add_command(label="Save Line", command=self.save_line)
         spec_functions_menu.add_command(label="Fit Line", command=self.fit_selected_line)
@@ -81,6 +82,12 @@ class TopBar(ResizableFrame):
         create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3)
         create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4)
         create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
+        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6)
+
+    def molecule_vis_check(self):
+        for mol_name, mol  in self.islat.molecules_dict.items():
+            vis = getattr(mol, 'is_visible', 'UNDEFINED')
+            print(f"{mol_name} visibility: {vis}")
 
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file using the new MoleculeLine approach."""
