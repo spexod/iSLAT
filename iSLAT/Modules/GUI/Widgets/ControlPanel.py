@@ -16,7 +16,12 @@ class ControlPanel(ttk.Frame):
         self.plot = plot
         self.mol_list = {}
         self.mol_visibility = {}
-        self.column_labels = ["On", "Molecule", "Del.", "Color"]
+        self.column_labels = {
+            "On": "turn on/off this\nmodel in the plot ",
+            "Molecule": None, 
+            "Del.": "remove this model\nfrom the GUI",
+            "Color": "change color\nfor this model"
+            }
         
         self.label_frame = tk.LabelFrame(self, text="Molecule Control Panel", relief="solid", borderwidth=1)
         self.label_frame.grid(row=0, column=0, sticky="nsew", pady=0)
@@ -42,17 +47,15 @@ class ControlPanel(ttk.Frame):
         """Create all control panel components in order"""
         gen_config_frame = self._create_general_config_frame()
         molecule_param_frame = self._create_molecule_param_frame()
-        constant_frame = self._create_color_and_vis_frame()
-
-        # constant_frame.grid_columnconfigure(0, weight=1)
+        color_vis_frame = self._create_color_and_vis_frame()
 
         self._create_display_controls(gen_config_frame, 0, 0)
         self._create_wavelength_controls(gen_config_frame, 1, 0)  
-        self._create_global_parameter_controls(gen_config_frame, 2, 0)  # Only distance now
+        self._create_global_parameter_controls(gen_config_frame, 2, 0)  
 
         self._create_molecule_specific_controls(molecule_param_frame, 0, 0)  # All other params here
 
-        self._build_color_and_vis_controls(constant_frame) # my implementation
+        self._build_color_and_vis_controls(color_vis_frame) # my implementation
 
         self.grid_rowconfigure(1, weight=1)  # Because you placed the wrapper at row 1
         self.grid_columnconfigure(0, weight=0)
@@ -209,9 +212,11 @@ class ControlPanel(ttk.Frame):
         content_frame = tk.Frame(parent)
         content_frame.grid(row=1, column=0, sticky="nsew")
  
-        for col, label in enumerate(self.column_labels):
+        for col, (label, tip_text) in enumerate(self.column_labels.items()):
             padx = 0
             label_widget = tk.Label(header_frame, text=label)
+            if tip_text:
+                CreateToolTip(label_widget, tip_text)    
             if label == "Del.":
                 padx = (7,0)
             label_widget.grid(row=0, column=col, sticky="ew", padx=padx)

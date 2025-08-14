@@ -27,7 +27,7 @@
             "format": "{:.1f}",
             "default": 300.0,
             "width": 4,
-            "tip": "Excitation temperature\n units: K"
+            "tip": "Excitation temperature\nunits: K"
         },
         "radius": {
             "label": "Radius:",
@@ -36,7 +36,7 @@
             "format": "{:.2f}",
             "default": 1.0,
             "width": 4,
-            "tip": "Equivalent radius\n units: au"
+            "tip": "Equivalent radius\nunits: au"
         },
         "n_mol": {
             "label": "Col. Density:",
@@ -45,7 +45,7 @@
             "format": "{:.2e}",
             "default": 1e15,
             "width": 7,
-            "tip": "Column density\n units: cm^(-2)"
+            "tip": "Column density\nunits: cm^(-2)"
         },
         "fwhm": {
             "label": "FWHM:",
