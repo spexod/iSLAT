@@ -17,7 +17,7 @@ class FileInteractionPane(ttk.Frame):
         # Initialize ResizableFrame with theme
         super().__init__(parent)
         
-        self.max_len = 26
+        self.max_len = 25
 
         self.parent = parent
         self.islat_class = islat_class
@@ -89,7 +89,7 @@ class FileInteractionPane(ttk.Frame):
         
     def truncate_name(self, filename = None):
         if len(filename) > self.max_len:
-            return filename[:20 - 3] + "..."
+            return filename[:self.max_len - 3] + "..."
         else:
             return filename
     
