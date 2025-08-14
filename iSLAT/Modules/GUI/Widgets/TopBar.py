@@ -56,7 +56,6 @@ class TopBar(ResizableFrame):
         molecule_menu.add_command(label="HITRAN Query", command=self.hitran_query)
         molecule_menu.add_command(label="Default Molecules", command=self.default_molecules)
         molecule_menu.add_command(label="Add Molecules", command=self.add_molecule)
-        molecule_menu.add_command(label="Check Visibilities", command = self.molecule_vis_check)
         molecule_drpdwn.config(menu=molecule_menu)
 
         if os_name == "Darwin":
@@ -87,11 +86,6 @@ class TopBar(ResizableFrame):
         create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6)
 
-
-    def molecule_vis_check(self):
-        for mol_name, mol  in self.islat.molecules_dict.items():
-            vis = getattr(mol, 'is_visible', 'UNDEFINED')
-            print(f"{mol_name} visibility: {vis}")
 
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file using the new MoleculeLine approach."""
