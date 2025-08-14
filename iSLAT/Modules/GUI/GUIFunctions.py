@@ -21,9 +21,6 @@ def create_button(frame, theme, text, command, row, column):
         return btn
 
 def create_menu_btn(frame, theme, text, row, column):
-        btn_theme = theme["buttons"].get(
-            text.replace(" ", ""), theme["buttons"]["DefaultBotton"]
-        )
         drpdwn = tk.Menubutton(
             frame, text=text,
             relief=tk.RAISED, 

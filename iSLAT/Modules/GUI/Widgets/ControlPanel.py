@@ -29,7 +29,6 @@ class ControlPanel(ttk.Frame):
             for mol_name, mol_obj in self.islat.molecules_dict.items():
                     mol_label = getattr(mol_obj, 'displaylabel', mol_name)
                     self.mol_list[mol_name] = mol_label
-
         
         # Load field configurations from JSON file using iSLAT file handling
         self._load_field_configurations()
@@ -58,7 +57,6 @@ class ControlPanel(ttk.Frame):
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
 
-
     def _create_general_config_frame(self):
         wrapper = create_wrapper_frame(self.label_frame, 1, 0, columnspan = 2)
 
@@ -77,7 +75,7 @@ class ControlPanel(ttk.Frame):
     def _create_color_and_vis_frame(self):
         wrapper = create_wrapper_frame(self.label_frame, 0, 0, sticky="nsew")
 
-        color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 160, vertical=True)
+        self._color_vis_parent_frame = color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 128, vertical=True)
 
         return color_vis_frame
 
@@ -168,8 +166,6 @@ class ControlPanel(ttk.Frame):
         if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
             label = tk.Label(parent, text="Global parameters not available")
             label.grid(row=start_row, column=start_col, columnspan=4, padx=5, pady=5)
-            # Apply theme to the label
-
             return
 
         # Store references for later updates
@@ -335,7 +331,6 @@ class ControlPanel(ttk.Frame):
         col = 0
         row = start_row 
         for field_key, field_config in self.MOLECULE_FIELDS.items():
-            
             
             entry, var = self._create_molecule_parameter_entry(
                 parameters_frame,
@@ -679,8 +674,8 @@ class ControlPanel(ttk.Frame):
             if min_val < max_val:
                 molecules_dict = self.islat.molecules_dict
                 molecules_dict.global_wavelength_range = (min_val, max_val)
-                if hasattr(self.islat, 'wavelength_range'):
-                    self.islat.wavelength_range = (min_val, max_val)
+                '''if hasattr(self.islat, 'wavelength_range'):
+                    self.islat.wavelength_range = (min_val, max_val)'''
         except (ValueError, AttributeError):
             pass
 
@@ -721,14 +716,12 @@ class ControlPanel(ttk.Frame):
             self.mol_frames[old_active_mol].config(bg = self.bg_color)
             
         self._set_active_molecule(mol_name= mol_name)
-        
 
     def _set_active_molecule(self, mol_name = None):
         if mol_name:
             selected_label = self.mol_list[mol_name]
         else:
             selected_label = self.mol_list[self.molecule_var.get()]
-
 
         try:
             if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
@@ -751,10 +744,10 @@ class ControlPanel(ttk.Frame):
             
         molecules_dict = self.islat.molecules_dict
 
+        # Update molecule list
         for mol_name, mol_obj in molecules_dict.items():
-                    mol_label = getattr(mol_obj, 'displaylabel', mol_name)
-                    self.mol_list[mol_name] = mol_label
-
+            mol_label = getattr(mol_obj, 'displaylabel', mol_name)
+            self.mol_list[mol_name] = mol_label
         
         # Re-register callbacks in case molecules_dict was created after ControlPanel
         try:
@@ -771,12 +764,25 @@ class ControlPanel(ttk.Frame):
             min_val, max_val = molecules_dict.global_wavelength_range
             self.min_wavelength_var.set(str(min_val))
             self.max_wavelength_var.set(str(max_val))
-
-        
         
         # Update molecule-specific parameter fields
         self._update_molecule_parameter_fields()
         
+        # Rebuild color and visibility controls for new molecules
+        self._rebuild_color_and_vis_controls()
+
+    def _rebuild_color_and_vis_controls(self):
+        """Rebuild color and visibility controls when molecules are added/removed"""
+        if hasattr(self, 'mol_frames'):
+            # Clear existing frames
+            for frame in self.mol_frames.values():
+                frame.destroy()
+            self.mol_frames.clear()
+            self.mol_visibility.clear()
+        
+        # Get the parent frame
+        if hasattr(self, '_color_vis_parent_frame'):
+            self._build_color_and_vis_controls(self._color_vis_parent_frame)
 
     def cleanup(self):
         try:

@@ -146,7 +146,6 @@ MODEL_LINE_WIDTH = SPEED_OF_LIGHT_KMS / DEFAULT_FWHM
 MODEL_PIXEL_RESOLUTION = (np.mean([MIN_WAVELENGTH, MAX_WAVELENGTH]) / SPEED_OF_LIGHT_KMS * DEFAULT_FWHM) / PIXELS_PER_FWHM
 """Calculated model pixel resolution."""
 
-
 # =============================================================================
 # SPECTROSCOPIC ANALYSIS PARAMETERS
 # =============================================================================

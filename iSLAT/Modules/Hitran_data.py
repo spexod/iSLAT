@@ -169,7 +169,7 @@ def download_hitran_data(mols, basem, isot):
     print ('Checking for HITRAN files: ...')
 
     for mol, bm, iso in zip(mols, basem, isot):
-        save_folder = 'HITRANdata'
+        save_folder = 'DATAFILES/HITRANdata'
         file_path = os.path.join(save_folder, "data_Hitran_2020_{:}.par".format(mol))
 
         if os.path.exists(file_path):

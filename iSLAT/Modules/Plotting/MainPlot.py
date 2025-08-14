@@ -56,7 +56,7 @@ class iSLATPlot:
         self.theme = theme
         self.islat = islat_class_ref
 
-        self.active_lines = []  # List of (line, scatter) tuples for active molecular lines
+        self.active_lines = []  # List of (line, text, scatter, values) tuples for active molecular lines
 
         self.fig = plt.Figure(figsize=(10, 7))
         # Adjust subplot parameters to minimize margins and maximize plot area
@@ -132,35 +132,10 @@ class iSLATPlot:
                 
                 # Set spine colors
                 for spine in ax.spines.values():
-                    spine.set_color(self.theme.get("axis_text_label_color", self.theme.get("foreground", "#F0F0F0")))
-                    
+                    spine.set_color(self.theme.get("axis_text_label_color", self.theme.get("foreground", "#F0F0F0")))   
 
                 if self.theme.get(f'ax{ax.get_gid()}_grid', False):
-                    #print(f"Applying grid to ax{ax.get_gid()}")
                     ax.grid(True, color=self.theme.get("axis_text_label_color", self.theme.get("foreground", "#F0F0F0")), alpha=0.3, linestyle='-', linewidth=0.5)
-                # Set grid colors if grid is enabled
-                #ax.grid(True, color=self.theme.get("axis_text_label_color", self.theme.get("foreground", "#F0F0F0")), alpha=0.3, linestyle='-', linewidth=0.5)
-            
-            # # Apply theme to toolbar if possible
-            # if hasattr(self.toolbar, 'configure'):
-            #     try:
-            #         self.toolbar.configure(bg=self.theme.get("toolbar", "#23272A"))
-            #     except:
-            #         pass
-            
-            # # Try to style toolbar buttons
-            # if hasattr(self.toolbar, 'winfo_children'):
-            #     for child in self.toolbar.winfo_children():
-            #         try:
-            #             if hasattr(child, 'configure'):
-            #                 child.configure(
-            #                     bg=self.theme.get("toolbar", "#23272A"),
-            #                     fg=self.theme.get("foreground", "#F0F0F0"),
-            #                     activebackground=self.theme.get("selection_color", "#00FF99"),
-            #                     activeforeground=self.theme.get("foreground", "#F0F0F0")
-            #                 )
-            #         except:
-            #             pass
                     
             # Apply theme to canvas
             if hasattr(self.canvas.get_tk_widget(), 'configure'):
@@ -171,12 +146,6 @@ class iSLATPlot:
                     
         except Exception as e:
             debug_config.error("main_plot", f"Could not apply plot theming: {e}")
-
-    def _convert_visibility_to_bool(self, is_visible_raw):
-        """Convert various visibility representations to boolean"""
-        if isinstance(is_visible_raw, str):
-            return is_visible_raw.lower() in ('true', 't', 'yes', 'y', '1')
-        return bool(is_visible_raw)
     
     def _get_molecule_display_name(self, molecule):
         """Get display name for a molecule"""
@@ -218,7 +187,7 @@ class iSLATPlot:
 
         # Connect callback to update islat.display_range when user changes xlim
         def on_xlim_changed(ax):
-            # Only update if changed by user (not programmatically)
+            # Only update if changed by user
             new_xlim = list(ax.get_xlim())
             if self.islat.display_range != new_xlim:
                 self.islat.display_range = new_xlim
@@ -228,7 +197,7 @@ class iSLATPlot:
             self.ax1.callbacks.connect('xlim_changed', on_xlim_changed)
             self._xlim_callback_connected = True
 
-        # Adjust y-limits as before
+        # Adjust y-limits
         wmin, wmax = self.ax1.get_xlim()
         mask = (self.islat.wave_data >= wmin) & (self.islat.wave_data <= wmax)
         range_flux_cnts = self.islat.flux_data[mask]
@@ -263,8 +232,16 @@ class iSLATPlot:
     def update_all_plots(self):
         """
         Updates all plots in the GUI.
-        This method leverages the molecular data model for updates.
+        This method leverages the molecular data model for updates and avoids redundant rendering.
         """
+        # Check if we should defer rendering
+        if getattr(self.islat, '_defer_spectrum_rendering', False):
+            return
+            
+        # Check if a batch update is in progress to avoid redundant calls
+        if getattr(self.islat, '_batch_update_in_progress', False):
+            return
+            
         self.update_model_plot()
         self.plot_renderer.render_population_diagram(self.islat.active_molecule)
         self.plot_spectrum_around_line()
@@ -279,29 +256,23 @@ class iSLATPlot:
             self.plot_renderer.clear_model_lines()
             self.canvas.draw_idle()
             return
-            
-        # Get visible molecules - use their own visibility property
-        visible_molecules = [mol for mol in self.islat.molecules_dict.values() 
-                           if self._convert_visibility_to_bool(mol.is_visible)]
         
         # Calculate summed flux using MoleculeDict's advanced caching system
         try:
-            if hasattr(self.islat.molecules_dict, 'get_summed_flux_optimized'):
-                # Use MoleculeDict's optimized summed flux calculation with advanced caching
-                debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux_optimized() for model plot")
-                summed_flux = self.islat.molecules_dict.get_summed_flux_optimized(self.islat.wave_data, visible_only=True)
-            elif hasattr(self.islat.molecules_dict, 'get_summed_flux'):
+            if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
                 # Use MoleculeDict's standard summed flux calculation with caching
                 debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
                 summed_flux = self.islat.molecules_dict.get_summed_flux(self.islat.wave_data, visible_only=True)
         except Exception as e:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
-        # Delegate rendering to PlotRenderer for clean separation of concerns
+    
+        wave_data = self.islat.wave_data - (self.islat.wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
+        
         self.plot_renderer.render_main_spectrum_plot(
-            self.islat.wave_data,
+            wave_data,
             self.islat.flux_data,
-            molecules=visible_molecules,
+            molecules=self.islat.molecules_dict,
             summed_flux=summed_flux,
             error_data=getattr(self.islat, 'err_data', None)
         )
@@ -315,10 +286,6 @@ class iSLATPlot:
         mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
         self.selected_wave = self.islat.wave_data[mask]
         self.selected_flux = self.islat.flux_data[mask]
-        self.islat.selected_wave = self.selected_wave
-        self.islat.selected_flux = self.selected_flux
-        self.last_xmin = xmin
-        self.last_xmax = xmax
 
         if len(self.selected_wave) < 5:
             self.ax2.clear()
@@ -339,16 +306,12 @@ class iSLATPlot:
         """
         debug_config.verbose("line_inspection", f"plot_spectrum_around_line called", 
                            xmin=xmin, xmax=xmax, highlight_strongest=highlight_strongest)
-        
-        if xmin is None:
-            xmin = self.last_xmin if hasattr(self, 'last_xmin') else None
-        if xmax is None:
-            xmax = self.last_xmax if hasattr(self, 'last_xmax') else None
 
         if xmin is None or xmax is None:
             # If no selection but we need to update population diagram due to molecule/parameter changes
             debug_config.verbose("line_inspection", "No selection, updating population diagram only")
             self.plot_renderer.render_population_diagram(self.islat.active_molecule)
+            self.plot_renderer.ax2.clear()
             self.canvas.draw_idle()
             return
 
@@ -388,62 +351,6 @@ class iSLATPlot:
         if picked_value:
             self._display_line_info(picked_value)
         self.canvas.draw_idle()
-
-    '''def find_strongest_line_from_data(self):
-        """
-        Find strongest line directly from molecule's cached line data.
-        
-        Uses the molecule's built-in intensity caching to avoid redundant calculations.
-        Returns a dictionary with line information ready for display.
-        """
-        if not hasattr(self, 'current_selection') or self.current_selection is None:
-            return None
-            
-        xmin, xmax = self.current_selection
-        
-        # Use the molecule's cached intensity calculation
-        try:
-            active_molecule = self.islat.active_molecule
-            if not active_molecule or not hasattr(active_molecule, 'intensity'):
-                return None
-            
-            # Ensure intensity is calculated (uses molecule's internal caching)
-            if hasattr(active_molecule, '_ensure_intensity_calculated'):
-                active_molecule._ensure_intensity_calculated()
-            
-            # Get lines with intensity using molecule's cached data
-            if hasattr(active_molecule.intensity, 'get_lines_in_range_with_intensity'):
-                lines_with_intensity = active_molecule.intensity.get_lines_in_range_with_intensity(xmin, xmax)
-            else:
-                # Fallback: use PlotRenderer method which accesses molecule caching
-                line_data = self.plot_renderer.get_molecule_line_data(active_molecule, xmin, xmax)
-                lines_with_intensity = [(line[0], line[1], line[2]) for line in line_data if line[1] is not None]
-            
-            if not lines_with_intensity:
-                return None
-                
-            # Find the line with maximum intensity
-            strongest_line, strongest_intensity, strongest_tau = max(lines_with_intensity, key=lambda x: x[1])
-            
-            # Create a dictionary with the line information
-            line_info = {
-                'lam': strongest_line.lam,
-                'e': strongest_line.e_up, 
-                'a': strongest_line.a_stein,
-                'g': strongest_line.g_up,
-                'inten': strongest_intensity,
-                'up_lev': strongest_line.lev_up if hasattr(strongest_line, 'lev_up') and strongest_line.lev_up else 'N/A',
-                'low_lev': strongest_line.lev_low if hasattr(strongest_line, 'lev_low') and strongest_line.lev_low else 'N/A',
-                'tau': strongest_tau if strongest_tau is not None else 'N/A',
-                'wavelength': strongest_line.lam,
-                'intensity': strongest_intensity,
-                'flux': strongest_intensity
-            }
-            
-            return line_info
-        except Exception as e:
-            debug_config.warning("main_plot", f"Could not find strongest line: {e}")
-            return None'''
 
     def flux_integral_basic(self, wave_data, flux_data, err_data, xmin, xmax):
         """
@@ -497,7 +404,7 @@ class iSLATPlot:
         strongest = self.plot_renderer.highlight_strongest_line(self.active_lines)
         if strongest is not None:
             # Display strongest line information in data field
-            line, scatter, value = strongest
+            line, text, scatter, value = strongest
             if value:
                 self._display_line_info(value)
         
@@ -552,17 +459,26 @@ class iSLATPlot:
             f"Flux in sel. range (erg/s/cm2) = {flux_str}\n"
         )
         
-        # Add the information without clearing the data field
-        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
-            self.islat.GUI.data_field.insert_text(info_str, clear_first=clear_data_field)
+        # Add the information without clearing the data field, with error protection
+        if (hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field') and
+            self.islat.GUI.data_field is not None):
+            try:
+                # Check if the widget still exists before accessing it
+                if hasattr(self.islat.GUI.data_field, 'text') and self.islat.GUI.data_field.text.winfo_exists():
+                    self.islat.GUI.data_field.insert_text(info_str, clear_first=clear_data_field)
+            except Exception as e:
+                # Silently ignore GUI access errors during initialization
+                print(f"Warning: Could not update data field: {e}")
+                pass
 
     def plot_line_inspection(self, xmin=None, xmax=None, line_data=None, highlight_strongest=True):
-        if xmin is None:
+        '''if xmin is None:
             xmin = self.last_xmin if hasattr(self, 'last_xmin') else None
         if xmax is None:
-            xmax = self.last_xmax if hasattr(self, 'last_xmax') else None
+            xmax = self.last_xmax if hasattr(self, 'last_xmax') else None'''
         
         if xmin is None or xmax is None:
+            self.plot_renderer.ax2.clear()
             self.canvas.draw_idle()
             return
         
@@ -623,10 +539,10 @@ class iSLATPlot:
         Update the line inspection plot showing data and active molecule model in the selected range.
         Uses only PlotRenderer logic with molecule's built-in caching for optimal performance.
         """
-        if xmin is None:
+        '''if xmin is None:
             xmin = self.last_xmin if hasattr(self, 'last_xmin') else None
         if xmax is None:
-            xmax = self.last_xmax if hasattr(self, 'last_xmax') else None
+            xmax = self.last_xmax if hasattr(self, 'last_xmax') else None'''
 
         if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
             self.plot_renderer.ax2.clear()
@@ -734,20 +650,6 @@ class iSLATPlot:
         """
         self.plot_renderer.clear_all_plots()
         self.canvas.draw_idle()
-    
-    def optimize_plot_memory(self):
-        """
-        Optimize memory usage for plotting operations.
-        Delegates to PlotRenderer for memory management.
-        """
-        self.plot_renderer.optimize_plot_memory_usage()
-    
-    def get_plot_performance_stats(self):
-        """
-        Get performance statistics for debugging.
-        Returns dict with plot performance metrics.
-        """
-        return self.plot_renderer.get_plot_performance_stats()
 
     def highlight_line_selection(self, xmin, xmax):
         """
@@ -764,28 +666,6 @@ class iSLATPlot:
         """
         self.plot_renderer.plot_vertical_lines(wavelengths, heights, colors, labels)
         self.canvas.draw_idle()
-    
-    def render_molecules_efficiently(self, wave_data, molecules):
-        """
-        Render molecules using available methods.
-        Delegates to PlotRenderer for molecule rendering.
-        """
-        self.plot_renderer.render_visible_molecules(wave_data, molecules)
-        self.canvas.draw_idle()
-    
-    def update_plot_display(self):
-        """
-        Update the plot display.
-        Delegates to PlotRenderer for display updates.
-        """
-        self.plot_renderer.update_plot_display()
-    
-    def force_plot_refresh(self):
-        """
-        Force a complete plot refresh.
-        Delegates to PlotRenderer for comprehensive refresh.
-        """
-        self.plot_renderer.force_plot_refresh()
 
     def on_click(self, event):
         """Handle mouse click events on the plot."""
@@ -845,9 +725,7 @@ class iSLATPlot:
             molecule = self.islat.molecules_dict[molecule_name]
             
             # Only update plots if the molecule is visible
-            if self._convert_visibility_to_bool(molecule.is_visible):
-                # The molecule's cache has already been invalidated by its parameter setter
-                # We just need to trigger a plot update
+            if molecule.is_visible:
                 self.update_model_plot()
         
         # Check if the changed molecule is the active one for additional updates
@@ -919,16 +797,6 @@ class iSLATPlot:
         # Only canvas update needed in MainPlot
         self.canvas.draw_idle()
 
-    def _add_molecule_to_plot(self, molecule):
-        """Add a single molecule's spectrum using PlotRenderer - minimal logic"""
-        if not self._convert_visibility_to_bool(molecule.is_visible):
-            return
-        
-        # Delegate to PlotRenderer with minimal logic
-        return self.plot_renderer.render_individual_molecule_spectrum(
-            molecule, self.islat.wave_data
-        )
-
     def _update_summed_spectrum(self):
         """Update summed spectrum by delegating to PlotRenderer - minimal logic"""
         if not hasattr(self.islat, 'molecules_dict'):
@@ -939,19 +807,6 @@ class iSLATPlot:
             self.islat.molecules_dict, 
             self.islat.wave_data
         )
-    
-    def batch_update_molecule_colors(self, molecule_color_map):
-        """
-        Update multiple molecule colors.
-        
-        Parameters
-        ----------
-        molecule_color_map : dict
-            Dictionary mapping molecule names to colors
-        """
-        self.plot_renderer.batch_update_molecule_colors(molecule_color_map)
-    
-    # Convenience methods that delegate to specialized modules
     
     def compute_fit_line(self, xmin=None, xmax=None, deblend=False):
         """
@@ -1078,247 +933,3 @@ class iSLATPlot:
                 self.update_all_plots()
         except:
             pass
-    
-    '''def on_cached_data_loaded(self, molecules_dict=None):
-        """
-        Called when cached molecular data is loaded from file.
-        
-        This method ensures that plots are properly updated when cache history
-        is restored, utilizing the existing cached calculations rather than 
-        recalculating everything.
-        
-        Parameters
-        ----------
-        molecules_dict : dict, optional
-            Dictionary of loaded molecules. If None, uses self.islat.molecules_dict
-        """
-        if molecules_dict is None and hasattr(self.islat, 'molecules_dict'):
-            molecules_dict = self.islat.molecules_dict
-        
-        if not molecules_dict:
-            return'''
-        
-    def on_cached_data_loaded(self, molecules_dict=None):
-        """
-        Called when cached molecular data is loaded from file.
-        
-        Since we rely entirely on molecule caching, we just need to refresh
-        the plots to display the loaded cached data.
-        """
-        if molecules_dict is None and hasattr(self.islat, 'molecules_dict'):
-            molecules_dict = self.islat.molecules_dict
-        
-        if not molecules_dict:
-            return
-        
-        debug_config.verbose("main_plot", f"Loading cached data for {len(molecules_dict)} molecules - using molecule cached calculations")
-        
-        # No cache clearing needed - just refresh plots to show molecule cached data
-        self.update_all_plots()
-        
-        # Update population diagram if we have an active molecule
-        if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
-            self.plot_renderer.render_population_diagram(self.islat.active_molecule)
-            
-        # If we have a current selection, refresh the line inspection
-        if hasattr(self, 'current_selection') and self.current_selection:
-            xmin, xmax = self.current_selection
-            self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
-        
-        self.canvas.draw_idle()
-        debug_config.verbose("main_plot", "Plot refresh completed - displaying cached molecular data")
-        
-        # If we have an active molecule, ensure its population diagram is updated
-        if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
-            self.plot_renderer.render_population_diagram(self.islat.active_molecule)
-            
-        # If we have a current selection, refresh the line inspection
-        if hasattr(self, 'current_selection') and self.current_selection:
-            xmin, xmax = self.current_selection
-            self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
-        
-        self.canvas.draw_idle()
-        debug_config.verbose("main_plot", "Plot refresh completed - should now display cached molecular data")
-    
-    def validate_molecule_caches(self):
-        """
-        Validate all molecule caches and trigger updates if needed.
-        
-        This method checks each molecule's cache validity and updates
-        plots only for molecules whose caches have been invalidated.
-        """
-        if not hasattr(self.islat, 'molecules_dict'):
-            return
-        
-        molecules_needing_update = []
-        
-        for molecule_name, molecule in self.islat.molecules_dict.items():
-            try:
-                # Use molecule's built-in cache validation
-                if hasattr(molecule, 'is_cache_valid'):
-                    if not molecule.is_cache_valid():
-                        molecules_needing_update.append(molecule_name)
-                elif hasattr(molecule, '_dirty_flags'):
-                    # Check if any important flags are dirty
-                    if any(molecule._dirty_flags.get(flag, False) 
-                          for flag in ['intensity', 'spectrum', 'flux']):
-                        molecules_needing_update.append(molecule_name)
-                        
-            except Exception as e:
-                debug_config.warning("main_plot", f"Error checking cache for molecule {molecule_name}: {e}")
-                continue
-        
-        # Update plots only if there are molecules needing updates
-        if molecules_needing_update:
-            debug_config.info("main_plot", f"Updating plots for molecules with invalid caches: {molecules_needing_update}")
-            self.update_all_plots()
-        
-        return molecules_needing_update
-    
-    def on_bulk_molecule_parameters_changed(self, parameter_changes):
-        """
-        Handle bulk parameter changes efficiently.
-        
-        This method is optimized for cases where multiple molecule parameters
-        change at once (e.g., loading a saved state, applying global changes).
-        It leverages molecule caching to update only what's necessary.
-        
-        Parameters
-        ----------
-        parameter_changes : dict
-            Dictionary with structure: {molecule_name: {param_name: new_value, ...}, ...}
-        """
-        if not parameter_changes:
-            return
-        
-        affected_visible_molecules = []
-        active_molecule_affected = False
-        
-        # Check which molecules actually need visual updates
-        for molecule_name, param_dict in parameter_changes.items():
-            if (hasattr(self.islat, 'molecules_dict') and 
-                molecule_name in self.islat.molecules_dict):
-                
-                molecule = self.islat.molecules_dict[molecule_name]
-                
-                # Check if molecule is visible (affects main plot)
-                if self._convert_visibility_to_bool(molecule.is_visible):
-                    affected_visible_molecules.append(molecule_name)
-                
-                # Check if this is the active molecule (affects line inspection and population diagram)
-                if (hasattr(self.islat, 'active_molecule') and 
-                    self.islat.active_molecule and 
-                    hasattr(self.islat.active_molecule, 'name') and
-                    self.islat.active_molecule.name == molecule_name):
-                    active_molecule_affected = True
-        
-        # Update main plot only if visible molecules were affected
-        if affected_visible_molecules:
-            self.update_model_plot()
-        
-        # Update line inspection and population diagram if active molecule was affected
-        if active_molecule_affected:
-            if hasattr(self, 'current_selection') and self.current_selection:
-                xmin, xmax = self.current_selection
-                self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
-            else:
-                # Just update the population diagram
-                self.plot_renderer.render_population_diagram(self.islat.active_molecule)
-                self.canvas.draw_idle()
-    
-    def get_molecule_cache_status(self):
-        """
-        Get cache status for all molecules for debugging purposes.
-        
-        Returns
-        -------
-        dict
-            Dictionary with cache status information for each molecule
-        """
-        cache_status = {}
-        
-        if not hasattr(self.islat, 'molecules_dict'):
-            return cache_status
-        
-        for molecule_name, molecule in self.islat.molecules_dict.items():
-            try:
-                status = {
-                    'name': molecule_name,
-                    'visible': self._convert_visibility_to_bool(molecule.is_visible),
-                    'cache_valid': None,
-                    'cache_stats': None,
-                    'parameter_hash': None
-                }
-                
-                # Get cache validity
-                if hasattr(molecule, 'is_cache_valid'):
-                    status['cache_valid'] = molecule.is_cache_valid()
-                
-                # Get cache statistics
-                if hasattr(molecule, 'get_cache_stats'):
-                    status['cache_stats'] = molecule.get_cache_stats()
-                
-                # Get current parameter hash
-                if hasattr(molecule, 'get_parameter_hash'):
-                    status['parameter_hash'] = molecule.get_parameter_hash()
-                
-                cache_status[molecule_name] = status
-                
-            except Exception as e:
-                cache_status[molecule_name] = {
-                    'name': molecule_name,
-                    'error': str(e)
-                }
-        
-        return cache_status
-    
-    def debug_molecule_cache_usage(self):
-        """
-        Debug method to check if molecules are using their cached data properly.
-        
-        Returns information about cache state and usage for troubleshooting.
-        """
-        if not hasattr(self.islat, 'molecules_dict'):
-            return "No molecules_dict found"
-        
-        debug_info = []
-        
-        for molecule_name, molecule in self.islat.molecules_dict.items():
-            try:
-                info = {
-                    'name': molecule_name,
-                    'has_cached_intensity': False,
-                    'has_cached_spectrum': False,
-                    'has_plot_data': False,
-                    'cache_stats': {},
-                    'visible': self._convert_visibility_to_bool(molecule.is_visible)
-                }
-                
-                # Check for cached intensity
-                if hasattr(molecule, '_intensity_cache') and molecule._intensity_cache.get('data'):
-                    info['has_cached_intensity'] = True
-                
-                # Check for cached spectrum
-                if hasattr(molecule, '_spectrum_cache') and molecule._spectrum_cache.get('data'):
-                    info['has_cached_spectrum'] = True
-                elif hasattr(molecule, 'spectrum') and molecule.spectrum:
-                    info['has_cached_spectrum'] = True
-                
-                # Check for plot data
-                if hasattr(molecule, 'plot_lam') and hasattr(molecule, 'plot_flux'):
-                    if molecule.plot_lam is not None and molecule.plot_flux is not None:
-                        info['has_plot_data'] = True
-                
-                # Get cache statistics
-                if hasattr(molecule, 'get_cache_stats'):
-                    info['cache_stats'] = molecule.get_cache_stats()
-                
-                debug_info.append(info)
-                
-            except Exception as e:
-                debug_info.append({
-                    'name': molecule_name,
-                    'error': str(e)
-                })
-        
-        return debug_info

@@ -92,16 +92,8 @@ class PlotRenderer:
             'renders_count': 0,
             'molecules_rendered': 0
         }
-        
-        # Remove molecule change callbacks since we don't cache data anymore
     
     # Helper methods for common operations
-    def _convert_visibility_to_bool(self, is_visible_raw: Any) -> bool:
-        """Convert various visibility representations to boolean"""
-        if isinstance(is_visible_raw, str):
-            return is_visible_raw.lower() in ('true', '1', 'yes', 'on')
-        return bool(is_visible_raw)
-    
     def _get_molecule_display_name(self, molecule: 'Molecule') -> str:
         """Get display name for a molecule"""
         return getattr(molecule, 'displaylabel', getattr(molecule, 'name', 'unknown'))
@@ -129,18 +121,6 @@ class PlotRenderer:
             
         # Default fallback
         return self._get_theme_value('default_molecule_color', 'blue')
-    
-    def _safe_get_molecule_attribute(self, molecule: 'Molecule', attr_name: str, default_value: Any = None) -> Any:
-        """Safely get molecule attribute with error handling"""
-        try:
-            return getattr(molecule, attr_name, default_value)
-        except Exception as e:
-            debug_config.error("plot_renderer", f"Error accessing {attr_name} for molecule {self._get_molecule_display_name(molecule)}: {e}")
-            return default_value
-    
-    def cleanup_callbacks(self) -> None:
-        """No callbacks to cleanup since we rely entirely on molecule caching"""
-        pass
     
     def clear_all_plots(self) -> None:
         """Clear all plots and reset stats"""
@@ -190,27 +170,6 @@ class PlotRenderer:
                 self.model_lines.remove(line)
         
         self.ax1.legend()
-
-    def update_summed_spectrum_only(self, wave_data: np.ndarray, summed_flux: np.ndarray) -> None:
-        """Update only the summed spectrum without affecting individual molecule plots"""
-        # Remove existing summed spectrum
-        for collection in self.ax1.collections:
-            if hasattr(collection, '_islat_summed'):
-                collection.remove()
-        
-        # Add new summed spectrum
-        if len(summed_flux) > 0 and np.any(summed_flux > 0):
-            fill = self.ax1.fill_between(
-                wave_data,
-                0,
-                summed_flux,
-                color=self._get_theme_value("summed_spectra_color", "lightgray"),
-                alpha=1.0,
-                label='Sum',
-                zorder=self._get_theme_value("zorder_summed", 1)
-            )
-            # Mark as summed spectrum for future removal
-            fill._islat_summed = True
         
     def render_main_spectrum_plot(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                  molecules: Union[List['Molecule'], 'MoleculeDict'], 
@@ -265,7 +224,7 @@ class PlotRenderer:
                     fmt='-', 
                     color="black", # self._get_theme_value("foreground", "black")
                     linewidth=1,
-                    label='Observed',
+                    label='Data',
                     zorder=self._get_theme_value("zorder_observed", 3),
                     elinewidth=0.5,
                     capsize=0
@@ -277,7 +236,7 @@ class PlotRenderer:
                     flux_data,
                     color=self._get_theme_value("foreground", "black"),
                     linewidth=1,
-                    label='Observed',
+                    label='Data',
                     zorder=self._get_theme_value("zorder_observed", 3)
                 )
     
@@ -318,7 +277,7 @@ class PlotRenderer:
             self.ax2.plot(line_wave, line_flux, 
                          color=self._get_theme_value("foreground", "black"), 
                          linewidth=1, 
-                         label="Observed")
+                         label="Data")
 
             self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
             self.ax2.set_ylabel("Flux (Jy)", color=self._get_theme_value("foreground", "black"))
@@ -368,7 +327,7 @@ class PlotRenderer:
         if len(observed_wave) > 0 and len(observed_flux) > 0:
             self.ax2.plot(observed_wave, observed_flux, 
                          color=self._get_theme_value("foreground", "black"), 
-                         linewidth=1, label="Observed")
+                         linewidth=1, label="Data")
         
         # Calculate max_y for plot scaling
         max_y = np.nanmax(observed_flux) if len(observed_flux) > 0 else 1.0
@@ -393,9 +352,6 @@ class PlotRenderer:
             except Exception as e:
                 mol_name = self._get_molecule_display_name(active_molecule)
                 debug_config.warning("plot_renderer", f"Could not get model data for molecule {mol_name}: {e}")
-        
-        '''if self._should_clear_old_fits():
-            self._clear_old_fit_results_in_range(xmin, xmax)'''
 
         # Plot fit results if available
         if fit_result is not None:
@@ -422,7 +378,31 @@ class PlotRenderer:
                 fit_mask = (fitted_wave >= xmin) & (fitted_wave <= xmax)
                 if np.any(fit_mask):
                     self.ax2.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], 
-                                 color='red', linewidth=2, label='Fit')
+                                color='red', linewidth=2, label='Total Fit')
+                    
+                    # Check if this is a multi-component fit by looking at the fit result structure
+                    if hasattr(gauss_fit, 'params') and gauss_fit.params:
+                        # Count components by looking for numbered prefixes (g1_, g2_, etc.)
+                        component_prefixes = set()
+                        for param_name in gauss_fit.params:
+                            if '_' in param_name:
+                                prefix = param_name.split('_')[0] + '_'
+                                if prefix.startswith('g') and prefix[1:-1].isdigit():
+                                    component_prefixes.add(prefix)
+                        
+                        # If multi-component, plot individual components
+                        if len(component_prefixes) > 1:
+                            try:
+                                components = gauss_fit.eval_components(x=fitted_wave[fit_mask])
+                                for i, prefix in enumerate(sorted(component_prefixes)):
+                                    if prefix in components:
+                                        component_flux = components[prefix]
+                                        self.ax2.plot(fitted_wave[fit_mask], component_flux, 
+                                                    linestyle='--', linewidth=1, 
+                                                    label=f"Component {i+1}")
+                            except Exception as e:
+                                debug_config.warning("plot_renderer", f"Could not plot fit components: {e}")
+
         except Exception as e:
             debug_config.warning("plot_renderer", f"Could not render fit results: {e}")
     
@@ -435,24 +415,6 @@ class PlotRenderer:
         except Exception as e:
             debug_config.warning("plot_renderer", f"Could not check clear_old_fits setting: {e}")
             return True
-    
-    def set_clear_old_fits(self, clear_old_fits: bool) -> None:
-        """Set whether old fit results should be cleared when making new selections."""
-        try:
-            if hasattr(self.islat, 'user_settings'):
-                self.islat.user_settings['clear_old_fits'] = clear_old_fits
-                debug_config.info("plot_renderer", f"Set clear_old_fits to {clear_old_fits}")
-                
-                # Save settings if method exists
-                if hasattr(self.islat, 'save_user_settings'):
-                    try:
-                        self.islat.save_user_settings()
-                    except Exception as e:
-                        debug_config.warning("plot_renderer", f"Could not save user settings: {e}")
-            else:
-                debug_config.warning("plot_renderer", "user_settings not available, cannot set clear_old_fits")
-        except Exception as e:
-            debug_config.warning("plot_renderer", f"Could not set clear_old_fits setting: {e}")
     
     def _clear_old_fit_results_in_range(self, xmin: float, xmax: float) -> None:
         """Clear old fit results that overlap with the new selection range."""
@@ -476,21 +438,6 @@ class PlotRenderer:
         for line in lines_to_remove:
             line.remove()
             debug_config.trace("plot_renderer", f"Removed old fit result line: {line.get_label()}")
-    
-    def _get_molecule_parameters_hash(self, molecule: 'Molecule') -> Optional[int]:
-        if molecule is None:
-            return None
-        
-        try:
-            if hasattr(molecule, 'get_parameter_hash'):
-                return molecule.get_parameter_hash('full')
-            elif hasattr(molecule, '_compute_full_parameter_hash'):
-                return molecule._compute_full_parameter_hash()
-            else:
-                return hash((molecule.name, molecule.temp, molecule.radius, molecule.n_mol, 
-                           molecule.distance, molecule.fwhm, molecule.broad))
-        except Exception:
-            return None
     
     def render_population_diagram(self, molecule: 'Molecule', wave_range: Optional[Tuple[float, float]] = None) -> None:
         """
@@ -519,9 +466,9 @@ class PlotRenderer:
             gu = int_pars['g_up']
             eu = int_pars['e_up']
 
-            radius = getattr(molecule, 'radius', 1.0)
-            distance = getattr(molecule, 'distance', getattr(self.islat, 'global_dist', 140.0))
-            
+            radius = getattr(molecule, 'radius', None)
+            distance = getattr(molecule, 'distance', None)
+
             area = np.pi * (radius * c.ASTRONOMICAL_UNIT_M * 1e2) ** 2
             dist = distance * c.PARSEC_CM
             beam_s = area / dist ** 2
@@ -561,8 +508,6 @@ class PlotRenderer:
             return
 
         for index, line in saved_lines.iterrows():
-            #print("Line:", line)
-            #print("Index:", index)
             # Plot vertical lines at saved positions
             if 'lam' in line:
                 self.ax1.axvline(
@@ -582,7 +527,7 @@ class PlotRenderer:
                     label=f"Saved Range: {line.get('label', 'Range')}"
                 )
         # make sure that a refresh of the plot is triggered
-        self.update_plot_display()
+        self.canvas.draw_idle()
     
     def highlight_line_selection(self, xmin: float, xmax: float) -> None:
         """Highlight a selected wavelength range"""
@@ -594,14 +539,6 @@ class PlotRenderer:
         # Add new highlight
         highlight = self.ax1.axvspan(xmin, xmax, alpha=0.3, color=self._get_theme_value("highlighted_line_color", "yellow"))
         highlight._islat_highlight = True
-    
-    def update_plot_display(self) -> None:
-        """Update the plot display"""
-        self.canvas.draw_idle()
-    
-    def force_plot_refresh(self) -> None:
-        """Force a complete plot refresh"""
-        self.canvas.draw()
     
     def plot_vertical_lines(self, wavelengths: List[float], heights: Optional[List[float]] = None, 
                            colors: Optional[List[str]] = None, labels: Optional[List[str]] = None) -> None:
@@ -628,70 +565,14 @@ class PlotRenderer:
                            alpha=0.8, picker=True, zorder=5)
     
     def get_visible_molecules(self, molecules: Union['MoleculeDict', List['Molecule']]) -> List['Molecule']:
-        """Get visible molecules using the most efficient method available"""
+        """Get visible molecules using the MoleculeDict's optimized method"""
         
         debug_config.trace("plot_renderer", f"molecules type = {type(molecules)}")
-        debug_config.trace("plot_renderer", f"hasattr(molecules, 'get_visible_molecules_fast') = {hasattr(molecules, 'get_visible_molecules_fast')}")
-        debug_config.trace("plot_renderer", f"hasattr(molecules, 'values') = {hasattr(molecules, 'values')}")
-        debug_config.trace("plot_renderer", f"hasattr(molecules, '__iter__') = {hasattr(molecules, '__iter__')}")
         
-        if hasattr(molecules, 'get_visible_molecules_fast'):
-            # MoleculeDict with fast access
-            visible_names = molecules.get_visible_molecules_fast()
-            visible_molecules = [molecules[name] for name in visible_names if name in molecules]
-            debug_config.trace("plot_renderer", f"get_visible_molecules_fast(): {len(visible_molecules)}/{len(molecules)} molecules visible: {visible_names}")
-            return visible_molecules
-        elif hasattr(molecules, 'values'):
-            # Regular dict-like object - check each molecule's is_visible attribute
-            debug_config.trace("plot_renderer", "Using values() path for dict-like object")
-            visible_molecules = []
-            for mol in molecules.values():
-                is_visible_raw = getattr(mol, 'is_visible', False)
-                mol_name = getattr(mol, 'name', 'unknown')
-                
-                # Use consolidated conversion method
-                is_visible = self._convert_visibility_to_bool(is_visible_raw)
-                    
-                debug_config.trace("plot_renderer", f"Checking {mol_name}: is_visible_raw = {is_visible_raw} -> is_visible = {is_visible}")
-                if is_visible:
-                    visible_molecules.append(mol)
-            debug_config.trace("plot_renderer", f"values() path result: {len(visible_molecules)}/{len(molecules)} molecules visible")
-            return visible_molecules
-        elif hasattr(molecules, '__iter__'):
-            # List-like object
-            debug_config.trace("plot_renderer", "Using __iter__ path for list-like object")
-            visible_molecules = []
-            total_count = 0
-            for mol in molecules:
-                total_count += 1
-                is_visible_raw = getattr(mol, 'is_visible', False)
-                mol_name = getattr(mol, 'name', 'unknown')
-                mol_id = id(mol)
-                
-                # Use consolidated conversion method
-                is_visible = self._convert_visibility_to_bool(is_visible_raw)
-                
-                debug_config.trace("plot_renderer", f"Checking {mol_name} (id:{mol_id}): is_visible_raw = {is_visible_raw} (type: {type(is_visible_raw)}) -> is_visible = {is_visible}")
-                
-                if is_visible:
-                    visible_molecules.append(mol)
-                    debug_config.trace("plot_renderer", f"ADDED {mol_name} to visible_molecules list (list length now: {len(visible_molecules)})")
-                else:
-                    debug_config.trace("plot_renderer", f"SKIPPED {mol_name} (not visible)")
-                
-            debug_config.trace("plot_renderer", f"Final visible_molecules list length: {len(visible_molecules)}")
-            debug_config.trace("plot_renderer", f"__iter__ path result: {len(visible_molecules)}/{total_count} molecules visible")
-            return visible_molecules
-        else:
-            # Single molecule
-            is_visible_raw = getattr(molecules, 'is_visible', False)
-            
-            # Use consolidated conversion method
-            is_visible = self._convert_visibility_to_bool(is_visible_raw)
-                
-            result = [molecules] if is_visible else []
-            debug_config.trace("plot_renderer", f"Single molecule visibility: is_visible_raw = {is_visible_raw} -> is_visible = {is_visible} -> {'visible' if is_visible else 'hidden'}")
-            return result
+        visible_names = molecules.get_visible_molecules()
+        visible_molecules = [molecules[name] for name in visible_names if name in molecules]
+        debug_config.trace("plot_renderer", f"get_visible_molecules(): {len(visible_molecules)}/{len(molecules)} molecules visible: {visible_names}")
+        return visible_molecules
     
     def render_visible_molecules(self, wave_data: np.ndarray, molecules: Union['MoleculeDict', List['Molecule']]) -> None:
         """
@@ -712,37 +593,12 @@ class PlotRenderer:
         for mol in visible_molecules:
             mol_name = getattr(mol, 'name', 'unknown')
             try:
-                # The render_individual_molecule_spectrum method will use the molecule's
-                # built-in caching via get_flux() which respects parameter hash validation
                 success = self.render_individual_molecule_spectrum(mol, wave_data)
                 if not success:
                     debug_config.warning("plot_renderer", f"Could not render molecule {mol_name}")
             except Exception as e:
                 print(f"Error rendering molecule {mol_name}: {e}")
                 continue
-    
-    def optimize_plot_memory_usage(self) -> None:
-        """Optimize memory usage for plotting operations"""
-        # Limit the number of cached model lines
-        if len(self.model_lines) > 50:
-            # Remove oldest lines from plot
-            for line in self.model_lines[:25]:
-                if line in self.ax1.lines:
-                    line.remove()
-            self.model_lines = self.model_lines[25:]
-        
-        # Clear inactive lines
-        self.active_lines = [line for line in self.active_lines if line in self.ax2.lines]
-    
-    def batch_update_molecule_colors(self, molecule_color_map: Dict[str, str]) -> None:
-        """Update molecule colors in batch for better performance"""
-        for line in self.model_lines:
-            label = line.get_label()
-            if label in molecule_color_map:
-                line.set_color(molecule_color_map[label])
-        
-        # Update canvas once at the end
-        self.canvas.draw_idle()
     
     def handle_molecule_visibility_change(self, molecule_name: str, is_visible: bool, 
                                         molecules_dict: Union['MoleculeDict', Dict], 
@@ -777,10 +633,11 @@ class PlotRenderer:
         
         # Handle visibility change using PlotRenderer methods
         if is_visible:
+            pass
             # Add molecule spectrum using PlotRenderer
-            success = self.render_individual_molecule_spectrum(molecule, wave_data)
-            if not success:
-                debug_config.warning("plot_renderer", f"Failed to render molecule {molecule_name}")
+            #success = self.render_individual_molecule_spectrum(molecule, wave_data)
+            #if not success:
+            #    debug_config.warning("plot_renderer", f"Failed to render molecule {molecule_name}")
         else:
             # Remove molecule spectrum using PlotRenderer
             self.remove_molecule_lines(molecule_name)
@@ -809,6 +666,27 @@ class PlotRenderer:
                 xmin, xmax = current_selection
                 self.plot_manager.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
     
+    def update_summed_spectrum_only(self, wave_data: np.ndarray, summed_flux: np.ndarray) -> None:
+        """Update only the summed spectrum without affecting individual molecule plots"""
+        # Remove existing summed spectrum
+        for collection in self.ax1.collections:
+            if hasattr(collection, '_islat_summed'):
+                collection.remove()
+        
+        # Add new summed spectrum
+        if len(summed_flux) > 0 and np.any(summed_flux > 0):
+            fill = self.ax1.fill_between(
+                wave_data,
+                0,
+                summed_flux,
+                color=self._get_theme_value("summed_spectra_color", "lightgray"),
+                alpha=1.0,
+                label='Sum',
+                zorder=self._get_theme_value("zorder_summed", 1)
+            )
+            # Mark as summed spectrum for future removal
+            fill._islat_summed = True
+
     def _update_summed_spectrum_with_molecules(self, molecules_dict: Union['MoleculeDict', Dict], 
                                              wave_data: np.ndarray) -> None:
         """
@@ -821,30 +699,13 @@ class PlotRenderer:
             return
         
         try:
-            # Check if molecules_dict is a MoleculeDict with advanced methods
-            if hasattr(molecules_dict, 'get_summed_flux_optimized'):
-                # Use MoleculeDict's optimized summed flux calculation with caching
-                debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux_optimized() with advanced caching")
-                summed_flux = molecules_dict.get_summed_flux_optimized(wave_data, visible_only=True)
-            elif hasattr(molecules_dict, 'get_summed_flux'):
-                # Use MoleculeDict's standard summed flux calculation with caching
-                debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux() with caching")
-                summed_flux = molecules_dict.get_summed_flux(wave_data, visible_only=True)
+            debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux() with caching")
+            summed_flux = molecules_dict.get_summed_flux(wave_data, visible_only=True)
         except Exception as e:
             debug_config.warning("plot_renderer", f"Error in summed flux calculation: {e}")
         
         # Update summed spectrum using PlotRenderer
         self.update_summed_spectrum_only(wave_data, summed_flux)
-    
-    def get_plot_performance_stats(self) -> Dict[str, Any]:
-        """Get simplified performance statistics"""
-        return {
-            'model_lines_count': len(self.model_lines),
-            'active_lines_count': len(self.active_lines),
-            'total_renders': self._plot_stats.get('renders_count', 0),
-            'molecules_rendered': self._plot_stats.get('molecules_rendered', 0),
-            'caching_strategy': 'molecule_only'
-        }
     
     def clear_active_lines(self, active_lines_list: List[Any]) -> None:
         """
@@ -858,7 +719,8 @@ class PlotRenderer:
         for line_data in active_lines_list:
             if len(line_data) >= 2:
                 line_artist = line_data[0]  # Line artist (vlines)
-                scatter_artist = line_data[1]  # Scatter artist
+                text_artist = line_data[1]
+                scatter_artist = line_data[2]  # Scatter artist
                 
                 # Remove line artist if it exists
                 if line_artist is not None:
@@ -867,6 +729,13 @@ class PlotRenderer:
                     except (ValueError, AttributeError):
                         pass
                 
+                # Remove text artist if it exists
+                if text_artist is not None:
+                    try:
+                        text_artist.remove()
+                    except (ValueError, AttributeError):
+                        pass
+
                 # Remove scatter artist if it exists
                 if scatter_artist is not None:
                     try:
@@ -949,11 +818,11 @@ class PlotRenderer:
                 # Update existing entry or create new one
                 if idx < len(active_lines_list):
                     # Update existing entry with scatter artist
-                    active_lines_list[idx][1] = sc  # Set scatter artist
-                    active_lines_list[idx][2].update(value_data)  # Update value data
+                    active_lines_list[idx][2] = sc  # Set scatter artist
+                    active_lines_list[idx][3].update(value_data)  # Update value data
                 else:
-                    # Create new entry: [line_artist, scatter_artist, value_data]
-                    active_lines_list.append([None, sc, value_data])
+                    # Create new entry: [line_artist, text_obj, scatter_artist, value_data]
+                    active_lines_list.append([None, None, sc, value_data])
     
     def render_active_lines_in_line_inspection(self, line_data: List[Tuple['MoleculeLine', float, Optional[float]]], active_lines_list: List[Any], 
                                               max_y: float) -> None:
@@ -1019,7 +888,7 @@ class PlotRenderer:
                     'up_lev': line.lev_up if line.lev_up else 'N/A',
                     'low_lev': line.lev_low if line.lev_low else 'N/A',
                     'tau': tau_val if tau_val is not None else 'N/A',
-                    'text_obj': text,
+                    #'text_obj': text,
                     'lineheight': lineheight,
                     'intensity_percent': (intensity / max_intensity) * 100  # Store percentage for debugging
                 }
@@ -1028,10 +897,11 @@ class PlotRenderer:
                 if idx < len(active_lines_list):
                     # Update existing entry
                     active_lines_list[idx][0] = vline  # Set line artist
-                    active_lines_list[idx][2].update(value_data)  # Update value data
+                    active_lines_list[idx][1] = text  # Set text artist
+                    active_lines_list[idx][3].update(value_data)  # Update value data
                 else:
-                    # Create new entry: [line_artist, scatter_artist, value_data]
-                    active_lines_list.append([vline, None, value_data])
+                    # Create new entry: [line_artist, text_obj, scatter_artist, value_data]
+                    active_lines_list.append([vline, text, None, value_data])
     
     def highlight_strongest_line(self, active_lines_list: List[Any]) -> Any:
         """
@@ -1051,35 +921,35 @@ class PlotRenderer:
             return None
             
         # Reset all lines to green first
-        for line, scatter, value in active_lines_list:
+        for line, text_obj, scatter, value in active_lines_list:
             if line is not None:
                 line.set_color('green')
             if scatter is not None:
                 scatter.set_facecolor('green')
                 scatter.set_zorder(1)  # Reset z-order
-            if 'text_obj' in value and value['text_obj'] is not None:
-                value['text_obj'].set_color('green')
-        
+            if text_obj is not None:
+                text_obj.set_color('green')
+
         # Find the line with the highest intensity
         highest_intensity = -float('inf')
         strongest_triplet = None
         
-        for line, scatter, value in active_lines_list:
+        for line, text_obj, scatter, value in active_lines_list:
             intensity = value.get('inten', 0) if value else 0
             if intensity > highest_intensity:
                 highest_intensity = intensity
-                strongest_triplet = [line, scatter, value]
+                strongest_triplet = [line, text_obj, scatter, value]
         
         # Highlight the strongest line in orange
         if strongest_triplet is not None:
-            line, scatter, value = strongest_triplet
+            line, text_obj, scatter, value = strongest_triplet
             if line is not None:
                 line.set_color('orange')
             if scatter is not None:
                 scatter.set_facecolor('orange')
                 scatter.set_zorder(10)  # Bring to front
-            if 'text_obj' in value and value['text_obj'] is not None:
-                value['text_obj'].set_color('orange')
+            if text_obj is not None:
+                text_obj.set_color('orange')
         
         return strongest_triplet
     
@@ -1102,7 +972,7 @@ class PlotRenderer:
         picked_value = None
         
         # Find which entry in active_lines was picked and reset colors
-        for line, scatter, value in active_lines_list:
+        for line, text_obj, scatter, value in active_lines_list:
             is_picked = (picked_artist is line or picked_artist is scatter)
             
             # Reset all to green first
@@ -1110,9 +980,9 @@ class PlotRenderer:
                 line.set_color('green')
             if scatter is not None:
                 scatter.set_facecolor('green')
-            if 'text_obj' in value and value['text_obj'] is not None:
-                value['text_obj'].set_color('green')
-            
+            if text_obj is not None:
+                text_obj.set_color('green')
+
             # If this was the picked item, highlight in orange
             if is_picked:
                 picked_value = value
@@ -1120,9 +990,9 @@ class PlotRenderer:
                     line.set_color('orange')
                 if scatter is not None:
                     scatter.set_facecolor('orange')
-                if 'text_obj' in value and value['text_obj'] is not None:
-                    value['text_obj'].set_color('orange')
-        
+                if text_obj is not None:
+                    text_obj.set_color('orange')
+
         return picked_value
     
     def get_molecule_spectrum_data(self, molecule: 'Molecule', wave_data: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -1222,7 +1092,6 @@ class PlotRenderer:
                     else:
                         # Return lines with zero intensity
                         return [(line, 0.0, None) for line in lines_in_range]
-            
             return []
             
         except Exception as e:
@@ -1232,10 +1101,9 @@ class PlotRenderer:
     def render_individual_molecule_spectrum(self, molecule: 'Molecule', wave_data: np.ndarray, 
                                          plot_name: Optional[str] = None) -> bool:
         """
-        Render a single molecule spectrum using ONLY the molecule's cached data.
+        Render a single molecule spectrum using the molecule's cached data.
         
         No additional caching layers - complete reliance on molecule's caching system.
-        Enhanced with cache debugging to diagnose 850°→950°→850° issues.
         
         Parameters
         ----------
@@ -1304,7 +1172,9 @@ class PlotRenderer:
             self.model_lines.append(line)
             self._plot_stats['molecules_rendered'] += 1
             
-            print(f"Successfully rendered spectrum for {molecule_name} with {len(plot_flux)} data points")
+            # Only print success message if not in batch update mode (to reduce console spam)
+            if not getattr(self.islat, '_batch_update_in_progress', False):
+                print(f"Successfully rendered spectrum for {molecule_name} with {len(plot_flux)} data points")
             return True
             
         except Exception as e:
@@ -1372,8 +1242,6 @@ class PlotRenderer:
     def debug_molecule_cache_status(self, molecule: 'Molecule') -> Dict[str, Any]:
         """
         Debug the cache status of a molecule to understand why plots aren't updating.
-        
-        This helps diagnose issues like 850°→950°→850° not updating correctly.
         """
         if molecule is None:
             return {'error': 'No molecule provided'}

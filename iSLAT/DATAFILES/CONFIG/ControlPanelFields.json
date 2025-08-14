@@ -10,7 +10,7 @@
         },
         "stellar_rv": {
             "label": "Stellar RV:",
-            "property": "stellar_rv",
+            "property": "global_stellar_rv",
             "datatype": "float",
             "format": "{:.1f}",
             "default": 0.0,

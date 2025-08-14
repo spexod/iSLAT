@@ -40,9 +40,6 @@ class TopBar(ResizableFrame):
         
         # Apply initial theme
         # self.apply_theme(theme)
-
-        
-
     
     def _create_buttons(self):
         """Create all the button widgets."""
