@@ -4,6 +4,7 @@ from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
 from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorButton
 from .RegularFrame import RegularFrame
+from ..Tooltips import CreateToolTip
 
 class ControlPanel(ttk.Frame):
     def __init__(self, master, islat, plot):
@@ -75,7 +76,7 @@ class ControlPanel(ttk.Frame):
     def _create_color_and_vis_frame(self):
         wrapper = create_wrapper_frame(self.label_frame, 0, 0, sticky="nsew")
 
-        self._color_vis_parent_frame = color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 128, vertical=True)
+        self._color_vis_parent_frame = color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 160, vertical=True)
 
         return color_vis_frame
 
@@ -89,10 +90,14 @@ class ControlPanel(ttk.Frame):
         selected_frame.grid_rowconfigure(0, weight=1)
         selected_frame.grid_columnconfigure(0, weight=1)
 
-    def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7, param_name = None):
+    def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7, param_name = None, tip_text = None):
         """Create a simple entry field with label and change callback"""
         label = ttk.Label(parent, text=label_text)
         label.grid(row=row, column=col, padx=1, pady=5)
+
+        if tip_text: 
+            CreateToolTip(label, tip_text)
+
 
         
         var = tk.StringVar()
@@ -338,6 +343,7 @@ class ControlPanel(ttk.Frame):
                 field_config['attribute'], 
                 row, 
                 col, 
+                tip_text=field_config['tip']
             )
             
             if entry and var:
@@ -375,7 +381,7 @@ class ControlPanel(ttk.Frame):
 
 
 
-    def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7):
+    def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7, tip_text = None):
         """Create an entry bound to the active molecule's parameter"""
         
         def update_active_molecule_parameter(value_str):
@@ -437,7 +443,7 @@ class ControlPanel(ttk.Frame):
         # Get initial value from active molecule
         initial_value = self._get_active_molecule_parameter_value(param_name)
         
-        return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width, param_name=param_name)
+        return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width, param_name=param_name, tip_text=tip_text)
     
 
     def _load_field_configurations(self):
