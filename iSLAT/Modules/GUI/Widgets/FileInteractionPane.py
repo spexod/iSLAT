@@ -109,12 +109,6 @@ class FileInteractionPane(ttk.Frame):
         )
         self.output_line_measurements_btn.grid(row=2, column=1, sticky="e", padx=(5, 5), pady=2)
 
-        btn = ttk.Button(
-            self.label_frame,
-            text="change label",
-            command=lambda: self.update_file_label("somethin small")
-        )
-        btn.grid(row=3, column=0)
         
     
     def update_file_label(self, filename=None):

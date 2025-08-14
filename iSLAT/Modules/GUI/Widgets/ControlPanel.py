@@ -15,6 +15,7 @@ class ControlPanel(ttk.Frame):
         self.islat = islat
         self.plot = plot
         self.mol_list = {}
+        self.mol_dict = islat.molecules_dict
         self.mol_visibility = {}
         self.column_labels = {
             "On": "turn on/off this\nmodel in the plot ",
@@ -228,8 +229,8 @@ class ControlPanel(ttk.Frame):
             header_frame.grid_columnconfigure(col, weight=1)
     
 
-        for row, mol_name in enumerate(self.mol_list):
-            current_mol = self.islat.molecules_dict[mol_name]
+        for row, (mol_name, mol_obj) in enumerate(self.mol_dict.items()): #self.mol_list
+            current_mol = mol_obj
 
             mol_frame = tk.Frame(content_frame)
             self.mol_frames[mol_name] = mol_frame
