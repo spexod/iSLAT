@@ -78,10 +78,14 @@ class TopBar(ResizableFrame):
         spec_functions_menu.add_command(label="Show Atomic Lines", command=self.show_atomic_lines)
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
-        create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3)
-        create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4)
-        create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
-        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6)
+        saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
+        atomic_lines_tip = "Show atomic lines\nusing seperation threshold\nset in the 'Line Separ."
+        export_model_tip = "Export current\nmodels into csv files"
+        toggle_legend_tip = "Turn legend on/off"
+        create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
+        create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
+        create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5, tip_text=export_model_tip)
+        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6, tip_text=toggle_legend_tip)
 
 
     def save_line(self, save_type="selected"):

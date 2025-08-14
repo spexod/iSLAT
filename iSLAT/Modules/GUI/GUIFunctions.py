@@ -4,20 +4,21 @@ from .Tooltips import CreateToolTip
 
 
 
-def create_button(frame, theme, text, command, row, column):
+def create_button(frame, theme, text, command, row, column, tip_text = None):
         btn_theme = theme["buttons"].get(
             text.replace(" ", ""), theme["buttons"]["DefaultBotton"]
         )
+
         
         btn = tk.Button(
             frame, text=text,
             command=command,
         )
 
-        
+        if tip_text: 
+            CreateToolTip(btn, tip_text)
 
         btn.grid(row=row, column=column, padx=1, pady=2, sticky="nsew")
-        CreateToolTip(btn, f"{text} button")
         return btn
 
 def create_menu_btn(frame, theme, text, row, column):

@@ -7,7 +7,7 @@
             "format": "{:.1f}",
             "default": 140.0,
             "width": 7,
-            "tip": ""
+            "tip": "Distance to the\nobserved target\nunits: pc"
         },
         "stellar_rv": {
             "label": "Stellar RV:",
@@ -16,7 +16,7 @@
             "format": "{:.1f}",
             "default": 0.0,
             "width": 7,
-            "tip": ""
+            "tip": "Radial velocity (helioc.)\nof the observed target\nunits: km/s"
         }
     },
     "molecule_fields": {
@@ -54,7 +54,7 @@
             "format": "{:.2f}",
             "default": 0.1,
             "width": 7,
-            "tip": ""
+            "tip": "FWHM for convolution\nof the model spectra\nunits: km/s"
         },
         "broad": {
             "label": "Broadening:",
@@ -63,7 +63,7 @@
             "format": "{:.2f}",
             "default": 0.1,
             "width": 7,
-            "tip": ""
+            "tip": "Line broadening (FWHM)\n(thermal/turbulence)\nunits: km/s"
         }
     }
 }

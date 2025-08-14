@@ -18,7 +18,7 @@ class ControlPanel(ttk.Frame):
         self.mol_visibility = {}
         self.column_labels = {
             "On": "turn on/off this\nmodel in the plot ",
-            "Molecule": None, 
+            "Molecule": "Select active molecule", 
             "Del.": "remove this model\nfrom the GUI",
             "Color": "change color\nfor this model"
             }
@@ -145,29 +145,33 @@ class ControlPanel(ttk.Frame):
 
     def _create_display_controls(self,parent,  start_row, start_col):
         """Create plot start and range controls for display view"""
+        plot_start_tip = "Start wavelength\nfor the upper plot\nunits: μm"
+        plot_range_tip = "Wavelength range\nfor the upper plot\nunits: μm"
+
         # Plot start
         initial_start = getattr(self.islat, 'display_range', [4.5, 5.5])[0]
         self.plot_start_entry, self.plot_start_var = self._create_simple_entry( parent,
-            "Plot start:", initial_start, start_row, start_col, self._update_display_range)
+            "Plot start:", initial_start, start_row, start_col, self._update_display_range, tip_text=plot_start_tip)
         
         # Plot range  
         display_range = getattr(self.islat, 'display_range', [4.5, 5.5])
         initial_range = display_range[1] - display_range[0]
         self.plot_range_entry, self.plot_range_var = self._create_simple_entry( parent,
-            "Plot range:", initial_range, start_row, start_col + 2, self._update_display_range)
+            "Plot range:", initial_range, start_row, start_col + 2, self._update_display_range, tip_text=plot_range_tip)
 
     def _create_wavelength_controls(self, parent, start_row, start_col):
         """Create wavelength range controls for model calculation range"""
         if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
             return
-            
+        min_wave_tip = "Minimum wavelength\nto calculate the models\nunits: μm"
+        max_wave_tip = "Maximum wavelength\nto calculate the models\nunits: μm"
         molecules_dict = self.islat.molecules_dict
         min_wave, max_wave = molecules_dict.global_wavelength_range
         
         self.min_wavelength_entry, self.min_wavelength_var = self._create_simple_entry( parent,
-            "Min. Wave:", min_wave, start_row, start_col, self._update_wavelength_range)
+            "Min. Wave:", min_wave, start_row, start_col, self._update_wavelength_range, tip_text=min_wave_tip)
         self.max_wavelength_entry, self.max_wavelength_var = self._create_simple_entry( parent,
-            "Max. Wave:", max_wave, start_row, start_col + 2, self._update_wavelength_range)
+            "Max. Wave:", max_wave, start_row, start_col + 2, self._update_wavelength_range, tip_text=max_wave_tip)
 
     def _create_global_parameter_controls(self, parent, start_row, start_col):
         """Create global parameter entry fields using MoleculeDict properties"""
@@ -194,7 +198,8 @@ class ControlPanel(ttk.Frame):
                 field_config['property'], 
                 row, 
                 col, 
-                field_config['width']
+                field_config['width'],
+                tip_text=field_config['tip']
             )
             
             if entry and var:
@@ -276,7 +281,7 @@ class ControlPanel(ttk.Frame):
 
         self._update_active_molecule_changes()
 
-    def _create_global_parameter_entry(self, parent, label_text, property_name, row, col, width=12):
+    def _create_global_parameter_entry(self, parent, label_text, property_name, row, col, width=12, tip_text = None):
         """Create an entry bound to a global parameter in molecules_dict"""
         def update_global_parameter(value_str):
             if value_str in ["N/A", ""]:
@@ -323,7 +328,7 @@ class ControlPanel(ttk.Frame):
         if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
             current_value = getattr(self.islat.molecules_dict, property_name, 0.0)
         
-        return self._create_simple_entry(parent, label_text, current_value, row, col, update_global_parameter, width, param_name=property_name)
+        return self._create_simple_entry(parent, label_text, current_value, row, col, update_global_parameter, width, param_name=property_name, tip_text=tip_text)
 
     def _create_molecule_specific_controls(self, parent, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""
