@@ -5,6 +5,7 @@ import csv
 import tkinter as tk
 from tkinter import messagebox
 import traceback
+from typing import TYPE_CHECKING, Any, Dict, Optional
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 from ..GUIFunctions import create_button, create_menu_btn
 from iSLAT.Modules.DataProcessing.Slabfit import SlabFit as SlabModel
@@ -15,8 +16,19 @@ from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, write_molecules_list_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name
 
+if TYPE_CHECKING:
+    from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
+
 class TopBar(ResizableFrame):
-    def __init__(self, master, islat, theme, main_plot, data_field, config):
+    def __init__(
+        self, 
+        master: tk.Widget, 
+        islat: Any, 
+        theme: Dict[str, Any], 
+        main_plot: 'iSLATPlot', 
+        data_field: Any, 
+        config: Dict[str, Any]
+    ) -> None:
         # Initialize the ResizableFrame with theme
         super().__init__(master, theme=theme, borderwidth=1, relief="groove")
         
@@ -295,7 +307,7 @@ class TopBar(ResizableFrame):
                 self.data_field.insert_text("Fit failed or insufficient data.\n", clear_first=False)
             
             # Update plots
-            self.main_plot.plot_line_inspection(highlight_strongest=False)
+            #self.main_plot.plot_line_inspection(highlight_strongest=False)
             
         except Exception as e:
             self.data_field.insert_text(f"Error during fitting: {e}\n", clear_first=False)

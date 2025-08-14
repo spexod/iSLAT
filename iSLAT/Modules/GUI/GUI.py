@@ -46,7 +46,6 @@ class GUI:
     def _style_config(self):
         self.style.configure("Small.TButton", padding=(0, 5))
 
-
     def _apply_theme_to_widget(self, widget):
         """Apply theme colors to a tkinter widget and its children."""
         try:
@@ -244,7 +243,6 @@ class GUI:
         if hasattr(self, 'plot') and hasattr(self.plot, 'apply_theme'):
             print("applying theme to plot")
             self.plot.apply_theme(self.theme)
-        
 
     def _configure_initial_size(self):
         """Configure initial window size based on screen resolution."""
@@ -298,8 +296,6 @@ class GUI:
         # Main data field - create this first so we can pass it to other components
         self.data_field = DataField("Main Data Field", "", parent, theme=self.theme)
         self.data_field.grid(padx=(1,0), sticky="nsew", pady=0)
-
-        
     
     def update_frame_sizes(self):
         """Update dynamic frame sizes based on current content."""

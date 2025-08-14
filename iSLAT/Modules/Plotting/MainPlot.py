@@ -289,6 +289,7 @@ class iSLATPlot:
 
         if len(self.selected_wave) < 5:
             self.ax2.clear()
+            self.current_selection = None
             self.canvas.draw_idle()
             return
 
@@ -312,6 +313,7 @@ class iSLATPlot:
             debug_config.verbose("line_inspection", "No selection, updating population diagram only")
             self.plot_renderer.render_population_diagram(self.islat.active_molecule)
             self.plot_renderer.ax2.clear()
+            self.current_selection = None
             self.canvas.draw_idle()
             return
 
@@ -471,6 +473,12 @@ class iSLATPlot:
                 print(f"Warning: Could not update data field: {e}")
                 pass
 
+    def clear_selection(self):
+        self.current_selection = None
+        self.ax2.clear()
+        self.canvas.draw_idle()
+        return
+
     def plot_line_inspection(self, xmin=None, xmax=None, line_data=None, highlight_strongest=True):
         '''if xmin is None:
             xmin = self.last_xmin if hasattr(self, 'last_xmin') else None
@@ -479,6 +487,7 @@ class iSLATPlot:
         
         if xmin is None or xmax is None:
             self.plot_renderer.ax2.clear()
+            self.current_selection = None
             self.canvas.draw_idle()
             return
         
@@ -488,11 +497,13 @@ class iSLATPlot:
                 line_data = self.plot_renderer.get_molecule_line_data(self.islat.active_molecule, xmin, xmax)
                 if not line_data:
                     self.ax2.clear()
+                    self.current_selection = None
                     self.canvas.draw_idle()
                     return
             except Exception as e:
                 debug_config.warning("main_plot", f"Could not get line data: {e}")
                 self.ax2.clear()
+                self.current_selection = None
                 self.canvas.draw_idle()
                 return
 
@@ -544,10 +555,10 @@ class iSLATPlot:
         if xmax is None:
             xmax = self.last_xmax if hasattr(self, 'last_xmax') else None'''
 
-        if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
+        '''if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
             self.plot_renderer.ax2.clear()
             self.canvas.draw_idle()
-            return
+            return'''
 
         # Delegate all rendering logic to PlotRenderer
         fit_result = getattr(self, 'fit_result', None)
