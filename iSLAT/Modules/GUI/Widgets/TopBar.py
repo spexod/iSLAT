@@ -614,66 +614,64 @@ class TopBar(ResizableFrame):
             print(f"No save file found at: {save_file}")
             return
         
-        try:
-            # Show loading message
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
+        #try:
+        # Show loading message
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
+            self.islat.GUI.data_field.insert_text(
+                'Loading saved parameters, this may take a moment...',
+                clear_first=True
+            )
+        
+        # Clear existing molecules
+        self.islat.molecules_dict.clear()
+        
+        # Read the saved molecule data
+        loaded_molecules = []
+        
+        with open(save_file, 'r') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                # Create molecule from saved data with correct field mapping
+                mol_data = {
+                    'Molecule Name': row.get('Molecule Name', ''),
+                    'File Path': row.get('File Path', ''),
+                    'Molecule Label': row.get('Molecule Label', ''),
+                    'Temp': float(row.get('Temp', 600)),
+                    'Rad': float(row.get('Rad', 0.5)),
+                    'N_Mol': float(row.get('N_Mol', 1e17)),
+                    'Color': row.get('Color', '#FF0000'),
+                    'Vis': row.get('Vis', 'True').lower() == 'true',
+                    'Dist': float(row.get('Dist', 140)),
+                    'StellarRV': float(row.get('StellarRV', 0)),
+                    'FWHM': float(row.get('FWHM', 200)),
+                    'Broad': float(row.get('Broad', 2.5))
+                }
+                loaded_molecules.append(mol_data)
+        
+        # Initialize molecules from loaded data
+        self.islat.init_molecules(loaded_molecules)
+        
+        # Update GUI components
+        if hasattr(self.islat, 'GUI'):
+            '''if hasattr(self.islat.GUI, 'control_panel'):
+                self.islat.GUI.control_panel.reload_molecule_dropdown()'''
+            if hasattr(self.islat.GUI, 'plot'):
+                self.islat.GUI.plot.update_all_plots()
+            if hasattr(self.islat.GUI, 'data_field'):
                 self.islat.GUI.data_field.insert_text(
-                    'Loading saved parameters, this may take a moment...',
+                    f'Successfully loaded parameters from: {save_file}',
                     clear_first=True
                 )
+        
+        print(f"Successfully loaded {len(loaded_molecules)} molecules from: {save_file}")
             
-            # Clear existing molecules
-            self.islat.molecules_dict.clear()
-            
-            # Read the saved molecule data
-            loaded_molecules = []
-            
-            with open(save_file, 'r') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    # Create molecule from saved data with correct field mapping
-                    mol_data = {
-                        'Molecule Name': row.get('Molecule Name', ''),
-                        'File Path': row.get('File Path', ''),
-                        'Molecule Label': row.get('Molecule Label', ''),
-                        'Temp': float(row.get('Temp', 600)),
-                        'Rad': float(row.get('Rad', 0.5)),
-                        'N_Mol': float(row.get('N_Mol', 1e17)),
-                        'Color': row.get('Color', '#FF0000'),
-                        'Vis': row.get('Vis', 'True').lower() == 'true',
-                        'Dist': float(row.get('Dist', 140)),
-                        'StellarRV': float(row.get('StellarRV', 0)),
-                        'FWHM': float(row.get('FWHM', 200)),
-                        'Broad': float(row.get('Broad', 2.5))
-                    }
-                    loaded_molecules.append(mol_data)
-            
-            # Initialize molecules from loaded data
-            self.islat.init_molecules(loaded_molecules)
-            
-            # Update GUI components
-            if hasattr(self.islat, 'GUI'):
-                if hasattr(self.islat.GUI, 'molecule_table'):
-                    self.islat.GUI.molecule_table.update_table()
-                if hasattr(self.islat.GUI, 'control_panel'):
-                    self.islat.GUI.control_panel.reload_molecule_dropdown()
-                if hasattr(self.islat.GUI, 'plot'):
-                    self.islat.GUI.plot.update_all_plots()
-                if hasattr(self.islat.GUI, 'data_field'):
-                    self.islat.GUI.data_field.insert_text(
-                        f'Successfully loaded parameters from: {save_file}',
-                        clear_first=True
-                    )
-            
-            print(f"Successfully loaded {len(loaded_molecules)} molecules from: {save_file}")
-            
-        except Exception as e:
+        '''except Exception as e:
             print(f"Error loading parameters: {e}")
             if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
                 self.islat.GUI.data_field.insert_text(
                     f'Error loading parameters: {str(e)}',
                     clear_first=True
-                )
+                )'''
 
     def export_models(self):
         print("Export models to file")

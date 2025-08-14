@@ -426,7 +426,7 @@ class MoleculeDict(dict):
                         'intensity_calculated': True,
                         'has_data': False
                     }
-                    
+                        
             except Exception as e:
                 return {
                     'success': False, 
@@ -925,7 +925,10 @@ class MoleculeDict(dict):
                 mol_name, 
                 initial_molecule_parameters.get('default', {})
             )
-            
+
+            print("\nWhat up huz")
+            print(f'Mol_name: {mol_name} finna have {mol_initial_params}')
+
             # Determine data source and extract parameters efficiently
             use_user_save_data = "Molecule Name" in mol_data
             hitran_data = mol_data.get("hitran_data") if "hitran_data" in mol_data else None

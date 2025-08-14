@@ -269,7 +269,7 @@ class Molecule:
             self._cache_stats['hits'] += 1
             return
         
-        cache_key = (self.name, current_hash)
+        '''cache_key = (self.name, current_hash)
         with self._cache_lock:
             if cache_key in self._shared_calculation_cache:
                 cached_data = self._shared_calculation_cache[cache_key]
@@ -278,7 +278,7 @@ class Molecule:
                     'hash': current_hash
                 }
                 self._cache_stats['hits'] += 1
-                return
+                return'''
         
         self._ensure_lines_loaded()
         
@@ -293,6 +293,8 @@ class Molecule:
             n_mol=self._n_mol,
             dv=self._broad
         )
+
+        print(f"Here be me intensity: {self.intensity}")
         
         intensity_data = {
             'intensity_array': self.intensity._intensity.copy() if self.intensity._intensity is not None else None,
@@ -305,7 +307,7 @@ class Molecule:
         }
         
         with self._cache_lock:
-            self._shared_calculation_cache[cache_key] = intensity_data
+            #self._shared_calculation_cache[cache_key] = intensity_data
             if len(self._shared_calculation_cache) > 100:
                 oldest_keys = list(self._shared_calculation_cache.keys())[:10]
                 for key in oldest_keys:
