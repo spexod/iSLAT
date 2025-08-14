@@ -2,6 +2,27 @@ import tkinter as tk
 from tkinter import ttk
 import os
 from .ResizableFrame import ResizableFrame
+from ..Tooltips import CreateToolTip
+
+class trim_label(tk.Label):
+    def __init__(self, parent, max_len: int = 25, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.max_len = max_len
+        self.trimmed = False
+        self.toolTip = None
+
+        if self.cget("text"):
+            self.trim_text()
+
+    def trim_text(self):
+        text = self.cget("text")
+        if len(text) > self.max_len:
+            text = text[:self.max_len - 3] + "..."
+            self.config(text = text)
+            self.trimmed = True
+        else:
+            self.trimmed = False
+    
 
 class FileInteractionPane(ttk.Frame):
     def __init__(self, parent, islat_class, theme):
@@ -34,19 +55,20 @@ class FileInteractionPane(ttk.Frame):
         # Initialize with default text or show loaded file name if available
         default_text = "No file loaded"
         if hasattr(self.islat_class, 'loaded_spectrum_name'):
-            default_text = f"{self.truncate_name(self.islat_class.loaded_spectrum_name)}"
+            default_text = f"{self.islat_class.loaded_spectrum_name}"
 
         
-            
-        
         # Row 0: Spectrum file
-        self.file_label = tk.Label(
+        self.file_label = trim_label(
             self.label_frame, 
-            text=default_text, 
+            text=default_text,
             anchor="w", 
             bg="white"
         )
         self.file_label.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=2)
+
+        if self.file_label.trimmed:
+            self.file_label.toolTip =  CreateToolTip(self.file_label, self.islat_class.loaded_spectrum_name)
         
         self.load_spectrum_btn = ttk.Button(
             self.label_frame, 
@@ -86,12 +108,14 @@ class FileInteractionPane(ttk.Frame):
             command=self._load_output_line_measurements
         )
         self.output_line_measurements_btn.grid(row=2, column=1, sticky="e", padx=(5, 5), pady=2)
+
+        btn = ttk.Button(
+            self.label_frame,
+            text="change label",
+            command=lambda: self.update_file_label("somethin small")
+        )
+        btn.grid(row=3, column=0)
         
-    def truncate_name(self, filename = None):
-        if len(filename) > self.max_len:
-            return filename[:self.max_len - 3] + "..."
-        else:
-            return filename
     
     def update_file_label(self, filename=None):
         """
@@ -107,7 +131,19 @@ class FileInteractionPane(ttk.Frame):
         else:
             display_text = "No file loaded"
         
-        self.file_label.configure(text=self.truncate_name(display_text))
+        self.file_label.configure(text=display_text)
+        self.file_label.trim_text()
+
+
+        if self.file_label.trimmed:
+            self.file_label.toolTip = CreateToolTip(self.file_label, display_text)
+        else:
+            if self.file_label.toolTip:
+                self.file_label.toolTip.disable()
+            else:
+                return
+
+
     
     def refresh(self):
         """

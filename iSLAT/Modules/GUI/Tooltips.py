@@ -5,6 +5,7 @@ class ToolTip(object):
         self.widget = widget
         self.tipwindow = None
         self.id = None
+        self.active = True
         self.x = self.y = 0
 
     def showtip(self, text):
@@ -23,6 +24,12 @@ class ToolTip(object):
                        font=("tahoma", "12", "normal"))
         label.pack (ipadx=1)
 
+    def disable(self):
+        self.active = False
+
+    def enable(self):
+        self.active = True
+
     def hidetip(self):
         tw = self.tipwindow
         self.tipwindow = None
@@ -33,13 +40,17 @@ def CreateToolTip(widget, text):
     toolTip = ToolTip(widget)
 
     def enter(event):
-        toolTip.showtip(text)
+        if toolTip.active:
+            toolTip.showtip(text)
 
     def leave(event):
-        toolTip.hidetip()
+        if toolTip.active:
+            toolTip.hidetip()
 
     widget.bind('<Enter>', enter)
     widget.bind('<Leave>', leave)
+
+    return toolTip
 
 '''
 CreateToolTip(import_button, text='Query HITRAN.org\n'
