@@ -14,7 +14,6 @@ class ControlPanel(ttk.Frame):
         self.master = master
         self.islat = islat
         self.plot = plot
-        self.mol_list = {}
         self.mol_dict = islat.molecules_dict
         self.mol_visibility = {}
         self.column_labels = {
@@ -31,11 +30,6 @@ class ControlPanel(ttk.Frame):
         self.bg_color = bg_frame.cget('bg')
         bg_frame.destroy()
         self.selected_color = "#007BFF"
-        # Populate mol_list with {normal mol name: formatted name}
-        if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-            for mol_name, mol_obj in self.islat.molecules_dict.items():
-                    mol_label = getattr(mol_obj, 'displaylabel', mol_name)
-                    self.mol_list[mol_name] = mol_label
         
         # Load field configurations from JSON file using iSLAT file handling
         self._load_field_configurations()
@@ -44,11 +38,12 @@ class ControlPanel(ttk.Frame):
         self._create_all_components()
         self._register_callbacks()
 
+
     def _create_all_components(self):
         """Create all control panel components in order"""
         gen_config_frame = self._create_general_config_frame()
         molecule_param_frame = self._create_molecule_param_frame()
-        color_vis_frame = self._create_color_and_vis_frame()
+        self.color_vis_frame = self._create_color_and_vis_frame()
 
         self._create_display_controls(gen_config_frame, 0, 0)
         self._create_wavelength_controls(gen_config_frame, 1, 0)  
@@ -56,7 +51,7 @@ class ControlPanel(ttk.Frame):
 
         self._create_molecule_specific_controls(molecule_param_frame, 0, 0)  # All other params here
 
-        self._build_color_and_vis_controls(color_vis_frame) # my implementation
+        self._build_color_and_vis_controls(self.color_vis_frame) # my implementation
 
         self.grid_rowconfigure(1, weight=1)  # Because you placed the wrapper at row 1
         self.grid_columnconfigure(0, weight=0)
@@ -80,7 +75,7 @@ class ControlPanel(ttk.Frame):
     def _create_color_and_vis_frame(self):
         wrapper = create_wrapper_frame(self.label_frame, 0, 0, sticky="nsew")
 
-        self._color_vis_parent_frame = color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 160, vertical=True)
+        color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 160, vertical=True)
 
         return color_vis_frame
 
@@ -229,7 +224,7 @@ class ControlPanel(ttk.Frame):
             header_frame.grid_columnconfigure(col, weight=1)
     
 
-        for row, (mol_name, mol_obj) in enumerate(self.mol_dict.items()): #self.mol_list
+        for row, (mol_name, mol_obj) in enumerate(self.mol_dict.items()):
             current_mol = mol_obj
 
             mol_frame = tk.Frame(content_frame)
@@ -386,7 +381,6 @@ class ControlPanel(ttk.Frame):
         self.mol_visibility.pop(mol_name, None)
         self.plot.plot_renderer.remove_molecule_lines(mol_name)
         del self.islat.molecules_dict[mol_name]
-        del self.mol_list[mol_name]
 
         self.plot.canvas.draw_idle()
 
@@ -721,7 +715,7 @@ class ControlPanel(ttk.Frame):
         except Exception as e:
             print(f"Error updating molecule parameter UI fields: {e}")
 
-    def _on_molecule_selected(self, mol_name = None, event=None):
+    def _on_molecule_selected(self, mol_name, event=None):
         """Handle molecule selection - uses iSLAT's active_molecule property"""
 
         old_active_mol = self._get_active_molecule_object().name
@@ -734,11 +728,9 @@ class ControlPanel(ttk.Frame):
             
         self._set_active_molecule(mol_name= mol_name)
 
-    def _set_active_molecule(self, mol_name = None):
-        if mol_name:
-            selected_label = self.mol_list[mol_name]
-        else:
-            selected_label = self.mol_list[self.molecule_var.get()]
+    def _set_active_molecule(self, mol_name):
+        selected_label = self.mol_dict[mol_name].displaylabel
+
 
         try:
             if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
@@ -760,11 +752,6 @@ class ControlPanel(ttk.Frame):
             return
             
         molecules_dict = self.islat.molecules_dict
-
-        # Update molecule list
-        for mol_name, mol_obj in molecules_dict.items():
-            mol_label = getattr(mol_obj, 'displaylabel', mol_name)
-            self.mol_list[mol_name] = mol_label
         
         # Re-register callbacks in case molecules_dict was created after ControlPanel
         try:
@@ -798,8 +785,8 @@ class ControlPanel(ttk.Frame):
             self.mol_visibility.clear()
         
         # Get the parent frame
-        if hasattr(self, '_color_vis_parent_frame'):
-            self._build_color_and_vis_controls(self._color_vis_parent_frame)
+        if hasattr(self, 'color_vis_frame'):
+            self._build_color_and_vis_controls(self.color_vis_frame)
 
     def cleanup(self):
         try:

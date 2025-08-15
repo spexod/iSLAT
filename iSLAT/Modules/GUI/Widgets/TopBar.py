@@ -15,8 +15,9 @@ from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, write_molecules_list_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name
 
+
 class TopBar(ResizableFrame):
-    def __init__(self, master, islat, theme, main_plot, data_field, config):
+    def __init__(self, master, islat, theme, main_plot, data_field, control_panel, config):
         # Initialize the ResizableFrame with theme
         super().__init__(master, theme=theme, borderwidth=1, relief="groove")
         
@@ -25,6 +26,7 @@ class TopBar(ResizableFrame):
         self.main_plot = main_plot
         self.data_field = data_field
         self.config = config
+        self.control_panel = control_panel
 
         self.button_frame = tk.Frame(self)
         self.button_frame.grid(row=0, column=1)

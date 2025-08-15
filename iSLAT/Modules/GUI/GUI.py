@@ -340,7 +340,7 @@ class GUI:
         self.build_left_panel(left_main_frame)
 
         # Bottom function buttons
-        self.top_bar = TopBar(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.config)
+        self.top_bar = TopBar(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.control_panel, self.config)
         self.top_bar.grid(row=0, column=0, columnspan=2, sticky="nsew")
 
         # Force theme updates to catch any missed widgets

@@ -311,6 +311,14 @@ class iSLAT:
             # Use parallel loading setting
             use_parallel_loading = use_parallel or self.use_parallel_processing
             self.init_molecules(self.default_molecule_csv_data, use_parallel=use_parallel_loading)
+            if hasattr(self, 'GUI') and self.GUI is not None:
+                    try:
+                        self.GUI.control_panel.refresh_from_molecules_dict()
+                        self.GUI.plot.update_model_plot()
+                        print("GUI molecule list and plot refreshed.")
+                    except Exception as e:
+                        print(f"Warning: Could not refresh GUI: {e}")
+                        
             print(f"Successfully loaded {len(self.molecules_dict)} default molecules.")
                 
         except Exception as e:
