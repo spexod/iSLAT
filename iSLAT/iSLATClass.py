@@ -7,6 +7,7 @@ import os
 import time
 
 from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_save_data, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
+from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path
 
 import iSLAT.Constants as c
 from .Modules.GUI import *
@@ -114,7 +115,7 @@ class iSLAT:
             molecules_list = mole_save_data
             parms = self.initial_molecule_parameters
             parms['default'] = self.molecules_parameters_default
-            
+
         if not molecules_list:
             print("No new molecules to load.")
             return False
@@ -339,6 +340,21 @@ class iSLAT:
         
         # Set optimized wavelength range before loading molecules
         self.wavelength_range = spectrum_range
+
+        # Check to see if a save for the current spectrum file exists
+        if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
+            spectrum_base_name = os.path.splitext(self.loaded_spectrum_name)[0]
+            formatted_mol_save_file_name = f"{spectrum_base_name}-{molsave_file_name}"
+            molsave_path = save_folder_path
+            full_path = os.path.join(molsave_path, formatted_mol_save_file_name)
+            if os.path.exists(full_path):
+                print(f"Loading molecules from saved file: {full_path}")
+                mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
+            else:
+                print(f"Warning: Mole save path does not exist: {molsave_path}")
+                mole_save_data = None
+        else:
+            mole_save_data = None    
         
         try:
             # Apply full optimizations now that we're loading molecules
@@ -349,8 +365,8 @@ class iSLAT:
             start_time = time.time()
             
             # Use the most efficient initialization method with spectrum optimization
-            self.init_molecules()
-            
+            self.init_molecules(mole_save_data=mole_save_data)
+
             elapsed_time = time.time() - start_time
             self._molecules_loaded = True
             
