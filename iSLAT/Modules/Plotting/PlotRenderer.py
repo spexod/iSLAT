@@ -225,7 +225,7 @@ class PlotRenderer:
                     color="black", # self._get_theme_value("foreground", "black")
                     linewidth=1,
                     label='Data',
-                    zorder=self._get_theme_value("zorder_observed", 3),
+                    zorder=self._get_theme_value("zorder_observed", 2),
                     elinewidth=0.5,
                     capsize=0
                 )
@@ -237,7 +237,7 @@ class PlotRenderer:
                     color=self._get_theme_value("foreground", "black"),
                     linewidth=1,
                     label='Data',
-                    zorder=self._get_theme_value("zorder_observed", 3)
+                    zorder=self._get_theme_value("zorder_observed", 2)
                 )
     
     def _plot_summed_spectrum(self, wave_data: np.ndarray, summed_flux: np.ndarray) -> None:
@@ -1165,7 +1165,7 @@ class PlotRenderer:
                 alpha=0.7,
                 linewidth=self._get_theme_value("model_plot_line_width", 1.5),
                 label=label,
-                zorder=self._get_theme_value("zorder_model", 2)
+                zorder=self._get_theme_value("zorder_model", 3)
             )
 
             self.ax1.legend()
