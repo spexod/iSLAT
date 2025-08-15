@@ -3,6 +3,7 @@ import platform
 import os 
 import csv
 import tkinter as tk
+import tkinter.ttk as ttk
 from tkinter import messagebox
 import traceback
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -13,7 +14,7 @@ from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
-from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, write_molecules_list_csv
+from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, write_molecules_list_csv, generate_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name
 
 if TYPE_CHECKING:
@@ -93,7 +94,7 @@ class TopBar(ResizableFrame):
 
         create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3)
         create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4)
-        create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5)
+        create_button(self.button_frame, self.theme, "Export Model", self.export_models, 0, 5)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6)
 
     def molecule_vis_check(self):
@@ -432,34 +433,25 @@ class TopBar(ResizableFrame):
         """Export current models and data."""
         self.data_field.insert_text("Exporting current models...\n")
         
-        try:
-            # Check if we have models to export
-            if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-                # Export model data for each visible molecule
-                exported_count = 0
-                for mol_name, molecule in self.islat.molecules_dict.items():
-                    if hasattr(molecule, 'is_visible') and molecule.is_visible:
-                        # Export this molecule's model
-                        # This would depend on the specific export functionality
-                        self.data_field.insert_text(f"Exported model for {mol_name}\n")
-                        exported_count += 1
-                
-                if exported_count > 0:
-                    self.data_field.insert_text(f"Successfully exported {exported_count} models.\n")
-                else:
-                    self.data_field.insert_text("No visible models to export.\n")
-            else:
-                self.data_field.insert_text("No models available for export.\n")
-                
-        except Exception as e:
-            self.data_field.insert_text(f"Error exporting models: {e}\n")
+        # Create a new window for exporting the spectrum
+        export_window = tk.Toplevel(self.master)
+        export_window.title("Export Spectrum")
 
-        try:
-            out_files = self.islat.slab_model.export_results()
-            for f in out_files:
-                self.data_field.insert_text(f"Exported to: {f}\n")
-        except Exception as e:
-            self.data_field.insert_text(f"Error exporting models: {e}\n")
+        # Create a label in the new window
+        label = tk.Label(export_window, text="Select a molecule:")
+        label.grid(row=0, column=0)
+
+        # Create a dropdown menu in the new window
+        #options = [molecule[0] for molecule in molecules_data] + ["SUM"] + ["ALL"]
+        options = list(self.islat.molecules_dict.keys()) + ["SUM", "ALL"]
+        dropdown_var = tk.StringVar()
+        dropdown = ttk.Combobox(export_window, textvariable=dropdown_var, values=options)
+        dropdown.set(options[0])
+        dropdown.grid(row=1, column=0)
+
+        # Create a button in the new window
+        button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(), wave_data=self.islat.wave_data))
+        button.grid(row=1, column=1)
 
     def show_atomic_lines(self):
         """
@@ -552,8 +544,6 @@ class TopBar(ResizableFrame):
         
         # Get the loaded spectrum name for filename
         spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
-        #if spectrum_name == 'default':
-        #    spectrum_name = "unknown"
         
         try:
             # Save the current molecule parameters
@@ -649,9 +639,6 @@ class TopBar(ResizableFrame):
                     f'Error loading parameters: {str(e)}',
                     clear_first=True
                 )
-
-    def export_models(self):
-        print("Export models to file")
 
     def toggle_legend(self):
         #print("Toggled legend on plot")
