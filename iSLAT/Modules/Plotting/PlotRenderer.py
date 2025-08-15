@@ -517,14 +517,18 @@ class PlotRenderer:
                     linestyle=':', 
                     label=f"Saved: {line.get('label', 'Line')}"
                 )
-            elif 'xmin' in line and 'xmax' in line:
+            
+            if 'xmin' in line and 'xmax' in line:
                 # Plot wavelength range
-                self.ax1.axvspan(
-                    line['xmin'], 
-                    line['xmax'], 
-                    alpha=0.2, 
-                    color=self._get_theme_value("saved_line_color_two", "coral"),
-                    label=f"Saved Range: {line.get('label', 'Range')}"
+                self.ax1.axvline(
+                    line['xmin'],
+                    color=self._get_theme_value("saved_line_color_two", "orange"),
+                    alpha=0.7,
+                )
+                self.ax1.axvline(
+                    line['xmax'],
+                    color=self._get_theme_value("saved_line_color_two", "orange"),
+                    alpha=0.7,
                 )
         # make sure that a refresh of the plot is triggered
         self.canvas.draw_idle()
