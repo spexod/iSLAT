@@ -583,7 +583,7 @@ class TopBar(ResizableFrame):
                     f'Error saving parameters: {str(e)}',
                     clear_first=True
                 )
-
+    
     def load_parameters(self):
         """
         Load molecule parameters from CSV file.
@@ -599,8 +599,6 @@ class TopBar(ResizableFrame):
         
         # Get the loaded spectrum name for filename
         spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
-        #if spectrum_name == 'default':
-        #    spectrum_name = "unknown"
         
         spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
         save_file = os.path.join(save_folder_path, f"{spectrum_base_name}-{molsave_file_name}")
@@ -625,36 +623,15 @@ class TopBar(ResizableFrame):
             # Clear existing molecules
             self.islat.molecules_dict.clear()
             
-            # Read the saved molecule data
-            loaded_molecules = []
-            
-            with open(save_file, 'r') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    # Create molecule from saved data with correct field mapping
-                    mol_data = {
-                        'Molecule Name': row.get('Molecule Name', ''),
-                        'File Path': row.get('File Path', ''),
-                        'Molecule Label': row.get('Molecule Label', ''),
-                        'Temp': float(row.get('Temp', 600)),
-                        'Rad': float(row.get('Rad', 0.5)),
-                        'N_Mol': float(row.get('N_Mol', 1e17)),
-                        'Color': row.get('Color', '#FF0000'),
-                        'Vis': row.get('Vis', 'True').lower() == 'true',
-                        'Dist': float(row.get('Dist', 140)),
-                        'StellarRV': float(row.get('StellarRV', 0)),
-                        'FWHM': float(row.get('FWHM', 200)),
-                        'Broad': float(row.get('Broad', 2.5))
-                    }
-                    loaded_molecules.append(mol_data)
+            mole_save_data = self.islat.get_mole_save_data()
             
             # Initialize molecules from loaded data
-            self.islat.init_molecules(loaded_molecules)
-            
+            self.islat.init_molecules(mole_save_data)
+
             # Update GUI components
             if hasattr(self.islat, 'GUI'):
-                '''if hasattr(self.islat.GUI, 'control_panel'):
-                    self.islat.GUI.control_panel.reload_molecule_dropdown()'''
+                if hasattr(self.islat.GUI, 'control_panel'):
+                    self.islat.GUI.control_panel.refresh_from_molecules_dict()
                 if hasattr(self.islat.GUI, 'plot'):
                     self.islat.GUI.plot.update_all_plots()
                 if hasattr(self.islat.GUI, 'data_field'):
@@ -663,7 +640,7 @@ class TopBar(ResizableFrame):
                         clear_first=True
                     )
             
-            print(f"Successfully loaded {len(loaded_molecules)} molecules from: {save_file}")
+            print(f"Successfully loaded {len(mole_save_data)} molecules from: {save_file}")
             
         except Exception as e:
             print(f"Error loading parameters: {e}")

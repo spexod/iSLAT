@@ -296,15 +296,13 @@ class iSLAT:
         use_parallel : bool, optional
             If True, uses parallel loading. Default is False for sequential loading.
         """
-        print("Loading default molecules...")
-        
         # Initialize molecules_dict if needed
         if not hasattr(self, "molecules_dict"):
             self.molecules_dict = MoleculeDict()
 
         if reset:
-            self.molecules_dict.clear()
             print("Resetting molecules_dict to empty.")
+            self.molecules_dict.clear()
 
         try:
             # Lazy load default molecule data
@@ -319,11 +317,40 @@ class iSLAT:
             # Use parallel loading setting
             use_parallel_loading = use_parallel or self.use_parallel_processing
             self.init_molecules(self.default_molecule_csv_data, use_parallel=use_parallel_loading)
+            # Update GUI components
+            if hasattr(self, 'GUI'):
+                if hasattr(self.GUI, 'control_panel'):
+                    self.GUI.control_panel.refresh_from_molecules_dict()
+                if hasattr(self.GUI, 'plot'):
+                    self.GUI.plot.update_all_plots()
+                if hasattr(self.GUI, 'data_field'):
+                    self.GUI.data_field.insert_text(
+                        f'Successfully loaded parameters from defaults',
+                        clear_first=True
+                    )
             print(f"Successfully loaded {len(self.molecules_dict)} default molecules.")
                 
         except Exception as e:
             print(f"Error loading default molecules: {e}")
             raise
+
+    def get_mole_save_data(self):
+        # Check to see if a save for the current spectrum file exists
+        if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
+            spectrum_base_name = os.path.splitext(self.loaded_spectrum_name)[0]
+            formatted_mol_save_file_name = f"{spectrum_base_name}-{molsave_file_name}"
+            molsave_path = save_folder_path
+            full_path = os.path.join(molsave_path, formatted_mol_save_file_name)
+            if os.path.exists(full_path):
+                print(f"Loading molecules from saved file: {full_path}")
+                mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
+            else:
+                print(f"Warning: Mole save path does not exist: {molsave_path}")
+                mole_save_data = None
+        else:
+            mole_save_data = None   
+        
+        return mole_save_data
 
     def _initialize_molecules_for_spectrum(self):
         """
@@ -341,20 +368,7 @@ class iSLAT:
         # Set optimized wavelength range before loading molecules
         self.wavelength_range = spectrum_range
 
-        # Check to see if a save for the current spectrum file exists
-        if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
-            spectrum_base_name = os.path.splitext(self.loaded_spectrum_name)[0]
-            formatted_mol_save_file_name = f"{spectrum_base_name}-{molsave_file_name}"
-            molsave_path = save_folder_path
-            full_path = os.path.join(molsave_path, formatted_mol_save_file_name)
-            if os.path.exists(full_path):
-                print(f"Loading molecules from saved file: {full_path}")
-                mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
-            else:
-                print(f"Warning: Mole save path does not exist: {molsave_path}")
-                mole_save_data = None
-        else:
-            mole_save_data = None    
+        mole_save_data = self.get_mole_save_data() 
         
         try:
             # Apply full optimizations now that we're loading molecules
