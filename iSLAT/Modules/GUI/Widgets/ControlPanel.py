@@ -75,7 +75,7 @@ class ControlPanel(ttk.Frame):
     def _create_color_and_vis_frame(self):
         wrapper = create_wrapper_frame(self.label_frame, 0, 0, sticky="nsew")
 
-        self._color_vis_parent_frame = color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 128, vertical=True)
+        self._color_vis_parent_frame = color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 160, vertical=True)
 
         return color_vis_frame
 
