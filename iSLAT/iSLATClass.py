@@ -114,7 +114,7 @@ class iSLAT:
             molecules_list = mole_save_data
             parms = self.initial_molecule_parameters
             parms['default'] = self.molecules_parameters_default
-
+            
         if not molecules_list:
             print("No new molecules to load.")
             return False

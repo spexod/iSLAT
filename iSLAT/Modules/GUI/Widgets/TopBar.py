@@ -621,7 +621,7 @@ class TopBar(ResizableFrame):
                     'Loading saved parameters, this may take a moment...',
                     clear_first=True
                 )
-            
+                
             # Clear existing molecules
             self.islat.molecules_dict.clear()
             
