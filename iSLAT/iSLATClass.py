@@ -54,7 +54,7 @@ class iSLAT:
         
         # === PHYSICAL PARAMETERS ===
         self.wavelength_range = c.WAVELENGTH_RANGE
-        self._display_range = (23.52, 25.41)
+        #self._display_range = (23.52, 25.41)
         # Note: Global parameters (distance, stellar_rv, fwhm, intrinsic_line_width) are now managed entirely by MoleculeDict
 
         # === DATA CONTAINERS ===
@@ -490,6 +490,15 @@ class iSLAT:
                 self.molecules_dict.bulk_update_parameters({'wavelength_range': spectrum_range})
                 self.update_model_spectrum()
                 print(f"Updated existing molecules for new wavelength range: {spectrum_range[0]:.3f} - {spectrum_range[1]:.3f}")
+
+            # Set display limits based on loaded spectrum
+            fig_max_limit = np.nanmax(self.wave_data)
+            fig_min_limit = np.nanmin(self.wave_data)
+
+            display_first_entry = fig_min_limit + (fig_max_limit - fig_min_limit) / 2
+            display_second_entry = fig_max_limit - (fig_max_limit - fig_min_limit) / 2
+
+            self.display_range = (display_first_entry, display_second_entry)
 
             # Initialize GUI after molecules are loaded
             if not hasattr(self, "GUI") or self.GUI is None:
