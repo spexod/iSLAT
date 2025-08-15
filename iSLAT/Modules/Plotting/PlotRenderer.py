@@ -225,7 +225,7 @@ class PlotRenderer:
                     color="black", # self._get_theme_value("foreground", "black")
                     linewidth=1,
                     label='Data',
-                    zorder=self._get_theme_value("zorder_observed", 3),
+                    zorder=self._get_theme_value("zorder_observed", 2),
                     elinewidth=0.5,
                     capsize=0
                 )
@@ -237,7 +237,7 @@ class PlotRenderer:
                     color=self._get_theme_value("foreground", "black"),
                     linewidth=1,
                     label='Data',
-                    zorder=self._get_theme_value("zorder_observed", 3)
+                    zorder=self._get_theme_value("zorder_observed", 2)
                 )
     
     def _plot_summed_spectrum(self, wave_data: np.ndarray, summed_flux: np.ndarray) -> None:
@@ -517,14 +517,18 @@ class PlotRenderer:
                     linestyle=':', 
                     label=f"Saved: {line.get('label', 'Line')}"
                 )
-            elif 'xmin' in line and 'xmax' in line:
+            
+            if 'xmin' in line and 'xmax' in line:
                 # Plot wavelength range
-                self.ax1.axvspan(
-                    line['xmin'], 
-                    line['xmax'], 
-                    alpha=0.2, 
-                    color=self._get_theme_value("saved_line_color_two", "coral"),
-                    label=f"Saved Range: {line.get('label', 'Range')}"
+                self.ax1.axvline(
+                    line['xmin'],
+                    color=self._get_theme_value("saved_line_color_two", "orange"),
+                    alpha=0.7,
+                )
+                self.ax1.axvline(
+                    line['xmax'],
+                    color=self._get_theme_value("saved_line_color_two", "orange"),
+                    alpha=0.7,
                 )
         # make sure that a refresh of the plot is triggered
         self.canvas.draw_idle()
@@ -1161,7 +1165,7 @@ class PlotRenderer:
                 alpha=0.7,
                 linewidth=self._get_theme_value("model_plot_line_width", 1.5),
                 label=label,
-                zorder=self._get_theme_value("zorder_model", 2)
+                zorder=self._get_theme_value("zorder_model", 3)
             )
 
             self.ax1.legend()

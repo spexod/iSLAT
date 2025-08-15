@@ -151,7 +151,7 @@ class ControlPanel(ttk.Frame):
         
         # Plot range  
         display_range = getattr(self.islat, 'display_range', [4.5, 5.5])
-        initial_range = display_range[1] - display_range[0]
+        initial_range = round(display_range[1] - display_range[0], 2) # round to 2 decimal places
         self.plot_range_entry, self.plot_range_var = self._create_simple_entry( parent,
             "Plot range:", initial_range, start_row, start_col + 2, self._update_display_range, tip_text=plot_range_tip)
 

@@ -7,6 +7,7 @@ import os
 import time
 
 from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_save_data, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
+from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path
 
 import iSLAT.Constants as c
 from .Modules.GUI import *
@@ -53,7 +54,7 @@ class iSLAT:
         
         # === PHYSICAL PARAMETERS ===
         self.wavelength_range = c.WAVELENGTH_RANGE
-        self._display_range = (23.52, 25.41)
+        #self._display_range = (23.52, 25.41)
         # Note: Global parameters (distance, stellar_rv, fwhm, intrinsic_line_width) are now managed entirely by MoleculeDict
 
         # === DATA CONTAINERS ===
@@ -107,7 +108,14 @@ class iSLAT:
             return False
 
         # Convert to list format efficiently
-        molecules_list = [mol for mol in mole_save_data.values() if mol.get("Molecule Name") and mol.get("Molecule Name") not in self.molecules_dict]
+        if isinstance(mole_save_data, dict):
+            molecules_list = [mol for mol in mole_save_data.values() if mol.get("Molecule Name") and mol.get("Molecule Name") not in self.molecules_dict]
+            parms = self.initial_molecule_parameters
+        elif isinstance(mole_save_data, list):
+            molecules_list = mole_save_data
+            parms = self.initial_molecule_parameters
+            parms['default'] = self.molecules_parameters_default
+
         if not molecules_list:
             print("No new molecules to load.")
             return False
@@ -116,7 +124,7 @@ class iSLAT:
             start_time = time.time()
             results = self.molecules_dict.load_molecules(
                 molecules_list, 
-                self.initial_molecule_parameters,
+                parms,
             )
             
             elapsed_time = time.time() - start_time
@@ -288,15 +296,13 @@ class iSLAT:
         use_parallel : bool, optional
             If True, uses parallel loading. Default is False for sequential loading.
         """
-        print("Loading default molecules...")
-        
         # Initialize molecules_dict if needed
         if not hasattr(self, "molecules_dict"):
             self.molecules_dict = MoleculeDict()
 
         if reset:
-            self.molecules_dict.clear()
             print("Resetting molecules_dict to empty.")
+            self.molecules_dict.clear()
 
         try:
             # Lazy load default molecule data
@@ -311,19 +317,40 @@ class iSLAT:
             # Use parallel loading setting
             use_parallel_loading = use_parallel or self.use_parallel_processing
             self.init_molecules(self.default_molecule_csv_data, use_parallel=use_parallel_loading)
-            if hasattr(self, 'GUI') and self.GUI is not None:
-                    try:
-                        self.GUI.control_panel.refresh_from_molecules_dict()
-                        self.GUI.plot.update_model_plot()
-                        print("GUI molecule list and plot refreshed.")
-                    except Exception as e:
-                        print(f"Warning: Could not refresh GUI: {e}")
-                        
+            # Update GUI components
+            if hasattr(self, 'GUI'):
+                if hasattr(self.GUI, 'control_panel'):
+                    self.GUI.control_panel.refresh_from_molecules_dict()
+                if hasattr(self.GUI, 'plot'):
+                    self.GUI.plot.update_all_plots()
+                if hasattr(self.GUI, 'data_field'):
+                    self.GUI.data_field.insert_text(
+                        f'Successfully loaded parameters from defaults',
+                        clear_first=True
+                    )
             print(f"Successfully loaded {len(self.molecules_dict)} default molecules.")
                 
         except Exception as e:
             print(f"Error loading default molecules: {e}")
             raise
+
+    def get_mole_save_data(self):
+        # Check to see if a save for the current spectrum file exists
+        if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
+            spectrum_base_name = os.path.splitext(self.loaded_spectrum_name)[0]
+            formatted_mol_save_file_name = f"{spectrum_base_name}-{molsave_file_name}"
+            molsave_path = save_folder_path
+            full_path = os.path.join(molsave_path, formatted_mol_save_file_name)
+            if os.path.exists(full_path):
+                print(f"Loading molecules from saved file: {full_path}")
+                mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
+            else:
+                print(f"Warning: Mole save path does not exist: {molsave_path}")
+                mole_save_data = None
+        else:
+            mole_save_data = None   
+        
+        return mole_save_data
 
     def _initialize_molecules_for_spectrum(self):
         """
@@ -340,6 +367,8 @@ class iSLAT:
         
         # Set optimized wavelength range before loading molecules
         self.wavelength_range = spectrum_range
+
+        mole_save_data = self.get_mole_save_data() 
         
         try:
             # Apply full optimizations now that we're loading molecules
@@ -350,8 +379,8 @@ class iSLAT:
             start_time = time.time()
             
             # Use the most efficient initialization method with spectrum optimization
-            self.init_molecules()
-            
+            self.init_molecules(mole_save_data=mole_save_data)
+
             elapsed_time = time.time() - start_time
             self._molecules_loaded = True
             
@@ -461,6 +490,15 @@ class iSLAT:
                 self.molecules_dict.bulk_update_parameters({'wavelength_range': spectrum_range})
                 self.update_model_spectrum()
                 print(f"Updated existing molecules for new wavelength range: {spectrum_range[0]:.3f} - {spectrum_range[1]:.3f}")
+
+            # Set display limits based on loaded spectrum
+            fig_max_limit = np.nanmax(self.wave_data)
+            fig_min_limit = np.nanmin(self.wave_data)
+
+            display_first_entry = round((fig_min_limit + (fig_max_limit - fig_min_limit) / 2), 2)
+            display_second_entry = round((display_first_entry + (fig_max_limit - fig_min_limit) / 10), 2)
+
+            self.display_range = (display_first_entry, display_second_entry)
 
             # Initialize GUI after molecules are loaded
             if not hasattr(self, "GUI") or self.GUI is None:

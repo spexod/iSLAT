@@ -3,8 +3,10 @@ import platform
 import os 
 import csv
 import tkinter as tk
+import tkinter.ttk as ttk
 from tkinter import messagebox
 import traceback
+from typing import TYPE_CHECKING, Any, Dict, Optional
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 from ..GUIFunctions import create_button, create_menu_btn
 from iSLAT.Modules.DataProcessing.Slabfit import SlabFit as SlabModel
@@ -12,12 +14,23 @@ from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
-from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, write_molecules_list_csv
+from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, write_molecules_list_csv, generate_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name
 
+if TYPE_CHECKING:
+    from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
 
 class TopBar(ResizableFrame):
-    def __init__(self, master, islat, theme, main_plot, data_field, control_panel, config):
+    def __init__(
+        self, 
+        master: tk.Widget, 
+        islat: Any, 
+        theme: Dict[str, Any], 
+        main_plot: 'iSLATPlot', 
+        data_field: Any, 
+        control_panel: Any,
+        config: Dict[str, Any]
+    ) -> None:
         # Initialize the ResizableFrame with theme
         super().__init__(master, theme=theme, borderwidth=1, relief="groove")
         
@@ -85,7 +98,6 @@ class TopBar(ResizableFrame):
         export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off"
         create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
-        create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6, tip_text=toggle_legend_tip)
 
 
@@ -295,7 +307,7 @@ class TopBar(ResizableFrame):
                 self.data_field.insert_text("Fit failed or insufficient data.\n", clear_first=False)
             
             # Update plots
-            self.main_plot.plot_line_inspection(highlight_strongest=False)
+            #self.main_plot.plot_line_inspection(highlight_strongest=False)
             
         except Exception as e:
             self.data_field.insert_text(f"Error during fitting: {e}\n", clear_first=False)
@@ -420,34 +432,25 @@ class TopBar(ResizableFrame):
         """Export current models and data."""
         self.data_field.insert_text("Exporting current models...\n")
         
-        try:
-            # Check if we have models to export
-            if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-                # Export model data for each visible molecule
-                exported_count = 0
-                for mol_name, molecule in self.islat.molecules_dict.items():
-                    if hasattr(molecule, 'is_visible') and molecule.is_visible:
-                        # Export this molecule's model
-                        # This would depend on the specific export functionality
-                        self.data_field.insert_text(f"Exported model for {mol_name}\n")
-                        exported_count += 1
-                
-                if exported_count > 0:
-                    self.data_field.insert_text(f"Successfully exported {exported_count} models.\n")
-                else:
-                    self.data_field.insert_text("No visible models to export.\n")
-            else:
-                self.data_field.insert_text("No models available for export.\n")
-                
-        except Exception as e:
-            self.data_field.insert_text(f"Error exporting models: {e}\n")
+        # Create a new window for exporting the spectrum
+        export_window = tk.Toplevel(self.master)
+        export_window.title("Export Spectrum")
 
-        try:
-            out_files = self.islat.slab_model.export_results()
-            for f in out_files:
-                self.data_field.insert_text(f"Exported to: {f}\n")
-        except Exception as e:
-            self.data_field.insert_text(f"Error exporting models: {e}\n")
+        # Create a label in the new window
+        label = tk.Label(export_window, text="Select a molecule:")
+        label.grid(row=0, column=0)
+
+        # Create a dropdown menu in the new window
+        #options = [molecule[0] for molecule in molecules_data] + ["SUM"] + ["ALL"]
+        options = list(self.islat.molecules_dict.keys()) + ["SUM", "ALL"]
+        dropdown_var = tk.StringVar()
+        dropdown = ttk.Combobox(export_window, textvariable=dropdown_var, values=options)
+        dropdown.set(options[0])
+        dropdown.grid(row=1, column=0)
+
+        # Create a button in the new window
+        button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(), wave_data=self.islat.wave_data))
+        button.grid(row=1, column=1)
 
     def show_atomic_lines(self):
         """
@@ -540,8 +543,6 @@ class TopBar(ResizableFrame):
         
         # Get the loaded spectrum name for filename
         spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
-        #if spectrum_name == 'default':
-        #    spectrum_name = "unknown"
         
         try:
             # Save the current molecule parameters
@@ -571,7 +572,7 @@ class TopBar(ResizableFrame):
                     f'Error saving parameters: {str(e)}',
                     clear_first=True
                 )
-
+    
     def load_parameters(self):
         """
         Load molecule parameters from CSV file.
@@ -587,8 +588,6 @@ class TopBar(ResizableFrame):
         
         # Get the loaded spectrum name for filename
         spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
-        #if spectrum_name == 'default':
-        #    spectrum_name = "unknown"
         
         spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
         save_file = os.path.join(save_folder_path, f"{spectrum_base_name}-{molsave_file_name}")
@@ -609,42 +608,19 @@ class TopBar(ResizableFrame):
                     'Loading saved parameters, this may take a moment...',
                     clear_first=True
                 )
-            
+                
             # Clear existing molecules
             self.islat.molecules_dict.clear()
             
-            # Read the saved molecule data
-            loaded_molecules = []
-            
-            with open(save_file, 'r') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    # Create molecule from saved data with correct field mapping
-                    mol_data = {
-                        'Molecule Name': row.get('Molecule Name', ''),
-                        'File Path': row.get('File Path', ''),
-                        'Molecule Label': row.get('Molecule Label', ''),
-                        'Temp': float(row.get('Temp', 600)),
-                        'Rad': float(row.get('Rad', 0.5)),
-                        'N_Mol': float(row.get('N_Mol', 1e17)),
-                        'Color': row.get('Color', '#FF0000'),
-                        'Vis': row.get('Vis', 'True').lower() == 'true',
-                        'Dist': float(row.get('Dist', 140)),
-                        'StellarRV': float(row.get('StellarRV', 0)),
-                        'FWHM': float(row.get('FWHM', 200)),
-                        'Broad': float(row.get('Broad', 2.5))
-                    }
-                    loaded_molecules.append(mol_data)
+            mole_save_data = self.islat.get_mole_save_data()
             
             # Initialize molecules from loaded data
-            self.islat.init_molecules(loaded_molecules)
-            
+            self.islat.init_molecules(mole_save_data)
+
             # Update GUI components
             if hasattr(self.islat, 'GUI'):
-                if hasattr(self.islat.GUI, 'molecule_table'):
-                    self.islat.GUI.molecule_table.update_table()
                 if hasattr(self.islat.GUI, 'control_panel'):
-                    self.islat.GUI.control_panel.reload_molecule_dropdown()
+                    self.islat.GUI.control_panel.refresh_from_molecules_dict()
                 if hasattr(self.islat.GUI, 'plot'):
                     self.islat.GUI.plot.update_all_plots()
                 if hasattr(self.islat.GUI, 'data_field'):
@@ -653,7 +629,7 @@ class TopBar(ResizableFrame):
                         clear_first=True
                     )
             
-            print(f"Successfully loaded {len(loaded_molecules)} molecules from: {save_file}")
+            print(f"Successfully loaded {len(mole_save_data)} molecules from: {save_file}")
             
         except Exception as e:
             print(f"Error loading parameters: {e}")
@@ -662,9 +638,6 @@ class TopBar(ResizableFrame):
                     f'Error loading parameters: {str(e)}',
                     clear_first=True
                 )
-
-    def export_models(self):
-        print("Export models to file")
 
     def toggle_legend(self):
         #print("Toggled legend on plot")

@@ -191,6 +191,7 @@ class FittingEngine:
         """Fit multiple Gaussian components for deblending (matching old iSLAT behavior)."""
         # Estimate number of components and line centers based on detection strategy
         n_components, line_centers = self._estimate_n_components(wave_data, flux_data, xmin, xmax)
+        print(f"Detected {n_components} components based on strategy: {self.line_detection_strategy}")
         
         if n_components == 1:
             # If only one component detected, use single Gaussian fit
@@ -338,7 +339,7 @@ class FittingEngine:
         return n_components, peak_centers
     
     def _estimate_components_from_molecular_table(self, wave_data, flux_data, xmin=None, xmax=None):
-        """Use molecular line tables like MainPlotOld does."""
+        """Use molecular line tables."""
         try:
             # Get line data from active molecule
             if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
@@ -473,8 +474,7 @@ class FittingEngine:
                         print(f"Warning: Could not get line data: {e}")
                 
                 if line_data is not None:
-                    # Apply line_threshold filtering like iSLATOld
-                    line_threshold = 0.03  # Default from iSLATOld
+                    line_threshold = 0.03 # default from old iSLAT
                     try:
                         if hasattr(self.islat, 'user_settings') and self.islat.user_settings:
                             line_threshold = self.islat.user_settings.get('line_threshold', 0.03)

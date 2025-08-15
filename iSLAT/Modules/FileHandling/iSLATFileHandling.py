@@ -6,6 +6,11 @@ import numpy as np
 from ...Constants import MOLECULES_DATA
 from .molecular_data_reader import read_molecular_data
 
+from typing import Dict, List, Optional, Tuple, Callable, Any, Union, TYPE_CHECKING
+if TYPE_CHECKING:
+    from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
+    from iSLAT.Modules.DataTypes.Molecule import Molecule
+
 save_folder_path = "DATAFILES/SAVES"
 user_configuration_file_path = config_file_path = "DATAFILES/CONFIG"
 theme_file_path = "DATAFILES/CONFIG/GUIThemes"
@@ -499,3 +504,188 @@ def load_control_panel_fields_config(file_path=None, file_name="ControlPanelFiel
         print(f"Error loading control panel fields config: {e}")
         # Return default configuration if file is missing or invalid
         return {"global_fields": {}, "molecule_fields": {}}
+
+def generate_all_csv(molecules_data: 'MoleculeDict', output_dir=models_folder_path, wave_data=None):
+    """
+    Generate CSV files for all molecules in the MoleculeDict.
+    
+    Parameters:
+    -----------
+    molecules_data : MoleculeDict
+        Dictionary containing molecule objects
+    output_dir : str
+        Output directory path
+    wave_data : np.ndarray, optional
+        Wavelength array to use for flux calculation
+    """
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Export individual molecule spectra
+    for mol_name, molecule in molecules_data.items():
+        # Skip if molecule is not visible or doesn't have plot data
+        if not molecule.is_visible:
+            continue
+            
+        # Get wavelength and flux data from molecule
+        if hasattr(molecule, 'plot_lam') and hasattr(molecule, 'plot_flux'):
+            lambdas = molecule.plot_lam
+            fluxes = molecule.plot_flux
+        else:
+            # Try to prepare plot data if not available
+            if wave_data is not None:
+                try:
+                    lambdas, fluxes = molecule.prepare_plot_data(wave_data)
+                except Exception as e:
+                    print(f"Error preparing plot data for {mol_name}: {e}")
+                    continue
+            else:
+                print(f"No plot data available for {mol_name}")
+                continue
+
+        # Check if we have valid data
+        if (lambdas is None or fluxes is None or 
+            len(lambdas) == 0 or len(fluxes) == 0 or 
+            len(lambdas) != len(fluxes)):
+            print(f"Invalid data for {mol_name}, skipping...")
+            continue
+
+        # Write individual molecule CSV
+        csv_file_path = os.path.join(output_dir, f"{mol_name}_spec_output.csv")
+        try:
+            with open(csv_file_path, "w", newline="") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(["wave", "flux"])
+                for wave, flux in zip(lambdas, fluxes):
+                    csv_writer.writerow([wave, flux])
+            print(f"Exported {mol_name} spectrum to {csv_file_path}")
+        except Exception as e:
+            print(f"Error writing CSV for {mol_name}: {e}")
+
+    # Generate summed spectrum if we have visible molecules and wave data
+    visible_molecules = list(molecules_data.get_visible_molecules())
+    if visible_molecules and wave_data is not None:
+        try:
+            # Get summed flux from MoleculeDict
+            summed_flux = molecules_data.get_summed_flux(wave_data, visible_only=True)
+            
+            if summed_flux is not None and len(summed_flux) > 0:
+                # Write summed spectrum CSV
+                csv_file_path = os.path.join(output_dir, "SUM_spec_output.csv")
+                with open(csv_file_path, "w", newline="") as csv_file:
+                    csv_writer = csv.writer(csv_file)
+                    csv_writer.writerow(["wave", "flux"])
+                    for wave, flux in zip(wave_data, summed_flux):
+                        csv_writer.writerow([wave, flux])
+                print(f"Exported summed spectrum to {csv_file_path}")
+            else:
+                print("No valid summed flux data to export")
+        except Exception as e:
+            print(f"Error generating summed spectrum: {e}")
+    
+    print(f'All models exported to {output_dir}')
+
+def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, output_dir=models_folder_path, wave_data=None):
+    """
+    Generate CSV file for a specific molecule or summed spectrum.
+    
+    Parameters:
+    -----------
+    molecules_data : MoleculeDict
+        Dictionary containing molecule objects
+    mol_name : str
+        Name of the molecule to export, or "SUM" for summed spectrum, or "ALL" for all molecules
+    output_dir : str
+        Output directory path
+    wave_data : np.ndarray, optional
+        Wavelength array to use for flux calculation
+    """
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+    
+    if mol_name == "SUM":
+        # Generate summed spectrum
+        if wave_data is None:
+            print("Wave data is required to generate summed spectrum")
+            return
+            
+        try:
+            summed_flux = molecules_data.get_summed_flux(wave_data, visible_only=True)
+            
+            if summed_flux is None or len(summed_flux) == 0:
+                print("No visible molecules or valid flux data for summed spectrum")
+                return
+
+            # Write summed spectrum CSV
+            csv_file_path = os.path.join(output_dir, "SUM_spec_output.csv")
+            with open(csv_file_path, "w", newline="") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(["wave", "flux"])
+                for wave, flux in zip(wave_data, summed_flux):
+                    csv_writer.writerow([wave, flux])
+            
+            print(f'SUM model exported to {output_dir}')
+            
+        except Exception as e:
+            print(f"Error generating summed spectrum: {e}")
+
+    elif mol_name == "ALL":
+        # Generate all molecule CSVs
+        generate_all_csv(molecules_data, output_dir, wave_data)
+
+    else:
+        # Generate CSV for specific molecule
+        if mol_name not in molecules_data:
+            print(f"Molecule '{mol_name}' not found in molecules_data")
+            return
+            
+        molecule = molecules_data[mol_name]
+        
+        # Get wavelength and flux data from molecule
+        if hasattr(molecule, 'plot_lam') and hasattr(molecule, 'plot_flux'):
+            lambdas = molecule.plot_lam
+            fluxes = molecule.plot_flux
+        else:
+            # Try to prepare plot data if not available
+            if wave_data is not None:
+                try:
+                    lambdas, fluxes = molecule.prepare_plot_data(wave_data)
+                except Exception as e:
+                    print(f"Error preparing plot data for {mol_name}: {e}")
+                    return
+            else:
+                print(f"No plot data available for {mol_name}")
+                return
+
+        # Check if we have valid data
+        if (lambdas is None or fluxes is None or 
+            len(lambdas) == 0 or len(fluxes) == 0 or 
+            len(lambdas) != len(fluxes)):
+            print(f"Invalid data for {mol_name}")
+            return
+
+        try:
+            # Write spectrum CSV
+            csv_file_path = os.path.join(output_dir, f"{mol_name}_spec_output.csv")
+            with open(csv_file_path, "w", newline="") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(["wave", "flux"])
+                for wave, flux in zip(lambdas, fluxes):
+                    csv_writer.writerow([wave, flux])
+            
+            # Export line parameters if available
+            if hasattr(molecule, 'intensity') and molecule.intensity is not None:
+                if hasattr(molecule.intensity, 'get_table'):
+                    try:
+                        line_params = molecule.intensity.get_table()
+                        if hasattr(line_params, 'to_csv'):
+                            line_params_path = os.path.join(output_dir, f"{mol_name}_line_params.csv")
+                            line_params.to_csv(line_params_path, index=False)
+                            print(f"Exported line parameters for {mol_name}")
+                    except Exception as e:
+                        print(f"Error exporting line parameters for {mol_name}: {e}")
+            
+            print(f'{mol_name} model exported to {output_dir}')
+            
+        except Exception as e:
+            print(f"Error writing CSV for {mol_name}: {e}")
