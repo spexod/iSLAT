@@ -260,6 +260,7 @@ class PlotRenderer:
         self.ax1.set_xlabel('Wavelength (μm)', color=self._get_theme_value("foreground", "black"))
         self.ax1.set_ylabel('Flux density (Jy)', color=self._get_theme_value("foreground", "black"))
         self.ax1.set_title("Full Spectrum with Line Inspection", color=self._get_theme_value("foreground", "black"))
+        
 
         # Only show legend if there are labeled items
         handles, labels = self.ax1.get_legend_handles_labels()
@@ -489,7 +490,7 @@ class PlotRenderer:
                 self.ax3.scatter(eu, rd_yax, s=0.5, color=self._get_theme_value("scatter_main_color", '#838B8B'))
 
                 # Set labels
-                self.ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))', color=self._get_theme_value("foreground", "black"))
+                self.ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))', color=self._get_theme_value("foreground", "black"), labelpad = -1)
                 self.ax3.set_xlabel(r'$E_{u}$ (K)', color=self._get_theme_value("foreground", "black"))
                 mol_label = self._get_molecule_display_name(molecule)
                 self.ax3.set_title(f'{mol_label} Population diagram', fontsize='medium', color=self._get_theme_value("foreground", "black"))
