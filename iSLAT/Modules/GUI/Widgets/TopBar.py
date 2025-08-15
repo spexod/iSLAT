@@ -86,7 +86,6 @@ class TopBar(ResizableFrame):
         toggle_legend_tip = "Turn legend on/off"
         create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
         create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
-        create_button(self.button_frame, self.theme, "Export Model", self.show_atomic_lines, 0, 5, tip_text=export_model_tip)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6, tip_text=toggle_legend_tip)
 
 
