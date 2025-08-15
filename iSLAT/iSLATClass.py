@@ -495,8 +495,8 @@ class iSLAT:
             fig_max_limit = np.nanmax(self.wave_data)
             fig_min_limit = np.nanmin(self.wave_data)
 
-            display_first_entry = fig_min_limit + (fig_max_limit - fig_min_limit) / 2
-            display_second_entry = fig_max_limit - (fig_max_limit - fig_min_limit) / 2
+            display_first_entry = round((fig_min_limit + (fig_max_limit - fig_min_limit) / 2), 2)
+            display_second_entry = round((display_first_entry + (fig_max_limit - fig_min_limit) / 10), 2)
 
             self.display_range = (display_first_entry, display_second_entry)
 
