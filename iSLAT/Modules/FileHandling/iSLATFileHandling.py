@@ -32,6 +32,8 @@ fit_save_lines_file_name = "fit_save_lines.csv"
 atomic_lines_file_name = data_files_path / "LINELISTS" / "Atomic_lines.csv"
 models_folder_path = data_files_path / "MODELS"
 
+set_input_file_folder_path = data_files_path / "LINELISTS"
+
 set_output_file_folder_path = data_files_path / "LINESAVES"
 set_output_file_name = "line_outputs.csv"
 
@@ -427,6 +429,9 @@ def save_output_line_measurements(output_line_measurements, file_path=None, file
         ('All Files', '*.*')
     ]
     
+    if not os.path.exists(set_output_file_folder_path):
+        os.makedirs(set_output_file_folder_path)
+
     # Open file dialog
     file_path = filedialog.asksaveasfilename(
         title="Select Output Line Measurements File",
@@ -459,7 +464,7 @@ def load_input_line_list(file_path=None, file_name=None):
     file_path = filedialog.askopenfilename(
         title="Select Input Line List File",
         filetypes=filetypes,
-        initialdir=set_output_file_folder_path,
+        initialdir=set_input_file_folder_path,
         defaultextension=".csv",
     )
     
