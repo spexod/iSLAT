@@ -6,14 +6,18 @@ import numpy as np
 from ...Constants import MOLECULES_DATA
 from .molecular_data_reader import read_molecular_data
 
+from pathlib import Path
+
 from typing import Dict, List, Optional, Tuple, Callable, Any, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.Molecule import Molecule
 
-save_folder_path = "DATAFILES/SAVES"
-user_configuration_file_path = config_file_path = "DATAFILES/CONFIG"
-theme_file_path = "DATAFILES/CONFIG/GUIThemes"
+data_files_path = Path("DATAFILES")
+
+save_folder_path = data_files_path / "SAVES"
+user_configuration_file_path = config_file_path = data_files_path / "CONFIG"
+theme_file_path = data_files_path / "CONFIG" / "GUIThemes"
 user_configuration_file_name = "UserSettings.json"
 
 molsave_file_name = "molsave.csv"
@@ -25,10 +29,10 @@ default_initial_parameters_file_name = "DefaultMoleculeParameters.json"
 
 line_saves_file_name = "saved_lines.csv"
 fit_save_lines_file_name = "fit_save_lines.csv"
-atomic_lines_file_name = "DATAFILES/LINELISTS/Atomic_lines.csv"
-models_folder_path = "DATAFILES/MODELS"
+atomic_lines_file_name = data_files_path / "LINELISTS" / "Atomic_lines.csv"
+models_folder_path = data_files_path / "MODELS"
 
-set_output_file_folder_path = "DATAFILES/LINESAVES"
+set_output_file_folder_path = data_files_path / "LINESAVES"
 set_output_file_name = "line_outputs.csv"
 
 def load_user_settings(file_path=user_configuration_file_path, file_name=user_configuration_file_name, theme_file_path=theme_file_path):
