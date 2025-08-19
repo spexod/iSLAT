@@ -86,6 +86,7 @@ class PlotRenderer:
         
         self.model_lines: List[Line2D] = []
         self.active_lines: List[Line2D] = []
+        self.saved_lines: List[Line2D] = []
         
         # Simplified stats - only for performance monitoring, no data caching
         self._plot_stats = {
@@ -505,33 +506,48 @@ class PlotRenderer:
 
     def plot_saved_lines(self, saved_lines: pd.DataFrame) -> None:
         """Plot saved lines on the main spectrum"""
+        if self.saved_lines:
+            self.remove_saved_lines()
+            return
+
         if saved_lines.empty:
             return
 
         for index, line in saved_lines.iterrows():
             # Plot vertical lines at saved positions
             if 'lam' in line:
-                self.ax1.axvline(
+                self.saved_lines.append(self.ax1.axvline(
                     line['lam'], 
                     color=self._get_theme_value("saved_line_color", self._get_theme_value("saved_line_color_one", "red")),
                     alpha=0.7, 
                     linestyle=':', 
                     label=f"Saved: {line.get('label', 'Line')}"
-                )
+                ))
             
             if 'xmin' in line and 'xmax' in line:
                 # Plot wavelength range
-                self.ax1.axvline(
+                self.saved_lines.append(self.ax1.axvline(
                     line['xmin'],
                     color=self._get_theme_value("saved_line_color_two", "orange"),
                     alpha=0.7,
-                )
-                self.ax1.axvline(
+                ))
+                self.saved_lines.append(self.ax1.axvline(
                     line['xmax'],
                     color=self._get_theme_value("saved_line_color_two", "orange"),
                     alpha=0.7,
-                )
+                ))
         # make sure that a refresh of the plot is triggered
+        self.canvas.draw_idle()
+
+    def remove_saved_lines(self) -> None:
+        print("in remove lines")
+        for line in self.saved_lines:
+            try:
+                line.remove()
+            except ValueError:
+                pass
+        
+        self.saved_lines.clear()
         self.canvas.draw_idle()
     
     def highlight_line_selection(self, xmin: float, xmax: float) -> None:

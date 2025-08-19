@@ -463,11 +463,13 @@ def load_input_line_list(file_path=None, file_name=None):
         initialdir=set_output_file_folder_path,
         defaultextension=".csv",
     )
+
+    print(f"file_path is {file_path}")
     
     if file_path:
         # Store the file path in the islat_class
-        filename = os.path.basename(file_path)
-        print(f"Input line list loaded: {filename}")
+        file_name = os.path.basename(file_path)
+        print(f"Input line list loaded: {file_name}")
     else:
         print("No input line list file selected.")
         return
