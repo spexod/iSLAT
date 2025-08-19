@@ -590,8 +590,6 @@ class ControlPanel(ttk.Frame):
             print(f"Error with formatting: {e}")
             return ""
 
-
-
     def _ensure_molecule_color_initialized(self, mol_obj):
         """Ensure molecule has a color assigned, using MoleculeWindow logic"""
         if not hasattr(mol_obj, 'color') or mol_obj.color is None:
