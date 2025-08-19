@@ -259,4 +259,5 @@ class FileInteractionPane(ttk.Frame):
         from iSLAT.Modules.FileHandling.iSLATFileHandling import save_output_line_measurements
         filepath, filename = save_output_line_measurements(self.islat_class.output_line_measurements)
         self.islat_class.output_line_measurements = filepath
-        self.output_measurements_label.configure(text=f"Output Measurements: {filename}")
+
+        self.update_label(self.output_measurements_label, text=filename)

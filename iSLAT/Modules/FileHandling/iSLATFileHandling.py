@@ -438,8 +438,8 @@ def save_output_line_measurements(output_line_measurements, file_path=None, file
     
     if file_path:
         # Store the file path in the islat_class
-        filename = os.path.basename(file_path)
-        print(f"Output line measurements loaded: {filename}")
+        file_name = os.path.basename(file_path)
+        print(f"Output line measurements loaded: {file_name}")
     else:
         print("No output line measurements file selected.")
         return
