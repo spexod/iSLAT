@@ -153,6 +153,11 @@ def read_HITRAN_data(file_path):
         return []
 
 def read_line_saves(file_path=save_folder_path, file_name=line_saves_file_name) -> pd.DataFrame:
+    if not file_path or not file_name:
+        return pd.DataFrame()
+    
+    print(f"joining {file_path} and {file_name}")
+
     filename = os.path.join(file_path, file_name)
     if os.path.exists(filename):
         try:
@@ -442,8 +447,8 @@ def save_output_line_measurements(output_line_measurements, file_path=None, file
     
     if file_path:
         # Store the file path in the islat_class
-        filename = os.path.basename(file_path)
-        print(f"Output line measurements loaded: {filename}")
+        file_name = os.path.basename(file_path)
+        print(f"Output line measurements loaded: {file_name}")
     else:
         print("No output line measurements file selected.")
         return
@@ -467,11 +472,13 @@ def load_input_line_list(file_path=None, file_name=None):
         initialdir=set_input_file_folder_path,
         defaultextension=".csv",
     )
+
+    print(f"file_path is {file_path}")
     
     if file_path:
         # Store the file path in the islat_class
-        filename = os.path.basename(file_path)
-        print(f"Input line list loaded: {filename}")
+        file_name = os.path.basename(file_path)
+        print(f"Input line list loaded: {file_name}")
     else:
         print("No input line list file selected.")
         return

@@ -9,7 +9,7 @@ class trim_label(tk.Label):
         super().__init__(parent, **kwargs)
         self.max_len = max_len
         self.trimmed = False
-        self.toolTip = None
+        self.tooltip = None
 
         if self.cget("text"):
             self.trim_text()
@@ -68,7 +68,7 @@ class FileInteractionPane(ttk.Frame):
         self.file_label.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=2)
 
         if self.file_label.trimmed:
-            self.file_label.toolTip =  CreateToolTip(self.file_label, self.islat_class.loaded_spectrum_name)
+            self.file_label.tooltip =  CreateToolTip(self.file_label, self.islat_class.loaded_spectrum_name)
         
         self.load_spectrum_btn = ttk.Button(
             self.label_frame, 
@@ -78,7 +78,7 @@ class FileInteractionPane(ttk.Frame):
         self.load_spectrum_btn.grid(row=0, column=1, sticky="e", padx=(5, 5), pady=2)
         
         # Row 1: Input line list
-        self.input_line_list_label = tk.Label(
+        self.input_line_list_label = trim_label(
             self.label_frame, 
             text="None", 
             anchor="w",
@@ -109,7 +109,18 @@ class FileInteractionPane(ttk.Frame):
         )
         self.output_line_measurements_btn.grid(row=2, column=1, sticky="e", padx=(5, 5), pady=2)
 
-        
+    def update_label(self, widget, text = None):
+        widget.configure(text=text)
+        widget.trim_text()
+
+
+        if widget.trimmed:
+            widget.tooltip = CreateToolTip(widget, text)
+        else:
+            if widget.tooltip:
+                widget.tooltip.disable()
+            else:
+                return
     
     def update_file_label(self, filename=None):
         """
@@ -124,18 +135,9 @@ class FileInteractionPane(ttk.Frame):
             display_text = f"Loaded: {self.islat_class.loaded_spectrum_name}"
         else:
             display_text = "No file loaded"
-        
-        self.file_label.configure(text=display_text)
-        self.file_label.trim_text()
 
+        self.update_label(self.file_label, text=display_text)
 
-        if self.file_label.trimmed:
-            self.file_label.toolTip = CreateToolTip(self.file_label, display_text)
-        else:
-            if self.file_label.toolTip:
-                self.file_label.toolTip.disable()
-            else:
-                return
 
 
     
@@ -244,11 +246,18 @@ class FileInteractionPane(ttk.Frame):
         from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
         filepath, filename = load_input_line_list(self.islat_class.input_line_list)
         self.islat_class.input_line_list = filepath
-        self.input_line_list_label.configure(text=f"Input Line List: {filename}")
+
+        self.update_label(self.input_line_list_label, filename)
+        self.islat_class.GUI.plot.plot_renderer.remove_saved_lines()
+
+            
+        
+            
     
     def _load_output_line_measurements(self):
         """Calls the ifh class to save output line measurements."""
         from iSLAT.Modules.FileHandling.iSLATFileHandling import save_output_line_measurements
         filepath, filename = save_output_line_measurements(self.islat_class.output_line_measurements)
         self.islat_class.output_line_measurements = filepath
-        self.output_measurements_label.configure(text=f"Output Measurements: {filename}")
+
+        self.update_label(self.output_measurements_label, text=filename)

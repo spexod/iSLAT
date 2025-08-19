@@ -6,8 +6,9 @@ from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorB
 from .RegularFrame import RegularFrame
 from ..Tooltips import CreateToolTip
 
+
 class ControlPanel(ttk.Frame):
-    def __init__(self, master, islat, plot):
+    def __init__(self, master, islat, plot, font):
 
         super().__init__(master)
         
@@ -15,6 +16,9 @@ class ControlPanel(ttk.Frame):
         self.islat = islat
         self.plot = plot
         self.mol_dict = islat.molecules_dict
+        self.font = font
+        self.updating = False
+
         self.mol_visibility = {}
         self.column_labels = {
             "On": "turn on/off this\nmodel in the plot ",
@@ -102,21 +106,42 @@ class ControlPanel(ttk.Frame):
         var = tk.StringVar()
         var.set(str(initial_value))
         
-        entry = ttk.Entry(parent, textvariable=var, width=width, justify="left")
+        entry = tk.Entry(
+            parent, 
+            textvariable=var, 
+            width=width, 
+            justify="left", 
+        )
+        
         entry.grid(row=row, column=col + 1, padx=1, sticky="w")
+        
 
         def on_change(*args):
             try:
+                traces = var.trace_info()
+                if traces:
+                    mode, callback_name = traces[0][0], traces[0][1]
+                    var.trace_remove(mode, callback_name)
+    
+                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
                 value = float(var.get())
                 on_change_callback(value)
                 value_str = self._format_value(value, param_name)
                 var.set(value_str)
+                var.trace_add("write", on_write)
                 
             except ValueError as e:
                 print(f"Error with new value: {e}")
+        
+        def on_write(*args):
+            if self.updating:
+                on_change(*args)
+                return
+            entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
                 
         
         entry.bind("<Return>", on_change)
+        var.trace_add("write", on_write)
         
         return entry, var
 
@@ -495,7 +520,7 @@ class ControlPanel(ttk.Frame):
                 entry, var = self._molecule_parameter_entries[parameter_name]
                 new_value_str = self._get_active_molecule_parameter_value(parameter_name)
                 if var.get() != new_value_str:
-                    var.set(new_value_str)
+                    self._set_var(var, new_value)
             
             # Update color and visibility controls if needed
             if parameter_name in ['color', 'is_visible']:
@@ -507,10 +532,11 @@ class ControlPanel(ttk.Frame):
         if hasattr(self, '_global_parameter_entries') and parameter_name in self._global_parameter_entries:
             entry, var = self._global_parameter_entries[parameter_name]
             if var.get() != str(new_value):
-                var.set(str(new_value))
+                self._set_var(var, str(new_value))
 
     
     
+
 
 
     def _get_active_molecule_parameter_value(self, param_name) -> str:
@@ -710,7 +736,7 @@ class ControlPanel(ttk.Frame):
             for param_name, (entry, var) in self._molecule_parameter_entries.items():
                 if hasattr(molecule_obj, param_name):
                     value = getattr(molecule_obj, param_name)
-                    var.set(str(value))
+                    self._set_var(var, str(value))
         
         except Exception as e:
             print(f"Error updating molecule parameter UI fields: {e}")
@@ -766,8 +792,8 @@ class ControlPanel(ttk.Frame):
         if (hasattr(self, 'min_wavelength_var') and hasattr(self, 'max_wavelength_var') 
             and hasattr(molecules_dict, 'global_wavelength_range')):
             min_val, max_val = molecules_dict.global_wavelength_range
-            self.min_wavelength_var.set(str(min_val))
-            self.max_wavelength_var.set(str(max_val))
+            self._set_var(self.min_wavelength_var, str(min_val))
+            self._set_var(self.max_wavelength_var, str(max_val))
         
         # Update molecule-specific parameter fields
         self._update_molecule_parameter_fields()
@@ -804,7 +830,7 @@ class ControlPanel(ttk.Frame):
             new_value = self._get_active_molecule_parameter_value(param_name) 
             current_value = var.get()
             if current_value != new_value:
-                var.set(new_value)
+                self._set_var(var, new_value)
 
     def _update_global_parameter_fields(self):
         """Update all global parameter fields with values from the molecules_dict"""
@@ -819,6 +845,11 @@ class ControlPanel(ttk.Frame):
                 new_value = getattr(self.islat.molecules_dict, property_name, 0.0)
                 current_value = var.get()
                 if str(current_value) != str(new_value):
-                    var.set(str(new_value))
+                    self._set_var(var, str(new_value))
             except (AttributeError, TypeError):
                 pass
+
+    def _set_var(self, entry, value):
+        self.updating = True
+        entry.set(value)
+        self.updating = False
