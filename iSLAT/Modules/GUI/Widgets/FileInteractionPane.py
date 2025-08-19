@@ -248,8 +248,8 @@ class FileInteractionPane(ttk.Frame):
         self.islat_class.input_line_list = filepath
 
         self.update_label(self.input_line_list_label, filename)
+        self.islat_class.GUI.plot.plot_renderer.remove_saved_lines()
 
-        
             
         
             

@@ -98,8 +98,8 @@ class TopBar(ResizableFrame):
         atomic_lines_tip = "Show atomic lines\nusing seperation threshold\nset in the 'Line Separ."
         export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off"
-        create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
-        create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
+        create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
+        create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.show_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 5, tip_text=toggle_legend_tip)
 
 
