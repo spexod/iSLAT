@@ -1,4 +1,5 @@
 from typing import Optional, List, Dict, Any, Tuple, Union, TYPE_CHECKING
+from matplotlib import lines
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -380,7 +381,7 @@ class PlotRenderer:
                 fit_mask = (fitted_wave >= xmin) & (fitted_wave <= xmax)
                 if np.any(fit_mask):
                     self.ax2.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], 
-                                color='red', linewidth=2, label='Total Fit')
+                                color='red', linewidth=2, label='Total Fit', linestyle='--')
                     
                     # Check if this is a multi-component fit by looking at the fit result structure
                     if hasattr(gauss_fit, 'params') and gauss_fit.params:
@@ -407,6 +408,12 @@ class PlotRenderer:
 
         except Exception as e:
             debug_config.warning("plot_renderer", f"Could not render fit results: {e}")
+        
+        handles, labels = self.ax2.get_legend_handles_labels()
+        if handles:
+            self.ax2.legend()
+
+        self.canvas.draw_idle()
     
     def _should_clear_old_fits(self) -> bool:
         """Check if old fit results should be cleared when making new selections."""

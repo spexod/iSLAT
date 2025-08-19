@@ -19,7 +19,6 @@ class DataField(ttk.Frame):
 
         self.label_frame.rowconfigure(0, weight=1)
         self.label_frame.columnconfigure(0, weight=1)
-        
 
         # Text widget with scrollbar
         self.text = tk.Text(self.label_frame, height=13, width=24, wrap="word")

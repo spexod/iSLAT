@@ -12,7 +12,7 @@ This class handles all fitting operations including:
 import numpy as np
 from datetime import datetime
 import json
-from lmfit.models import GaussianModel, PseudoVoigtModel
+from lmfit.models import GaussianModel
 from lmfit import Parameters, minimize, fit_report
 from scipy.optimize import fmin
 from scipy.signal import find_peaks
@@ -187,8 +187,8 @@ class FittingEngine:
         
         return result, fitted_wave, fitted_flux
     
-    def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
-        """Fit multiple Gaussian components for deblending (matching old iSLAT behavior)."""
+    '''def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
+        """Fit multiple Gaussian components for deblending"""
         # Estimate number of components and line centers based on detection strategy
         n_components, line_centers = self._estimate_n_components(wave_data, flux_data, xmin, xmax)
         print(f"Detected {n_components} components based on strategy: {self.line_detection_strategy}")
@@ -197,7 +197,7 @@ class FittingEngine:
             # If only one component detected, use single Gaussian fit
             return self._fit_single_gaussian(wave_data, flux_data, initial_guess)
         
-        # Get error data for weights (like old iSLAT)
+        # Get error data for weights
         weights = None
         if hasattr(self.islat, 'err_data') and self.islat.err_data is not None:
             if xmin is not None and xmax is not None:
@@ -216,7 +216,7 @@ class FittingEngine:
         if weights is None:
             weights = np.ones_like(flux_data)
         
-        # Get tolerance settings from user_settings like old iSLAT
+        # Get tolerance settings from user_settings
         centrtolerance = self.islat.user_settings.get('centrtolerance', 0.0001)
         fwhmtolerance = self.islat.user_settings.get('fwhmtolerance', 5)
         
@@ -229,22 +229,22 @@ class FittingEngine:
         sig = fwhm_um / 2.35482  # Convert FWHM to sigma
         sig_tol = (mean_wavelength / 299792.458 * fwhmtolerance) / 2.35482
         
-        # Calculate initial amplitude estimate like old iSLAT
+        # Calculate initial amplitude estimate
         # Total integrated flux divided by number of lines
         total_flux = np.trapz(flux_data, wave_data)
         #total_flux = np.trapz(flux_data, wave_data)
-        garea_fg = total_flux / len(line_centers) * 1e11  # Scaling factor like old iSLAT
+        garea_fg = total_flux / len(line_centers) * 1e11  # Scaling factor
         
-        # Set up parameter bounds based on tolerances like old iSLAT
+        # Set up parameter bounds based on tolerances
         fwhm_vary = sig_tol > 0
         centr_vary = centrtolerance > 0
         
-        # Create composite model exactly like old iSLAT
+        # Create composite model exactly
         model = None
         params = Parameters()
         
         for i in range(n_components):
-            prefix = f'g{i+1}_'  # Use 1-based indexing like old iSLAT
+            prefix = f'g{i+1}_'  # Use 1-based indexing
             if model is None:
                 model = GaussianModel(prefix=prefix)
             else:
@@ -253,7 +253,101 @@ class FittingEngine:
             # Use detected line centers
             center = line_centers[i] if i < len(line_centers) else mean_wavelength
             
-            # Set parameters exactly like old iSLAT
+            # Set parameters exactly
+            params.add(f'{prefix}center', 
+                      value=center, 
+                      vary=centr_vary,
+                      min=center - centrtolerance, 
+                      max=center + centrtolerance)
+            params.add(f'{prefix}sigma', 
+                      value=sig, 
+                      vary=fwhm_vary,
+                      min=sig - sig_tol if sig_tol > 0 else sig * 0.1, 
+                      max=sig + sig_tol if sig_tol > 0 else sig * 10)
+            params.add(f'{prefix}amplitude', 
+                      value=garea_fg, 
+                      min=0)
+        
+        # Perform fit with same method as old iSLAT
+        result = model.fit(flux_data, params, x=wave_data, weights=weights, 
+                          method='leastsq', nan_policy='omit')
+        
+        # Generate fitted curve
+        fitted_wave = np.linspace(wave_data.min(), wave_data.max(), 1000)
+        fitted_flux = result.eval(x=fitted_wave)
+        
+        self.last_fit_result = result
+        self.last_fit_params = result.params
+        
+        return result, fitted_wave, fitted_flux'''
+    
+    def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
+        """Fit multiple Gaussian components for deblending"""
+        # Estimate number of components and line centers based on detection strategy
+        n_components, line_centers = self._estimate_n_components(wave_data, flux_data, xmin, xmax)
+        print(f"Detected {n_components} components based on strategy: {self.line_detection_strategy}")
+        
+        if n_components == 1:
+            # If only one component detected, use single Gaussian fit
+            return self._fit_single_gaussian(wave_data, flux_data, initial_guess)
+        
+        # Get error data for weights
+        weights = None
+        if hasattr(self.islat, 'err_data') and self.islat.err_data is not None:
+            if xmin is not None and xmax is not None:
+                err_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
+                err_fit = self.islat.err_data[err_mask]
+                if len(err_fit) == len(flux_data) and len(err_fit) > 0:
+                    # Avoid division by zero - replace zero or negative errors with a small value
+                    max_err = np.max(err_fit)
+                    if max_err <= 0:
+                        # If all errors are zero or negative, don't use weights
+                        weights = np.ones_like(flux_data)
+                    else:
+                        err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
+                        weights = 1.0 / err_fit_safe
+        
+        if weights is None:
+            weights = np.ones_like(flux_data)
+        
+        # Get tolerance settings from user_settings
+        centrtolerance = self.islat.user_settings.get('centrtolerance', 0.0001)
+        fwhmtolerance = self.islat.user_settings.get('fwhmtolerance', 5)
+        
+        # Get FWHM from the molecule dict (can be updated at runtime)
+        #fwhm = self.islat.molecules_dict.global_fwhm  # km/s
+        fwhm = self.islat.active_molecule.fwhm  # km/s
+        print(f"Using FWHM: {fwhm} km/s")
+        mean_wavelength = np.mean([xmin or wave_data.min(), xmax or wave_data.max()])
+        fwhm_um = mean_wavelength / 299792.458 * fwhm  # Convert km/s to μm
+        sig = fwhm_um / 2.35482  # Convert FWHM to sigma
+        sig_tol = (mean_wavelength / 299792.458 * fwhmtolerance) / 2.35482
+        
+        # Calculate initial amplitude estimate
+        # Total integrated flux divided by number of lines
+        total_flux = np.trapz(flux_data, wave_data)
+        #total_flux = np.trapz(flux_data, wave_data)
+        garea_fg = total_flux / len(line_centers) * 1e11  # Scaling factor
+        
+        # Set up parameter bounds based on tolerances
+        fwhm_vary = sig_tol > 0
+        centr_vary = centrtolerance > 0
+        
+        # Create composite model exactly
+        model = None
+        params = Parameters()
+        
+        for i in range(n_components):
+            prefix = f'g{i+1}_'  # Use 1-based indexing
+            if model is None:
+                model = GaussianModel(prefix=prefix)
+            else:
+                model += GaussianModel(prefix=prefix)
+            
+            # Use detected line centers
+            center = line_centers[i] if i < len(line_centers) else mean_wavelength
+            
+            # Set parameters exactly
             params.add(f'{prefix}center', 
                       value=center, 
                       vary=centr_vary,
@@ -326,7 +420,7 @@ class FittingEngine:
             return self._estimate_components_from_peak_detection(wave_data, flux_data, xmin, xmax)
     
     def _estimate_components_from_peak_detection(self, wave_data, flux_data, xmin=None, xmax=None):
-        """Original peak detection method (default FittingEngine behavior)."""
+        """Peak detection method"""
         peaks, _ = find_peaks(flux_data, height=np.max(flux_data) * 0.1)
         n_components = max(1, min(len(peaks), 3))  # Limit to 3 components
         
@@ -500,120 +594,6 @@ class FittingEngine:
         print("Warning: No user-selected centers in current range, falling back to peak detection")
         return self._estimate_components_from_peak_detection(wave_data, flux_data, xmin, xmax)
     
-    def _estimate_component_params(self, wave_data, flux_data, component_idx, line_centers):
-        """
-        Estimate parameters for a specific component in multi-component fit.
-        
-        Parameters
-        ----------
-        wave_data : array_like
-            Wavelength data
-        flux_data : array_like
-            Flux data
-        component_idx : int
-            Index of component to estimate
-        line_centers : list
-            List of line centers from detection strategy
-            
-        Returns
-        -------
-        dict
-            Parameter estimates for this component
-        """
-        if component_idx < len(line_centers):
-            # Use detected line center
-            center = line_centers[component_idx]
-            
-            # Better amplitude estimation like MainPlotOld: (y_max - y_min) * scaling_factor
-            amplitude = (flux_data.max() - flux_data.min()) * 0.1  # Same as MainPlotOld
-            
-            # Better sigma estimation: use fixed value like MainPlotOld
-            sigma = 0.001  # Same initial value as MainPlotOld
-            
-        else:
-            # Fallback to region-based estimation (original method)
-            wave_range = wave_data[-1] - wave_data[0]
-            region_size = wave_range / max(len(line_centers), 1)
-            region_start = wave_data[0] + component_idx * region_size
-            region_end = region_start + region_size
-            
-            # Find peak in this region
-            mask = (wave_data >= region_start) & (wave_data <= region_end)
-            if np.any(mask):
-                region_flux = flux_data[mask]
-                region_wave = wave_data[mask]
-                max_idx = np.argmax(region_flux)
-                center = region_wave[max_idx]
-                amplitude = region_flux[max_idx]
-            else:
-                center = region_start + region_size / 2
-                amplitude = np.max(flux_data) / max(len(line_centers), 1)
-            
-            sigma = region_size / 4  # Conservative estimate
-        
-        return {'center': center, 'amplitude': amplitude, 'sigma': sigma}
-    
-    def fit_voigt_profile(self, wave_data, flux_data, xmin=None, xmax=None):
-        """
-        Fit a Voigt profile to spectral line data.
-        
-        Parameters
-        ----------
-        wave_data : array_like
-            Wavelength data
-        flux_data : array_like
-            Flux data
-        xmin, xmax : float, optional
-            Wavelength range for fitting
-            
-        Returns
-        -------
-        fit_result : lmfit.ModelResult
-            Fitting result object
-        fitted_wave : array_like
-            Wavelength array for fitted model
-        fitted_flux : array_like
-            Fitted flux values
-        """
-        # Apply wavelength range constraints
-        if xmin is not None and xmax is not None:
-            mask = (wave_data >= xmin) & (wave_data <= xmax)
-            fit_wave = wave_data[mask]
-            fit_flux = flux_data[mask]
-        else:
-            fit_wave = wave_data
-            fit_flux = flux_data
-        
-        model = PseudoVoigtModel()
-        
-        # Initial parameter estimates
-        initial_guess = self._estimate_gaussian_params(fit_wave, fit_flux)
-        
-        params = model.make_params(
-            center=initial_guess['center'],
-            amplitude=initial_guess['amplitude'],
-            sigma=initial_guess['sigma'],
-            fraction=0.5  # Start with equal Gaussian and Lorentzian components
-        )
-        
-        # Set bounds
-        params['center'].set(min=fit_wave.min(), max=fit_wave.max())
-        params['amplitude'].set(min=0)
-        params['sigma'].set(min=1e-6, max=(fit_wave[-1] - fit_wave[0]))
-        params['fraction'].set(min=0, max=1)
-        
-        # Perform fit
-        result = model.fit(fit_flux, params, x=fit_wave)
-        
-        # Generate fitted curve
-        fitted_wave = np.linspace(fit_wave.min(), fit_wave.max(), 1000)
-        fitted_flux = result.eval(x=fitted_wave)
-        
-        self.last_fit_result = result
-        self.last_fit_params = result.params
-        
-        return result, fitted_wave, fitted_flux
-    
     def perform_slab_fit(self, target_file, molecule_name, 
                         start_temp=500, start_n_mol=1e17, start_radius=1.0):
         """
@@ -674,58 +654,6 @@ class FittingEngine:
             print(f"Error in slab fitting: {str(e)}")
             return None
     
-    def calculate_chi_squared(self, wave_obs, flux_obs, flux_error, 
-                            wave_model, flux_model):
-        """
-        Calculate chi-squared statistic between observed and model data.
-        
-        Parameters
-        ----------
-        wave_obs : array_like
-            Observed wavelength data
-        flux_obs : array_like
-            Observed flux data
-        flux_error : array_like
-            Flux uncertainties
-        wave_model : array_like
-            Model wavelength data
-        flux_model : array_like
-            Model flux data
-            
-        Returns
-        -------
-        chi2 : float
-            Chi-squared statistic
-        reduced_chi2 : float
-            Reduced chi-squared statistic
-        """
-        # Interpolate model to observed wavelength grid
-        flux_model_interp = np.interp(wave_obs, wave_model, flux_model)
-        
-        # Calculate chi-squared
-        chi2 = np.sum(((flux_obs - flux_model_interp) / flux_error) ** 2)
-        
-        # Calculate reduced chi-squared (adjust for number of fitted parameters)
-        n_params = len(self.last_fit_params) if self.last_fit_params else 0
-        dof = len(wave_obs) - n_params
-        reduced_chi2 = chi2 / dof if dof > 0 else chi2
-        
-        return chi2, reduced_chi2
-    
-    def get_fit_report(self):
-        """
-        Get a detailed report of the last fitting operation.
-        
-        Returns
-        -------
-        report : str
-            Formatted fit report
-        """
-        if self.last_fit_result is None:
-            return "No fitting results available."
-        
-        return fit_report(self.last_fit_result)
-    
     def get_fit_statistics(self):
         """
         Get statistical information about the last fit.
@@ -776,56 +704,6 @@ class FittingEngine:
         
         return len(component_prefixes) > 1
 
-    def get_component_prefixes(self):
-        """
-        Get the component prefixes from the last fit result.
-        
-        Returns
-        -------
-        list
-            List of component prefixes (e.g., ['g0_', 'g1_'])
-        """
-        if self.last_fit_result is None or self.last_fit_params is None:
-            return []
-        
-        component_prefixes = set()
-        for param_name in self.last_fit_params:
-            if '_' in param_name:
-                prefix = param_name.split('_')[0] + '_'
-                if prefix.startswith('g') and prefix[1:-1].isdigit():
-                    component_prefixes.add(prefix)
-        
-        return sorted(list(component_prefixes))
-    
-    def evaluate_fit_components(self, x_data):
-        """
-        Evaluate individual components of a multi-component fit.
-        
-        Parameters
-        ----------
-        x_data : array_like
-            X values to evaluate at
-            
-        Returns
-        -------
-        dict
-            Dictionary mapping component names to flux arrays
-        """
-        if self.last_fit_result is None:
-            return {}
-        
-        if not self.is_multi_component_fit():
-            # Single component - return the full fit
-            return {'total': self.last_fit_result.eval(x=x_data)}
-        
-        # Multi-component fit
-        try:
-            components = self.last_fit_result.eval_components(x=x_data)
-            return components
-        except Exception as e:
-            print(f"Error evaluating fit components: {e}")
-            return {'total': self.last_fit_result.eval(x=x_data)}
-
     def extract_line_parameters(self):
         """
         Extract line parameters from the last fitting result.
@@ -868,7 +746,7 @@ class FittingEngine:
         # Extract parameters for multi-component fits (check both 0-based and 1-based prefixes)
         component_idx = 0
         
-        # First try 1-based prefixes (like old iSLAT: g1_, g2_, etc.)
+        # First try 1-based prefixes (g1_, g2_, etc.)
         while f'g{component_idx+1}_center' in params:
             prefix = f'g{component_idx+1}_'
             component_params = {}
@@ -935,42 +813,6 @@ class FittingEngine:
         
         return line_params
     
-    def save_fit_results(self, filename=None):
-        """
-        Save fit results to a JSON file.
-        
-        Parameters
-        ----------
-        filename : str, optional
-            Output filename. If None, generates timestamp-based name
-            
-        Returns
-        -------
-        str
-            Path to saved file
-        """
-        if self.last_fit_result is None:
-            raise ValueError("No fit results available to save")
-            
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"fit_results_{timestamp}.json"
-            
-        # Extract comprehensive fit information
-        fit_data = {
-            'timestamp': datetime.now().isoformat(),
-            'fit_method': 'gaussian_line_fitting',
-            'parameters': self.extract_line_parameters(),
-            'statistics': self.get_fit_statistics(),
-            'fit_report': self.get_fit_report()
-        }
-        
-        # Save to JSON file
-        with open(filename, 'w') as f:
-            json.dump(fit_data, f, indent=2, default=str)
-            
-        return filename
-
     def format_fit_results_for_csv(self, fit_result, wave_data, flux_data, error_data, 
                                    xmin, xmax, rest_wavelength, line_info, sig_det_lim=2):
         """

@@ -821,7 +821,7 @@ class iSLATPlot:
             self.islat.wave_data
         )
     
-    def compute_fit_line(self, xmin=None, xmax=None, deblend=False):
+    def compute_fit_line(self, xmin=None, xmax=None, deblend=False, update_plot=True):
         """
         Compute fit line using FittingEngine with data access.
         
@@ -856,6 +856,8 @@ class iSLATPlot:
                 x_fit, y_fit, xmin=xmin, xmax=xmax, deblend=deblend
             )
             self.fit_result = fit_result, fitted_wave, fitted_flux
+            if update_plot:
+                self.plot_renderer._render_fit_results_in_line_inspection(fit_result=self.fit_result, xmin=xmin, xmax=xmax, max_y=fitted_flux.max())
             return self.fit_result
         except Exception as e:
             debug_config.error("main_plot", f"Error in fitting: {str(e)}")

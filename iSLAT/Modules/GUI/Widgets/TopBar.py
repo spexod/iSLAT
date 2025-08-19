@@ -230,7 +230,7 @@ class TopBar(ResizableFrame):
                             center_err = comp_params.get('center_stderr', 0)
                             center_err_str = f"{center_err:.5f}" if center_err is not None else "N/A"
                             
-                            # Convert FWHM to km/s like old iSLAT
+                            # Convert FWHM to km/s
                             fwhm_kms = comp_params['fwhm'] / comp_params['center'] * 299792.458  # c in km/s
                             fwhm_err_kms = "N/A"  # Would need proper error propagation
                             
@@ -277,13 +277,13 @@ class TopBar(ResizableFrame):
                         if component_idx == 0:
                             self.data_field.insert_text("No components found in fit result.\n", clear_first=False)
                         else:
-                            # Show both detailed results AND the classic save message
+                            # Show both detailed results
                             self.data_field.insert_text(f"\nDe-blended line fit completed with {component_idx} components!", clear_first=False)
                             if saved_components > 0:
                                 self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_first=False)
                             
                     else:
-                        # Single Gaussian fit - show detailed results like old iSLAT
+                        # Single Gaussian fit - show detailed results
                         self.data_field.insert_text("\nGaussian fit results:\n", clear_first=False)
                         
                         if 'center' in line_params:
@@ -291,7 +291,7 @@ class TopBar(ResizableFrame):
                             center_err = line_params.get('center_stderr', 0)
                             center_err_str = f"{center_err:.5f}" if center_err is not None else "N/A"
                             
-                            # Convert FWHM to km/s like old iSLAT (approximately)
+                            # Convert FWHM to km/s (approximately)
                             fwhm_kms = line_params['fwhm'] / line_params['center'] * 299792.458  # c in km/s
                             fwhm_err_kms = "N/A"  # Would need proper error propagation
                             
@@ -307,9 +307,6 @@ class TopBar(ResizableFrame):
                     self.data_field.insert_text("Fit completed but no valid result object returned.\n", clear_first=False)
             else:
                 self.data_field.insert_text("Fit failed or insufficient data.\n", clear_first=False)
-            
-            # Update plots
-            #self.main_plot.plot_line_inspection(highlight_strongest=False)
             
         except Exception as e:
             self.data_field.insert_text(f"Error during fitting: {e}\n", clear_first=False)
