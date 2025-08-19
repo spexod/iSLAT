@@ -9,8 +9,6 @@ from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
 from .Widgets.DataField import DataField
 from .Widgets.MoleculeWindow import MoleculeWindow
 from .Widgets.ControlPanel import ControlPanel
-from .Widgets.TopOptions import TopOptions
-from .Widgets.BottomOptions import BottomOptions
 from .Widgets.TopBar import TopBar
 from .Widgets.ResizableFrame import ResizableFrame
 from .Widgets.FileInteractionPane import FileInteractionPane
