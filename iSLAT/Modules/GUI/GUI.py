@@ -264,7 +264,7 @@ class GUI:
         self.master.geometry(f"{window_width}x{window_height}+{pos_x}+{pos_y}")
 
     @staticmethod
-    def file_selector(title : str = None, filetypes=None, initialdir=None, use_abspath=True):
+    def file_selector(title : str = None, filetypes=None, initialdir=None, use_abspath=True, allow_multiple=False):
         window_title = title if title else "Select File"
         if use_abspath and initialdir:
             initialdir = os.path.abspath(initialdir)
@@ -277,6 +277,14 @@ class GUI:
             filetypes = [(filetypes, "*.*")]
         else:
             filetypes = filetypes
+        
+        if allow_multiple:
+            file_paths = filedialog.askopenfilenames(
+                title=window_title,
+                filetypes=filetypes,
+                initialdir=initialdir
+            )
+            return list(file_paths)
         
         file_path = filedialog.askopenfilename(
             title=window_title,

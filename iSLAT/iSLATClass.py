@@ -162,7 +162,8 @@ class iSLAT:
         if hitran_files is None:
             hitran_files = GUI.file_selector(title='Choose HITRAN Data Files (select multiple with Ctrl/Cmd)',
                                                   filetypes=[('PAR Files', '*.par')],
-                                                  initialdir=os.path.abspath("DATAFILES/HITRANdata"))
+                                                  initialdir=os.path.abspath("DATAFILES/HITRANdata"),
+                                                  allow_multiple=True)
             
         if not hitran_files:
             print("No HITRAN files selected.")
