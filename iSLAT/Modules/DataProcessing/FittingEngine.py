@@ -10,15 +10,13 @@ This class handles all fitting operations including:
 """
 
 import numpy as np
-from datetime import datetime
-import json
 from lmfit.models import GaussianModel
 from lmfit import Parameters, minimize, fit_report
 from scipy.optimize import fmin
 from scipy.signal import find_peaks
 #from iSLAT.Modules.DataTypes import Chi2Spectrum, FluxMeasurement
 from iSLAT.Modules.DataProcessing.Slabfit import SlabFit
-import json
+import iSLAT.Constants as c
 
 class FittingEngine:
     """
@@ -187,100 +185,36 @@ class FittingEngine:
         
         return result, fitted_wave, fitted_flux
     
-    '''def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
-        """Fit multiple Gaussian components for deblending"""
-        # Estimate number of components and line centers based on detection strategy
-        n_components, line_centers = self._estimate_n_components(wave_data, flux_data, xmin, xmax)
-        print(f"Detected {n_components} components based on strategy: {self.line_detection_strategy}")
+    def flux_integral(self, lam, flux, err, lam_min, lam_max):
+        # Use vectorized operations for efficiency
+        wavelength_mask = (lam >= lam_min) & (lam <= lam_max)
         
-        if n_components == 1:
-            # If only one component detected, use single Gaussian fit
-            return self._fit_single_gaussian(wave_data, flux_data, initial_guess)
-        
-        # Get error data for weights
-        weights = None
-        if hasattr(self.islat, 'err_data') and self.islat.err_data is not None:
-            if xmin is not None and xmax is not None:
-                err_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
-                err_fit = self.islat.err_data[err_mask]
-                if len(err_fit) == len(flux_data) and len(err_fit) > 0:
-                    # Avoid division by zero - replace zero or negative errors with a small value
-                    max_err = np.max(err_fit)
-                    if max_err <= 0:
-                        # If all errors are zero or negative, don't use weights
-                        weights = np.ones_like(flux_data)
-                    else:
-                        err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
-                        weights = 1.0 / err_fit_safe
-        
-        if weights is None:
-            weights = np.ones_like(flux_data)
-        
-        # Get tolerance settings from user_settings
-        centrtolerance = self.islat.user_settings.get('centrtolerance', 0.0001)
-        fwhmtolerance = self.islat.user_settings.get('fwhmtolerance', 5)
-        
-        # Get FWHM from the molecule dict (can be updated at runtime)
-        #fwhm = self.islat.molecules_dict.global_fwhm  # km/s
-        fwhm = self.islat.active_molecule.fwhm  # km/s
-        print(f"Using FWHM: {fwhm} km/s")
-        mean_wavelength = np.mean([xmin or wave_data.min(), xmax or wave_data.max()])
-        fwhm_um = mean_wavelength / 299792.458 * fwhm  # Convert km/s to μm
-        sig = fwhm_um / 2.35482  # Convert FWHM to sigma
-        sig_tol = (mean_wavelength / 299792.458 * fwhmtolerance) / 2.35482
-        
-        # Calculate initial amplitude estimate
-        # Total integrated flux divided by number of lines
-        total_flux = np.trapz(flux_data, wave_data)
-        #total_flux = np.trapz(flux_data, wave_data)
-        garea_fg = total_flux / len(line_centers) * 1e11  # Scaling factor
-        
-        # Set up parameter bounds based on tolerances
-        fwhm_vary = sig_tol > 0
-        centr_vary = centrtolerance > 0
-        
-        # Create composite model exactly
-        model = None
-        params = Parameters()
-        
-        for i in range(n_components):
-            prefix = f'g{i+1}_'  # Use 1-based indexing
-            if model is None:
-                model = GaussianModel(prefix=prefix)
-            else:
-                model += GaussianModel(prefix=prefix)
+        if not np.any(wavelength_mask):
+            return 0.0, 0.0
             
-            # Use detected line centers
-            center = line_centers[i] if i < len(line_centers) else mean_wavelength
+        lam_range = lam[wavelength_mask]
+        flux_range = flux[wavelength_mask]
+        
+        if len(lam_range) < 2:
+            return 0.0, 0.0
+        
+        # Convert to frequency space for proper integration
+        freq_range = c.SPEED_OF_LIGHT_KMS / lam_range
+        
+        # Integrate in frequency space (reverse order for proper frequency ordering)
+        line_flux_meas = np.trapz(flux_range[::-1], x=freq_range[::-1])
+        line_flux_meas = -line_flux_meas * 1e-23  # Convert Jy*Hz to erg/s/cm^2
+        
+        # Calculate error propagation if error data provided
+        if err is not None:
+            err_range = err[wavelength_mask]
+            line_err_meas = np.trapz(err_range[::-1], x=freq_range[::-1])
+            line_err_meas = -line_err_meas * 1e-23
+        else:
+            line_err_meas = 0.0
             
-            # Set parameters exactly
-            params.add(f'{prefix}center', 
-                      value=center, 
-                      vary=centr_vary,
-                      min=center - centrtolerance, 
-                      max=center + centrtolerance)
-            params.add(f'{prefix}sigma', 
-                      value=sig, 
-                      vary=fwhm_vary,
-                      min=sig - sig_tol if sig_tol > 0 else sig * 0.1, 
-                      max=sig + sig_tol if sig_tol > 0 else sig * 10)
-            params.add(f'{prefix}amplitude', 
-                      value=garea_fg, 
-                      min=0)
-        
-        # Perform fit with same method as old iSLAT
-        result = model.fit(flux_data, params, x=wave_data, weights=weights, 
-                          method='leastsq', nan_policy='omit')
-        
-        # Generate fitted curve
-        fitted_wave = np.linspace(wave_data.min(), wave_data.max(), 1000)
-        fitted_flux = result.eval(x=fitted_wave)
-        
-        self.last_fit_result = result
-        self.last_fit_params = result.params
-        
-        return result, fitted_wave, fitted_flux'''
-    
+        return line_flux_meas, line_err_meas
+
     def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
         """Fit multiple Gaussian components for deblending"""
         # Estimate number of components and line centers based on detection strategy
@@ -319,9 +253,10 @@ class FittingEngine:
         fwhm = self.islat.active_molecule.fwhm  # km/s
         print(f"Using FWHM: {fwhm} km/s")
         mean_wavelength = np.mean([xmin or wave_data.min(), xmax or wave_data.max()])
-        fwhm_um = mean_wavelength / 299792.458 * fwhm  # Convert km/s to μm
+        #fwhm_um = mean_wavelength / 299792.458 * fwhm  # Convert km/s to μm
+        fwhm_um = mean_wavelength / c.SPEED_OF_LIGHT_KMS * fwhm  # Convert km/s to μm
         sig = fwhm_um / 2.35482  # Convert FWHM to sigma
-        sig_tol = (mean_wavelength / 299792.458 * fwhmtolerance) / 2.35482
+        sig_tol = (mean_wavelength / c.SPEED_OF_LIGHT_KMS * fwhmtolerance) / 2.35482
         
         # Calculate initial amplitude estimate
         # Total integrated flux divided by number of lines
@@ -340,32 +275,43 @@ class FittingEngine:
         for i in range(n_components):
             prefix = f'g{i+1}_'  # Use 1-based indexing
             if model is None:
-                model = GaussianModel(prefix=prefix)
+                current_model = GaussianModel(prefix=prefix)
+                model = current_model
+                params = current_model.guess(flux_data, x=wave_data)
             else:
-                model += GaussianModel(prefix=prefix)
+                current_model = GaussianModel(prefix=prefix)
+                model += current_model
             
             # Use detected line centers
             center = line_centers[i] if i < len(line_centers) else mean_wavelength
-            
-            # Set parameters exactly
-            params.add(f'{prefix}center', 
-                      value=center, 
-                      vary=centr_vary,
-                      min=center - centrtolerance, 
-                      max=center + centrtolerance)
-            params.add(f'{prefix}sigma', 
-                      value=sig, 
-                      vary=fwhm_vary,
-                      min=sig - sig_tol if sig_tol > 0 else sig * 0.1, 
-                      max=sig + sig_tol if sig_tol > 0 else sig * 10)
-            params.add(f'{prefix}amplitude', 
-                      value=garea_fg, 
-                      min=0)
-        
-        # Perform fit with same method as old iSLAT
+
+            center_dict = {
+                'value': center,
+                'vary': centr_vary,
+                'min': center - centrtolerance,
+                'max': center + centrtolerance
+            }
+
+            sigma_dict = {
+                'value': sig,
+                'vary': fwhm_vary,
+                'min': sig - sig_tol if sig_tol > 0 else sig * 0.1,
+                'max': sig + sig_tol if sig_tol > 0 else sig * 10
+            }
+
+            amplitude_dict = {
+                'value': garea_fg,
+                'min': 0
+            }
+
+            params.update(current_model.make_params(center = center_dict, sigma = sigma_dict, amplitude = amplitude_dict))
+
+        # Perform fit with
         result = model.fit(flux_data, params, x=wave_data, weights=weights, 
                           method='leastsq', nan_policy='omit')
         
+        print(result.fit_report())
+
         # Generate fitted curve
         fitted_wave = np.linspace(wave_data.min(), wave_data.max(), 1000)
         fitted_flux = result.eval(x=fitted_wave)
@@ -750,16 +696,17 @@ class FittingEngine:
         while f'g{component_idx+1}_center' in params:
             prefix = f'g{component_idx+1}_'
             component_params = {}
-            
+
             component_params['center'] = params[f'{prefix}center'].value
             component_params['center_stderr'] = params[f'{prefix}center'].stderr if params[f'{prefix}center'].stderr is not None else None
             component_params['amplitude'] = params[f'{prefix}amplitude'].value
             component_params['amplitude_stderr'] = params[f'{prefix}amplitude'].stderr if params[f'{prefix}amplitude'].stderr is not None else None
             component_params['sigma'] = params[f'{prefix}sigma'].value
             component_params['sigma_stderr'] = params[f'{prefix}sigma'].stderr if params[f'{prefix}sigma'].stderr is not None else None
-            
+            component_params['fwhm'] = params[f'{prefix}fwhm'].value
+            component_params['fwhm_stderr'] = params[f'{prefix}fwhm'].stderr if params[f'{prefix}fwhm'].stderr is not None else None
+
             # Calculate derived parameters for component
-            component_params['fwhm'] = 2.355 * params[f'{prefix}sigma'].value
             component_params['area'] = (np.sqrt(2 * np.pi) * 
                                       params[f'{prefix}amplitude'].value * 
                                       params[f'{prefix}sigma'].value)
@@ -777,39 +724,6 @@ class FittingEngine:
             
             line_params[f'component_{component_idx}'] = component_params
             component_idx += 1
-        
-        # If no 1-based prefixes found, try 0-based prefixes (g0_, g1_, etc.)
-        if component_idx == 0:
-            while f'g{component_idx}_center' in params:
-                prefix = f'g{component_idx}_'
-                component_params = {}
-                
-                component_params['center'] = params[f'{prefix}center'].value
-                component_params['center_stderr'] = params[f'{prefix}center'].stderr if params[f'{prefix}center'].stderr is not None else None
-                component_params['amplitude'] = params[f'{prefix}amplitude'].value
-                component_params['amplitude_stderr'] = params[f'{prefix}amplitude'].stderr if params[f'{prefix}amplitude'].stderr is not None else None
-                component_params['sigma'] = params[f'{prefix}sigma'].value
-                component_params['sigma_stderr'] = params[f'{prefix}sigma'].stderr if params[f'{prefix}sigma'].stderr is not None else None
-                
-                # Calculate derived parameters for component
-                component_params['fwhm'] = 2.355 * params[f'{prefix}sigma'].value
-                component_params['area'] = (np.sqrt(2 * np.pi) * 
-                                          params[f'{prefix}amplitude'].value * 
-                                          params[f'{prefix}sigma'].value)
-                
-                # Calculate area error for component
-                if (params[f'{prefix}amplitude'].stderr is not None and 
-                    params[f'{prefix}sigma'].stderr is not None):
-                    area_err = np.sqrt(2 * np.pi) * np.sqrt(
-                        (params[f'{prefix}sigma'].value * params[f'{prefix}amplitude'].stderr)**2 +
-                        (params[f'{prefix}amplitude'].value * params[f'{prefix}sigma'].stderr)**2
-                    )
-                    component_params['area_stderr'] = area_err
-                else:
-                    component_params['area_stderr'] = None
-                
-                line_params[f'component_{component_idx}'] = component_params
-                component_idx += 1
         
         return line_params
     

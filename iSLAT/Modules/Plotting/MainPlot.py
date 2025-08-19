@@ -614,34 +614,7 @@ class iSLATPlot:
         tuple
             (line_flux_meas, line_err_meas) in erg/s/cm^2
         """
-        # Use vectorized operations for efficiency
-        wavelength_mask = (lam >= lam_min) & (lam <= lam_max)
-        
-        if not np.any(wavelength_mask):
-            return 0.0, 0.0
-            
-        lam_range = lam[wavelength_mask]
-        flux_range = flux[wavelength_mask]
-        
-        if len(lam_range) < 2:
-            return 0.0, 0.0
-        
-        # Convert to frequency space for proper integration
-        freq_range = c.SPEED_OF_LIGHT_KMS / lam_range
-        
-        # Integrate in frequency space (reverse order for proper frequency ordering)
-        line_flux_meas = np.trapz(flux_range[::-1], x=freq_range[::-1])
-        line_flux_meas = -line_flux_meas * 1e-23  # Convert Jy*Hz to erg/s/cm^2
-        
-        # Calculate error propagation if error data provided
-        if err is not None:
-            err_range = err[wavelength_mask]
-            line_err_meas = np.trapz(err_range[::-1], x=freq_range[::-1])
-            line_err_meas = -line_err_meas * 1e-23
-        else:
-            line_err_meas = 0.0
-            
-        return line_flux_meas, line_err_meas
+        self.fitting_engine.flux_integral(lam, flux, err, lam_min, lam_max)
 
     def clear_active_lines(self) -> None:
         """

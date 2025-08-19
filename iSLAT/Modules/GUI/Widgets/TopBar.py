@@ -228,17 +228,17 @@ class TopBar(ResizableFrame):
                             
                             # Handle None values in stderr parameters
                             center_err = comp_params.get('center_stderr', 0)
-                            center_err_str = f"{center_err:.5f}" if center_err is not None else "N/A"
+                            center_err_str = f"{center_err:.5f}" if center_err is not None else "0"
                             
                             # Convert FWHM to km/s
-                            fwhm_kms = comp_params['fwhm'] / comp_params['center'] * 299792.458  # c in km/s
-                            fwhm_err_kms = "N/A"  # Would need proper error propagation
+                            fwhm_err = line_params.get('fwhm_stderr', 0)
+                            fwhm_err_kms = f"{fwhm_err:.1f}" if fwhm_err is not None else "0"
                             
                             area_err = comp_params.get('area_stderr', 0)
-                            area_err_str = f"{area_err:.3e}" if area_err is not None else "N/A"
+                            area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
                             
                             self.data_field.insert_text(f"Centroid (μm) = {comp_params['center']:.5f} +/- {center_err_str}", clear_first=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {fwhm_kms:.1f} +/- {fwhm_err_kms}", clear_first=False)
+                            self.data_field.insert_text(f"FWHM (km/s) = {comp_params['fwhm']:.1f} +/- {fwhm_err_kms}", clear_first=False)
                             self.data_field.insert_text(f"Area (erg/s/cm2) = {comp_params['area']:.3e} +/- {area_err_str}", clear_first=False)
                             
                             # Automatically save this component
@@ -289,17 +289,16 @@ class TopBar(ResizableFrame):
                         if 'center' in line_params:
                             # Handle None values in stderr parameters
                             center_err = line_params.get('center_stderr', 0)
-                            center_err_str = f"{center_err:.5f}" if center_err is not None else "N/A"
+                            center_err_str = f"{center_err:.5f}" if center_err is not None else "0"
                             
-                            # Convert FWHM to km/s (approximately)
-                            fwhm_kms = line_params['fwhm'] / line_params['center'] * 299792.458  # c in km/s
-                            fwhm_err_kms = "N/A"  # Would need proper error propagation
+                            fwhm_err = line_params.get('fwhm_stderr', 0)
+                            fwhm_err_kms = f"{fwhm_err:.1f}" if fwhm_err is not None else "0"
                             
                             area_err = line_params.get('area_stderr', 0)
-                            area_err_str = f"{area_err:.3e}" if area_err is not None else "N/A"
+                            area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
                             
                             self.data_field.insert_text(f"Centroid (μm) = {line_params['center']:.5f} +/- {center_err_str}", clear_first=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {fwhm_kms:.1f} +/- {fwhm_err_kms}", clear_first=False)
+                            self.data_field.insert_text(f"FWHM (km/s) = {comp_params['fwhm']:.1f} +/- {fwhm_err_kms}", clear_first=False)
                             self.data_field.insert_text(f"Area (erg/s/cm2) = {line_params['area']:.3e} +/- {area_err_str}", clear_first=False)
                         else:
                             self.data_field.insert_text("Could not extract fit parameters.\n", clear_first=False)
