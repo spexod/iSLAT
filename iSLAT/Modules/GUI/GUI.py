@@ -39,6 +39,7 @@ class GUI:
         self.config = config
         self.theme = config["theme"]
         self.islat_class = islat_class_ref
+        self.default_font = font.nametofont("TkDefaultFont")
         
         # Apply theme to root window
         # self._apply_theme_to_widget(self.master)
@@ -286,7 +287,7 @@ class GUI:
         return file_path
 
     def build_left_panel(self, parent: tk.Frame):
-        self.control_panel = ControlPanel(parent, self.islat_class, self.plot)
+        self.control_panel = ControlPanel(parent, self.islat_class, self.plot, self.default_font)
         self.control_panel.grid(padx=(1,0), sticky="nsew", pady=0)
 
         # Spectrum file selector
