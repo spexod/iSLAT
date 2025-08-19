@@ -739,26 +739,26 @@ class PlotRenderer:
         """
         for line_data in active_lines_list:
             if len(line_data) >= 2:
-                line_artist = line_data[0]  # Line artist (vlines)
-                text_artist = line_data[1]
-                scatter_artist = line_data[2]  # Scatter artist
+                line_artist = line_data[0] # Line artist (vlines)
+                text_artist = line_data[1] 
+                scatter_artist = line_data[2] if len(line_data) > 2 else None # Scatter artist
                 
                 # Remove line artist if it exists
-                if line_artist is not None:
+                if line_artist is not None and getattr(line_artist, 'axes', None) is not None:
                     try:
                         line_artist.remove()
                     except (ValueError, AttributeError):
                         pass
                 
                 # Remove text artist if it exists
-                if text_artist is not None:
+                if text_artist is not None and getattr(text_artist, 'axes', None) is not None:
                     try:
                         text_artist.remove()
                     except (ValueError, AttributeError):
                         pass
 
                 # Remove scatter artist if it exists
-                if scatter_artist is not None:
+                if scatter_artist is not None and getattr(scatter_artist, 'axes', None) is not None:
                     try:
                         scatter_artist.remove()
                     except (ValueError, AttributeError):
