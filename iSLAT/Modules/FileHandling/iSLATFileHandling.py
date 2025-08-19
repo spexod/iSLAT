@@ -147,6 +147,11 @@ def read_HITRAN_data(file_path):
         return []
 
 def read_line_saves(file_path=save_folder_path, file_name=line_saves_file_name) -> pd.DataFrame:
+    if not file_path or not file_name:
+        return pd.DataFrame()
+    
+    print(f"joining {file_path} and {file_name}")
+
     filename = os.path.join(file_path, file_name)
     if os.path.exists(filename):
         try:

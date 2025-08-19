@@ -41,6 +41,8 @@ class TopBar(ResizableFrame):
         self.config = config
         self.control_panel = control_panel
 
+        self.atomic_lines = []
+
         self.button_frame = tk.Frame(self)
         self.button_frame.grid(row=0, column=1)
 
@@ -90,7 +92,6 @@ class TopBar(ResizableFrame):
         spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
-        spec_functions_menu.add_command(label="Show Atomic Lines", command=self.show_atomic_lines)
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
         saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
@@ -98,7 +99,8 @@ class TopBar(ResizableFrame):
         export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off"
         create_button(self.button_frame, self.theme, "Show Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
-        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6, tip_text=toggle_legend_tip)
+        create_button(self.button_frame, self.theme, "Show Atomic Lines", self.show_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
+        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 5, tip_text=toggle_legend_tip)
 
 
     def save_line(self, save_type="selected"):
@@ -182,7 +184,7 @@ class TopBar(ResizableFrame):
         try:
             # Load saved lines from file
             saved_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
-            if saved_lines.empty:
+            if saved_lines.empty:       
                 self.data_field.insert_text("No saved lines found.\n")
                 return
                 
@@ -457,6 +459,18 @@ class TopBar(ResizableFrame):
         Show atomic lines as vertical dashed lines on the plot.
         Replicates the functionality from the original iSLAT atomic lines feature.
         """
+        if self.atomic_lines:
+            for (line, text) in self.atomic_lines:
+                try:
+                    line.remove()
+                    text.remove()
+                except ValueError:
+                    pass
+            
+            self.atomic_lines.clear()
+            self.main_plot.canvas.draw()
+            return
+
         try:
             # Load atomic lines from file using the file handling module
             atomic_lines = ifh.load_atomic_lines()
@@ -475,8 +489,9 @@ class TopBar(ResizableFrame):
                 line_ids = atomic_lines['line'].values
                 
                 # Plot vertical lines for each atomic line
+                
                 for i in range(len(wavelengths)):
-                    ax1.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
+                    line = ax1.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
                     
                     # Adjust the y-coordinate to place labels within the plot borders
                     ylim = ax1.get_ylim()
@@ -488,8 +503,10 @@ class TopBar(ResizableFrame):
                     
                     # Add text label for the line
                     label_text = f"{species[i]} {line_ids[i]}"
-                    ax1.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
-                            va='top', ha='left', color='tomato')
+                    label = ax1.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
+                                                        va='top', ha='left', color='tomato')
+                    
+                    self.atomic_lines.append((line, label))
                 
                 # Update the plot
                 self.main_plot.canvas.draw()
