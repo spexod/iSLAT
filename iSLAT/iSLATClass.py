@@ -6,7 +6,7 @@ import pandas as pd
 import os
 import time
 
-from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_save_data, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
+from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
 from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path
 
 import iSLAT.Constants as c
@@ -144,8 +144,7 @@ class iSLAT:
         except Exception as e:
             print(f"Error loading molecules: {e}")
 
-    def add_molecule_from_hitran(self, refresh=True, hitran_files=None, molecule_names=None, 
-                                base_molecules=None, isotopes=None, use_parallel=False):
+    def add_molecule_from_hitran(self, refresh=True, hitran_files=None, molecule_names=None, use_parallel=False):
         """
         Adds one or more molecules to the iSLAT instance from HITRAN files.
         
@@ -157,10 +156,6 @@ class iSLAT:
             Single file path or list of file paths. If None, opens file dialog for multiple selection
         molecule_names : str or list
             Single molecule name or list of molecule names corresponding to files
-        base_molecules : str or list
-            Single base molecule or list of base molecules (currently unused)
-        isotopes : int or list
-            Single isotope or list of isotopes (currently unused)
         use_parallel : bool, default False
             Whether to prefer parallel loading when beneficial
         """
@@ -171,7 +166,7 @@ class iSLAT:
             
         if not hitran_files:
             print("No HITRAN files selected.")
-            return
+            return False
         
         # Convert single file to list for consistent processing
         if isinstance(hitran_files, str):
@@ -181,15 +176,14 @@ class iSLAT:
         if molecule_names is not None and isinstance(molecule_names, str):
             molecule_names = [molecule_names]
         
-        # Prepare molecule data for parallel processing
+        # Prepare molecule data
         molecules_data = []
-        
         for i, hitran_file in enumerate(hitran_files):
             # Get molecule name for this file
             if molecule_names is not None and i < len(molecule_names):
                 molecule_name = molecule_names[i]
             else:
-                # Extract molecule name from file name
+                # Extract and clean molecule name from file name
                 molecule_file_name = os.path.basename(hitran_file)
                 molecule_name = molecule_file_name
                 # Clean up the molecule name for use as a Python identifier and display
@@ -199,7 +193,7 @@ class iSLAT:
                     molecule_name = 'm_' + molecule_name
                 molecule_name = molecule_name.upper()
             
-            # Prepare molecule data dictionary for parallel processing
+            # Create molecule data dictionary using existing format
             mol_data = {
                 "name": molecule_name,
                 "Molecule Name": molecule_name,
@@ -214,23 +208,21 @@ class iSLAT:
         
         try:
             start_time = time.time()
-            
             results = self.molecules_dict.load_molecules(
                 molecules_data, 
-                self.initial_molecule_parameters,
+                read_full_molecule_parameters(),
                 strategy="auto",
-                force_multiprocessing=use_parallel or self.use_parallel_processing
+                force_multiprocessing=use_parallel or getattr(self, '_use_parallel_processing', False)
             )
-            
             elapsed_time = time.time() - start_time
-            success_count = results["success"]
             
             print(f"Loading completed in {elapsed_time:.3f}s")
             
+            success_count = results.get("success", 0)
             if success_count > 0:
                 print(f"Successfully loaded {success_count} molecules.")
                 
-                # Trigger GUI refresh if requested
+                # Refresh GUI if requested using existing GUI methods
                 if refresh and hasattr(self, 'GUI') and self.GUI is not None:
                     try:
                         self.GUI.control_panel.refresh_from_molecules_dict()
@@ -241,14 +233,17 @@ class iSLAT:
             else:
                 print("No molecules were successfully loaded.")
             
-            if results["failed"] > 0:
+            if results.get("failed", 0) > 0:
                 print(f"Failed to load {results['failed']} molecules:")
                 for error in results.get("errors", []):
                     print(f"  - {error}")
+            
+            return success_count > 0
                     
         except Exception as e:
             print(f"Error during molecule loading: {e}")
             print("No molecules were loaded due to the error.")
+            return False
 
     def check_HITRAN(self):
         """

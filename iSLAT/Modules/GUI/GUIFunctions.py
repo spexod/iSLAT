@@ -2,8 +2,6 @@ import tkinter as tk
 from tkinter import ttk, font
 from .Tooltips import CreateToolTip
 
-
-
 def create_button(frame, theme, text, command, row, column, tip_text = None):
         btn_theme = theme["buttons"].get(
             text.replace(" ", ""), theme["buttons"]["DefaultBotton"]
@@ -71,6 +69,8 @@ def create_wrapper_frame(parent, row, col, bg = "darkgrey", sticky = "nsew", col
 
 class ColorButton(tk.Label):
     def __init__(self, master, color="#4CAF50", command=None, **kwargs):
+        if color is None:
+            color = "#4CAF50"
         super().__init__(master, bg=color, width=2, height=1,relief="flat", **kwargs)
         self.color = self._to_hex_color(color)
         self.command = command
@@ -141,12 +141,3 @@ class ColorButton(tk.Label):
 
     def add_command(self, command=None):
         self.command = command
-
-
-
-
-
-
-
-
-        

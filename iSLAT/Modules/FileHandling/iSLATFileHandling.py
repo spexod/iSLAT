@@ -95,6 +95,15 @@ def read_from_user_csv(file_path=save_folder_path, file_name=molecule_list_file_
             pass
     return MOLECULES_DATA
 
+def read_full_molecule_parameters(file_path=config_file_path, file_name=default_molecule_parameters_file_name):
+    """
+    read_default_molecule_parameters() updates the default molecule parameters from the DefaultMoleculeParameters.json file.
+    """
+    file = os.path.join(file_path, file_name)
+    with open(file, 'r') as f:
+        default_molecule_parameters = json.load(f)
+    return default_molecule_parameters
+
 def read_default_molecule_parameters(file_path=config_file_path, file_name=default_molecule_parameters_file_name):
     """
     read_default_molecule_parameters() updates the default molecule parameters from the DefaultMoleculeParameters.json file.

@@ -923,7 +923,7 @@ class MoleculeDict(dict):
             # Get initial parameters for this molecule with fallback
             mol_initial_params = initial_molecule_parameters.get(
                 mol_name, 
-                initial_molecule_parameters.get('default', {})
+                initial_molecule_parameters.get('default_initial_params', {})
             )
 
             # Determine data source and extract parameters efficiently
@@ -952,6 +952,8 @@ class MoleculeDict(dict):
                 return default
             
             temp = safe_extract_float("Temp")
+            print(f"Loading molecule '{mol_name}' with Temp: {temp}")
+            print(f"Inital parameters: {mol_initial_params}")
             radius = safe_extract_float("Rad") 
             n_mol = safe_extract_float("N_Mol")
             is_visible = mol_data.get("Vis", True)
