@@ -1,18 +1,14 @@
 import tkinter as tk
-from tkinter import filedialog, ttk, font, simpledialog
-# from ttkthemes import ThemedTk
+from tkinter import filedialog, ttk, font, simpledialog, messagebox
 import os
 
-
 from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
+from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv
 
 from .Widgets.DataField import DataField
-from .Widgets.MoleculeWindow import MoleculeWindow
 from .Widgets.ControlPanel import ControlPanel
 from .Widgets.TopBar import TopBar
-from .Widgets.ResizableFrame import ResizableFrame
 from .Widgets.FileInteractionPane import FileInteractionPane
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class GUI:
     def __init__(self, master, molecule_data, wave_data, flux_data, config, islat_class_ref):
@@ -30,7 +26,7 @@ class GUI:
             self._configure_initial_size()
         else:
             self.master = master
-        
+
         self.molecule_data = molecule_data
         self.wave_data = wave_data
         self.flux_data = flux_data
@@ -323,12 +319,8 @@ class GUI:
 
     def start(self):
         self.create_window()
-        
-        # Set up cleanup on window close
-        def on_closing():
-            self.window.destroy()
     
-        self.window.protocol("WM_DELETE_WINDOW", on_closing)
+        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # Check config for start-on-top behavior
         if self.config.get("start_on_top", True):
@@ -336,9 +328,22 @@ class GUI:
             self.master.after(100, lambda: self.master.attributes('-topmost', False))
         
         self.master.lift()
-        #self.master.focus_force()
 
         self.window.mainloop()
+
+    def on_closing(self):
+        if messagebox.askokcancel("Quit", "Do you want to save your work?"):
+            spectrum_name = getattr(self.islat_class, 'loaded_spectrum_name', 'unknown')
+            
+            try:
+                # Save the current molecule parameters
+                write_molecules_to_csv(
+                    self.islat_class.molecules_dict, 
+                    loaded_spectrum_name=spectrum_name
+                )
+            except Exception as e:
+                print("Error", f"Failed to save molecule parameters: {str(e)}")
+        self.window.destroy()
 
     @staticmethod
     def file_selector(title : str = None, filetypes=None, initialdir=None, use_abspath=True, allow_multiple=False):
