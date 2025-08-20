@@ -517,6 +517,7 @@ class iSLAT:
                 print("Updating existing GUI with new spectrum...")
                 if hasattr(self.GUI, "plot") and self.GUI.plot is not None:
                     self.GUI.plot.update_model_plot()
+                    self.GUI.plot.match_display_range()
                     if hasattr(self.GUI.plot, 'canvas'):
                         self.GUI.plot.canvas.draw()
                         
