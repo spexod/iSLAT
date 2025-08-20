@@ -36,7 +36,7 @@ class Molecule:
     Optimized Molecule class with enhanced caching and performance improvements.
     """
     __slots__ = (
-        'name', 'filepath', 'displaylabel', 'color', '_is_visible', '_stellar_rv',
+        'name', 'filepath', 'displaylabel', 'color', '_is_visible', '_rv_shift',
         'user_save_data', 'hitran_data', 'initial_molecule_parameters',
         'lines', 'intensity', 'spectrum',
         '_temp', '_radius', '_n_mol', '_distance', '_fwhm', '_broad',
@@ -54,7 +54,7 @@ class Molecule:
     _cache_lock = threading.Lock()
     
     INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad', 'wavelength_range'}
-    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'stellar_rv', 'wavelength_range'}
+    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'rv_shift', 'wavelength_range'}
     FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS
     
     @classmethod
@@ -187,8 +187,8 @@ class Molecule:
     
     def _compute_spectrum_hash(self):
         #return hash((self._radius, self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
-        return hash((self._radius, self._distance, self._fwhm, self._wavelength_range, self._compute_intensity_hash()))
-    
+        return hash((self._radius, self._distance, self._fwhm, self._rv_shift, self._wavelength_range, self._compute_intensity_hash()))
+
     def _compute_full_parameter_hash(self):
         return hash((self._compute_spectrum_hash()))
 
@@ -212,8 +212,8 @@ class Molecule:
         self._distance_val = usd.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = usd.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = usd.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._stellar_rv = kwargs.get('stellar_rv', c.DEFAULT_STELLAR_RV)
-        
+        self._rv_shift = kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV)
+
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
         self.scale_exponent = self.initial_molecule_parameters.get('scale_exponent', 1.0)
@@ -235,7 +235,7 @@ class Molecule:
         self._distance_val = kwargs.get('distance', c.DEFAULT_DISTANCE)
         self._fwhm_val = kwargs.get('fwhm', c.DEFAULT_FWHM)
         self._broad_val = kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH)
-        self._stellar_rv = kwargs.get('stellar_rv', c.DEFAULT_STELLAR_RV)
+        self._rv_shift = kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV)
         
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -358,7 +358,7 @@ class Molecule:
             self._fwhm, self._broad, self.wavelength_range, 
             self.model_pixel_res, self.model_line_width,
             #getattr(self, 'stellar_rv', c.DEFAULT_STELLAR_RV)  # Include stellar RV in hash
-            self._stellar_rv
+            self._rv_shift
         )
         self._parameter_hash = hash(param_tuple)
     
@@ -451,7 +451,11 @@ class Molecule:
         
         self.plot_lam = wave_data.copy()
         self.plot_flux = flux
-        
+
+        #wave_data = self.islat.wave_data - (self.islat.wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
+
+        self.plot_lam = self.plot_lam + (self.plot_lam / c.SPEED_OF_LIGHT_KMS * self.rv_shift)
+
         self._wave_data_cache[cache_key] = {
             'lam': self.plot_lam,
             'flux': self.plot_flux
@@ -575,14 +579,14 @@ class Molecule:
                     self._notify_my_parameter_change(param_name, old_value, value)
 
     @property
-    def stellar_rv(self):
-        return self._stellar_rv
-    
-    @stellar_rv.setter
-    def stellar_rv(self, value):
-        old_value = self._stellar_rv
-        self._stellar_rv = float(value)
-        self._notify_my_parameter_change('stellar_rv', old_value, self._stellar_rv)
+    def rv_shift(self):
+        return self._rv_shift
+
+    @rv_shift.setter
+    def rv_shift(self, value):
+        old_value = self._rv_shift
+        self._rv_shift = float(value)
+        self._notify_my_parameter_change('rv_shift', old_value, self._rv_shift)
 
     @property
     def broad(self):

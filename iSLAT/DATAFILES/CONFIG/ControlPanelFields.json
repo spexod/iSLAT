@@ -64,6 +64,15 @@
             "default": 0.1,
             "width": 7,
             "tip": "Line broadening (FWHM)\n(thermal/turbulence)\nunits: km/s"
+        },
+        "rv_shift": {
+            "label": "RV Shift:",
+            "attribute": "rv_shift",
+            "datatype": "float",
+            "format": "{:.2f}",
+            "default": 0.1,
+            "width": 7,
+            "tip": "Radial velocity (helioc.)\nof the molecule data\nunits: km/s"
         }
     }
 }
