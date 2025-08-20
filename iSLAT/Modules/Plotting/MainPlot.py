@@ -403,6 +403,7 @@ class iSLATPlot:
         if strongest is not None:
             # Display strongest line information in data field
             line, text, scatter, value = strongest
+            self.selected_line = value
             if value:
                 self._display_line_info(value)
         
