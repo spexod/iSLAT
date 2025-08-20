@@ -611,10 +611,10 @@ class TopBar(ResizableFrame):
 
             # Update GUI components
             if hasattr(self.islat, 'GUI'):
-                if hasattr(self.islat.GUI, 'control_panel'):
-                    self.islat.GUI.control_panel.refresh_from_molecules_dict()
                 if hasattr(self.islat.GUI, 'plot'):
                     self.islat.GUI.plot.update_all_plots()
+                if hasattr(self.islat.GUI, 'control_panel'):
+                    self.islat.GUI.control_panel.refresh_from_molecules_dict()
                 if hasattr(self.islat.GUI, 'data_field'):
                     self.islat.GUI.data_field.insert_text(
                         f'Successfully loaded parameters from: {save_file}',

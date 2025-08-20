@@ -237,8 +237,8 @@ class iSLAT:
                 # Refresh GUI if requested using existing GUI methods
                 if refresh and hasattr(self, 'GUI') and self.GUI is not None:
                     try:
-                        self.GUI.control_panel.refresh_from_molecules_dict()
                         self.GUI.plot.update_model_plot()
+                        self.GUI.control_panel.refresh_from_molecules_dict()
                         print("GUI molecule list and plot refreshed.")
                     except Exception as e:
                         print(f"Warning: Could not refresh GUI: {e}")
@@ -326,10 +326,10 @@ class iSLAT:
             self.init_molecules(self.default_molecule_csv_data, use_parallel=use_parallel_loading)
             # Update GUI components
             if hasattr(self, 'GUI'):
-                if hasattr(self.GUI, 'control_panel'):
-                    self.GUI.control_panel.refresh_from_molecules_dict()
                 if hasattr(self.GUI, 'plot'):
                     self.GUI.plot.update_all_plots()
+                if hasattr(self.GUI, 'control_panel'):
+                    self.GUI.control_panel.refresh_from_molecules_dict()
                 if hasattr(self.GUI, 'data_field'):
                     self.GUI.data_field.insert_text(
                         f'Successfully loaded parameters from defaults',

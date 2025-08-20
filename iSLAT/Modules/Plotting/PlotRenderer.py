@@ -119,9 +119,11 @@ class PlotRenderer:
         # Then check theme colors
         molecule_colors = self._get_theme_value('molecule_colors', {})
         if mol_name in molecule_colors:
+            molecule.color = molecule_colors[mol_name]
             return molecule_colors[mol_name]
             
         # Default fallback
+        molecule.color = self._get_theme_value('default_molecule_color', 'blue')
         return self._get_theme_value('default_molecule_color', 'blue')
     
     def clear_all_plots(self) -> None:
