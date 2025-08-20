@@ -232,9 +232,9 @@ class Molecule:
         self._is_visible = kwargs.get('is_visible', True)
 
         # Get instance values from kwargs or defaults
-        self._distance_val = kwargs.get('distance', c.DEFAULT_DISTANCE)
-        self._fwhm_val = kwargs.get('fwhm', c.DEFAULT_FWHM)
-        self._broad_val = kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH)
+        self._distance_val = kwargs.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
+        self._fwhm_val = kwargs.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
+        self._broad_val = kwargs.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
         self._rv_shift = kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV)
         
         # Set kinetic temperature and molecule-specific parameters

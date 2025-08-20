@@ -231,22 +231,12 @@ class InteractionHandler:
     
     def _on_key_press(self, event):
         """Handle key press events"""
-        if event.key == 'r':
-            # Reset zoom
-            self._reset_zoom()
-        elif event.key == 'h':
+        if event.key == 'h':
             # Toggle grid
             self._toggle_grid()
         elif event.key == 'l':
             # Toggle legend
             self._toggle_legend()
-        elif event.key == 's':
-            # Save current selection
-            if self.selected_range:
-                self._save_current_selection()
-        elif event.key == 'escape':
-            # Clear selection
-            self._clear_selection()
     
     def _on_key_release(self, event):
         """Handle key release events"""
@@ -255,11 +245,13 @@ class InteractionHandler:
     def _on_xlim_changed(self, ax):
         """Handle x-axis limit changes"""
         new_xlim = ax.get_xlim()
+        xone = new_xlim[0]
+        xtwo = new_xlim[1]
         
         # Update display range in iSLAT
         if hasattr(self.islat, 'display_range'):
-            self.islat.display_range = tuple(new_xlim)
-        
+            self.islat.display_range = (xone, xtwo)
+
         # Trigger zoom callbacks
         self._trigger_zoom_callbacks('xlim_changed', new_xlim)
     
@@ -363,24 +355,6 @@ class InteractionHandler:
         if legend:
             legend.set_visible(not legend.get_visible())
         self.canvas.draw_idle()
-    
-    def _show_context_menu(self, event):
-        """Show context menu at event location"""
-        # This would implement a context menu
-        # For now, just print the options available
-        print(f"Context menu at ({event.xdata:.3f}, {event.ydata:.3f})")
-        print("Available actions: Save point, Zoom here, Reset zoom, Export data")
-    
-    def _save_current_selection(self):
-        """Save the current selection"""
-        if self.selected_range and hasattr(self.plot_manager, 'save_selection'):
-            self.plot_manager.save_selection(*self.selected_range)
-    
-    def _clear_selection(self):
-        """Clear current selection"""
-        self.selected_range = None
-        if hasattr(self.plot_manager, 'clear_selection'):
-            self.plot_manager.clear_selection()
     
     # Callback management
     def add_selection_callback(self, name: str, callback: Callable):

@@ -158,7 +158,7 @@ class ControlPanel(ttk.Frame):
         
         return self._create_simple_entry(self, label_text, current_value, row, col, update_parameter, width, param_name=param_name)
 
-    def _create_display_controls(self,parent,  start_row, start_col):
+    def _create_display_controls(self,parent, start_row, start_col):
         """Create plot start and range controls for display view"""
         plot_start_tip = "Start wavelength\nfor the upper plot\nunits: μm"
         plot_range_tip = "Wavelength range\nfor the upper plot\nunits: μm"
@@ -670,13 +670,11 @@ class ControlPanel(ttk.Frame):
         try:
             start = float(self.plot_start_var.get())
             range_val = float(self.plot_range_var.get())
-            self._set_display_range(start, start + range_val)
+            #self._set_display_range(start, start + range_val)
+            if hasattr(self.islat, 'display_range'):
+                self.islat.display_range = (start, start + range_val)
         except (ValueError, AttributeError):
             pass
-
-    def _set_display_range(self, start, end):
-        if hasattr(self.islat, 'display_range'):
-            self.islat.display_range = (start, end)
 
     def _update_wavelength_range(self, value_str=None):
         """Update wavelength range for model calculations (not display)"""

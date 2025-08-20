@@ -52,7 +52,7 @@
             "attribute": "fwhm",
             "datatype": "float",
             "format": "{:.2f}",
-            "default": 0.1,
+            "default": 160.0,
             "width": 7,
             "tip": "FWHM for convolution\nof the model spectra\nunits: km/s"
         },

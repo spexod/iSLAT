@@ -819,6 +819,8 @@ class iSLAT:
             self._display_range = value
             if hasattr(self, "GUI") and hasattr(self.GUI, "plot"):
                 self.GUI.plot.match_display_range()
+            if hasattr(self, "GUI") and hasattr(self.GUI, "control_panel"):
+                self.GUI.control_panel._update_display_range(self._display_range)
         else:
             raise ValueError("Display range must be a tuple of two floats (start, end).")
     
