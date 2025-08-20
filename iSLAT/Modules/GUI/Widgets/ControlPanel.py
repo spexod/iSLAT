@@ -6,7 +6,6 @@ from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorB
 from .RegularFrame import RegularFrame
 from ..Tooltips import CreateToolTip
 
-
 class ControlPanel(ttk.Frame):
     def __init__(self, master, islat, plot, font):
 
@@ -41,7 +40,6 @@ class ControlPanel(ttk.Frame):
         # Initialize all UI components
         self._create_all_components()
         self._register_callbacks()
-
 
     def _create_all_components(self):
         """Create all control panel components in order"""
@@ -100,8 +98,6 @@ class ControlPanel(ttk.Frame):
 
         if tip_text: 
             CreateToolTip(label, tip_text)
-
-
         
         var = tk.StringVar()
         var.set(str(initial_value))
@@ -115,7 +111,6 @@ class ControlPanel(ttk.Frame):
         
         entry.grid(row=row, column=col + 1, padx=1, sticky="w")
         
-
         def on_change(*args):
             try:
                 traces = var.trace_info()
@@ -138,7 +133,6 @@ class ControlPanel(ttk.Frame):
                 on_change(*args)
                 return
             entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
-                
         
         entry.bind("<Return>", on_change)
         var.trace_add("write", on_write)
@@ -248,7 +242,6 @@ class ControlPanel(ttk.Frame):
             label_widget.grid(row=0, column=col, sticky="ew", padx=padx)
             header_frame.grid_columnconfigure(col, weight=1)
     
-
         for row, (mol_name, mol_obj) in enumerate(self.mol_dict.items()):
             current_mol = mol_obj
 
@@ -397,7 +390,6 @@ class ControlPanel(ttk.Frame):
             new_active = self.islat.user_settings.get("default_active_molecule", "H2O")
             print(f"setting {new_active} as active molecule")
             self._set_active_molecule(mol_name=new_active)
-            
 
         print(f"destroying {mol_name}")
         frame.destroy()
@@ -408,8 +400,6 @@ class ControlPanel(ttk.Frame):
         del self.islat.molecules_dict[mol_name]
 
         self.plot.canvas.draw_idle()
-
-
 
     def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7, tip_text = None):
         """Create an entry bound to the active molecule's parameter"""
@@ -474,7 +464,6 @@ class ControlPanel(ttk.Frame):
         initial_value = self._get_active_molecule_parameter_value(param_name)
         
         return self._create_simple_entry(parent, label_text, initial_value, row, col, update_active_molecule_parameter, width, param_name=param_name, tip_text=tip_text)
-    
 
     def _load_field_configurations(self):
         """Load field configurations from JSON file using iSLAT file handling"""
@@ -534,11 +523,6 @@ class ControlPanel(ttk.Frame):
             if var.get() != str(new_value):
                 self._set_var(var, str(new_value))
 
-    
-    
-
-
-
     def _get_active_molecule_parameter_value(self, param_name) -> str:
         """Get the current value of a parameter from the active molecule"""
         if not hasattr(self.islat, 'active_molecule') or not self.islat.active_molecule:
@@ -558,7 +542,6 @@ class ControlPanel(ttk.Frame):
         value = getattr(active_mol, param_name, "")
         return self._format_value(value, param_name)
         
-        
     def _format_value(self, value, param_name) -> str:
         if not param_name:
             return f"{value:.2f}"
@@ -576,7 +559,6 @@ class ControlPanel(ttk.Frame):
                     if config['attribute'] == param_name:
                         field_config = config
                         break
-            
             
             # Format value based on field configuration
             if field_config and isinstance(value, (int, float)):
@@ -683,7 +665,6 @@ class ControlPanel(ttk.Frame):
         self.mol_frames[active_mol.name].config(bg=self.selected_color)
         self.selected_label.config(text=f"Selected Molecule: {active_mol.name}")
 
-
     def _update_display_range(self, value_str=None):
         """Update display range from either start or range change"""
         try:
@@ -754,7 +735,6 @@ class ControlPanel(ttk.Frame):
 
     def _set_active_molecule(self, mol_name):
         selected_label = self.mol_dict[mol_name].displaylabel
-
 
         try:
             if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:

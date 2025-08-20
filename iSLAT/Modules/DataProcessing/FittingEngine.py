@@ -160,7 +160,7 @@ class FittingEngine:
         
         # Generate initial parameter estimates
         if initial_guess is None:
-            initial_guess = self._estimate_gaussian_params(wave_data, flux_data)
+            initial_guess = model.guess(wave_data, flux_data)
         
         params = model.make_params(
             center=initial_guess.get('center', wave_data[np.argmax(flux_data)]),
@@ -774,8 +774,8 @@ class FittingEngine:
             'lev_up': line_info.get('lev_up', ''),
             'lev_low': line_info.get('lev_low', ''),
             'lam': line_info.get('lam', rest_wavelength),
-            'tau': line_info.get('tau', 0.0),
-            'intens': line_info.get('intens', 0.0),
+            #'tau': line_info.get('tau', 0.0),
+            #'intens': line_info.get('intens', 0.0),
             'a_stein': line_info.get('a_stein', 0.0),
             'e_up': line_info.get('e_up', 0.0),
             'g_up': line_info.get('g_up', 1.0),
@@ -816,8 +816,8 @@ class FittingEngine:
                 'Fit_det': bool(fit_det),
                 'Flux_fit': np.float64(f'{area:.{3}e}'),
                 'Err_fit': np.float64(f'{area_err:.{3}e}'),
-                'FWHM_fit': np.round(fwhm, decimals=1) if fit_det else np.nan,
-                'FWHM_err': np.round(fwhm_err, decimals=1) if fit_det else np.nan,
+                'FWHM_fit': np.round(fwhm, decimals=5) if fit_det else np.nan,
+                'FWHM_err': np.round(fwhm_err, decimals=5) if fit_det else np.nan,
                 'Centr_fit': np.round(center, decimals=5) if fit_det else np.nan,
                 'Centr_err': np.round(center_err, decimals=5) if fit_det else np.nan,
                 'Doppler': np.round(doppler, decimals=1) if fit_det else np.nan,
