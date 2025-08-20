@@ -178,8 +178,25 @@ class PlotRenderer:
     def render_main_spectrum_plot(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                  molecules: Union[List['Molecule'], 'MoleculeDict'], 
                                  summed_flux: Optional[np.ndarray] = None, 
-                                 error_data: Optional[np.ndarray] = None) -> None:
-        """Render the main spectrum plot with observed data, model spectra, and sum"""
+                                 error_data: Optional[np.ndarray] = None,
+                                 observed_wave_data: Optional[np.ndarray] = None) -> None:
+        """Render the main spectrum plot with observed data, model spectra, and sum
+        
+        Parameters
+        ----------
+        wave_data : np.ndarray
+            Wavelength grid for model calculations (may extend beyond observed data)
+        flux_data : np.ndarray
+            Observed flux data
+        molecules : Union[List['Molecule'], 'MoleculeDict']
+            Molecules to render
+        summed_flux : Optional[np.ndarray]
+            Summed model flux (same size as wave_data)
+        error_data : Optional[np.ndarray]
+            Error data for observed spectrum
+        observed_wave_data : Optional[np.ndarray]
+            Observed wavelength data (same size as flux_data). If None, uses wave_data.
+        """
         # Store current view limits
         current_xlim = self.ax1.get_xlim() if hasattr(self.ax1, 'get_xlim') else None
         current_ylim = self.ax1.get_ylim() if hasattr(self.ax1, 'get_ylim') else None
@@ -192,8 +209,11 @@ class PlotRenderer:
             self.ax1.set_title("No spectrum data loaded", color=self._get_theme_value("foreground", "black"))
             return
         
-        # Plot observed spectrum
-        observed_wave = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
+        # Use observed wavelength data if provided, otherwise use model wavelength data
+        obs_wave_for_plotting = observed_wave_data if observed_wave_data is not None else wave_data
+        
+        # Plot observed spectrum using appropriate wavelength grid
+        observed_wave = obs_wave_for_plotting - (obs_wave_for_plotting / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
         self._plot_observed_spectrum(observed_wave, flux_data, error_data)
 
         # Plot individual molecule spectra
@@ -344,17 +364,19 @@ class PlotRenderer:
                 # Use PlotRenderer's get_molecule_spectrum_data which leverages molecule caching
                 plot_lam, model_flux = self.get_molecule_spectrum_data(active_molecule, wave_data)
                 
-                if plot_lam is not None and model_flux is not None and len(model_flux) == len(wave_data):
-                    # Filter to selected range
-                    model_wave_range = wave_data[data_mask]
-                    model_flux_range = model_flux[data_mask]
-                    
-                    if len(model_wave_range) > 0 and len(model_flux_range) > 0:
-                        label = self._get_molecule_display_name(active_molecule)
-                        color = self._get_molecule_color(active_molecule)
-                        self.ax2.plot(model_wave_range, model_flux_range, 
-                                     color=color, linestyle="--", 
-                                     linewidth=1, label=label)
+                if plot_lam is not None and model_flux is not None and len(model_flux) > 0:
+                    # Filter the molecule data to the selected wavelength range
+                    model_mask = (plot_lam >= xmin) & (plot_lam <= xmax)
+                    if np.any(model_mask):
+                        model_wave_range = plot_lam[model_mask]
+                        model_flux_range = model_flux[model_mask]
+                        
+                        if len(model_wave_range) > 0 and len(model_flux_range) > 0:
+                            label = self._get_molecule_display_name(active_molecule)
+                            color = self._get_molecule_color(active_molecule)
+                            self.ax2.plot(model_wave_range, model_flux_range, 
+                                         color=color, linestyle="--", 
+                                         linewidth=1, label=label)
             except Exception as e:
                 mol_name = self._get_molecule_display_name(active_molecule)
                 debug_config.warning("plot_renderer", f"Could not get model data for molecule {mol_name}: {e}")

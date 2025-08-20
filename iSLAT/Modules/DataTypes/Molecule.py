@@ -331,9 +331,19 @@ class Molecule:
         delta_lambda = mean_wavelength * (self._fwhm / 299792.458)
         spectral_resolution = mean_wavelength / delta_lambda if delta_lambda > 0 else self.model_line_width
         
+        # Expand wavelength range to account for RV shifts and ensure proper coverage
+        # Calculate maximum possible wavelength shift due to RV
+        max_rv_shift = abs(self._rv_shift)  # km/s
+        fractional_shift = max_rv_shift / c.SPEED_OF_LIGHT_KMS
+        
+        # Expand the range by the fractional shift plus a safety margin
+        range_expansion = (self.wavelength_range[1] - self.wavelength_range[0]) * (fractional_shift + 0.01)
+        expanded_lam_min = max(0.1, self.wavelength_range[0] - range_expansion)  # Don't go below 0.1 micron
+        expanded_lam_max = self.wavelength_range[1] + range_expansion
+        
         self.spectrum = Spectrum(
-            lam_min=self.wavelength_range[0],
-            lam_max=self.wavelength_range[1],
+            lam_min=expanded_lam_min,
+            lam_max=expanded_lam_max,
             dlambda=self.model_pixel_res,
             R=spectral_resolution,
             distance=self._distance
@@ -382,7 +392,7 @@ class Molecule:
         self.plot_flux = None
 
     def get_flux(self, wavelength_array):
-        """Get flux for given wavelength array with improved caching"""
+        """Get flux for given wavelength array with improved caching and range handling"""
         try:
             cache_key = hash(wavelength_array.tobytes()) if hasattr(wavelength_array, 'tobytes') else str(wavelength_array)
         except (TypeError, ValueError):
@@ -395,6 +405,22 @@ class Molecule:
             cache_entry.get('param_hash') == current_param_hash):
             self._cache_stats['hits'] += 1
             return cache_entry['flux']
+        
+        # The molecule's wavelength range is set by MoleculeDict to match the global range
+        # This ensures models respect the user-defined global wavelength boundaries
+        # No expansion beyond these boundaries is allowed
+        if len(wavelength_array) > 0:
+            requested_min, requested_max = wavelength_array[0], wavelength_array[-1]
+            
+            # Only recalculate spectrum if we need coverage within the allowed range
+            if hasattr(self, 'spectrum') and self.spectrum is not None:
+                if hasattr(self.spectrum, '_lamgrid') and self.spectrum._lamgrid is not None:
+                    spectrum_min, spectrum_max = self.spectrum._lamgrid[0], self.spectrum._lamgrid[-1]
+                    # Check if current spectrum covers the needed range within bounds
+                    if (requested_min < spectrum_min - 0.01 or requested_max > spectrum_max + 0.01):
+                        # Need to recalculate spectrum but respect wavelength range bounds
+                        self._dirty_flags['spectrum'] = True
+                        self._spectrum_cache['hash'] = None
         
         # Ensure we have a valid spectrum
         self._ensure_spectrum_calculated()
@@ -433,7 +459,7 @@ class Molecule:
         return interpolated_flux
     
     def prepare_plot_data(self, wave_data):
-        """Prepare plot data for given wavelength array, using caching for efficiency"""
+        """Prepare plot data for given wavelength array, filtering to molecule's wavelength range"""
         wave_data_hash = hash(wave_data.tobytes()) if hasattr(wave_data, 'tobytes') else str(wave_data)
         current_param_hash = self._compute_full_parameter_hash()
         
@@ -447,18 +473,51 @@ class Molecule:
             self._cache_stats['hits'] += 1
             return (self.plot_lam, self.plot_flux)
         
-        flux = self.get_flux(wave_data)
-        
-        self.plot_lam = wave_data.copy()
-        self.plot_flux = flux
+        # Filter wave_data to molecule's wavelength range before calculation
+        # This ensures models are not plotted outside their valid range
+        if hasattr(self, '_wavelength_range') and self._wavelength_range is not None:
+            range_min, range_max = self._wavelength_range
+            # Filter to wavelength range - only calculate where data is valid
+            wave_mask = (wave_data >= range_min) & (wave_data <= range_max)
+            filtered_wave_data = wave_data[wave_mask]
+            
+            if len(filtered_wave_data) == 0:
+                # No wavelengths in range - return empty arrays
+                self.plot_lam = np.array([])
+                self.plot_flux = np.array([])
+                self._wave_data_cache[cache_key] = {
+                    'lam': self.plot_lam.copy(),
+                    'flux': self.plot_flux.copy()
+                }
+                return (self.plot_lam, self.plot_flux)
+            
+            # Get flux only for the filtered wavelength array
+            filtered_flux = self.get_flux(filtered_wave_data)
+            
+            # Create the wavelength and flux arrays for plotting (filtered size)
+            self.plot_lam = filtered_wave_data.copy()
+            self.plot_flux = filtered_flux.copy()
+        else:
+            # No wavelength range set - use full data (backward compatibility)
+            flux = self.get_flux(wave_data)
+            self.plot_lam = wave_data.copy()
+            self.plot_flux = flux.copy()
 
-        #wave_data = self.islat.wave_data - (self.islat.wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
-
+        # Apply RV shift to the wavelength array
+        # Note: This shifts the wavelength grid to account for the molecule's RV
         self.plot_lam = self.plot_lam + (self.plot_lam / c.SPEED_OF_LIGHT_KMS * self.rv_shift)
 
+        # Ensure the plot data is properly bounded and handle edge cases
+        if len(self.plot_lam) != len(self.plot_flux):
+            print(f"Warning: Wavelength and flux array size mismatch for molecule {self.name}: {len(self.plot_lam)} vs {len(self.plot_flux)}")
+            # Ensure arrays have the same length
+            min_len = min(len(self.plot_lam), len(self.plot_flux))
+            self.plot_lam = self.plot_lam[:min_len]
+            self.plot_flux = self.plot_flux[:min_len]
+
         self._wave_data_cache[cache_key] = {
-            'lam': self.plot_lam,
-            'flux': self.plot_flux
+            'lam': self.plot_lam.copy(),
+            'flux': self.plot_flux.copy()
         }
         
         if len(self._wave_data_cache) > 20:

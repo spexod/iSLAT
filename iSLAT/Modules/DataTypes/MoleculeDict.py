@@ -144,6 +144,7 @@ class MoleculeDict(dict):
         - Memory-efficient float32 operations
         - Robust error handling with fallbacks
         - Proper handling of individual molecule RV shifts
+        - Automatic wavelength range expansion for extended data coverage
         
         Each molecule's individual RV shift is applied during flux calculation, then the flux
         is interpolated back to the original wavelength grid to ensure proper summation.
@@ -170,60 +171,106 @@ class MoleculeDict(dict):
         if not visible_molecules:
             return np.zeros_like(wave_data, dtype=np.float32)
         
+        # Create calculation wavelength grid based on global range and input wave_data
+        # This ensures models calculate exactly within the global range boundaries
+        global_min, global_max = self._global_wavelength_range
+        
+        # Filter wave_data to only include wavelengths within global range
+        # This is the key fix: only calculate where the global range permits
+        # Use strict inequality to ensure exact range compliance
+        wave_mask = (wave_data >= global_min) & (wave_data <= global_max)
+        calc_wave_data = wave_data[wave_mask]
+        
+        print(f"Original wave data range: {wave_data[0]:.3f} - {wave_data[-1]:.3f} µm")
+        print(f"Global wavelength range: {global_min:.3f} - {global_max:.3f} µm")
+        print(f"Calculation wave data range: {calc_wave_data[0]:.3f} - {calc_wave_data[-1]:.3f} µm" if len(calc_wave_data) > 0 else "No wavelengths within global range")
+        
+        # If no wavelengths fall within the global range, return zeros
+        if len(calc_wave_data) == 0:
+            print("Warning: No wavelengths in input data fall within the global wavelength range")
+            return np.zeros_like(wave_data, dtype=np.float32)
+        
+        # Ensure all molecules use the global wavelength range for their calculations
+        for mol_name in visible_molecules:
+            if mol_name in self:
+                molecule = self[mol_name]
+                # Set molecule's wavelength range to match global range
+                molecule._wavelength_range = self._global_wavelength_range
+        
         # Try cache lookup first - include RV shifts in cache key
         try:
-            wave_hash = hash(wave_data.tobytes())
+            calc_wave_hash = hash(calc_wave_data.tobytes())
             # Include individual molecule RV shifts in cache key for proper invalidation
             molecule_rv_shifts = frozenset((mol_name, self[mol_name].rv_shift) 
                                          for mol_name in visible_molecules if mol_name in self)
-            cache_key = hash((wave_hash, frozenset(visible_molecules), molecule_rv_shifts))
+            cache_key = hash((calc_wave_hash, frozenset(visible_molecules), molecule_rv_shifts))
             if cache_key in self._summed_flux_cache:
-                return self._summed_flux_cache[cache_key]
+                cached_result = self._summed_flux_cache[cache_key]
+                # Expand cached result back to full wave_data size
+                full_result = np.zeros_like(wave_data, dtype=np.float32)
+                full_result[wave_mask] = cached_result
+                return full_result
         except (TypeError, ValueError):
             cache_key = None
         
         # For large datasets, use parallel processing
-        if len(visible_molecules) >= 8 and len(wave_data) > 1000:
+        if len(visible_molecules) >= 8 and len(calc_wave_data) > 1000:
             try:
-                return self._parallel_flux_calculation_internal(wave_data, visible_molecules, cache_key)
+                summed_flux_calc = self._parallel_flux_calculation_internal(calc_wave_data, visible_molecules, cache_key)
+                # Expand result back to full wave_data size
+                full_result = np.zeros_like(wave_data, dtype=np.float32)
+                full_result[wave_mask] = summed_flux_calc
+                return full_result
             except Exception as e:
                 print(f"Parallel processing failed, using vectorized fallback: {e}")
         
-        # Pre-allocate flux array matrix for vectorized operations
+        # Pre-allocate flux array matrix for vectorized operations using calculation grid
         n_molecules = len(visible_molecules)
-        if len(wave_data) == 0:
-            return np.array([])
+        if len(calc_wave_data) == 0:
+            return np.zeros_like(wave_data, dtype=np.float32)
             
-        flux_matrix = np.zeros((n_molecules, len(wave_data)), dtype=np.float32)
+        flux_matrix = np.zeros((n_molecules, len(calc_wave_data)), dtype=np.float32)
 
-        print(f"wave data len: {len(wave_data)}")
-        print(f'Wave data range: {wave_data[0]:.3f} - {wave_data[-1]:.3f}')
+        print(f"Calculation wave data len: {len(calc_wave_data)}")
         print(f'Number of visible molecules: {len(visible_molecules)}')
         if visible_molecules:
             rv_shifts = [f"{mol_name}: {self[mol_name].rv_shift:.1f}" for mol_name in visible_molecules[:3] if mol_name in self]
             print(f'Sample RV shifts: {rv_shifts}')
 
         # Prepare plot data for all molecules with error handling
-        # Note: Each molecule's RV shift is applied, so we need to interpolate back to original grid
+        # Use the calculation wavelength grid that respects global range boundaries
         valid_molecules = []
         for i, mol_name in enumerate(visible_molecules):
             if mol_name in self:
                 molecule = self[mol_name]
                 try:
-                    # This call applies the molecule's RV shift to the wavelength grid
-                    molecule.prepare_plot_data(wave_data)
+                    # Use calc_wave_data which is filtered to global wavelength range
+                    molecule.prepare_plot_data(calc_wave_data)
                     if hasattr(molecule, 'plot_flux') and molecule.plot_flux is not None:
-                        # Since RV shift was applied to plot_lam, we need to interpolate 
-                        # the flux back to the original wavelength grid for proper summing
+                        # Since molecules now filter their own data, we need to interpolate back to calc_wave_data
                         if hasattr(molecule, 'plot_lam') and molecule.plot_lam is not None:
-                            # Interpolate flux from RV-shifted grid back to original grid
-                            interpolated_flux = np.interp(wave_data, molecule.plot_lam, molecule.plot_flux, 
-                                                        left=0, right=0)
-                            if len(interpolated_flux) == len(wave_data):
-                                flux_matrix[i] = interpolated_flux.astype(np.float32)
+                            # Check if we have valid plot data
+                            if len(molecule.plot_lam) > 0 and len(molecule.plot_flux) > 0:
+                                # Check for reasonable flux values
+                                if not np.all(np.isfinite(molecule.plot_flux)):
+                                    print(f"Warning: Non-finite flux values found for molecule {mol_name}")
+                                    molecule.plot_flux = np.nan_to_num(molecule.plot_flux, nan=0.0, posinf=0.0, neginf=0.0)
+                                
+                                # Interpolate molecule flux to calculation grid
+                                if len(molecule.plot_lam) == len(calc_wave_data) and np.allclose(molecule.plot_lam, calc_wave_data):
+                                    # Direct assignment if wavelengths match
+                                    flux_matrix[i] = molecule.plot_flux.astype(np.float32)
+                                else:
+                                    # Interpolate to calculation grid, filling with zeros outside molecule range
+                                    from scipy.interpolate import interp1d
+                                    interp_func = interp1d(molecule.plot_lam, molecule.plot_flux, 
+                                                         kind='linear', bounds_error=False, fill_value=0.0)
+                                    interpolated_flux = interp_func(calc_wave_data)
+                                    flux_matrix[i] = interpolated_flux.astype(np.float32)
+                                
                                 valid_molecules.append(i)
                             else:
-                                print(f"Warning: interpolated flux shape mismatch for {mol_name}: {len(interpolated_flux)} vs {len(wave_data)}")
+                                print(f"Info: No valid plot data for molecule {mol_name}")
                         else:
                             print(f"Warning: Missing plot_lam for molecule {mol_name}")
                 except Exception as e:
@@ -232,39 +279,60 @@ class MoleculeDict(dict):
         
         # Vectorized summation along molecule axis
         if valid_molecules:
-            summed_flux = np.sum(flux_matrix[valid_molecules], axis=0)
+            summed_flux_calc = np.sum(flux_matrix[valid_molecules], axis=0)
         else:
-            summed_flux = np.zeros_like(wave_data, dtype=np.float32)
+            summed_flux_calc = np.zeros_like(calc_wave_data, dtype=np.float32)
         
-        # Cache result with intelligent cache management
+        # Expand the calculation result back to the full wave_data size
+        # Flux is zero outside the global wavelength range
+        full_summed_flux = np.zeros_like(wave_data, dtype=np.float32)
+        full_summed_flux[wave_mask] = summed_flux_calc
+        
+        # Cache the calculation result (not the full result)
         if cache_key is not None:
             if len(self._summed_flux_cache) > 50:
                 oldest_key = next(iter(self._summed_flux_cache))
                 del self._summed_flux_cache[oldest_key]
-            self._summed_flux_cache[cache_key] = summed_flux
+            self._summed_flux_cache[cache_key] = summed_flux_calc
 
-        return summed_flux
+        return full_summed_flux
 
-    def _parallel_flux_calculation_internal(self, wave_data: np.ndarray, visible_molecules: list, cache_key) -> np.ndarray:
-        """Internal parallel flux calculation method that accounts for individual molecule RV shifts."""
+    def _parallel_flux_calculation_internal(self, calc_wave_data: np.ndarray, visible_molecules: list, cache_key) -> np.ndarray:
+        """Internal parallel flux calculation method that respects global wavelength range."""
         max_workers = min(len(visible_molecules), mp.cpu_count())
+        
+        # Ensure all molecules use the global wavelength range for their calculations
+        for mol_name in visible_molecules:
+            if mol_name in self:
+                molecule = self[mol_name]
+                # Set molecule's wavelength range to match global range
+                molecule._wavelength_range = self._global_wavelength_range
         
         def calculate_molecule_flux(mol_name):
             """Worker function to calculate flux for a single molecule with RV shift applied"""
             if mol_name in self:
                 molecule = self[mol_name]
                 try:
-                    # prepare_plot_data applies the molecule's individual RV shift
-                    molecule.prepare_plot_data(wave_data)
+                    # Use calc_wave_data which is already filtered to global wavelength range
+                    molecule.prepare_plot_data(calc_wave_data)
                     if (hasattr(molecule, 'plot_flux') and molecule.plot_flux is not None and
                         hasattr(molecule, 'plot_lam') and molecule.plot_lam is not None):
-                        # Interpolate flux from RV-shifted grid back to original grid
-                        interpolated_flux = np.interp(wave_data, molecule.plot_lam, molecule.plot_flux,
-                                                    left=0, right=0)
-                        return interpolated_flux.astype(np.float32)
+                        
+                        if len(molecule.plot_lam) > 0 and len(molecule.plot_flux) > 0:
+                            # Since we're using the filtered wavelength grid, return flux directly
+                            if len(molecule.plot_flux) == len(calc_wave_data):
+                                # Ensure result is finite and properly shaped
+                                if not np.all(np.isfinite(molecule.plot_flux)):
+                                    flux = np.nan_to_num(molecule.plot_flux, nan=0.0, posinf=0.0, neginf=0.0)
+                                else:
+                                    flux = molecule.plot_flux
+                                
+                                return flux.astype(np.float32)
+                            else:
+                                print(f"Warning: flux shape mismatch for {mol_name}: {len(molecule.plot_flux)} vs {len(calc_wave_data)}")
                 except Exception as e:
                     print(f"Warning: Failed to calculate flux for {mol_name}: {e}")
-            return np.zeros_like(wave_data, dtype=np.float32)
+            return np.zeros_like(calc_wave_data, dtype=np.float32)
         
         # Use ThreadPoolExecutor for I/O bound tasks
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -272,13 +340,13 @@ class MoleculeDict(dict):
                       for mol_name in visible_molecules}
             
             # Collect results as they complete
-            summed_flux = np.zeros_like(wave_data, dtype=np.float32)
+            summed_flux = np.zeros_like(calc_wave_data, dtype=np.float32)
             
             for future in as_completed(futures):
                 mol_name = futures[future]
                 try:
                     flux = future.result()
-                    if flux is not None and len(flux) == len(wave_data):
+                    if flux is not None and len(flux) == len(calc_wave_data):
                         summed_flux += flux
                 except Exception as e:
                     print(f"Failed to calculate flux for {mol_name}: {e}")
@@ -1203,10 +1271,22 @@ class MoleculeDict(dict):
     
     @global_wavelength_range.setter
     def global_wavelength_range(self, value: Tuple[float, float]) -> None:
-        """Set global wavelength range"""
+        """Set global wavelength range and update all molecules to use this range"""
         old_value = self._global_wavelength_range
         if value != old_value:
             self._global_wavelength_range = value
+            print(f"Global wavelength range updated to [{value[0]:.3f}, {value[1]:.3f}] µm")
+            
+            # Update all molecules to use the new global wavelength range
+            # This ensures model calculations are constrained to the global range
+            for mol_name, molecule in self.items():
+                molecule._wavelength_range = value
+                # Invalidate cached spectra to force recalculation with new range
+                if hasattr(molecule, '_dirty_flags'):
+                    molecule._dirty_flags['spectrum'] = True
+                if hasattr(molecule, '_spectrum_cache'):
+                    molecule._spectrum_cache['hash'] = None
+            
             self.bulk_update_parameters({'wavelength_range': value})
             self._notify_global_parameter_change('wavelength_range', old_value, value)
     
