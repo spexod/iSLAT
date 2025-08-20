@@ -435,7 +435,6 @@ class TopBar(ResizableFrame):
     def show_atomic_lines(self):
         """
         Show atomic lines as vertical dashed lines on the plot.
-        Replicates the functionality from the original iSLAT atomic lines feature.
         """
         if self.atomic_lines:
             for (line, text) in self.atomic_lines:
@@ -503,7 +502,6 @@ class TopBar(ResizableFrame):
     def hitran_query(self):
         """
         Open the HITRAN molecule selector window.
-        This replicates the functionality from the original iSLAT HITRAN query feature.
         """
         try:
             # Use the root window from the islat class for the MoleculeSelector
@@ -526,7 +524,6 @@ class TopBar(ResizableFrame):
     def save_parameters(self):
         """
         Save current molecule parameters to CSV file.
-        This replicates the functionality from the original iSLAT save parameters feature.
         """
         # Display confirmation dialog
         confirmed = messagebox.askquestion(
@@ -571,12 +568,11 @@ class TopBar(ResizableFrame):
     def load_parameters(self):
         """
         Load molecule parameters from CSV file.
-        This replicates the functionality from the original iSLAT load parameters feature.
         """
         # Display confirmation dialog
         confirmed = messagebox.askquestion(
             "Confirmation",
-            "Sure you want to load parameters? Make sure to save any unsaved changes!"
+            "Are you sure you want to load parameters? Make sure to save any unsaved changes!"
         )
         if confirmed == "no":
             return

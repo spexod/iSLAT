@@ -375,7 +375,8 @@ class iSLAT:
         # Set optimized wavelength range before loading molecules
         self.wavelength_range = spectrum_range
 
-        mole_save_data = self.get_mole_save_data() 
+        #mole_save_data = self.get_mole_save_data() 
+        mole_save_data = self.user_saved_molecules
         
         try:
             # Apply full optimizations now that we're loading molecules

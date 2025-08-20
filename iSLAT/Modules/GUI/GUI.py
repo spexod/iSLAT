@@ -3,7 +3,7 @@ from tkinter import filedialog, ttk, font, simpledialog, messagebox
 import os
 
 from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
-from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv
+from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_list_csv
 
 from .Widgets.DataField import DataField
 from .Widgets.ControlPanel import ControlPanel
@@ -332,14 +332,15 @@ class GUI:
         self.window.mainloop()
 
     def on_closing(self):
-        if messagebox.askokcancel("Quit", "Do you want to save your work?"):
+        #if messagebox.askokcancel("Quit", "Do you want to save your work?"):
+        if True:
             spectrum_name = getattr(self.islat_class, 'loaded_spectrum_name', 'unknown')
             
             try:
                 # Save the current molecule parameters
-                write_molecules_to_csv(
+                write_molecules_list_csv(
                     self.islat_class.molecules_dict, 
-                    loaded_spectrum_name=spectrum_name
+                    #loaded_spectrum_name=spectrum_name
                 )
             except Exception as e:
                 print("Error", f"Failed to save molecule parameters: {str(e)}")
