@@ -981,8 +981,9 @@ class MoleculeDict(dict):
                 return default
             
             temp = safe_extract_float("Temp")
-            print(f"Loading molecule '{mol_name}' with Temp: {temp}")
-            print(f"Inital parameters: {mol_initial_params}")
+            fwhm = safe_extract_float("FWHM")
+            rv_shift = mol_data.get("RV Shift", self._global_stellar_rv)
+            broad = mol_data.get("Broad")
             radius = safe_extract_float("Rad") 
             n_mol = safe_extract_float("N_Mol")
             is_visible = mol_data.get("Vis", True)
@@ -1002,9 +1003,9 @@ class MoleculeDict(dict):
                 # Global parameters (from MoleculeDict)
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
-                fwhm=getattr(self, '_global_fwhm', None),
-                rv_shift=getattr(self, '_global_stellar_rv', None),
-                broad=self._global_intrinsic_line_width,
+                fwhm=fwhm,
+                rv_shift=rv_shift,
+                broad=broad,
                 pixels_per_fwhm=self._global_pixels_per_fwhm,
                 model_line_width=self._global_model_line_width,
                 
