@@ -176,8 +176,11 @@ class FittingEngine:
         # Perform fit
         result = model.fit(flux_data, params, x=wave_data)
         
+        print(result.fit_report())
+
         # Generate fitted curve
-        fitted_wave = np.linspace(wave_data.min(), wave_data.max(), 1000)
+        #fitted_wave = np.linspace(wave_data.min(), wave_data.max(), 1000)
+        fitted_wave = wave_data
         fitted_flux = result.eval(x=fitted_wave)
         
         self.last_fit_result = result

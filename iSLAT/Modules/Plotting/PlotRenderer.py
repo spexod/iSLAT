@@ -405,6 +405,12 @@ class PlotRenderer:
                                                     label=f"Component {i+1}")
                             except Exception as e:
                                 debug_config.warning("plot_renderer", f"Could not plot fit components: {e}")
+                        else:
+                            # Single component fit, fill uncertainty area
+                            print("Omg hi")
+                            dely = gauss_fit.eval_uncertainty(sigma = self.islat.user_settings.get('fit_line_uncertainty', 1.0))
+                            self.ax2.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
+                                                color='gray', alpha=0.3, label=r'3-$\sigma$ uncertainty band')
 
         except Exception as e:
             debug_config.warning("plot_renderer", f"Could not render fit results: {e}")

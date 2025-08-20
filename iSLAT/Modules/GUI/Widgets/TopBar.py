@@ -292,13 +292,13 @@ class TopBar(ResizableFrame):
                             center_err_str = f"{center_err:.5f}" if center_err is not None else "0"
                             
                             fwhm_err = line_params.get('fwhm_stderr', 0)
-                            fwhm_err_kms = f"{fwhm_err:.1f}" if fwhm_err is not None else "0"
+                            fwhm_err_kms = f"{fwhm_err:.5f}" if fwhm_err is not None else "0"
                             
                             area_err = line_params.get('area_stderr', 0)
                             area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
                             
                             self.data_field.insert_text(f"Centroid (μm) = {line_params['center']:.5f} +/- {center_err_str}", clear_first=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {comp_params['fwhm']:.1f} +/- {fwhm_err_kms}", clear_first=False)
+                            self.data_field.insert_text(f"FWHM (km/s) = {line_params['fwhm']:.5f} +/- {fwhm_err_kms}", clear_first=False)
                             self.data_field.insert_text(f"Area (erg/s/cm2) = {line_params['area']:.3e} +/- {area_err_str}", clear_first=False)
                         else:
                             self.data_field.insert_text("Could not extract fit parameters.\n", clear_first=False)
