@@ -23,7 +23,6 @@ class trim_label(tk.Label):
         else:
             self.trimmed = False
     
-
 class FileInteractionPane(ttk.Frame):
     def __init__(self, parent, islat_class, theme):
         """
@@ -57,7 +56,6 @@ class FileInteractionPane(ttk.Frame):
         if hasattr(self.islat_class, 'loaded_spectrum_name'):
             default_text = f"{self.islat_class.loaded_spectrum_name}"
 
-        
         # Row 0: Spectrum file
         self.file_label = trim_label(
             self.label_frame, 
@@ -137,9 +135,6 @@ class FileInteractionPane(ttk.Frame):
             display_text = "No file loaded"
 
         self.update_label(self.file_label, text=display_text)
-
-
-
     
     def refresh(self):
         """
@@ -216,43 +211,12 @@ class FileInteractionPane(ttk.Frame):
         """
         Open file dialog to select input line list file and store in islat_class.
         """
-        '''from tkinter import filedialog
-        
-        # Define appropriate file types for line lists
-        filetypes = [
-            #('Text Files', '*.txt'),
-            #('CSV Files', '*.csv'),
-            #('DAT Files', '*.dat'),
-            ('All Files', '*.*')
-        ]
-        
-        # Open file dialog
-        file_path = filedialog.askopenfilename(
-            title="Select Input Line List File",
-            filetypes=filetypes,
-            initialdir=os.getcwd()
-        )
-        
-        if file_path:
-            # Store the file path in the islat_class
-            self.islat_class.input_line_list = file_path
-            filename = os.path.basename(file_path)
-            print(f"Input line list loaded: {filename}")
-            
-            # Update the status label
-            self.input_line_list_label.configure(text=f"Input Line List: {filename}")
-        else:
-            print("No input line list file selected.")'''
         from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
         filepath, filename = load_input_line_list(self.islat_class.input_line_list)
         self.islat_class.input_line_list = filepath
 
         self.update_label(self.input_line_list_label, filename)
         self.islat_class.GUI.plot.plot_renderer.remove_saved_lines()
-
-            
-        
-            
     
     def _load_output_line_measurements(self):
         """Calls the ifh class to save output line measurements."""

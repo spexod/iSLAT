@@ -1,7 +1,7 @@
 {
     "first_startup": false,
     "reload_default_files": false,
-    "fit_line_uncertainty": 1,
+    "fit_line_uncertainty": 3,
     "line_threshold": 0.03,
     "pixels_per_fwhm": 10,
     "line_detection_strategy": "user_selection",

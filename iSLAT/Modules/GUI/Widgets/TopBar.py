@@ -117,7 +117,7 @@ class TopBar(ResizableFrame):
                 return
         elif save_type == "selected":
             # Use the currently selected region and find the strongest line in it
-            selected_line_info = self.main_plot.find_strongest_line_from_data()
+            selected_line_info = self.main_plot.selected_line
             if selected_line_info is None:
                 # Fallback: create basic line info from selection bounds
                 xmin, xmax = self.main_plot.current_selection
@@ -228,17 +228,17 @@ class TopBar(ResizableFrame):
                             
                             # Handle None values in stderr parameters
                             center_err = comp_params.get('center_stderr', 0)
-                            center_err_str = f"{center_err:.5f}" if center_err is not None else "N/A"
+                            center_err_str = f"{center_err:.5f}" if center_err is not None else "0"
                             
-                            # Convert FWHM to km/s like old iSLAT
-                            fwhm_kms = comp_params['fwhm'] / comp_params['center'] * 299792.458  # c in km/s
-                            fwhm_err_kms = "N/A"  # Would need proper error propagation
+                            # Convert FWHM to km/s
+                            fwhm_err = line_params.get('fwhm_stderr', 0)
+                            fwhm_err_kms = f"{fwhm_err:.1f}" if fwhm_err is not None else "0"
                             
                             area_err = comp_params.get('area_stderr', 0)
-                            area_err_str = f"{area_err:.3e}" if area_err is not None else "N/A"
+                            area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
                             
                             self.data_field.insert_text(f"Centroid (μm) = {comp_params['center']:.5f} +/- {center_err_str}", clear_first=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {fwhm_kms:.1f} +/- {fwhm_err_kms}", clear_first=False)
+                            self.data_field.insert_text(f"FWHM (km/s) = {comp_params['fwhm']:.1f} +/- {fwhm_err_kms}", clear_first=False)
                             self.data_field.insert_text(f"Area (erg/s/cm2) = {comp_params['area']:.3e} +/- {area_err_str}", clear_first=False)
                             
                             # Automatically save this component
@@ -277,29 +277,28 @@ class TopBar(ResizableFrame):
                         if component_idx == 0:
                             self.data_field.insert_text("No components found in fit result.\n", clear_first=False)
                         else:
-                            # Show both detailed results AND the classic save message
+                            # Show both detailed results
                             self.data_field.insert_text(f"\nDe-blended line fit completed with {component_idx} components!", clear_first=False)
                             if saved_components > 0:
                                 self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_first=False)
                             
                     else:
-                        # Single Gaussian fit - show detailed results like old iSLAT
+                        # Single Gaussian fit - show detailed results
                         self.data_field.insert_text("\nGaussian fit results:\n", clear_first=False)
                         
                         if 'center' in line_params:
                             # Handle None values in stderr parameters
                             center_err = line_params.get('center_stderr', 0)
-                            center_err_str = f"{center_err:.5f}" if center_err is not None else "N/A"
+                            center_err_str = f"{center_err:.5f}" if center_err is not None else "0"
                             
-                            # Convert FWHM to km/s like old iSLAT (approximately)
-                            fwhm_kms = line_params['fwhm'] / line_params['center'] * 299792.458  # c in km/s
-                            fwhm_err_kms = "N/A"  # Would need proper error propagation
+                            fwhm_err = line_params.get('fwhm_stderr', 0)
+                            fwhm_err_kms = f"{fwhm_err:.5f}" if fwhm_err is not None else "0"
                             
                             area_err = line_params.get('area_stderr', 0)
-                            area_err_str = f"{area_err:.3e}" if area_err is not None else "N/A"
+                            area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
                             
                             self.data_field.insert_text(f"Centroid (μm) = {line_params['center']:.5f} +/- {center_err_str}", clear_first=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {fwhm_kms:.1f} +/- {fwhm_err_kms}", clear_first=False)
+                            self.data_field.insert_text(f"FWHM (km/s) = {line_params['fwhm']:.5f} +/- {fwhm_err_kms}", clear_first=False)
                             self.data_field.insert_text(f"Area (erg/s/cm2) = {line_params['area']:.3e} +/- {area_err_str}", clear_first=False)
                         else:
                             self.data_field.insert_text("Could not extract fit parameters.\n", clear_first=False)
@@ -308,20 +307,14 @@ class TopBar(ResizableFrame):
             else:
                 self.data_field.insert_text("Fit failed or insufficient data.\n", clear_first=False)
             
-            # Update plots
-            #self.main_plot.plot_line_inspection(highlight_strongest=False)
-            
         except Exception as e:
             self.data_field.insert_text(f"Error during fitting: {e}\n", clear_first=False)
             self.data_field.insert_text(f"Traceback: {traceback.format_exc()}\n", clear_first=False)
 
-    def fit_saved_lines(self, print_output=False):
+    def fit_saved_lines(self):
         """
         Fit all saved lines using LineAnalyzer for comprehensive analysis.
-        Simplified method that delegates all logic to appropriate classes.
         """
-        #try:
-        # Get file paths from iSLAT instance
         saved_lines_file = self.islat.input_line_list
         output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
         
@@ -347,15 +340,6 @@ class TopBar(ResizableFrame):
             successful_fits = sum(1 for result in fit_results if result.get('Fit_det', False))
             total_lines = len(fit_results)
             
-            # Save results using file handling module
-            '''output_path = ifh.save_fit_results_csv(
-                fit_results,
-                file_path=self.islat.output_line_measurements,
-                file_name=output_file
-            )'''
-            
-            #ifh.save_fit_results(fit_results, file_name=self.islat.output_line_measurements)
-
             self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n")
             self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n")
             
@@ -367,18 +351,9 @@ class TopBar(ResizableFrame):
                     self.data_field.insert_text(f"Line {i+1} at {center:.4f} μm: Fit successful (S/N={snr:.1f})\n")
                 else:
                     wavelength = result.get('lam', 0)
-                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed\n")
-            
-            # Update the line inspection plot if available
-            #if hasattr(self.main_plot, 'update_line_inspection_plot'):
-            #    self.main_plot.update_line_inspection_plot()
+                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed\n")  
         else:
             self.data_field.insert_text("No lines found or no fits completed successfully.\n")
-            
-        #except Exception as e:
-        #    self.data_field.insert_text(f"Error fitting saved lines: {e}\n")
-        #    if print_output:
-        #        traceback.print_exc()
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""
