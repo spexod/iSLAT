@@ -438,7 +438,7 @@ def save_output_line_measurements(output_line_measurements, file_path=None, file
     # Define appropriate file types for measurements
     filetypes = [
         #('Text Files', '*.txt'),
-        #('CSV Files', '*.csv'),
+        ('CSV Files', '*.csv'),
         #('DAT Files', '*.dat'),
         ('All Files', '*.*')
     ]
@@ -469,7 +469,7 @@ def load_input_line_list(file_path=None, file_name=None):
     
     # Define appropriate file types for line lists
     filetypes = [
-        #('CSV Files', '*.csv'),
+        ('CSV Files', '*.csv'),
         #('DAT Files', '*.dat'),
         ('All Files', '*.*')
     ]
