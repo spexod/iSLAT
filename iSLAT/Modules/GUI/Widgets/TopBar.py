@@ -311,13 +311,10 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Error during fitting: {e}\n", clear_first=False)
             self.data_field.insert_text(f"Traceback: {traceback.format_exc()}\n", clear_first=False)
 
-    def fit_saved_lines(self, print_output=False):
+    def fit_saved_lines(self):
         """
         Fit all saved lines using LineAnalyzer for comprehensive analysis.
-        Simplified method that delegates all logic to appropriate classes.
         """
-        #try:
-        # Get file paths from iSLAT instance
         saved_lines_file = self.islat.input_line_list
         output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
         
@@ -343,15 +340,6 @@ class TopBar(ResizableFrame):
             successful_fits = sum(1 for result in fit_results if result.get('Fit_det', False))
             total_lines = len(fit_results)
             
-            # Save results using file handling module
-            '''output_path = ifh.save_fit_results_csv(
-                fit_results,
-                file_path=self.islat.output_line_measurements,
-                file_name=output_file
-            )'''
-            
-            #ifh.save_fit_results(fit_results, file_name=self.islat.output_line_measurements)
-
             self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n")
             self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n")
             
@@ -363,18 +351,9 @@ class TopBar(ResizableFrame):
                     self.data_field.insert_text(f"Line {i+1} at {center:.4f} μm: Fit successful (S/N={snr:.1f})\n")
                 else:
                     wavelength = result.get('lam', 0)
-                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed\n")
-            
-            # Update the line inspection plot if available
-            #if hasattr(self.main_plot, 'update_line_inspection_plot'):
-            #    self.main_plot.update_line_inspection_plot()
+                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed\n")  
         else:
             self.data_field.insert_text("No lines found or no fits completed successfully.\n")
-            
-        #except Exception as e:
-        #    self.data_field.insert_text(f"Error fitting saved lines: {e}\n")
-        #    if print_output:
-        #        traceback.print_exc()
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""

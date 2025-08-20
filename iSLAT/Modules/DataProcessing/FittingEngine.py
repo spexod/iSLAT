@@ -152,9 +152,9 @@ class FittingEngine:
         if deblend:
             return self._fit_multi_gaussian(fit_wave, fit_flux, initial_guess, xmin, xmax)
         else:
-            return self._fit_single_gaussian(fit_wave, fit_flux, initial_guess)
-    
-    def _fit_single_gaussian(self, wave_data, flux_data, initial_guess=None):
+            return self._fit_single_gaussian(fit_wave, fit_flux, initial_guess, xmin, xmax)
+
+    def _fit_single_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
         """Fit a single Gaussian component."""
         model = GaussianModel()
         
@@ -790,15 +790,16 @@ class FittingEngine:
         }
         
         # Process fit results if successful
-        if fit_result and hasattr(fit_result, 'params') and fit_result.success:
+        if fit_result and fit_result.success:
             # Extract fit parameters
             center = fit_result.params['center'].value
             center_err = fit_result.params['center'].stderr if fit_result.params['center'].stderr else 0.0
             amplitude = fit_result.params['amplitude'].value
             sigma = fit_result.params['sigma'].value
-            
+            fwhm = fit_result.params['fwhm'].value
+            fwhm_err = fit_result.params['fwhm'].stderr if fit_result.params['fwhm'].stderr else 0.0
+
             # Calculate derived quantities
-            fwhm = 2.355 * sigma  # Convert sigma to FWHM
             area = amplitude * sigma * np.sqrt(2 * np.pi)  # Gaussian area
             area_err = area * 0.1  # Approximate 10% error for area
             
@@ -816,7 +817,7 @@ class FittingEngine:
                 'Flux_fit': np.float64(f'{area:.{3}e}'),
                 'Err_fit': np.float64(f'{area_err:.{3}e}'),
                 'FWHM_fit': np.round(fwhm, decimals=1) if fit_det else np.nan,
-                'FWHM_err': np.round(fwhm * 0.1, decimals=1) if fit_det else np.nan,
+                'FWHM_err': np.round(fwhm_err, decimals=1) if fit_det else np.nan,
                 'Centr_fit': np.round(center, decimals=5) if fit_det else np.nan,
                 'Centr_err': np.round(center_err, decimals=5) if fit_det else np.nan,
                 'Doppler': np.round(doppler, decimals=1) if fit_det else np.nan,

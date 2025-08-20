@@ -753,24 +753,19 @@ class LineAnalyzer:
                     'intens': float(line_row.get('intens', 0.0)) if not pd.isna(line_row.get('intens', 0.0)) else 0.0,
                     'tau': float(line_row.get('tau', 0.0)) if not pd.isna(line_row.get('tau', 0.0)) else 0.0
                 }
-                
-                # Create a "fitted" result using the data from the saved lines file
-                # Since these lines were already fitted, we use their existing parameters
-                fit_result = {
-                    'success': True,
-                    'amplitude': line_info['intens'],
-                    'center': center_wave,
-                    'sigma': abs(xmax - xmin) / 6.0,  # Estimate sigma from range
-                    'continuum': 0.0,  # Assume continuum-subtracted
-                    'chi_squared': 1.0,  # Placeholder
-                    'fit_quality': 'reprocessed',
-                    'parameters': {
-                        'amplitude': line_info['intens'],
-                        'center': center_wave,
-                        'sigma': abs(xmax - xmin) / 6.0,
-                        'continuum': 0.0
-                    }
-                }
+
+                fit_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
+                x_fit = self.islat.wave_data[fit_mask]
+                y_fit = self.islat.flux_data[fit_mask]
+
+                fit_result, _, _ = fitting_engine.fit_gaussian_line(
+                    wave_data=x_fit,
+                    flux_data=y_fit,
+                    xmin=xmin,
+                    xmax=xmax,
+                    initial_guess=None,
+                    deblend=False
+                )
                 
                 # Create synthetic data arrays for formatting compatibility
                 wave_range = np.linspace(xmin, xmax, 50)
