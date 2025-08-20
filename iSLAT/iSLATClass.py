@@ -508,6 +508,10 @@ class iSLAT:
 
                 self.display_range = (display_first_entry, display_second_entry)
 
+            else:
+                # trigger display range setter
+                self.display_range = self.display_range
+
             # Initialize GUI after molecules are loaded
             if not hasattr(self, "GUI") or self.GUI is None:
                 pass
@@ -517,7 +521,6 @@ class iSLAT:
                 print("Updating existing GUI with new spectrum...")
                 if hasattr(self.GUI, "plot") and self.GUI.plot is not None:
                     self.GUI.plot.update_model_plot()
-                    self.GUI.plot.match_display_range()
                     if hasattr(self.GUI.plot, 'canvas'):
                         self.GUI.plot.canvas.draw()
                         
