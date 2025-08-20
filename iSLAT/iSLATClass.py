@@ -144,7 +144,7 @@ class iSLAT:
         except Exception as e:
             print(f"Error loading molecules: {e}")
 
-    def add_molecule_from_hitran(self, refresh=True, hitran_files=None, molecule_names=None, use_parallel=False):
+    def add_molecule_from_hitran(self, refresh=True, hitran_files=None, molecule_names=None, use_parallel=False, name_popups=True):
         """
         Adds one or more molecules to the iSLAT instance from HITRAN files.
         
@@ -176,6 +176,17 @@ class iSLAT:
         # Convert molecule_names to list if provided as single string
         if molecule_names is not None and isinstance(molecule_names, str):
             molecule_names = [molecule_names]
+
+        if molecule_names is None and name_popups:
+            # Use popups to get names for each molecule
+            molecule_names = []
+            for i, hitran_file in enumerate(hitran_files):
+                molecule_name = GUI.add_molecule_name_popup(title=f"Assign label for {os.path.basename(hitran_file)}")
+                if molecule_name:
+                    molecule_names.append(molecule_name)
+                else:
+                    print(f"No name provided for {hitran_file}, using default.")
+                    molecule_names.append(None)
         
         # Prepare molecule data
         molecules_data = []

@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog, ttk, font
+from tkinter import filedialog, ttk, font, simpledialog
 # from ttkthemes import ThemedTk
 import os
 
@@ -262,36 +262,6 @@ class GUI:
         
         self.master.geometry(f"{window_width}x{window_height}+{pos_x}+{pos_y}")
 
-    @staticmethod
-    def file_selector(title : str = None, filetypes=None, initialdir=None, use_abspath=True, allow_multiple=False):
-        window_title = title if title else "Select File"
-        if use_abspath and initialdir:
-            initialdir = os.path.abspath(initialdir)
-        elif initialdir is None:
-            initialdir = os.getcwd()
-
-        if filetypes is None:
-            filetypes = [("All Files", "*.*")]
-        elif isinstance(filetypes, str):
-            filetypes = [(filetypes, "*.*")]
-        else:
-            filetypes = filetypes
-        
-        if allow_multiple:
-            file_paths = filedialog.askopenfilenames(
-                title=window_title,
-                filetypes=filetypes,
-                initialdir=initialdir
-            )
-            return list(file_paths)
-        
-        file_path = filedialog.askopenfilename(
-            title=window_title,
-            filetypes=filetypes,
-            initialdir=initialdir
-        )
-        return file_path
-
     def build_left_panel(self, parent: tk.Frame):
         self.control_panel = ControlPanel(parent, self.islat_class, self.plot, self.default_font)
         self.control_panel.grid(padx=(1,0), sticky="nsew", pady=0)
@@ -369,3 +339,40 @@ class GUI:
         #self.master.focus_force()
 
         self.window.mainloop()
+
+    @staticmethod
+    def file_selector(title : str = None, filetypes=None, initialdir=None, use_abspath=True, allow_multiple=False):
+        window_title = title if title else "Select File"
+        if use_abspath and initialdir:
+            initialdir = os.path.abspath(initialdir)
+        elif initialdir is None:
+            initialdir = os.getcwd()
+
+        if filetypes is None:
+            filetypes = [("All Files", "*.*")]
+        elif isinstance(filetypes, str):
+            filetypes = [(filetypes, "*.*")]
+        else:
+            filetypes = filetypes
+        
+        if allow_multiple:
+            file_paths = filedialog.askopenfilenames(
+                title=window_title,
+                filetypes=filetypes,
+                initialdir=initialdir
+            )
+            return list(file_paths)
+        
+        file_path = filedialog.askopenfilename(
+            title=window_title,
+            filetypes=filetypes,
+            initialdir=initialdir
+        )
+        return file_path
+    
+    @staticmethod
+    def add_molecule_name_popup(title : str = "Assign label"):
+        """Open a popup to add a new molecule name."""
+        molecule_name = simpledialog.askstring(title, "Enter a label for this model (LaTeX and case sensitive):")
+
+        return molecule_name
