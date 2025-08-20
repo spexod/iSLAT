@@ -58,6 +58,9 @@ class InteractionHandler:
         self.canvas.mpl_connect('motion_notify_event', self._on_mouse_move)
         self.canvas.mpl_connect('pick_event', self._on_pick)
         self.canvas.mpl_connect('scroll_event', self._on_scroll)
+        
+        # Connect to draw events to catch navigation changes
+        self.canvas.mpl_connect('draw_event', self._on_draw)
     
     def _setup_keyboard_events(self):
         """Set up keyboard event handlers"""
@@ -69,6 +72,9 @@ class InteractionHandler:
         # Connect to axis limit changes
         self.ax1.callbacks.connect('xlim_changed', self._on_xlim_changed)
         self.ax1.callbacks.connect('ylim_changed', self._on_ylim_changed)
+        
+        # Store the last known xlim to detect changes during draw events
+        self._last_xlim = self.ax1.get_xlim() if self.ax1 else None
     
     def _on_span_select(self, xmin: float, xmax: float):
         """Handle span selection on main plot"""
@@ -248,9 +254,15 @@ class InteractionHandler:
         xone = new_xlim[0]
         xtwo = new_xlim[1]
         
-        # Update display range in iSLAT
+        # Update display range in iSLAT (only if changed to prevent infinite loops)
         if hasattr(self.islat, 'display_range'):
-            self.islat.display_range = (xone, xtwo)
+            current_range = self.islat.display_range
+            new_range = (xone, xtwo)
+            # Only update if the values are actually different (with small tolerance for floating point)
+            if (not current_range or 
+                abs(current_range[0] - new_range[0]) > 1e-10 or 
+                abs(current_range[1] - new_range[1]) > 1e-10):
+                self.islat.display_range = new_range
 
         # Trigger zoom callbacks
         self._trigger_zoom_callbacks('xlim_changed', new_xlim)
@@ -259,6 +271,24 @@ class InteractionHandler:
         """Handle y-axis limit changes"""
         new_ylim = ax.get_ylim()
         self._trigger_zoom_callbacks('ylim_changed', new_ylim)
+    
+    def _on_draw(self, event):
+        """Handle draw events to catch navigation changes that don't trigger axis callbacks"""
+        # Check if xlim has changed since last draw
+        current_xlim = self.ax1.get_xlim()
+        
+        if self._last_xlim is None:
+            # First time, just store the current xlim
+            self._last_xlim = current_xlim
+            return
+            
+        # Check if xlim has actually changed (with small tolerance for floating point)
+        if (abs(current_xlim[0] - self._last_xlim[0]) > 1e-10 or 
+            abs(current_xlim[1] - self._last_xlim[1]) > 1e-10):
+            
+            # xlim has changed, update display range
+            self._last_xlim = current_xlim
+            self._on_xlim_changed(self.ax1)
     
     def _update_line_inspection(self, xmin: float, xmax: float):
         """Update the line inspection plot based on selection"""

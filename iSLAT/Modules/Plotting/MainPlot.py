@@ -177,25 +177,18 @@ class iSLATPlot:
             # If display_range is set elsewhere, update plot xlim
             if self.islat.display_range:
                 wmin, wmax = self.islat.display_range
-                self.ax1.set_xlim(wmin, wmax)
+                current_xlim = self.ax1.get_xlim()
+                
+                # Only update plot xlim if it's actually different (prevent infinite loops)
+                if (abs(current_xlim[0] - wmin) > 1e-10 or 
+                    abs(current_xlim[1] - wmax) > 1e-10):
+                    self.ax1.set_xlim(wmin, wmax)
             else:
                 # If not set, initialize from current plot xlim
                 self.islat.display_range = tuple(self.ax1.get_xlim())
         else:
             # If islat has no display_range attribute, do nothing
             return
-
-        # Connect callback to update islat.display_range when user changes xlim
-        def on_xlim_changed(ax):
-            # Only update if changed by user
-            new_xlim = list(ax.get_xlim())
-            if self.islat.display_range != new_xlim:
-                self.islat.display_range = new_xlim
-
-        # Avoid multiple connections
-        if not hasattr(self, '_xlim_callback_connected'):
-            self.ax1.callbacks.connect('xlim_changed', on_xlim_changed)
-            self._xlim_callback_connected = True
 
         # Adjust y-limits
         wmin, wmax = self.ax1.get_xlim()

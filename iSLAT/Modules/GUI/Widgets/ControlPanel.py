@@ -130,9 +130,14 @@ class ControlPanel(ttk.Frame):
         
         def on_write(*args):
             if self.updating:
-                on_change(*args)
                 return
             entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
+            if param_name not in ["display_range_start", "display_range_range"]:
+                try:
+                    value = float(var.get())
+                    on_change_callback(value)
+                except ValueError:
+                    pass 
         
         entry.bind("<Return>", on_change)
         var.trace_add("write", on_write)
@@ -166,13 +171,13 @@ class ControlPanel(ttk.Frame):
         # Plot start
         initial_start = getattr(self.islat, 'display_range', [4.5, 5.5])[0]
         self.plot_start_entry, self.plot_start_var = self._create_simple_entry( parent,
-            "Plot start:", initial_start, start_row, start_col, self._update_display_range, tip_text=plot_start_tip)
+            "Plot start:", initial_start, start_row, start_col, lambda _: self._update_display_range(), param_name="display_range_start", tip_text=plot_start_tip)
         
         # Plot range  
         display_range = getattr(self.islat, 'display_range', [4.5, 5.5])
         initial_range = round(display_range[1] - display_range[0], 2) # round to 2 decimal places
         self.plot_range_entry, self.plot_range_var = self._create_simple_entry( parent,
-            "Plot range:", initial_range, start_row, start_col + 2, self._update_display_range, tip_text=plot_range_tip)
+            "Plot range:", initial_range, start_row, start_col + 2, lambda _: self._update_display_range(), param_name="display_range_range", tip_text=plot_range_tip)
 
     def _create_wavelength_controls(self, parent, start_row, start_col):
         """Create wavelength range controls for model calculation range"""
@@ -666,15 +671,36 @@ class ControlPanel(ttk.Frame):
         self.selected_label.config(text=f"Selected Molecule: {active_mol.name}")
 
     def _update_display_range(self, value_str=None):
-        """Update display range from either start or range change"""
-        try:
-            start = float(self.plot_start_var.get())
-            range_val = float(self.plot_range_var.get())
-            #self._set_display_range(start, start + range_val)
-            if hasattr(self.islat, 'display_range'):
-                self.islat.display_range = (start, start + range_val)
-        except (ValueError, AttributeError):
-            pass
+        """Update display range bidirectionally between GUI and iSLAT class"""
+        # If value_str is a tuple, it's being called from iSLAT to update GUI
+        if isinstance(value_str, tuple) and len(value_str) == 2:
+            try:
+                # Update GUI fields from iSLAT display_range (iSLAT GUI)
+                start, end = value_str
+                range_val = round(end - start, 2)
+                
+                # Use updating flag to prevent recursive calls
+                self.updating = True
+                self.plot_start_var.set(str(start))
+                self.plot_range_var.set(str(range_val))
+                self.updating = False
+            except Exception as e:
+                self.updating = False
+                print(f"Error updating display range GUI from iSLAT: {e}")
+        else:
+            try:
+                # Update iSLAT from GUI fields (GUI iSLAT)
+                start = float(self.plot_start_var.get())
+                range_val = float(self.plot_range_var.get())
+                
+                if hasattr(self.islat, 'display_range'):
+                    # Temporarily disable the updating flag to allow normal iSLAT property setter
+                    new_display_range = (start, start + range_val)
+                    # Only update if the values are actually different to avoid unnecessary callbacks
+                    if not hasattr(self.islat, '_display_range') or self.islat._display_range != new_display_range:
+                        self.islat.display_range = new_display_range
+            except (ValueError, AttributeError):
+                pass
 
     def _update_wavelength_range(self, value_str=None):
         """Update wavelength range for model calculations (not display)"""
@@ -771,6 +797,9 @@ class ControlPanel(ttk.Frame):
             self._set_var(self.min_wavelength_var, str(min_val))
             self._set_var(self.max_wavelength_var, str(max_val))
         
+        # Update display range fields
+        self._update_display_range_fields()
+        
         # Update molecule-specific parameter fields
         self._update_molecule_parameter_fields()
         
@@ -824,6 +853,29 @@ class ControlPanel(ttk.Frame):
                     self._set_var(var, str(new_value))
             except (AttributeError, TypeError):
                 pass
+
+    def _update_display_range_fields(self):
+        """Update display range fields with values from the iSLAT display_range property"""
+        if not (hasattr(self, 'plot_start_var') and hasattr(self, 'plot_range_var')):
+            return
+            
+        if not hasattr(self.islat, 'display_range') or not self.islat.display_range:
+            return
+            
+        try:
+            start, end = self.islat.display_range
+            range_val = round(end - start, 2)
+            
+            # Update only if values are different to avoid unnecessary updates
+            current_start = self.plot_start_var.get()
+            current_range = self.plot_range_var.get()
+            
+            if str(current_start) != str(start):
+                self._set_var(self.plot_start_var, str(start))
+            if str(current_range) != str(range_val):
+                self._set_var(self.plot_range_var, str(range_val))
+        except (ValueError, AttributeError, TypeError):
+            pass
 
     def _set_var(self, entry, value):
         self.updating = True
