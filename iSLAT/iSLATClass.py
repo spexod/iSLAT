@@ -498,14 +498,15 @@ class iSLAT:
                 self.update_model_spectrum()
                 print(f"Updated existing molecules for new wavelength range: {spectrum_range[0]:.3f} - {spectrum_range[1]:.3f}")
 
-            # Set display limits based on loaded spectrum
-            fig_max_limit = np.nanmax(self.wave_data)
-            fig_min_limit = np.nanmin(self.wave_data)
+            if not hasattr(self, "display_range") or self.display_range[0] < self.wave_data.min() or self.display_range[1] > self.wave_data.max():
+                # Set display limits based on loaded spectrum
+                fig_max_limit = np.nanmax(self.wave_data)
+                fig_min_limit = np.nanmin(self.wave_data)
 
-            display_first_entry = round((fig_min_limit + (fig_max_limit - fig_min_limit) / 2), 2)
-            display_second_entry = round((display_first_entry + (fig_max_limit - fig_min_limit) / 10), 2)
+                display_first_entry = round((fig_min_limit + (fig_max_limit - fig_min_limit) / 2), 2)
+                display_second_entry = round((display_first_entry + (fig_max_limit - fig_min_limit) / 10), 2)
 
-            self.display_range = (display_first_entry, display_second_entry)
+                self.display_range = (display_first_entry, display_second_entry)
 
             # Initialize GUI after molecules are loaded
             if not hasattr(self, "GUI") or self.GUI is None:
