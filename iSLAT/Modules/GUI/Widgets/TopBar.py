@@ -117,7 +117,7 @@ class TopBar(ResizableFrame):
                 return
         elif save_type == "selected":
             # Use the currently selected region and find the strongest line in it
-            selected_line_info = self.main_plot.find_strongest_line_from_data()
+            selected_line_info = self.main_plot.selected_line
             if selected_line_info is None:
                 # Fallback: create basic line info from selection bounds
                 xmin, xmax = self.main_plot.current_selection

@@ -353,6 +353,7 @@ class iSLATPlot:
         """Handle line pick events by delegating to PlotRenderer."""
         picked_value = self.plot_renderer.handle_line_pick_event(event.artist, self.active_lines)
         if picked_value:
+            self.selected_line = picked_value
             self._display_line_info(picked_value)
         self.canvas.draw_idle()
 
