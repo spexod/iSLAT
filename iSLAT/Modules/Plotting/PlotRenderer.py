@@ -193,8 +193,9 @@ class PlotRenderer:
             return
         
         # Plot observed spectrum
-        self._plot_observed_spectrum(wave_data, flux_data, error_data)
-        
+        observed_wave = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
+        self._plot_observed_spectrum(observed_wave, flux_data, error_data)
+
         # Plot individual molecule spectra
         if molecules:
             self.render_visible_molecules(wave_data, molecules)

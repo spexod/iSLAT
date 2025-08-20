@@ -143,18 +143,24 @@ class MoleculeDict(dict):
         - Advanced caching with intelligent cache management
         - Memory-efficient float32 operations
         - Robust error handling with fallbacks
+        - Proper handling of individual molecule RV shifts
+        
+        Each molecule's individual RV shift is applied during flux calculation, then the flux
+        is interpolated back to the original wavelength grid to ensure proper summation.
+        This ensures physically correct behavior where molecules with different RV shifts
+        can be properly combined.
         
         Parameters
         ----------
         wave_data: np.ndarray
-            Wavelength data for flux calculation
+            Wavelength data for flux calculation (original reference frame)
         visible_only: bool, default True
             If True, only sum flux from visible molecules
             
         Returns
         -------
         np.ndarray
-            Summed flux array
+            Summed flux array on the original wavelength grid
         """
         if wave_data is None:
             return np.array([])
@@ -164,10 +170,13 @@ class MoleculeDict(dict):
         if not visible_molecules:
             return np.zeros_like(wave_data, dtype=np.float32)
         
-        # Try cache lookup first
+        # Try cache lookup first - include RV shifts in cache key
         try:
             wave_hash = hash(wave_data.tobytes())
-            cache_key = hash((wave_hash, frozenset(visible_molecules)))
+            # Include individual molecule RV shifts in cache key for proper invalidation
+            molecule_rv_shifts = frozenset((mol_name, self[mol_name].rv_shift) 
+                                         for mol_name in visible_molecules if mol_name in self)
+            cache_key = hash((wave_hash, frozenset(visible_molecules), molecule_rv_shifts))
             if cache_key in self._summed_flux_cache:
                 return self._summed_flux_cache[cache_key]
         except (TypeError, ValueError):
@@ -186,22 +195,37 @@ class MoleculeDict(dict):
             return np.array([])
             
         flux_matrix = np.zeros((n_molecules, len(wave_data)), dtype=np.float32)
-        
+
+        print(f"wave data len: {len(wave_data)}")
+        print(f'Wave data range: {wave_data[0]:.3f} - {wave_data[-1]:.3f}')
+        print(f'Number of visible molecules: {len(visible_molecules)}')
+        if visible_molecules:
+            rv_shifts = [f"{mol_name}: {self[mol_name].rv_shift:.1f}" for mol_name in visible_molecules[:3] if mol_name in self]
+            print(f'Sample RV shifts: {rv_shifts}')
+
         # Prepare plot data for all molecules with error handling
+        # Note: Each molecule's RV shift is applied, so we need to interpolate back to original grid
         valid_molecules = []
         for i, mol_name in enumerate(visible_molecules):
             if mol_name in self:
                 molecule = self[mol_name]
                 try:
+                    # This call applies the molecule's RV shift to the wavelength grid
                     molecule.prepare_plot_data(wave_data)
                     if hasattr(molecule, 'plot_flux') and molecule.plot_flux is not None:
-                        # Ensure plot_flux has the right shape
-                        flux = molecule.plot_flux
-                        if len(flux) == len(wave_data):
-                            flux_matrix[i] = flux.astype(np.float32)
-                            valid_molecules.append(i)
+                        # Since RV shift was applied to plot_lam, we need to interpolate 
+                        # the flux back to the original wavelength grid for proper summing
+                        if hasattr(molecule, 'plot_lam') and molecule.plot_lam is not None:
+                            # Interpolate flux from RV-shifted grid back to original grid
+                            interpolated_flux = np.interp(wave_data, molecule.plot_lam, molecule.plot_flux, 
+                                                        left=0, right=0)
+                            if len(interpolated_flux) == len(wave_data):
+                                flux_matrix[i] = interpolated_flux.astype(np.float32)
+                                valid_molecules.append(i)
+                            else:
+                                print(f"Warning: interpolated flux shape mismatch for {mol_name}: {len(interpolated_flux)} vs {len(wave_data)}")
                         else:
-                            print(f"Warning: flux shape mismatch for {mol_name}: {len(flux)} vs {len(wave_data)}")
+                            print(f"Warning: Missing plot_lam for molecule {mol_name}")
                 except Exception as e:
                     print(f"Warning: Failed to prepare plot data for molecule {mol_name}: {e}")
                     continue
@@ -218,21 +242,26 @@ class MoleculeDict(dict):
                 oldest_key = next(iter(self._summed_flux_cache))
                 del self._summed_flux_cache[oldest_key]
             self._summed_flux_cache[cache_key] = summed_flux
-            
+
         return summed_flux
 
     def _parallel_flux_calculation_internal(self, wave_data: np.ndarray, visible_molecules: list, cache_key) -> np.ndarray:
-        """Internal parallel flux calculation method."""
+        """Internal parallel flux calculation method that accounts for individual molecule RV shifts."""
         max_workers = min(len(visible_molecules), mp.cpu_count())
         
         def calculate_molecule_flux(mol_name):
-            """Worker function to calculate flux for a single molecule"""
+            """Worker function to calculate flux for a single molecule with RV shift applied"""
             if mol_name in self:
                 molecule = self[mol_name]
                 try:
+                    # prepare_plot_data applies the molecule's individual RV shift
                     molecule.prepare_plot_data(wave_data)
-                    if hasattr(molecule, 'plot_flux') and molecule.plot_flux is not None:
-                        return molecule.plot_flux.astype(np.float32)
+                    if (hasattr(molecule, 'plot_flux') and molecule.plot_flux is not None and
+                        hasattr(molecule, 'plot_lam') and molecule.plot_lam is not None):
+                        # Interpolate flux from RV-shifted grid back to original grid
+                        interpolated_flux = np.interp(wave_data, molecule.plot_lam, molecule.plot_flux,
+                                                    left=0, right=0)
+                        return interpolated_flux.astype(np.float32)
                 except Exception as e:
                     print(f"Warning: Failed to calculate flux for {mol_name}: {e}")
             return np.zeros_like(wave_data, dtype=np.float32)

@@ -267,8 +267,9 @@ class iSLATPlot:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
     
-        wave_data = self.islat.wave_data - (self.islat.wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
-        
+        #wave_data = self.islat.wave_data - (self.islat.wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
+        wave_data = self.islat.wave_data
+
         self.plot_renderer.render_main_spectrum_plot(
             wave_data,
             self.islat.flux_data,
