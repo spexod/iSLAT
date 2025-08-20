@@ -174,6 +174,9 @@ class TopBar(ResizableFrame):
         }
         
         try:
+            if not self.islat.output_line_measurements:
+                self.data_field.insert_text("No output line measurements file specified.\n")
+                return
             ifh.save_line(line_info, file_name=self.islat.output_line_measurements)
             self.data_field.insert_text(f"Saved line at {line_info['lam']:.4f} μm\n")
         except Exception as e:
