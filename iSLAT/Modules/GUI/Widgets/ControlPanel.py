@@ -1,3 +1,4 @@
+import traceback
 import tkinter as tk
 from tkinter import ttk, colorchooser
 from iSLAT.Modules.DataTypes.Molecule import Molecule
@@ -112,32 +113,23 @@ class ControlPanel(ttk.Frame):
         entry.grid(row=row, column=col + 1, padx=1, sticky="w")
         
         def on_change(*args):
+            self.updating = True
             try:
-                traces = var.trace_info()
-                if traces:
-                    mode, callback_name = traces[0][0], traces[0][1]
-                    var.trace_remove(mode, callback_name)
-    
-                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
                 value = float(var.get())
                 on_change_callback(value)
                 value_str = self._format_value(value, param_name)
                 var.set(value_str)
-                var.trace_add("write", on_write)
-                
+                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
             except ValueError as e:
                 print(f"Error with new value: {e}")
+            finally:
+                self.updating = False
         
         def on_write(*args):
-            if self.updating:
+            if self.updating: # Updating means that the entry variable is being updated from iSLAT and should not turn grey
                 return
             entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
-            if param_name not in ["display_range_start", "display_range_range"]:
-                try:
-                    value = float(var.get())
-                    on_change_callback(value)
-                except ValueError:
-                    pass 
+
         
         entry.bind("<Return>", on_change)
         var.trace_add("write", on_write)
@@ -675,21 +667,20 @@ class ControlPanel(ttk.Frame):
         # If value_str is a tuple, it's being called from iSLAT to update GUI
         if isinstance(value_str, tuple) and len(value_str) == 2:
             try:
-                # Update GUI fields from iSLAT display_range (iSLAT GUI)
+
+                # Update GUI fields from iSLAT display_range (iSLAT -> GUI)
                 start, end = value_str
                 range_val = round(end - start, 2)
                 
-                # Use updating flag to prevent recursive calls
-                self.updating = True
-                self.plot_start_var.set(str(start))
-                self.plot_range_var.set(str(range_val))
-                self.updating = False
+                self._set_var(self.plot_start_var, str(start))
+                self._set_var(self.plot_range_var, str(range_val))
+
             except Exception as e:
-                self.updating = False
                 print(f"Error updating display range GUI from iSLAT: {e}")
         else:
             try:
-                # Update iSLAT from GUI fields (GUI iSLAT)
+                
+                # Update iSLAT from GUI fields (GUI -> iSLAT)
                 start = float(self.plot_start_var.get())
                 range_val = float(self.plot_range_var.get())
                 
@@ -877,7 +868,7 @@ class ControlPanel(ttk.Frame):
         except (ValueError, AttributeError, TypeError):
             pass
 
-    def _set_var(self, entry, value):
+    def _set_var(self, var, value):
         self.updating = True
-        entry.set(value)
+        var.set(value)
         self.updating = False

@@ -79,7 +79,7 @@ class InteractionHandler:
     def _on_span_select(self, xmin: float, xmax: float):
         """Handle span selection on main plot"""
         if xmin == xmax:
-            self.clear_current_selection()
+            # self.clear_current_selection()
             return
         
         # Ensure proper order
