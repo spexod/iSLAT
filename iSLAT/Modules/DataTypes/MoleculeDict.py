@@ -30,8 +30,8 @@ class MoleculeDict(dict):
             'intrinsic_line_width': kwargs.pop('global_intrinsic_line_width', default_parms.INTRINSIC_LINE_WIDTH),
             'wavelength_range': kwargs.pop('global_wavelength_range', default_parms.WAVELENGTH_RANGE),
             'model_line_width': kwargs.pop('global_model_line_width', default_parms.MODEL_LINE_WIDTH),
-            #'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
-            'pixels_per_fwhm': kwargs.pop('global_pixels_per_fwhm', default_parms.PIXELS_PER_FWHM),
+            'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
+            #'pixels_per_fwhm': kwargs.pop('global_pixels_per_fwhm', default_parms.PIXELS_PER_FWHM),
         }
         
         super().__init__(*args, **kwargs)
@@ -44,51 +44,6 @@ class MoleculeDict(dict):
         
         from .Molecule import Molecule
         Molecule.add_molecule_parameter_change_callback(self._on_molecule_parameter_changed)
-
-    def add_molecule(self, mol_entry: Dict[str, Any], intrinsic_line_width: Optional[float] = None, 
-                     wavelength_range: Optional[Tuple[float, float]] = None, 
-                     pixels_per_fwhm: Optional[float] = None, model_line_width: Optional[float] = None, 
-                     distance: Optional[float] = None, hitran_data: Optional[Any] = None) -> Molecule:
-        """Add a new molecule to the dictionary using molecule entry data."""
-        mol_name = mol_entry["name"]
-
-        # Use global parameters if not specifically provided
-        effective_intrinsic_line_width = intrinsic_line_width if intrinsic_line_width is not None else self._global_intrinsic_line_width
-        effective_wavelength_range = wavelength_range if wavelength_range is not None else self._global_wavelength_range
-        effective_pixels_per_fwhm = pixels_per_fwhm if pixels_per_fwhm is not None else self._global_pixels_per_fwhm
-        effective_model_line_width = model_line_width if model_line_width is not None else self._global_model_line_width
-        effective_distance = distance if distance is not None else self._global_dist
-
-        # Create a Molecule instance
-        molecule = Molecule(
-            name=mol_name,
-            filepath=mol_entry["file"],
-            displaylabel=mol_entry["label"],
-            color=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Color"),
-            initial_molecule_parameters=getattr(self, 'initial_molecule_parameters', {}).get(mol_name, {}),
-            wavelength_range=effective_wavelength_range,
-            broad=effective_intrinsic_line_width,
-            pixels_per_fwhm=effective_pixels_per_fwhm,
-            model_line_width=effective_model_line_width,
-            distance=effective_distance,
-            rv_shift=self._global_stellar_rv,
-            radius=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Rad", None),
-            temp=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Temp", None),
-            n_mol=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("N_Mol", None),
-            is_visible=getattr(self, 'save_file_data', {}).get(mol_name, {}).get("Vis", True),
-            hitran_data=hitran_data
-        )
-
-        # Store the molecule in the dictionary
-        self[mol_name] = molecule
-
-        print(f"Molecule Initialized: {mol_name}")
-        
-        # Update fluxes if the molecule has plot data
-        if hasattr(molecule, 'plot_flux'):
-            self.fluxes[mol_name] = molecule.plot_flux
-            
-        return molecule
 
     def add_molecules(self, *molecules) -> None:
         """Add multiple molecules to the dictionary with optional bulk intensity calculation."""
@@ -1074,7 +1029,8 @@ class MoleculeDict(dict):
                 fwhm=fwhm,
                 rv_shift=rv_shift,
                 broad=broad,
-                pixels_per_fwhm=self._global_pixels_per_fwhm,
+                #pixels_per_fwhm=self._global_pixels_per_fwhm,
+                model_pixel_res=self._global_model_pixel_res,
                 model_line_width=self._global_model_line_width,
                 
                 # Molecule-specific parameters
@@ -1301,6 +1257,19 @@ class MoleculeDict(dict):
         old_value = self._global_stellar_rv
         self._global_stellar_rv = value
         self._notify_global_parameter_change('stellar_rv', old_value, value)
+
+    @property
+    def global_model_pixel_res(self) -> Optional[float]:
+        """Global model pixel resolution parameter"""
+        return self._global_model_pixel_res
+    
+    @global_model_pixel_res.setter
+    def global_model_pixel_res(self, value: Optional[float]) -> None:
+        """Set global model pixel resolution and update all molecules"""
+        old_value = self._global_model_pixel_res
+        self._global_model_pixel_res = value
+        self.bulk_update_parameters({'model_pixel_res': value})
+        self._notify_global_parameter_change('model_pixel_res', old_value, value)
 
     def __del__(self):
         """Cleanup when object is destroyed."""

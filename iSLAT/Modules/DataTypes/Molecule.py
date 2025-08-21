@@ -43,7 +43,7 @@ class Molecule:
         '_temp_val', '_radius_val', '_n_mol_val', '_distance_val', '_fwhm_val', '_broad_val',
         '_lines_filepath',
         't_kin', 'scale_exponent', 'scale_number', 'radius_init', 'n_mol_init',
-        '_wavelength_range', 'pixels_per_fwhm', 'model_pixel_res', 'model_line_width',
+        '_wavelength_range', 'pixels_per_fwhm', '_model_pixel_res', 'model_line_width',
         'plot_lam', 'plot_flux',
         '_intensity_cache', '_spectrum_cache', '_flux_cache', '_wave_data_cache',
         '_param_hash_cache', '_dirty_flags', '_cache_stats'
@@ -54,7 +54,7 @@ class Molecule:
     _cache_lock = threading.Lock()
     
     INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad', 'wavelength_range'}
-    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'rv_shift', 'wavelength_range'}
+    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'rv_shift', 'wavelength_range', 'model_pixel_res'}
     FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS
     
     @classmethod
@@ -147,10 +147,11 @@ class Molecule:
         self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
         #self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
         self.pixels_per_fwhm = kwargs.get('pixels_per_fwhm', c.PIXELS_PER_FWHM)
-        if self.pixels_per_fwhm is not None:
-            self.model_pixel_res = (np.mean(self._wavelength_range) / c.SPEED_OF_LIGHT_KMS * self._fwhm) / self.pixels_per_fwhm
-        else:
-            self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
+        #if self.pixels_per_fwhm is not None:
+        #    self.model_pixel_res = (np.mean(self._wavelength_range) / c.SPEED_OF_LIGHT_KMS * self._fwhm) / self.pixels_per_fwhm
+        #else:
+        #    self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
+        self._model_pixel_res = kwargs.get('model_pixel_res')#, c.MODEL_PIXEL_RESOLUTION)
         self.model_line_width = kwargs.get('model_line_width', c.MODEL_LINE_WIDTH)
 
         self.intensity = None
@@ -186,8 +187,29 @@ class Molecule:
         return hash((self._temp, self._n_mol, self._broad))
     
     def _compute_spectrum_hash(self):
-        #return hash((self._radius, self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
-        return hash((self._radius, self._distance, self._fwhm, self._rv_shift, self._wavelength_range, self._compute_intensity_hash()))
+        '''#return hash((self._radius, self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
+        #return hash((self._radius, self._distance, self._fwhm, self._rv_shift, self._wavelength_range, self._compute_intensity_hash()))
+        # use spectrum affecting params variable
+        hash_vars_list = self.SPECTRUM_AFFECTING_PARAMS.copy()
+        hash_attars = []
+        for var in hash_vars_list:
+            if var == 'wavelength_range':
+                hash_attars.append(tuple(self._wavelength_range))
+            else:
+                hash_attars.append(getattr(self, f"_{var}"))
+        return hash(tuple(hash_attars) + (self._compute_intensity_hash(),))'''
+        # Get all spectrum-affecting parameters and create hash tuple
+        param_values = []
+        for param in self.SPECTRUM_AFFECTING_PARAMS:
+            if param == 'wavelength_range':
+                param_values.append(tuple(self._wavelength_range))
+            else:
+                param_values.append(getattr(self, f'_{param}'))
+        
+        # Include intensity hash for dependencies
+        param_values.append(self._compute_intensity_hash())
+        
+        return hash(tuple(param_values))
 
     def _compute_full_parameter_hash(self):
         return hash((self._compute_spectrum_hash()))
@@ -344,7 +366,7 @@ class Molecule:
         self.spectrum = Spectrum(
             lam_min=expanded_lam_min,
             lam_max=expanded_lam_max,
-            dlambda=self.model_pixel_res,
+            dlambda=self._model_pixel_res,
             R=spectral_resolution,
             distance=self._distance
         )
@@ -366,7 +388,7 @@ class Molecule:
         param_tuple = (
             self._temp, self._radius, self._n_mol, self._distance, 
             self._fwhm, self._broad, self.wavelength_range, 
-            self.model_pixel_res, self.model_line_width,
+            self._model_pixel_res, self.model_line_width,
             #getattr(self, 'stellar_rv', c.DEFAULT_STELLAR_RV)  # Include stellar RV in hash
             self._rv_shift
         )
@@ -646,6 +668,16 @@ class Molecule:
         old_value = self._rv_shift
         self._rv_shift = float(value)
         self._notify_my_parameter_change('rv_shift', old_value, self._rv_shift)
+
+    @property
+    def model_pixel_res(self):
+        return self._model_pixel_res
+
+    @model_pixel_res.setter
+    def model_pixel_res(self, value):
+        old_value = self._model_pixel_res
+        self._model_pixel_res = float(value)
+        self._notify_my_parameter_change('model_pixel_res', old_value, self._model_pixel_res)
 
     @property
     def broad(self):
