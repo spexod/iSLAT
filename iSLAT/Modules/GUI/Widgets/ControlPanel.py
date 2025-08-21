@@ -241,6 +241,7 @@ class ControlPanel(ttk.Frame):
     
         for row, (mol_name, mol_obj) in enumerate(self.mol_dict.items()):
             current_mol = mol_obj
+            print(current_mol)
 
             mol_frame = tk.Frame(content_frame)
             self.mol_frames[mol_name] = mol_frame

@@ -193,7 +193,10 @@ class iSLAT:
         for i, hitran_file in enumerate(hitran_files):
             # Get molecule name for this file
             if molecule_names is not None and i < len(molecule_names):
-                molecule_name = molecule_names[i]
+                molecule_label = molecule_names[i]
+                
+                molecule_name = molecule_names[i].translate({ord(i): None for i in '_$^{}'})
+                molecule_name = molecule_name.translate({ord(i): "_" for i in ' -'})
             else:
                 # Extract and clean molecule name from file name
                 molecule_file_name = os.path.basename(hitran_file)
@@ -204,6 +207,7 @@ class iSLAT:
                 if molecule_name and molecule_name[0].isdigit():
                     molecule_name = 'm_' + molecule_name
                 molecule_name = molecule_name.upper()
+                molecule_label = molecule_name
             
             # Create molecule data dictionary using existing format
             mol_data = {
@@ -211,10 +215,12 @@ class iSLAT:
                 "Molecule Name": molecule_name,
                 "file": hitran_file,
                 "hitran_data": hitran_file,
-                "label": molecule_name,
-                "Molecule Label": molecule_name
+                "label": molecule_label,
+                "Molecule Label": molecule_label
             }
             molecules_data.append(mol_data)
+            print(f"mol_data is: {mol_data}")
+        
         
         print(f"Loading {len(molecules_data)} HITRAN molecule(s)...")
         
