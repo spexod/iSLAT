@@ -306,7 +306,7 @@ class PlotRenderer:
                          label="Data")
 
             self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
-            self.ax2.set_ylabel("Flux (Jy)", color=self._get_theme_value("foreground", "black"))
+            self.ax2.set_ylabel("Flux (Jy) denisty", color=self._get_theme_value("foreground", "black"))
             self.ax2.set_title("Line inspection plot", color=self._get_theme_value("foreground", "black"))
             
             # Show legend if there are labeled items
@@ -389,7 +389,7 @@ class PlotRenderer:
         self.ax2.set_xlim(xmin, xmax)
         self.ax2.set_ylim(0, max_y * 1.1)
         self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
-        self.ax2.set_ylabel("Flux (Jy)", color=self._get_theme_value("foreground", "black"))
+        self.ax2.set_ylabel("Flux density (Jy)", color=self._get_theme_value("foreground", "black"))
         self.ax2.set_title("Line inspection plot", color=self._get_theme_value("foreground", "black"))
         
         # Show legend if there are labeled items
