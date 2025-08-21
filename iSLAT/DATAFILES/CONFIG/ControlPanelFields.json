@@ -17,6 +17,15 @@
             "default": 0.0,
             "width": 7,
             "tip": "Radial velocity (helioc.)\nof the observed target\nunits: km/s"
+        },
+        "model_pixel_res": {
+            "label": "Model Pixel Resolution:",
+            "property": "global_model_pixel_res",
+            "datatype": "float",
+            "format": "{:.3e}",
+            "default": 0.02,
+            "width": 7,
+            "tip": "Model pixel resolution"
         }
     },
     "molecule_fields": {

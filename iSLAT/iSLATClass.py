@@ -31,7 +31,7 @@ class iSLAT:
         self.GUI = None
         
         # Initialize collections
-        self.molecules_dict = MoleculeDict(global_pixels_per_fwhm=self.user_settings.get("pixels_per_fwhm"))
+        self.molecules_dict = MoleculeDict()
         self.callbacks = {}
         
         # === CALLBACK SYSTEM ===
