@@ -414,7 +414,7 @@ class Molecule:
         self.plot_flux = None
 
     def get_flux(self, wavelength_array):
-        """Get flux for given wavelength array with improved caching and range handling"""
+        """Get flux for given wavelength array with RV shift applied internally (no interpolation needed)"""
         try:
             cache_key = hash(wavelength_array.tobytes()) if hasattr(wavelength_array, 'tobytes') else str(wavelength_array)
         except (TypeError, ValueError):
@@ -428,11 +428,14 @@ class Molecule:
             self._cache_stats['hits'] += 1
             return cache_entry['flux']
         
+        # Apply RV shift to wavelength array before spectrum calculation
+        # This eliminates the need for interpolation later
+        rv_shifted_wavelengths = wavelength_array - (wavelength_array / c.SPEED_OF_LIGHT_KMS * self._rv_shift)
+        
         # The molecule's wavelength range is set by MoleculeDict to match the global range
         # This ensures models respect the user-defined global wavelength boundaries
-        # No expansion beyond these boundaries is allowed
-        if len(wavelength_array) > 0:
-            requested_min, requested_max = wavelength_array[0], wavelength_array[-1]
+        if len(rv_shifted_wavelengths) > 0:
+            requested_min, requested_max = rv_shifted_wavelengths[0], rv_shifted_wavelengths[-1]
             
             # Only recalculate spectrum if we need coverage within the allowed range
             if hasattr(self, 'spectrum') and self.spectrum is not None:
@@ -459,8 +462,8 @@ class Molecule:
             print(f"Warning: Invalid spectrum data for molecule {self.name}")
             return np.zeros_like(wavelength_array)
         
-        # Interpolate to the requested wavelength grid
-        interpolated_flux = np.interp(wavelength_array, lam_grid, flux_grid, left=0, right=0)
+        # Interpolate using the RV-shifted wavelengths - this accounts for RV shift internally
+        interpolated_flux = np.interp(rv_shifted_wavelengths, lam_grid, flux_grid, left=0, right=0)
         
         # Cache the result
         self._flux_cache[cache_key] = {
@@ -481,7 +484,7 @@ class Molecule:
         return interpolated_flux
     
     def prepare_plot_data(self, wave_data):
-        """Prepare plot data for given wavelength array, filtering to molecule's wavelength range"""
+        """Prepare plot data for given wavelength array, with RV shift handled internally"""
         wave_data_hash = hash(wave_data.tobytes()) if hasattr(wave_data, 'tobytes') else str(wave_data)
         current_param_hash = self._compute_full_parameter_hash()
         
@@ -513,10 +516,11 @@ class Molecule:
                 }
                 return (self.plot_lam, self.plot_flux)
             
-            # Get flux only for the filtered wavelength array
+            # Get flux for the filtered wavelength array (RV shift applied internally)
             filtered_flux = self.get_flux(filtered_wave_data)
             
-            # Create the wavelength and flux arrays for plotting (filtered size)
+            # Create the wavelength and flux arrays for plotting
+            # Note: RV shift is already handled in get_flux, so we use original wavelengths
             self.plot_lam = filtered_wave_data.copy()
             self.plot_flux = filtered_flux.copy()
         else:
@@ -524,10 +528,6 @@ class Molecule:
             flux = self.get_flux(wave_data)
             self.plot_lam = wave_data.copy()
             self.plot_flux = flux.copy()
-
-        # Apply RV shift to the wavelength array
-        # Note: This shifts the wavelength grid to account for the molecule's RV
-        self.plot_lam = self.plot_lam + (self.plot_lam / c.SPEED_OF_LIGHT_KMS * self.rv_shift)
 
         # Ensure the plot data is properly bounded and handle edge cases
         if len(self.plot_lam) != len(self.plot_flux):
