@@ -25,7 +25,7 @@
             "format": "{:.3e}",
             "default": 0.02,
             "width": 7,
-            "tip": "Model pixel resolution"
+            "tip": "Pixel res."
         }
     },
     "molecule_fields": {
