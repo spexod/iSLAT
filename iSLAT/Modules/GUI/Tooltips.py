@@ -1,16 +1,16 @@
 from tkinter import Toplevel, Label, LEFT, SOLID  # For ttk.Style
 
 class ToolTip(object):
-    def __init__(self, widget):
+    def __init__(self, widget, text, bg = "peachpuff"):
         self.widget = widget
+        self.text = text
         self.tipwindow = None
-        self.id = None
         self.active = True
         self.x = self.y = 0
+        self.bg: str = bg
 
-    def showtip(self, text):
+    def showtip(self):
         "Display text in tooltip window"
-        self.text = text
         if self.tipwindow or not self.text:
             return
         x, y, cx, cy = self.widget.bbox("insert")
@@ -20,7 +20,7 @@ class ToolTip(object):
         tw.wm_overrideredirect(1)
         tw.wm_geometry("+%d+%d" % (x, y))
         label = Label(tw, text=self.text, justify=LEFT,
-                       background="peachpuff", relief=SOLID, borderwidth=1,
+                       background=self.bg, relief=SOLID, borderwidth=1,
                        font=("tahoma", "12", "normal"))
         label.pack (ipadx=1)
 
@@ -36,12 +36,12 @@ class ToolTip(object):
         if tw:
             tw.destroy()
 
-def CreateToolTip(widget, text):
-    toolTip = ToolTip(widget)
+def CreateToolTip(widget, text, bg = "peachpuff"):
+    toolTip = ToolTip(widget, text, bg=bg)
 
     def enter(event):
         if toolTip.active:
-            toolTip.showtip(text)
+            toolTip.showtip()
 
     def leave(event):
         if toolTip.active:
