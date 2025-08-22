@@ -431,12 +431,15 @@ class Molecule:
         
         # Apply RV shift correction to get flux on the unshifted grid
         # Create the shifted wavelength grid where the flux "came from"
-        shifted_source_lam_grid = lam_grid + (lam_grid / c.SPEED_OF_LIGHT_KMS * self._rv_shift)
-        
-        # Interpolate the flux from the shifted source back to the unshifted grid
-        # This simulates observing a shifted source and correcting it back to rest frame
-        rv_corrected_flux = np.interp(lam_grid, shifted_source_lam_grid, flux_grid, left=0, right=0)
-        
+        if self._rv_shift != 0:
+            shifted_source_lam_grid = lam_grid + (lam_grid / c.SPEED_OF_LIGHT_KMS * self._rv_shift)
+
+            # Interpolate the flux from the shifted source back to the unshifted grid
+            # This simulates observing a shifted source and correcting it back to rest frame
+            rv_corrected_flux = np.interp(lam_grid, shifted_source_lam_grid, flux_grid, left=0, right=0)
+        else:
+            rv_corrected_flux = flux_grid
+
         # Now decide on final output grid
         if interpolate_to_input and wavelength_array is not None:
             # Interpolate the RV-corrected flux to the input wavelength array
