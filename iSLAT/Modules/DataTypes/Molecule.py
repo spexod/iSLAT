@@ -137,6 +137,10 @@ class Molecule:
         self._distance = float(getattr(self, '_distance_val', None) or c.DEFAULT_DISTANCE)
         self._fwhm = float(getattr(self, '_fwhm_val', None) or c.DEFAULT_FWHM)
         self._broad = float(getattr(self, '_broad_val', None) or c.INTRINSIC_LINE_WIDTH)
+        
+        # Ensure _rv_shift is properly initialized if not already set
+        if not hasattr(self, '_rv_shift') or self._rv_shift is None:
+            self._rv_shift = kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV)
 
         self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
         self._model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
@@ -314,24 +318,17 @@ class Molecule:
         delta_lambda = mean_wavelength * (self._fwhm / 299792.458)
         spectral_resolution = mean_wavelength / delta_lambda if delta_lambda > 0 else self.model_line_width
         
-        # Use global wavelength range if available, otherwise use default range
-        # This optimization limits spectrum calculation to only the needed range
+        # Use consistent wavelength range for all molecules to ensure identical grids
+        # RV shift is now handled in get_flux() method, so no need for RV-dependent expansion here
         if hasattr(self, '_wavelength_range') and self._wavelength_range is not None:
             global_min, global_max = self._wavelength_range
-            # Still need a small expansion for RV shifts at the boundaries to avoid edge effects
-            max_rv_shift = abs(self._rv_shift)  # km/s
-            fractional_shift = max_rv_shift / c.SPEED_OF_LIGHT_KMS
-            # Use minimal expansion - just enough for RV boundary effects
-            boundary_expansion = (global_max - global_min) * (fractional_shift * 0.1)  # Reduced from full range expansion
-            spectrum_lam_min = max(0.1, global_min - boundary_expansion)
-            spectrum_lam_max = global_max + boundary_expansion
+            # Use the exact global range - no RV-dependent expansion needed
+            spectrum_lam_min = global_min
+            spectrum_lam_max = global_max
         else:
-            # Fallback to expanded range for backward compatibility
-            max_rv_shift = abs(self._rv_shift)  # km/s
-            fractional_shift = max_rv_shift / c.SPEED_OF_LIGHT_KMS
-            range_expansion = (self.wavelength_range[1] - self.wavelength_range[0]) * (fractional_shift + 0.01)
-            spectrum_lam_min = max(0.1, self.wavelength_range[0] - range_expansion)
-            spectrum_lam_max = self.wavelength_range[1] + range_expansion
+            # Fallback to standard range for backward compatibility
+            spectrum_lam_min = self.wavelength_range[0]
+            spectrum_lam_max = self.wavelength_range[1]
         
         self.spectrum = Spectrum(
             lam_min=spectrum_lam_min,
@@ -547,6 +544,62 @@ class Molecule:
         
         self._cache_stats['misses'] += 1
         return (self.plot_lam, self.plot_flux)
+    
+    def _interpolate_flux_to_unshifted_grid(self, old_rv_shift, new_rv_shift):
+        """
+        Interpolate flux from old RV shift to new RV shift, maintaining the unshifted wavelength grid.
+        This allows for smooth transitions when RV shift changes without recalculating the entire spectrum.
+        """
+        if self.plot_lam is None or self.plot_flux is None or len(self.plot_lam) == 0:
+            return
+        
+        # Calculate the RV shift difference
+        rv_diff = new_rv_shift - old_rv_shift
+        
+        # If the difference is negligible, don't interpolate
+        if abs(rv_diff) < 1e-6:  # Less than 1 m/s difference
+            return
+        
+        # Only perform interpolation if we have reasonable data
+        if len(self.plot_lam) != len(self.plot_flux):
+            print(f"Warning: Cannot interpolate RV shift for {self.name}: wavelength and flux array size mismatch")
+            return
+        
+        # Calculate the wavelength shift for the difference
+        # Delta_lambda = lambda * (rv_diff / c)
+        delta_wavelength = self.plot_lam * (rv_diff / c.SPEED_OF_LIGHT_KMS)
+        
+        # Create the new wavelength grid (shifted by the difference)
+        # We need to be careful about the direction here:
+        # If RV increases (redshift), wavelengths appear longer, so we need to shift the grid
+        new_wavelength_grid = self.plot_lam - delta_wavelength  # Note: negative because we're un-shifting
+        
+        # Check for valid interpolation range
+        if len(new_wavelength_grid) < 2:
+            return
+        
+        # Ensure monotonic increasing for interpolation
+        if not np.all(np.diff(new_wavelength_grid) > 0):
+            # If not monotonic, fall back to clearing caches (will trigger recalculation)
+            self._flux_cache.clear()
+            self._wave_data_cache.clear()
+            return
+        
+        # Interpolate the flux to match the new RV shift
+        # We interpolate the existing flux to match the new wavelength positions
+        try:
+            self.plot_flux = np.interp(self.plot_lam, new_wavelength_grid, self.plot_flux, left=0, right=0)
+        except Exception as e:
+            print(f"Warning: RV interpolation failed for {self.name}: {e}")
+            # Fall back to clearing caches
+            self._flux_cache.clear()
+            self._wave_data_cache.clear()
+            return
+        
+        # Only clear the caches that are directly affected by plot data changes
+        # Don't clear spectrum cache since the underlying spectrum hasn't changed
+        self._flux_cache.clear()
+        self._wave_data_cache.clear()
 
     # Define properties using a factory function approach
     def _make_property(attr_name, converter=float, special_setter=None):
@@ -575,9 +628,42 @@ class Molecule:
     radius = _make_property('radius', converter=float)
     distance = _make_property('distance', converter=float)
     fwhm = _make_property('fwhm', converter=float, special_setter=lambda self, value: setattr(self, 'spectrum', None))
-    rv_shift = _make_property('rv_shift', converter=float)
     model_pixel_res = _make_property('model_pixel_res', converter=float)
     broad = _make_property('broad', converter=float)
+    
+    @property
+    def rv_shift(self):
+        return self._rv_shift
+    
+    @rv_shift.setter
+    def rv_shift(self, value):
+        old_value = self._rv_shift
+        new_value = float(value)
+        
+        # If the value hasn't changed significantly, don't do anything
+        if abs(new_value - old_value) < 1e-6:  # Less than 1 m/s difference
+            return
+        
+        self._rv_shift = new_value
+        
+        # Only attempt interpolation if we have existing plot data
+        # and the change is small enough that interpolation makes sense
+        should_interpolate = (
+            hasattr(self, 'plot_lam') and hasattr(self, 'plot_flux') and 
+            self.plot_lam is not None and self.plot_flux is not None and
+            len(self.plot_lam) > 0 and len(self.plot_flux) > 0 and
+            abs(new_value - old_value) < 1000  # Only interpolate for changes < 1000 km/s
+        )
+        
+        if should_interpolate:
+            self._interpolate_flux_to_unshifted_grid(old_value, new_value)
+        else:
+            # For large changes or when no plot data exists, clear caches 
+            # to force recalculation when needed
+            self._flux_cache.clear()
+            self._wave_data_cache.clear()
+        
+        self._notify_my_parameter_change('rv_shift', old_value, new_value)
     
     @property
     def model_line_width(self):
@@ -632,6 +718,14 @@ class Molecule:
         old_values = {}
         affected_params = set()
         
+        # Special handling for rv_shift to use the custom setter
+        rv_shift_value = parameter_dict.pop('rv_shift', None)
+        if rv_shift_value is not None:
+            old_values['rv_shift'] = self._rv_shift
+            self.rv_shift = rv_shift_value  # Use the property setter
+            affected_params.add('rv_shift')
+        
+        # Handle other parameters normally
         for param_name, value in parameter_dict.items():
             if hasattr(self, f'_{param_name}'):
                 old_values[param_name] = getattr(self, f'_{param_name}')
@@ -642,14 +736,19 @@ class Molecule:
                 setattr(self, param_name, value)
                 affected_params.add(param_name)
         
+        # Invalidate caches for non-rv_shift parameters (rv_shift handled by its setter)
         for param in affected_params:
-            self._invalidate_caches_for_parameter(param)
+            if param != 'rv_shift':  # rv_shift cache invalidation is handled by its setter
+                self._invalidate_caches_for_parameter(param)
         
         if not skip_notification:
-            for param_name, value in parameter_dict.items():
+            for param_name in affected_params:
                 old_value = old_values.get(param_name)
-                if old_value != value:
-                    self._notify_my_parameter_change(param_name, old_value, value)
+                new_value = getattr(self, f'_{param_name}') if hasattr(self, f'_{param_name}') else getattr(self, param_name)
+                if old_value != new_value:
+                    # Skip notification for rv_shift since it's handled by the setter
+                    if param_name != 'rv_shift':
+                        self._notify_my_parameter_change(param_name, old_value, new_value)
     
     def force_recalculate(self):
         self.clear_all_caches()

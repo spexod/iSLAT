@@ -69,7 +69,25 @@ class MoleculeDict(dict):
         print(f"Updated visibility for {len(molecule_set)} molecules")
     
     def get_summed_flux(self, wave_data: np.ndarray, visible_only: bool = True) -> Tuple[np.ndarray, np.ndarray]:
-        """Get summed flux from molecules using native wavelength grids."""
+        """
+        Get summed flux from molecules with consistent wavelength grids.
+        
+        Since molecules now handle RV shift internally and use consistent wavelength grids
+        when configured with the same global wavelength range, we can directly sum their
+        fluxes without any interpolation. All molecules should return identical grids.
+        
+        Parameters
+        ----------
+        wave_data : np.ndarray
+            Input wavelength array (used for caching, not for interpolation)
+        visible_only : bool, default True
+            Whether to include only visible molecules
+            
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Combined wavelengths and summed flux arrays
+        """
         if wave_data is None:
             return np.array([]), np.array([])
             
@@ -82,14 +100,45 @@ class MoleculeDict(dict):
         if cache_key in self._summed_flux_cache:
             return self._summed_flux_cache[cache_key]
         
-        # Collect flux data from molecules
-        all_wavelengths, all_fluxes = self._collect_molecule_flux_data(molecules)
+        # All molecules should return identical wavelength grids, so we can directly sum fluxes
+        combined_wavelengths = None
+        combined_flux = None
         
-        if not all_wavelengths:
+        for mol_name in molecules:
+            if mol_name not in self:
+                continue
+                
+            molecule = self[mol_name]
+            # Ensure molecule uses global wavelength range
+            molecule._wavelength_range = self._global_wavelength_range
+            
+            try:
+                mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
+                
+                if mol_wavelengths is not None and mol_flux is not None and len(mol_wavelengths) > 0:
+                    # Ensure finite values
+                    if not np.all(np.isfinite(mol_flux)):
+                        mol_flux = np.nan_to_num(mol_flux, nan=0.0, posinf=0.0, neginf=0.0)
+                    
+                    if combined_wavelengths is None:
+                        # First molecule - use its grid as the reference
+                        combined_wavelengths = mol_wavelengths.copy()
+                        combined_flux = mol_flux.copy()
+                    else:
+                        # All subsequent molecules should have identical grids - directly sum
+                        # Assert that grids are identical (this should never fail with our fixes)
+                        if len(mol_wavelengths) != len(combined_wavelengths):
+                            raise ValueError(f"Grid size mismatch for {mol_name}: {len(mol_wavelengths)} vs {len(combined_wavelengths)}. This should not happen with consistent spectrum calculation.")
+                        
+                        # Direct summation - no interpolation needed
+                        combined_flux += mol_flux
+                            
+            except Exception as e:
+                print(f"Warning: Failed to get flux for molecule {mol_name}: {e}")
+        
+        # Handle case where no valid molecules were found
+        if combined_wavelengths is None:
             return np.array([]), np.array([])
-        
-        # Combine wavelength grids and sum flux
-        combined_wavelengths, combined_flux = self._combine_wavelength_grids(all_wavelengths, all_fluxes)
         
         # Cache result
         if len(self._summed_flux_cache) > 50:
@@ -106,39 +155,6 @@ class MoleculeDict(dict):
             return hash((wave_hash, frozenset(molecules), rv_shifts))
         except (TypeError, ValueError):
             return hash(str(molecules))
-    
-    def _collect_molecule_flux_data(self, molecules: List[str]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        """Collect wavelength and flux data from molecules."""
-        all_wavelengths, all_fluxes = [], []
-        global_min, global_max = self._global_wavelength_range
-        
-        for mol_name in molecules:
-            if mol_name not in self:
-                continue
-                
-            molecule = self[mol_name]
-            molecule._wavelength_range = self._global_wavelength_range
-            
-            try:
-                mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
-                
-                if mol_wavelengths is not None and mol_flux is not None and len(mol_wavelengths) > 0:
-                    # Filter to global range
-                    wave_mask = (mol_wavelengths >= global_min) & (mol_wavelengths <= global_max)
-                    if np.any(wave_mask):
-                        filtered_wavelengths = mol_wavelengths[wave_mask]
-                        filtered_flux = mol_flux[wave_mask]
-                        
-                        # Ensure finite values
-                        if not np.all(np.isfinite(filtered_flux)):
-                            filtered_flux = np.nan_to_num(filtered_flux, nan=0.0, posinf=0.0, neginf=0.0)
-                        
-                        all_wavelengths.append(filtered_wavelengths)
-                        all_fluxes.append(filtered_flux)
-            except Exception as e:
-                print(f"Warning: Failed to get flux for molecule {mol_name}: {e}")
-                
-        return all_wavelengths, all_fluxes
 
     def process_molecules(self, operation: str, molecule_names: Optional[List[str]] = None, 
                          use_parallel: bool = None, max_workers: Optional[int] = None, 
@@ -687,38 +703,3 @@ class MoleculeDict(dict):
         self.bulk_update_parameters({'model_pixel_res': value})
         self._notify_global_parameter_change('model_pixel_res', old_value, value)
 
-    def _combine_wavelength_grids(self, all_wavelengths: list, all_fluxes: list) -> Tuple[np.ndarray, np.ndarray]:
-        """Combine wavelength grids and sum flux values efficiently."""
-        if len(all_wavelengths) == 0:
-            return np.array([]), np.array([])
-        
-        if len(all_wavelengths) == 1:
-            return all_wavelengths[0].copy(), all_fluxes[0].copy()
-        
-        # Find wavelength range and optimal resolution
-        min_wave = min(np.min(waves) for waves in all_wavelengths)
-        max_wave = max(np.max(waves) for waves in all_wavelengths)
-        
-        # Use the finest resolution among all grids
-        min_spacing = float('inf')
-        for waves in all_wavelengths:
-            if len(waves) > 1:
-                spacings = np.diff(waves)
-                min_spacing = min(min_spacing, np.median(spacings[spacings > 0]))
-        
-        if min_spacing == float('inf') or min_spacing <= 0:
-            min_spacing = (max_wave - min_wave) / 10000
-        
-        # Create unified grid
-        n_points = int((max_wave - min_wave) / min_spacing) + 1
-        n_points = min(n_points, 50000)  # Reasonable limit
-        
-        unified_wavelengths = np.linspace(min_wave, max_wave, n_points, dtype=np.float32)
-        summed_flux = np.zeros(n_points, dtype=np.float32)
-        
-        # Interpolate and sum
-        for mol_wavelengths, mol_flux in zip(all_wavelengths, all_fluxes):
-            mol_flux_interp = np.interp(unified_wavelengths, mol_wavelengths, mol_flux, left=0.0, right=0.0)
-            summed_flux += mol_flux_interp
-        
-        return unified_wavelengths, summed_flux
