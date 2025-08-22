@@ -35,6 +35,7 @@ class ControlPanel(ttk.Frame):
         bg_frame.destroy()
         self.selected_color = "#007BFF"
         
+        self.max_name_len = 4
         # Load field configurations from JSON file using iSLAT file handling
         self._load_field_configurations()
 
@@ -240,6 +241,8 @@ class ControlPanel(ttk.Frame):
             header_frame.grid_columnconfigure(col, weight=1)
     
         for row, (mol_name, mol_obj) in enumerate(self.mol_dict.items()):
+            mol_name = str(mol_name)
+            
             current_mol = mol_obj
             print(current_mol)
 
@@ -257,7 +260,7 @@ class ControlPanel(ttk.Frame):
                 variable=visibility_var, 
                 command=lambda name = mol_name: self._on_visibility_changed(name)
             )
-            # visibility_checkbox.pack(side = "left", pady=2)
+
             visibility_checkbox.grid(row=0, column=0, sticky="nsew", pady=2, padx=0)
             if mol_name not in self.mol_visibility:
                 self.mol_visibility[mol_name] = visibility_var
@@ -266,19 +269,21 @@ class ControlPanel(ttk.Frame):
             btn_frame.grid(row=0, column=1, pady=2, sticky="nsew")
             mol_btn = tk.Button(btn_frame, 
                                 text=mol_name, 
-                                width=3,
+                                width=2,
                                 activebackground="white",  # macOS pressed blue
                                 activeforeground="#0a84ff",
                                 )
             mol_btn.config(command=lambda name=mol_name, frame=mol_frame: self._on_molecule_selected(mol_name=name))
             mol_btn.grid(row=0, column=0)
-            # mol_btn.pack(side = "left", pady=2)
+            if(len(mol_name) > self.max_name_len):
+                CreateToolTip(mol_btn, mol_name, bg=self.bg_color)
 
             delete_btn = tk.Button(
                             mol_frame, 
                             text= "X",
                             command= lambda name = mol_name, frame = mol_frame: self._delete_molecule(mol_name=name, frame=frame)
                             )
+            
             delete_btn.grid(row=0, column=2, pady=2,padx=0, sticky="nsew")
 
             color_button = ColorButton(
@@ -658,10 +663,14 @@ class ControlPanel(ttk.Frame):
 
     def _update_active_molecule_changes(self):
         """Update color button and visibility checkbox based on active molecule"""
-        
         active_mol = self._get_active_molecule_object()
+        selected_name = active_mol.name
         self.mol_frames[active_mol.name].config(bg=self.selected_color)
-        self.selected_label.config(text=f"Selected Molecule: {active_mol.name}")
+        if len(active_mol.name) > self.max_name_len + 4:
+            selected_name = active_mol.name[:self.max_name_len] + "..."
+            CreateToolTip(self.selected_label, active_mol.name, bg = self.bg_color)
+            
+        self.selected_label.config(text=f"Selected Molecule: {selected_name}")
 
     def _update_display_range(self, value_str=None):
         """Update display range bidirectionally between GUI and iSLAT class"""
