@@ -576,11 +576,8 @@ class iSLAT:
                 self.molecules_dict.bulk_recalculate()
         
         try:
-            # Use the optimized cached summed flux from MoleculeDict
-            self.sum_spectrum_flux = self.molecules_dict.get_summed_flux(self.wave_data, visible_only=True)
-            
-            # Update individual molecule fluxes if needed
-            self.molecules_dict.update_molecule_fluxes(self.wave_data)
+            # Use the optimized cached summed flux from MoleculeDict - now returns (wavelengths, flux)
+            self.sum_spectrum_wavelengths, self.sum_spectrum_flux = self.molecules_dict.get_summed_flux(self.wave_data, visible_only=True)
             
         except Exception as e:
             print(f"Error updating model spectrum: {e}")

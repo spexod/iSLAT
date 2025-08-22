@@ -758,7 +758,8 @@ class PlotRenderer:
         
         try:
             debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux() with caching")
-            summed_flux = molecules_dict.get_summed_flux(wave_data, visible_only=True)
+            summed_wavelengths, summed_flux = molecules_dict.get_summed_flux(wave_data, visible_only=True)
+            wave_data = summed_wavelengths  # Use the combined wavelength grid
         except Exception as e:
             debug_config.warning("plot_renderer", f"Error in summed flux calculation: {e}")
         

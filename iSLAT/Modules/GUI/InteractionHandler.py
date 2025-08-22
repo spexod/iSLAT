@@ -96,7 +96,6 @@ class InteractionHandler:
         self._trigger_selection_callbacks('span_select', xmin, xmax)
         
         # Update displays
-        self._update_line_inspection(xmin, xmax)
         self._update_population_diagram_highlights(xmin, xmax)
     
     def _on_mouse_press(self, event):
@@ -289,21 +288,6 @@ class InteractionHandler:
             # xlim has changed, update display range
             self._last_xlim = current_xlim
             self._on_xlim_changed(self.ax1)
-    
-    def _update_line_inspection(self, xmin: float, xmax: float):
-        """Update the line inspection plot based on selection"""
-        if hasattr(self.plot_manager, 'data_processor'):
-            # Get data in range
-            if hasattr(self.islat, 'wave_data') and hasattr(self.islat, 'flux_data'):
-                wave_range, flux_range = self.plot_manager.data_processor.interpolate_flux_to_range(
-                    self.islat.wave_data, self.islat.flux_data, xmin, xmax
-                )
-                
-                # Render line inspection
-                if hasattr(self.plot_manager, 'renderer'):
-                    self.plot_manager.renderer.render_line_inspection_plot(
-                        wave_range, flux_range, f"Range: {xmin:.3f} - {xmax:.3f} μm"
-                    )
     
     def _update_population_diagram_highlights(self, xmin: float, xmax: float):
         """Update population diagram to highlight lines in selected range"""

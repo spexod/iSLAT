@@ -591,16 +591,16 @@ def generate_all_csv(molecules_data: 'MoleculeDict', output_dir=models_folder_pa
     visible_molecules = list(molecules_data.get_visible_molecules())
     if visible_molecules and wave_data is not None:
         try:
-            # Get summed flux from MoleculeDict
-            summed_flux = molecules_data.get_summed_flux(wave_data, visible_only=True)
+            # Get summed flux from MoleculeDict - now returns (wavelengths, flux)
+            summed_wavelengths, summed_flux = molecules_data.get_summed_flux(wave_data, visible_only=True)
             
             if summed_flux is not None and len(summed_flux) > 0:
-                # Write summed spectrum CSV
+                # Write summed spectrum CSV using the combined wavelength grid
                 csv_file_path = os.path.join(output_dir, "SUM_spec_output.csv")
                 with open(csv_file_path, "w", newline="") as csv_file:
                     csv_writer = csv.writer(csv_file)
                     csv_writer.writerow(["wave", "flux"])
-                    for wave, flux in zip(wave_data, summed_flux):
+                    for wave, flux in zip(summed_wavelengths, summed_flux):
                         csv_writer.writerow([wave, flux])
                 print(f"Exported summed spectrum to {csv_file_path}")
             else:
@@ -635,18 +635,18 @@ def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, output_dir=model
             return
             
         try:
-            summed_flux = molecules_data.get_summed_flux(wave_data, visible_only=True)
+            summed_wavelengths, summed_flux = molecules_data.get_summed_flux(wave_data, visible_only=True)
             
             if summed_flux is None or len(summed_flux) == 0:
                 print("No visible molecules or valid flux data for summed spectrum")
                 return
 
-            # Write summed spectrum CSV
+            # Write summed spectrum CSV using the combined wavelength grid
             csv_file_path = os.path.join(output_dir, "SUM_spec_output.csv")
             with open(csv_file_path, "w", newline="") as csv_file:
                 csv_writer = csv.writer(csv_file)
                 csv_writer.writerow(["wave", "flux"])
-                for wave, flux in zip(wave_data, summed_flux):
+                for wave, flux in zip(summed_wavelengths, summed_flux):
                     csv_writer.writerow([wave, flux])
             
             print(f'SUM model exported to {output_dir}')

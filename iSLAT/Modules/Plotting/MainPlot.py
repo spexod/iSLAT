@@ -259,7 +259,8 @@ class iSLATPlot:
             if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
                 # Use MoleculeDict's standard summed flux calculation with caching
                 debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
-                summed_flux = self.islat.molecules_dict.get_summed_flux(wave_data, visible_only=True)
+                summed_wavelengths, summed_flux = self.islat.molecules_dict.get_summed_flux(wave_data, visible_only=True)
+                wave_data = summed_wavelengths  # Use the combined wavelength grid
         except Exception as e:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
