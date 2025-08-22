@@ -27,11 +27,9 @@ class MoleculeDict(dict):
         self._global_parms = {
             'dist': kwargs.pop('global_distance', default_parms.DEFAULT_DISTANCE),
             'stellar_rv': kwargs.pop('global_stellar_rv', default_parms.DEFAULT_STELLAR_RV),
-            'intrinsic_line_width': kwargs.pop('global_intrinsic_line_width', default_parms.INTRINSIC_LINE_WIDTH),
             'wavelength_range': kwargs.pop('global_wavelength_range', default_parms.WAVELENGTH_RANGE),
             'model_line_width': kwargs.pop('global_model_line_width', default_parms.MODEL_LINE_WIDTH),
             'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
-            #'pixels_per_fwhm': kwargs.pop('global_pixels_per_fwhm', default_parms.PIXELS_PER_FWHM),
         }
         
         super().__init__(*args, **kwargs)
@@ -44,51 +42,12 @@ class MoleculeDict(dict):
         
         from .Molecule import Molecule
         Molecule.add_molecule_parameter_change_callback(self._on_molecule_parameter_changed)
-
-    def add_molecules(self, *molecules) -> None:
-        """Add multiple molecules to the dictionary with optional bulk intensity calculation."""
-        molecules = molecules[0]
-        added_molecules = []
-        
-        for mol in molecules:
-            if isinstance(mol, Molecule):
-                self[mol.name] = mol
-                added_molecules.append(mol)
-            else:
-                raise TypeError("Expected a Molecule instance.")
-        
-        # If multiple molecules were added, trigger bulk intensity calculation
-        if len(added_molecules) > 1:
-            print(f"Triggering bulk intensity calculation for {len(added_molecules)} molecules...")
-            self._bulk_calculate_intensities([mol.name for mol in added_molecules])
     
     def clear(self):
         """Clear the dictionary of all molecules."""
         super().clear()
         self.fluxes.clear()
         print("MoleculeDict cleared.")
-
-    def update_molecule_fluxes(self, wave_data: Optional[np.ndarray] = None) -> None:
-        """Update stored fluxes for all molecules with current wave_data - with caching"""
-        if wave_data is None:
-            return
-            
-        # Create cache key for wave_data using int hash for efficiency
-        wave_data_hash = hash(wave_data.tobytes()) if hasattr(wave_data, 'tobytes') else hash(str(wave_data))
-        
-        # Only update if wave_data changed
-        if self._cache_wave_data_hash == wave_data_hash:
-            return
-            
-        for mol_name, molecule in self.items():
-            if hasattr(molecule, 'prepare_plot_data'):
-                molecule.prepare_plot_data(wave_data)
-                if hasattr(molecule, 'plot_flux'):
-                    self.fluxes[mol_name] = molecule.plot_flux
-        
-        # Clear summed flux cache when wave data changes
-        self._summed_flux_cache.clear()
-        self._cache_wave_data_hash = wave_data_hash
     
     def get_summed_flux(self, wave_data: np.ndarray, visible_only: bool = True) -> Tuple[np.ndarray, np.ndarray]:
         """Get summed flux using native wavelength grids from molecules.
@@ -382,7 +341,7 @@ class MoleculeDict(dict):
                     # Fallback: direct intensity calculation
                     t_kin = getattr(molecule, 'temp', 300.0)
                     n_mol = getattr(molecule, 'n_mol', 1e17)
-                    dv = getattr(molecule, 'intrinsic_line_width', 1.0)
+                    dv = getattr(molecule, 'broad', 1.0)
                     
                     if hasattr(molecule, 'intensity') and molecule.intensity is not None:
                         molecule.intensity.calc_intensity(t_kin=t_kin, n_mol=n_mol, dv=dv)

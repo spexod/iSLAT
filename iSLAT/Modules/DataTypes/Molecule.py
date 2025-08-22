@@ -43,7 +43,7 @@ class Molecule:
         '_temp_val', '_radius_val', '_n_mol_val', '_distance_val', '_fwhm_val', '_broad_val',
         '_lines_filepath',
         't_kin', 'scale_exponent', 'scale_number', 'radius_init', 'n_mol_init',
-        '_wavelength_range', 'pixels_per_fwhm', '_model_pixel_res', 'model_line_width',
+        '_wavelength_range', '_model_pixel_res', '_model_line_width',
         'plot_lam', 'plot_flux',
         '_intensity_cache', '_spectrum_cache', '_flux_cache', '_wave_data_cache',
         '_param_hash_cache', '_dirty_flags', '_cache_stats'
@@ -97,8 +97,6 @@ class Molecule:
         
         if parameter_name in self.FLUX_AFFECTING_PARAMS:
             self._flux_cache.clear()
-            # DO NOT clear _wave_data_cache - it uses parameter hashes for validation
-            # and should persist across parameter changes to enable cache restoration
     
     def __init__(self, **kwargs):
         self._initialize_caching_system()
@@ -120,13 +118,7 @@ class Molecule:
 
         self.initial_molecule_parameters = kwargs.get('initial_molecule_parameters', {})
 
-        self._temp_val = None
-        self._radius_val = None  
-        self._n_mol_val = None
-        self._distance_val = None
-        self._fwhm_val = None
-        self._broad_val = None
-
+        # Load parameters from appropriate source
         if self.user_save_data is not None:
             self._load_from_user_save_data(kwargs)
         else:
@@ -135,24 +127,20 @@ class Molecule:
         self.lines = None
         self._lines_filepath = self.filepath
         
+        # Calculate derived parameters
         self.n_mol_init = float(self.scale_number * (10 ** self.scale_exponent))
         
-        self._temp = float(self._temp_val if self._temp_val is not None else self.t_kin)
-        self._radius = float(self._radius_val if self._radius_val is not None else self.radius_init)
-        self._n_mol = float(self._n_mol_val if self._n_mol_val is not None else self.n_mol_init)
-        self._distance = float(self._distance_val if self._distance_val is not None else c.DEFAULT_DISTANCE)
-        self._fwhm = float(self._fwhm_val if self._fwhm_val is not None else c.DEFAULT_FWHM)
-        self._broad = float(self._broad_val if self._broad_val is not None else c.INTRINSIC_LINE_WIDTH)
+        # Set final parameter values
+        self._temp = float(getattr(self, '_temp_val', None) or self.t_kin)
+        self._radius = float(getattr(self, '_radius_val', None) or self.radius_init)
+        self._n_mol = float(getattr(self, '_n_mol_val', None) or self.n_mol_init)
+        self._distance = float(getattr(self, '_distance_val', None) or c.DEFAULT_DISTANCE)
+        self._fwhm = float(getattr(self, '_fwhm_val', None) or c.DEFAULT_FWHM)
+        self._broad = float(getattr(self, '_broad_val', None) or c.INTRINSIC_LINE_WIDTH)
 
         self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
-        #self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
-        self.pixels_per_fwhm = kwargs.get('pixels_per_fwhm', c.PIXELS_PER_FWHM)
-        #if self.pixels_per_fwhm is not None:
-        #    self.model_pixel_res = (np.mean(self._wavelength_range) / c.SPEED_OF_LIGHT_KMS * self._fwhm) / self.pixels_per_fwhm
-        #else:
-        #    self.model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
-        self._model_pixel_res = kwargs.get('model_pixel_res')#, c.MODEL_PIXEL_RESOLUTION)
-        self.model_line_width = kwargs.get('model_line_width', c.MODEL_LINE_WIDTH)
+        self._model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
+        self._model_line_width = kwargs.get('model_line_width', c.MODEL_LINE_WIDTH)
 
         self.intensity = None
         self.spectrum = None
@@ -187,17 +175,6 @@ class Molecule:
         return hash((self._temp, self._n_mol, self._broad))
     
     def _compute_spectrum_hash(self):
-        '''#return hash((self._radius, self._distance, self._fwhm, self._stellar_rv, self._compute_intensity_hash()))
-        #return hash((self._radius, self._distance, self._fwhm, self._rv_shift, self._wavelength_range, self._compute_intensity_hash()))
-        # use spectrum affecting params variable
-        hash_vars_list = self.SPECTRUM_AFFECTING_PARAMS.copy()
-        hash_attars = []
-        for var in hash_vars_list:
-            if var == 'wavelength_range':
-                hash_attars.append(tuple(self._wavelength_range))
-            else:
-                hash_attars.append(getattr(self, f"_{var}"))
-        return hash(tuple(hash_attars) + (self._compute_intensity_hash(),))'''
         # Get all spectrum-affecting parameters and create hash tuple
         param_values = []
         for param in self.SPECTRUM_AFFECTING_PARAMS:
@@ -224,10 +201,6 @@ class Molecule:
         self._radius_val = usd.get('Rad', kwargs.get('radius', None))
         self._n_mol_val = usd.get('N_Mol', kwargs.get('n_mol', None))
         self.color = usd.get('Color', kwargs.get('color', None))
-        print("Usd vis:", usd.get('Vis'))
-        print("Kwargs vis:", kwargs.get('is_visible'))
-        print("Is visible:", usd.get('Vis', kwargs.get('is_visible', True)))
-        print("Is visible bool:", bool(usd.get('Vis', kwargs.get('is_visible', True))))
         self._is_visible = usd.get('Vis', kwargs.get('is_visible', True))
 
         # Get instance values from user save data or kwargs
@@ -291,17 +264,6 @@ class Molecule:
             self._cache_stats['hits'] += 1
             return
         
-        '''cache_key = (self.name, current_hash)
-        with self._cache_lock:
-            if cache_key in self._shared_calculation_cache:
-                cached_data = self._shared_calculation_cache[cache_key]
-                self._intensity_cache = {
-                    'data': cached_data,
-                    'hash': current_hash
-                }
-                self._cache_stats['hits'] += 1
-                return'''
-        
         self._ensure_lines_loaded()
         
         if self.intensity is None:
@@ -327,7 +289,6 @@ class Molecule:
         }
         
         with self._cache_lock:
-            #self._shared_calculation_cache[cache_key] = intensity_data
             if len(self._shared_calculation_cache) > 100:
                 oldest_keys = list(self._shared_calculation_cache.keys())[:10]
                 for key in oldest_keys:
@@ -392,33 +353,27 @@ class Molecule:
         self._param_hash_cache['spectrum'] = current_hash
         self._cache_stats['misses'] += 1
     
-    def _calculate_parameter_hash(self):
-        """Calculate a hash of current parameters for cache validation"""
-        param_tuple = (
-            self._temp, self._radius, self._n_mol, self._distance, 
-            self._fwhm, self._broad, self.wavelength_range, 
-            self._model_pixel_res, self.model_line_width,
-            #getattr(self, 'stellar_rv', c.DEFAULT_STELLAR_RV)  # Include stellar RV in hash
-            self._rv_shift
-        )
-        self._parameter_hash = hash(param_tuple)
-    
-    def _invalidate_parameter_hash(self):
-        """Invalidate the parameter hash"""
-        self._parameter_hash = None
-
     def calculate_intensity(self):
         self._ensure_intensity_calculated()
     
     def get_parameter_hash(self, cache_type='full'):
+        """Get parameter hash for given cache type"""
         if cache_type in self._param_hash_cache:
             return self._param_hash_cache[cache_type]
         return self._compute_full_parameter_hash()
 
-    def _clear_flux_caches(self):
-        self._flux_cache.clear()
-        self.plot_lam = None
-        self.plot_flux = None
+    def _clear_specific_cache(self, cache_type):
+        """Clear specific cache and update stats"""
+        if cache_type == 'flux':
+            self._flux_cache.clear()
+            self.plot_lam = None
+            self.plot_flux = None
+        elif cache_type == 'wave_data':
+            self._wave_data_cache.clear()
+        elif cache_type == 'intensity':
+            self._intensity_cache = {'data': None, 'hash': None}
+        elif cache_type == 'spectrum':
+            self._spectrum_cache = {'data': None, 'hash': None}
 
     def get_flux(self, wavelength_array=None, return_wavelengths=False, interpolate_to_input=False):
         """Get flux data with optional interpolation
@@ -593,28 +548,48 @@ class Molecule:
         self._cache_stats['misses'] += 1
         return (self.plot_lam, self.plot_flux)
 
+    # Define properties using a factory function approach
+    def _make_property(attr_name, converter=float, special_setter=None):
+        """Factory function to create properties"""
+        private_attr = f'_{attr_name}'
+        
+        def getter(self):
+            return getattr(self, private_attr)
+        
+        def setter(self, value):
+            if converter:
+                value = converter(value)
+            
+            old_value = getattr(self, private_attr)
+            setattr(self, private_attr, value)
+            
+            if special_setter:
+                special_setter(self, value)
+            
+            self._notify_my_parameter_change(attr_name, old_value, value)
+        
+        return property(getter, setter)
+
+    # Standard numeric parameters
+    temp = _make_property('temp', converter=float, special_setter=lambda self, value: setattr(self, 't_kin', value))
+    radius = _make_property('radius', converter=float)
+    distance = _make_property('distance', converter=float)
+    fwhm = _make_property('fwhm', converter=float, special_setter=lambda self, value: setattr(self, 'spectrum', None))
+    rv_shift = _make_property('rv_shift', converter=float)
+    model_pixel_res = _make_property('model_pixel_res', converter=float)
+    broad = _make_property('broad', converter=float)
+    
     @property
-    def temp(self):
-        """Temperature getter"""
-        return self._temp
+    def model_line_width(self):
+        return getattr(self, '_model_line_width', None)
     
-    @temp.setter
-    def temp(self, value):
-        old_value = self._temp
-        self._temp = float(value)
-        self.t_kin = self._temp
-        self._notify_my_parameter_change('temp', old_value, self._temp)
+    @model_line_width.setter  
+    def model_line_width(self, value):
+        old_value = getattr(self, '_model_line_width', None)
+        self._model_line_width = float(value) if value is not None else None
+        self._notify_my_parameter_change('model_line_width', old_value, self._model_line_width)
     
-    @property
-    def radius(self):
-        return self._radius
-    
-    @radius.setter
-    def radius(self, value):
-        old_value = self._radius
-        self._radius = float(value)
-        self._notify_my_parameter_change('radius', old_value, self._radius)
-    
+    # Special case properties
     @property
     def n_mol(self):
         return self._n_mol
@@ -626,16 +601,6 @@ class Molecule:
         old_value = self._n_mol
         self._n_mol = float(value)
         self._notify_my_parameter_change('n_mol', old_value, self._n_mol)
-    
-    @property
-    def distance(self):
-        return self._distance
-    
-    @distance.setter
-    def distance(self, value):
-        old_value = self._distance
-        self._distance = float(value)
-        self._notify_my_parameter_change('distance', old_value, self._distance)
 
     @property
     def wavelength_range(self):
@@ -646,17 +611,6 @@ class Molecule:
         old_value = self._wavelength_range
         self._wavelength_range = value
         self._notify_my_parameter_change('wavelength_range', old_value, self._wavelength_range)
-    
-    @property
-    def fwhm(self):
-        return self._fwhm
-    
-    @fwhm.setter
-    def fwhm(self, value):
-        old_value = self._fwhm
-        self._fwhm = float(value)
-        self.spectrum = None
-        self._notify_my_parameter_change('fwhm', old_value, self._fwhm)
     
     @property
     def is_visible(self):
@@ -681,13 +635,8 @@ class Molecule:
         for param_name, value in parameter_dict.items():
             if hasattr(self, f'_{param_name}'):
                 old_values[param_name] = getattr(self, f'_{param_name}')
-                #setattr(self, f'_{param_name}', float(value))
                 setattr(self, f'_{param_name}', value)
                 affected_params.add(param_name)
-            elif param_name == 'intrinsic_line_width':
-                old_values[param_name] = self._broad
-                self._broad = float(value)
-                affected_params.add('broad')
             elif hasattr(self, param_name):
                 old_values[param_name] = getattr(self, param_name)
                 setattr(self, param_name, value)
@@ -701,44 +650,6 @@ class Molecule:
                 old_value = old_values.get(param_name)
                 if old_value != value:
                     self._notify_my_parameter_change(param_name, old_value, value)
-
-    @property
-    def rv_shift(self):
-        return self._rv_shift
-
-    @rv_shift.setter
-    def rv_shift(self, value):
-        old_value = self._rv_shift
-        self._rv_shift = float(value)
-        self._notify_my_parameter_change('rv_shift', old_value, self._rv_shift)
-
-    @property
-    def model_pixel_res(self):
-        return self._model_pixel_res
-
-    @model_pixel_res.setter
-    def model_pixel_res(self, value):
-        old_value = self._model_pixel_res
-        self._model_pixel_res = float(value)
-        self._notify_my_parameter_change('model_pixel_res', old_value, self._model_pixel_res)
-
-    @property
-    def broad(self):
-        return self._broad
-    
-    @broad.setter
-    def broad(self, value):
-        old_value = self._broad
-        self._broad = float(value)
-        self._notify_my_parameter_change('broad', old_value, self._broad)
-
-    @property
-    def intrinsic_line_width(self):
-        return self.broad
-    
-    @intrinsic_line_width.setter
-    def intrinsic_line_width(self, value):
-        self.broad = value
     
     def force_recalculate(self):
         self.clear_all_caches()

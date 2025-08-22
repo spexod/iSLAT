@@ -588,7 +588,7 @@ class FittingEngine:
                 min_lamb=self.islat.wavelength_range[0],
                 max_lamb=self.islat.wavelength_range[1],
                 pix_per_fwhm=10,
-                intrinsic_line_width=self.islat.active_molecule.intrinsic_line_width,
+                intrinsic_line_width=self.islat.active_molecule.broad,
                 cc=3e8,
                 data_field=getattr(self.islat.gui, 'data_field', None)
             )

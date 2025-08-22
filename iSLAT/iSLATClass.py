@@ -54,8 +54,6 @@ class iSLAT:
         
         # === PHYSICAL PARAMETERS ===
         self.wavelength_range = c.WAVELENGTH_RANGE
-        #self._display_range = (23.52, 25.41)
-        # Note: Global parameters (distance, stellar_rv, fwhm, intrinsic_line_width) are now managed entirely by MoleculeDict
 
         # === DATA CONTAINERS ===
         self.hitran_data = {}
