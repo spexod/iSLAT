@@ -22,10 +22,10 @@
             "label": "Pixel res.",
             "property": "global_model_pixel_res",
             "datatype": "float",
-            "format": "{:.3e}",
+            "format": "{:.2e}",
             "default": 0.02,
             "width": 7,
-            "tip": "Model Pixel Resolution"
+            "tip": "Model Pixel Resolution\nunits: µm"
         }
     },
     "molecule_fields": {
@@ -79,7 +79,7 @@
             "attribute": "rv_shift",
             "datatype": "float",
             "format": "{:.2f}",
-            "default": 0.1,
+            "default": 0.0,
             "width": 7,
             "tip": "Radial velocity (helioc.)\nof the molecule data\nunits: km/s"
         }

@@ -715,8 +715,6 @@ class ControlPanel(ttk.Frame):
             if min_val < max_val:
                 molecules_dict = self.islat.molecules_dict
                 molecules_dict.global_wavelength_range = (min_val, max_val)
-                '''if hasattr(self.islat, 'wavelength_range'):
-                    self.islat.wavelength_range = (min_val, max_val)'''
         except (ValueError, AttributeError):
             pass
 

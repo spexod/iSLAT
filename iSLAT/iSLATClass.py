@@ -51,9 +51,6 @@ class iSLAT:
         self.mols = ("H2", "HD", "H2O", "H218O", "CO2", "13CO2", "CO", "13CO", "C18O", "CH4", "HCN", "H13CN", "NH3", "OH", "C2H2", "13CCH2", "C2H4", "C4H2", "C2H6", "HC3N")
         self.basem = ("H2", "H2", "H2O", "H2O", "CO2", "CO2", "CO", "CO", "CO", "CH4", "HCN", "HCN", "NH3", "OH", "C2H2", "C2H2", "C2H4", "C4H2", "C2H6", "HC3N")
         self.isot = (1, 2, 1, 2, 1, 2, 1, 2, 3, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1)
-        
-        # === PHYSICAL PARAMETERS ===
-        self.wavelength_range = c.WAVELENGTH_RANGE
 
         # === DATA CONTAINERS ===
         self.hitran_data = {}
@@ -87,11 +84,6 @@ class iSLAT:
         use_parallel : bool, default False
             If True, uses parallel processing for loading.
         """
-        # If spectrum is loaded, optimize for its wavelength range
-        if hasattr(self, 'wave_data'):
-            spectrum_range = (self.wave_data.min(), self.wave_data.max())
-            self.wavelength_range = spectrum_range
-        
         # Use parallel processing setting if not explicitly provided
         if not use_parallel:
             use_parallel = self._use_parallel_processing if hasattr(self, '_use_parallel_processing') else False
@@ -137,6 +129,11 @@ class iSLAT:
                     print(f"  - {error}")
 
             self._set_initial_active_molecule()
+
+            if hasattr(self, "wavedata"):
+                spectrum_range = (self.wave_data.min(), self.wave_data.max())
+                self.molecules_dict.global_wavelength_range = spectrum_range
+
             return True
                     
         except Exception as e:
@@ -375,9 +372,6 @@ class iSLAT:
         # Optimize wavelength range for the loaded spectrum
         spectrum_range = (self.wave_data.min(), self.wave_data.max())
         print(f"Initializing molecules for spectrum range: {spectrum_range[0]:.1f} - {spectrum_range[1]:.1f} µm")
-        
-        # Set optimized wavelength range before loading molecules
-        self.wavelength_range = spectrum_range
 
         #mole_save_data = self.get_mole_save_data() 
         mole_save_data = self.user_saved_molecules
@@ -496,10 +490,12 @@ class iSLAT:
             # Initialize molecules after spectrum is loaded (most efficient approach)
             if not self._molecules_loaded:
                 self._initialize_molecules_for_spectrum()
+                spectrum_range = (self.wave_data.min(), self.wave_data.max())
+                self.molecules_dict.global_wavelength_range = spectrum_range
             else:
                 # Update existing molecules with new wavelength range if needed
                 spectrum_range = (self.wave_data.min(), self.wave_data.max())
-                self.molecules_dict.bulk_update_parameters({'wavelength_range': spectrum_range})
+                self.molecules_dict.global_wavelength_range = spectrum_range
                 self.update_model_spectrum()
                 print(f"Updated existing molecules for new wavelength range: {spectrum_range[0]:.3f} - {spectrum_range[1]:.3f}")
 
@@ -562,16 +558,7 @@ class iSLAT:
             return
         
         if force_recalculate:
-            use_parallel_calc = use_parallel or self.use_parallel_processing
-            
-            if use_parallel_calc:
-                # Use parallel recalculation only if explicitly enabled
-                print("Force recalculating all molecule spectra using parallel processing...")
-                self.molecules_dict.bulk_recalculate()
-            else:
-                # Sequential recalculation (default)
-                print("Force recalculating all molecule spectra sequentially...")
-                self.molecules_dict.bulk_recalculate()
+            self.molecules_dict.bulk_recalculate()
         
         try:
             # Use the optimized cached summed flux from MoleculeDict - now returns (wavelengths, flux)
@@ -834,6 +821,6 @@ class iSLAT:
             print("Parallel processing enabled")
         if hasattr(self, '_hitran_file_cache') and len(self._hitran_file_cache) > 0:
             print(f"HITRAN file caching active ({len(self._hitran_file_cache)} files cached)")
-        if hasattr(self, 'wavelength_range'):
-            print(f"Optimized for spectrum range: {self.wavelength_range[0]:.1f} - {self.wavelength_range[1]:.1f} µm")
+        if hasattr(self, 'molecules_dict') and hasattr(self.molecules_dict, 'global_wavelength_range'):
+            print(f"Optimized for spectrum range: {self.molecules_dict.global_wavelength_range[0]:.1f} - {self.molecules_dict.global_wavelength_range[1]:.1f} µm")
         print("--- Ready for Analysis ---\n")

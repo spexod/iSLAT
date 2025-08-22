@@ -599,6 +599,10 @@ class MoleculeDict(dict):
                 n_mol=safe_float("N_Mol"),
                 color=mol_data.get("Color"),
                 is_visible=mol_data.get("Vis", True),
+                wavelength_range=global_params.get('wavelength_range'),
+                fwhm=safe_float("FWHM"),
+                rv_shift=mol_data.get("RV_Shift", global_params.get('stellar_rv')),
+                broad=mol_data.get("Broad"),
                 initial_molecule_parameters=init_params.get(mol_name, {}),
                 **global_params
             )
@@ -698,4 +702,3 @@ class MoleculeDict(dict):
         self._global_model_pixel_res = value
         self.bulk_update_parameters({'model_pixel_res': value})
         self._notify_global_parameter_change('model_pixel_res', old_value, value)
-
