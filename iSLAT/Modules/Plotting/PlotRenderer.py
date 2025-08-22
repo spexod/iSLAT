@@ -134,7 +134,6 @@ class PlotRenderer:
         self.model_lines.clear()
         self.active_lines.clear()
         
-        # Reset only performance stats, no cache data
         self._plot_stats = {
             'renders_count': 0,
             'molecules_rendered': 0
@@ -165,7 +164,6 @@ class PlotRenderer:
                     print(f"found lines matching with {line._molecule_name} (label)")
                     lines_to_remove.append(line)
 
-        
         # Remove lines from plot and list
         for line in lines_to_remove:
             if line in self.ax1.lines:
@@ -1222,9 +1220,6 @@ class PlotRenderer:
             self.model_lines.append(line)
             self._plot_stats['molecules_rendered'] += 1
             
-            # Only print success message if not in batch update mode (to reduce console spam)
-            if not getattr(self.islat, '_batch_update_in_progress', False):
-                print(f"Successfully rendered spectrum for {molecule_name} with {len(plot_flux)} data points")
             return True
             
         except Exception as e:

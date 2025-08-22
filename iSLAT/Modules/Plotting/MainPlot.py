@@ -72,7 +72,6 @@ class iSLATPlot:
         self.ax3.set_title(f"{self.islat.active_molecule.displaylabel} Population diagram")
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=parent_frame)
-        # self.toolbar = NavigationToolbar2Tk(self.canvas, window = parent_frame)
         
         # Apply theme to matplotlib figure and toolbar
         self._apply_plot_theming()
@@ -226,15 +225,7 @@ class iSLATPlot:
         """
         Updates all plots in the GUI.
         This method leverages the molecular data model for updates and avoids redundant rendering.
-        """
-        # Check if we should defer rendering
-        if getattr(self.islat, '_defer_spectrum_rendering', False):
-            return
-            
-        # Check if a batch update is in progress to avoid redundant calls
-        if getattr(self.islat, '_batch_update_in_progress', False):
-            return
-            
+        """    
         self.update_model_plot()
         self.plot_renderer.render_population_diagram(self.islat.active_molecule)
         self.plot_spectrum_around_line()
@@ -245,19 +236,14 @@ class iSLATPlot:
         Uses molecules' built-in caching and hashing for optimal performance.
         """
         if not hasattr(self.islat, 'molecules_dict') or len(self.islat.molecules_dict) == 0:
-            # No molecules to plot, just clear and return
             self.plot_renderer.clear_model_lines()
             self.canvas.draw_idle()
             return
         
-        # Calculate summed flux using MoleculeDict's advanced caching system
-        # Get the wavelength grid for model calculations
-        # This should extend to the global wavelength range, not just the observed data
         wave_data = self._get_model_wavelength_grid()
         
         try:
             if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
-                # Use MoleculeDict's standard summed flux calculation with caching
                 debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
                 summed_wavelengths, summed_flux = self.islat.molecules_dict.get_summed_flux(wave_data, visible_only=True)
                 wave_data = summed_wavelengths  # Use the combined wavelength grid
@@ -265,8 +251,6 @@ class iSLATPlot:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
     
-        #wave_data = self.islat.wave_data - (self.islat.wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
-
         self.plot_renderer.render_main_spectrum_plot(
             wave_data,
             self.islat.flux_data,
@@ -482,11 +466,6 @@ class iSLATPlot:
         return
 
     def plot_line_inspection(self, xmin=None, xmax=None, line_data=None, highlight_strongest=True):
-        '''if xmin is None:
-            xmin = self.last_xmin if hasattr(self, 'last_xmin') else None
-        if xmax is None:
-            xmax = self.last_xmax if hasattr(self, 'last_xmax') else None'''
-        
         if xmin is None or xmax is None:
             self.plot_renderer.ax2.clear()
             self.current_selection = None
@@ -552,16 +531,6 @@ class iSLATPlot:
         Update the line inspection plot showing data and active molecule model in the selected range.
         Uses only PlotRenderer logic with molecule's built-in caching for optimal performance.
         """
-        '''if xmin is None:
-            xmin = self.last_xmin if hasattr(self, 'last_xmin') else None
-        if xmax is None:
-            xmax = self.last_xmax if hasattr(self, 'last_xmax') else None'''
-
-        '''if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
-            self.plot_renderer.ax2.clear()
-            self.canvas.draw_idle()
-            return'''
-
         # Delegate all rendering logic to PlotRenderer
         fit_result = getattr(self, 'fit_result', None)
         if hasattr(self, 'old_fit_result'):
@@ -782,17 +751,6 @@ class iSLATPlot:
         
         # Only canvas update needed in MainPlot
         self.canvas.draw_idle()
-
-    def _update_summed_spectrum(self):
-        """Update summed spectrum by delegating to PlotRenderer - minimal logic"""
-        if not hasattr(self.islat, 'molecules_dict'):
-            return
-        
-        # Delegate to PlotRenderer's optimized method that uses advanced caching
-        self.plot_renderer._update_summed_spectrum_with_molecules(
-            self.islat.molecules_dict, 
-            self.islat.wave_data
-        )
     
     def compute_fit_line(self, xmin=None, xmax=None, deblend=False, update_plot=True):
         """
@@ -911,16 +869,8 @@ class iSLATPlot:
         if hasattr(self, 'canvas'):
             self.canvas.draw()
         # Also update any existing plots to use colors
-        self._refresh_existing_plots()
-    
-    def _refresh_existing_plots(self):
-        """Refresh existing plots to use theme colors"""
-        try:
-            # This method can be called to refresh plots after theme changes
-            if hasattr(self, 'update_all_plots'):
+        if hasattr(self, 'update_all_plots'):
                 self.update_all_plots()
-        except:
-            pass
 
     def _get_model_wavelength_grid(self):
         """

@@ -60,8 +60,6 @@ class iSLAT:
         
         # === PERFORMANCE FLAGS ===
         self._use_parallel_processing = False
-        self._defer_spectrum_rendering = False  # Flag to defer spectrum rendering during initialization
-        self._batch_update_in_progress = False  # Flag to prevent redundant updates during batch operations
 
     # === MOLECULE MANAGEMENT METHODS ===
     def _set_initial_active_molecule(self):

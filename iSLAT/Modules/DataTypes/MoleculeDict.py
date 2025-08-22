@@ -599,7 +599,6 @@ class MoleculeDict(dict):
                 n_mol=safe_float("N_Mol"),
                 color=mol_data.get("Color"),
                 is_visible=mol_data.get("Vis", True),
-                wavelength_range=global_params.get('wavelength_range'),
                 fwhm=safe_float("FWHM"),
                 rv_shift=mol_data.get("RV_Shift", global_params.get('stellar_rv')),
                 broad=mol_data.get("Broad"),
