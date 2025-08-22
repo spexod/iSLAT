@@ -1058,15 +1058,15 @@ class PlotRenderer:
         """
         Get spectrum data directly from molecule's caching system.
         
-        Fixed to use prepare_plot_data() which has proper parameter-hash-aware caching,
-        instead of get_flux() which clears cache on parameter changes.
+        Uses get_flux() method which returns consistent wavelength grids for all molecules
+        when they use the same global wavelength range, eliminating grid size mismatches.
         
         Parameters
         ----------
         molecule : Molecule
             Molecule with internal flux caching
         wave_data : np.ndarray
-            Wavelength array
+            Wavelength array (not used for interpolation, just for caching key)
             
         Returns
         -------
@@ -1077,34 +1077,25 @@ class PlotRenderer:
             return None, None
         
         try:
-            # Check wave_data_cache size before and after to detect cache hits
-            initial_wave_cache_size = len(molecule._wave_data_cache) if hasattr(molecule, '_wave_data_cache') and molecule._wave_data_cache else 0
+            # Use get_flux with return_wavelengths=True to get consistent grids
+            # All molecules with the same global wavelength range will return identical grids
+            result_wavelengths, result_flux = molecule.get_flux(
+                wavelength_array=wave_data, 
+                return_wavelengths=True, 
+                interpolate_to_input=False  # Use native grid for consistency
+            )
             
-            # Use prepare_plot_data which has parameter-hash-aware caching
-            # This method checks parameter hash and reuses cached data when parameters return to previous values
-            result = molecule.prepare_plot_data(wave_data)
-            
-            # Check if cache was used by seeing if a new entry was added
-            final_wave_cache_size = len(molecule._wave_data_cache) if hasattr(molecule, '_wave_data_cache') and molecule._wave_data_cache else 0
-            used_cache = final_wave_cache_size == initial_wave_cache_size  # No new entry = cache hit
-            
-            if result is not None and len(result) == 2:
-                plot_lam, plot_flux = result
-                if plot_lam is not None and plot_flux is not None and len(plot_flux) > 0:
-                    cache_status = "from cache" if used_cache else "newly computed"
-                    debug_config.verbose("plot_renderer", 
-                                       f"Retrieved flux data for {self._get_molecule_display_name(molecule)} ({cache_status})",
-                                       cache_hit=used_cache,
-                                       data_points=len(plot_flux))
-                    return plot_lam, plot_flux
+            if result_wavelengths is not None and result_flux is not None and len(result_flux) > 0:
+                debug_config.verbose("plot_renderer", 
+                                   f"Retrieved flux data for {self._get_molecule_display_name(molecule)}",
+                                   data_points=len(result_flux))
+                return result_wavelengths, result_flux
             
             debug_config.warning("plot_renderer", f"No flux data available for {self._get_molecule_display_name(molecule)}")
             return None, None
                 
         except Exception as e:
-            print(f"Error getting flux data for {self._get_molecule_display_name(molecule)}: {e}")
-            import traceback
-            traceback.print_exc()
+            debug_config.error("plot_renderer", f"Could not get model data for molecule {self._get_molecule_display_name(molecule)}: {e}")
             return None, None
     
     def get_molecule_line_data(self, molecule: 'Molecule', xmin: float, xmax: float) -> List[Tuple['MoleculeLine', float, Optional[float]]]:

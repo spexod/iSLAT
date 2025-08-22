@@ -44,8 +44,7 @@ class Molecule:
         '_lines_filepath',
         't_kin', 'scale_exponent', 'scale_number', 'radius_init', 'n_mol_init',
         '_wavelength_range', '_model_pixel_res', '_model_line_width',
-        'plot_lam', 'plot_flux',
-        '_intensity_cache', '_spectrum_cache', '_flux_cache', '_wave_data_cache',
+        '_intensity_cache', '_spectrum_cache', '_flux_cache',
         '_param_hash_cache', '_dirty_flags', '_cache_stats'
     )
     
@@ -53,7 +52,7 @@ class Molecule:
     _shared_calculation_cache = {}
     _cache_lock = threading.Lock()
     
-    INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad', 'wavelength_range'}
+    INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad', 'rv_shift', 'wavelength_range'}
     SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'rv_shift', 'wavelength_range', 'model_pixel_res'}
     FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS
     
@@ -101,9 +100,6 @@ class Molecule:
     def __init__(self, **kwargs):
         self._initialize_caching_system()
         
-        self.plot_lam = None
-        self.plot_flux = None
-        
         if 'hitran_data' in kwargs:
             print("Generating new molecule from default parameters.")
             self.user_save_data = None
@@ -140,7 +136,7 @@ class Molecule:
         
         # Ensure _rv_shift is properly initialized if not already set
         if not hasattr(self, '_rv_shift') or self._rv_shift is None:
-            self._rv_shift = kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV)
+            self._rv_shift = kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV)
 
         self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
         self._model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
@@ -155,7 +151,6 @@ class Molecule:
         self._intensity_cache = {'data': None, 'hash': None}
         self._spectrum_cache = {'data': None, 'hash': None}
         self._flux_cache = {}
-        self._wave_data_cache = {}
         self._param_hash_cache = {}
         self._dirty_flags = {
             'intensity': True,
@@ -211,7 +206,7 @@ class Molecule:
         self._distance_val = usd.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = usd.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = usd.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._rv_shift = kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV)
+        self._rv_shift = kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV)
 
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -234,7 +229,7 @@ class Molecule:
         self._distance_val = kwargs.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = kwargs.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = kwargs.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._rv_shift = kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV)
+        self._rv_shift = kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV)
         
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -363,27 +358,29 @@ class Molecule:
         """Clear specific cache and update stats"""
         if cache_type == 'flux':
             self._flux_cache.clear()
-            self.plot_lam = None
-            self.plot_flux = None
-        elif cache_type == 'wave_data':
-            self._wave_data_cache.clear()
         elif cache_type == 'intensity':
             self._intensity_cache = {'data': None, 'hash': None}
         elif cache_type == 'spectrum':
             self._spectrum_cache = {'data': None, 'hash': None}
 
     def get_flux(self, wavelength_array=None, return_wavelengths=False, interpolate_to_input=False):
-        """Get flux data with optional interpolation
+        """Get flux data with RV shift properly applied
+        
+        The RV shift works by:
+        1. Calculate spectrum on the unshifted wavelength grid
+        2. If RV shift != 0, interpolate the flux as if it came from a shifted source
+           back to the unshifted wavelength grid
+        3. This ensures all molecules return flux on the same wavelength grid
         
         Parameters
         ----------
         wavelength_array : np.ndarray, optional
-            Input wavelength array
+            Input wavelength array for additional interpolation
         return_wavelengths : bool, default False
             If True, return tuple of (wavelengths, flux)
         interpolate_to_input : bool, default False
             If True and wavelength_array is provided, interpolate to match input grid
-            If False, return spectrum's native grid
+            If False, return spectrum's native grid (with RV shift applied)
             
         Returns
         -------
@@ -421,7 +418,7 @@ class Molecule:
                 return empty_array, empty_array
             return empty_array
         
-        # Get the spectrum data - this is the native grid
+        # Get the spectrum data - this is the native unshifted grid
         lam_grid = self.spectrum._lamgrid
         flux_grid = self.spectrum.flux_jy  # Use Jy units for consistency with observed data
         
@@ -432,22 +429,25 @@ class Molecule:
                 return empty_array, empty_array
             return empty_array
         
-        # Apply RV shift to the wavelength grid (not the flux)
-        rv_shifted_lam_grid = lam_grid + (lam_grid / c.SPEED_OF_LIGHT_KMS * self._rv_shift)
+        # Apply RV shift correction to get flux on the unshifted grid
+        # Create the shifted wavelength grid where the flux "came from"
+        shifted_source_lam_grid = lam_grid + (lam_grid / c.SPEED_OF_LIGHT_KMS * self._rv_shift)
         
-        # Decide whether to interpolate or return native grid
+        # Interpolate the flux from the shifted source back to the unshifted grid
+        # This simulates observing a shifted source and correcting it back to rest frame
+        rv_corrected_flux = np.interp(lam_grid, shifted_source_lam_grid, flux_grid, left=0, right=0)
+        
+        # Now decide on final output grid
         if interpolate_to_input and wavelength_array is not None:
-            # Interpolate to match the input wavelength array
-            # Apply RV shift to input wavelengths for interpolation
-            rv_shifted_input_wavelengths = wavelength_array - (wavelength_array / c.SPEED_OF_LIGHT_KMS * self._rv_shift)
-            interpolated_flux = np.interp(rv_shifted_input_wavelengths, lam_grid, flux_grid, left=0, right=0)
+            # Interpolate the RV-corrected flux to the input wavelength array
+            interpolated_flux = np.interp(wavelength_array, lam_grid, rv_corrected_flux, left=0, right=0)
             
             result_wavelengths = wavelength_array
             result_flux = interpolated_flux
         else:
-            # Return native spectrum grid
-            result_wavelengths = rv_shifted_lam_grid
-            result_flux = flux_grid
+            # Return on the native grid with RV shift applied
+            result_wavelengths = lam_grid
+            result_flux = rv_corrected_flux
         
         # Cache the result
         self._flux_cache[cache_key] = {
@@ -471,136 +471,6 @@ class Molecule:
             return result_wavelengths, result_flux
         return result_flux
     
-    def prepare_plot_data(self, wave_data):
-        """Prepare plot data for given wavelength array, with RV shift handled internally"""
-        wave_data_hash = hash(wave_data.tobytes()) if hasattr(wave_data, 'tobytes') else str(wave_data)
-        current_param_hash = self._compute_full_parameter_hash()
-        
-        # Create composite cache key from both wavelength and parameters
-        cache_key = (wave_data_hash, current_param_hash)
-        
-        if cache_key in self._wave_data_cache:
-            cached_entry = self._wave_data_cache[cache_key]
-            self.plot_lam = cached_entry['lam']
-            self.plot_flux = cached_entry['flux']
-            self._cache_stats['hits'] += 1
-            return (self.plot_lam, self.plot_flux)
-        
-        # Filter wave_data to molecule's wavelength range before calculation
-        # This ensures models are not plotted outside their valid range
-        if hasattr(self, '_wavelength_range') and self._wavelength_range is not None:
-            range_min, range_max = self._wavelength_range
-            # Filter to wavelength range - only calculate where data is valid
-            wave_mask = (wave_data >= range_min) & (wave_data <= range_max)
-            filtered_wave_data = wave_data[wave_mask]
-            
-            if len(filtered_wave_data) == 0:
-                # No wavelengths in range - return empty arrays
-                self.plot_lam = np.array([])
-                self.plot_flux = np.array([])
-                self._wave_data_cache[cache_key] = {
-                    'lam': self.plot_lam.copy(),
-                    'flux': self.plot_flux.copy()
-                }
-                return (self.plot_lam, self.plot_flux)
-            
-            # Get flux and wavelengths from the spectrum's native grid
-            spectrum_wavelengths, spectrum_flux = self.get_flux(filtered_wave_data, return_wavelengths=True, interpolate_to_input=False)
-            
-            # Filter the spectrum data to only include wavelengths within the requested range
-            if len(spectrum_wavelengths) > 0 and len(spectrum_flux) > 0:
-                range_min, range_max = self._wavelength_range
-                spectrum_mask = (spectrum_wavelengths >= range_min) & (spectrum_wavelengths <= range_max)
-                
-                # Use the spectrum's native grid (with RV shift already applied)
-                self.plot_lam = spectrum_wavelengths[spectrum_mask]
-                self.plot_flux = spectrum_flux[spectrum_mask]
-            else:
-                self.plot_lam = np.array([])
-                self.plot_flux = np.array([])
-        else:
-            # No wavelength range set - use spectrum's native grid (backward compatibility)
-            spectrum_wavelengths, spectrum_flux = self.get_flux(wave_data, return_wavelengths=True, interpolate_to_input=False)
-            self.plot_lam = spectrum_wavelengths.copy()
-            self.plot_flux = spectrum_flux.copy()
-
-        # Ensure the plot data is properly bounded and handle edge cases
-        if len(self.plot_lam) != len(self.plot_flux):
-            print(f"Warning: Wavelength and flux array size mismatch for molecule {self.name}: {len(self.plot_lam)} vs {len(self.plot_flux)}")
-            # Ensure arrays have the same length
-            min_len = min(len(self.plot_lam), len(self.plot_flux))
-            self.plot_lam = self.plot_lam[:min_len]
-            self.plot_flux = self.plot_flux[:min_len]
-
-        self._wave_data_cache[cache_key] = {
-            'lam': self.plot_lam.copy(),
-            'flux': self.plot_flux.copy()
-        }
-        
-        if len(self._wave_data_cache) > 20:
-            oldest_keys = list(self._wave_data_cache.keys())[:5]
-            for key in oldest_keys:
-                del self._wave_data_cache[key]
-        
-        self._cache_stats['misses'] += 1
-        return (self.plot_lam, self.plot_flux)
-    
-    def _interpolate_flux_to_unshifted_grid(self, old_rv_shift, new_rv_shift):
-        """
-        Interpolate flux from old RV shift to new RV shift, maintaining the unshifted wavelength grid.
-        This allows for smooth transitions when RV shift changes without recalculating the entire spectrum.
-        """
-        if self.plot_lam is None or self.plot_flux is None or len(self.plot_lam) == 0:
-            return
-        
-        # Calculate the RV shift difference
-        rv_diff = new_rv_shift - old_rv_shift
-        
-        # If the difference is negligible, don't interpolate
-        if abs(rv_diff) < 1e-6:  # Less than 1 m/s difference
-            return
-        
-        # Only perform interpolation if we have reasonable data
-        if len(self.plot_lam) != len(self.plot_flux):
-            print(f"Warning: Cannot interpolate RV shift for {self.name}: wavelength and flux array size mismatch")
-            return
-        
-        # Calculate the wavelength shift for the difference
-        # Delta_lambda = lambda * (rv_diff / c)
-        delta_wavelength = self.plot_lam * (rv_diff / c.SPEED_OF_LIGHT_KMS)
-        
-        # Create the new wavelength grid (shifted by the difference)
-        # We need to be careful about the direction here:
-        # If RV increases (redshift), wavelengths appear longer, so we need to shift the grid
-        new_wavelength_grid = self.plot_lam - delta_wavelength  # Note: negative because we're un-shifting
-        
-        # Check for valid interpolation range
-        if len(new_wavelength_grid) < 2:
-            return
-        
-        # Ensure monotonic increasing for interpolation
-        if not np.all(np.diff(new_wavelength_grid) > 0):
-            # If not monotonic, fall back to clearing caches (will trigger recalculation)
-            self._flux_cache.clear()
-            self._wave_data_cache.clear()
-            return
-        
-        # Interpolate the flux to match the new RV shift
-        # We interpolate the existing flux to match the new wavelength positions
-        try:
-            self.plot_flux = np.interp(self.plot_lam, new_wavelength_grid, self.plot_flux, left=0, right=0)
-        except Exception as e:
-            print(f"Warning: RV interpolation failed for {self.name}: {e}")
-            # Fall back to clearing caches
-            self._flux_cache.clear()
-            self._wave_data_cache.clear()
-            return
-        
-        # Only clear the caches that are directly affected by plot data changes
-        # Don't clear spectrum cache since the underlying spectrum hasn't changed
-        self._flux_cache.clear()
-        self._wave_data_cache.clear()
-
     # Define properties using a factory function approach
     def _make_property(attr_name, converter=float, special_setter=None):
         """Factory function to create properties"""
@@ -630,40 +500,7 @@ class Molecule:
     fwhm = _make_property('fwhm', converter=float, special_setter=lambda self, value: setattr(self, 'spectrum', None))
     model_pixel_res = _make_property('model_pixel_res', converter=float)
     broad = _make_property('broad', converter=float)
-    
-    @property
-    def rv_shift(self):
-        return self._rv_shift
-    
-    @rv_shift.setter
-    def rv_shift(self, value):
-        old_value = self._rv_shift
-        new_value = float(value)
-        
-        # If the value hasn't changed significantly, don't do anything
-        if abs(new_value - old_value) < 1e-6:  # Less than 1 m/s difference
-            return
-        
-        self._rv_shift = new_value
-        
-        # Only attempt interpolation if we have existing plot data
-        # and the change is small enough that interpolation makes sense
-        should_interpolate = (
-            hasattr(self, 'plot_lam') and hasattr(self, 'plot_flux') and 
-            self.plot_lam is not None and self.plot_flux is not None and
-            len(self.plot_lam) > 0 and len(self.plot_flux) > 0 and
-            abs(new_value - old_value) < 1000  # Only interpolate for changes < 1000 km/s
-        )
-        
-        if should_interpolate:
-            self._interpolate_flux_to_unshifted_grid(old_value, new_value)
-        else:
-            # For large changes or when no plot data exists, clear caches 
-            # to force recalculation when needed
-            self._flux_cache.clear()
-            self._wave_data_cache.clear()
-        
-        self._notify_my_parameter_change('rv_shift', old_value, new_value)
+    rv_shift = _make_property('rv_shift', converter=float)
     
     @property
     def model_line_width(self):
@@ -762,7 +599,6 @@ class Molecule:
         self._intensity_cache = {'data': None, 'hash': None}
         self._spectrum_cache = {'data': None, 'hash': None}
         self._flux_cache.clear()
-        self._wave_data_cache.clear()
         self._dirty_flags = {'intensity': True, 'spectrum': True, 'flux': True}
         self._cache_stats['invalidations'] += 1
     

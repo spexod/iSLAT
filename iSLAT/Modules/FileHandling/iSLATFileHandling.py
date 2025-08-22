@@ -287,7 +287,7 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
         with open(csv_filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             # Use field names compatible with Molecule class expectations
-            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad']
+            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad', 'RV_Shift']
             writer.writerow(header)
             
             for mol_name, mol_obj in molecules_dict.items():
@@ -303,7 +303,8 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
                     getattr(mol_obj, 'distance', 140),  # Default distance in pc
                     getattr(mol_obj, 'stellar_rv', 0),   # Default stellar RV
                     getattr(mol_obj, 'fwhm', 200),       # Default FWHM in km/s
-                    getattr(mol_obj, 'broad', 2.5)       # Default broadening
+                    getattr(mol_obj, 'broad', 2.5),       # Default broadening
+                    getattr(mol_obj, 'rv_shift', 0),      # Default RV shift
                 ]
                 writer.writerow(row)
         
@@ -552,21 +553,20 @@ def generate_all_csv(molecules_data: 'MoleculeDict', output_dir=models_folder_pa
         if not molecule.is_visible:
             continue
             
-        # Get wavelength and flux data from molecule
-        if hasattr(molecule, 'plot_lam') and hasattr(molecule, 'plot_flux'):
-            lambdas = molecule.plot_lam
-            fluxes = molecule.plot_flux
-        else:
-            # Try to prepare plot data if not available
-            if wave_data is not None:
-                try:
-                    lambdas, fluxes = molecule.prepare_plot_data(wave_data)
-                except Exception as e:
-                    print(f"Error preparing plot data for {mol_name}: {e}")
-                    continue
-            else:
-                print(f"No plot data available for {mol_name}")
+        # Get wavelength and flux data from molecule using get_flux method
+        if wave_data is not None:
+            try:
+                lambdas, fluxes = molecule.get_flux(
+                    wavelength_array=wave_data, 
+                    return_wavelengths=True, 
+                    interpolate_to_input=False
+                )
+            except Exception as e:
+                print(f"Error getting flux data for {mol_name}: {e}")
                 continue
+        else:
+            print(f"No wavelength data available for {mol_name}")
+            continue
 
         # Check if we have valid data
         if (lambdas is None or fluxes is None or 
@@ -666,21 +666,20 @@ def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, output_dir=model
             
         molecule = molecules_data[mol_name]
         
-        # Get wavelength and flux data from molecule
-        if hasattr(molecule, 'plot_lam') and hasattr(molecule, 'plot_flux'):
-            lambdas = molecule.plot_lam
-            fluxes = molecule.plot_flux
-        else:
-            # Try to prepare plot data if not available
-            if wave_data is not None:
-                try:
-                    lambdas, fluxes = molecule.prepare_plot_data(wave_data)
-                except Exception as e:
-                    print(f"Error preparing plot data for {mol_name}: {e}")
-                    return
-            else:
-                print(f"No plot data available for {mol_name}")
+        # Get wavelength and flux data from molecule using get_flux method
+        if wave_data is not None:
+            try:
+                lambdas, fluxes = molecule.get_flux(
+                    wavelength_array=wave_data, 
+                    return_wavelengths=True, 
+                    interpolate_to_input=False
+                )
+            except Exception as e:
+                print(f"Error getting flux data for {mol_name}: {e}")
                 return
+        else:
+            print(f"No wavelength data available for {mol_name}")
+            return
 
         # Check if we have valid data
         if (lambdas is None or fluxes is None or 

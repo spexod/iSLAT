@@ -72,10 +72,6 @@ class MoleculeDict(dict):
         """
         Get summed flux from molecules with consistent wavelength grids.
         
-        Since molecules now handle RV shift internally and use consistent wavelength grids
-        when configured with the same global wavelength range, we can directly sum their
-        fluxes without any interpolation. All molecules should return identical grids.
-        
         Parameters
         ----------
         wave_data : np.ndarray
@@ -130,7 +126,7 @@ class MoleculeDict(dict):
                         if len(mol_wavelengths) != len(combined_wavelengths):
                             raise ValueError(f"Grid size mismatch for {mol_name}: {len(mol_wavelengths)} vs {len(combined_wavelengths)}. This should not happen with consistent spectrum calculation.")
                         
-                        # Direct summation - no interpolation needed
+                        # Direct summation
                         combined_flux += mol_flux
                             
             except Exception as e:
@@ -527,7 +523,7 @@ class MoleculeDict(dict):
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
                 fwhm=safe_float("FWHM"),
-                rv_shift=mol_data.get("RV Shift", self._global_stellar_rv),
+                rv_shift=mol_data.get("RV_Shift", self._global_stellar_rv),
                 broad=mol_data.get("Broad"),
                 model_pixel_res=self._global_model_pixel_res,
                 model_line_width=self._global_model_line_width,
