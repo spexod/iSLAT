@@ -492,10 +492,12 @@ class iSLAT:
                 self._initialize_molecules_for_spectrum()
                 spectrum_range = (self.wave_data.min(), self.wave_data.max())
                 self.molecules_dict.global_wavelength_range = spectrum_range
+                self.molecules_dict.global_model_pixel_res = np.median(self.wave_data[1:-1] - self.wave_data[0:-2])
             else:
                 # Update existing molecules with new wavelength range if needed
                 spectrum_range = (self.wave_data.min(), self.wave_data.max())
                 self.molecules_dict.global_wavelength_range = spectrum_range
+                self.molecules_dict.global_model_pixel_res = np.median(self.wave_data[1:-1] - self.wave_data[0:-2])
                 self.update_model_spectrum()
                 print(f"Updated existing molecules for new wavelength range: {spectrum_range[0]:.3f} - {spectrum_range[1]:.3f}")
 
