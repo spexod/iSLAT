@@ -353,19 +353,28 @@ class Molecule:
         delta_lambda = mean_wavelength * (self._fwhm / 299792.458)
         spectral_resolution = mean_wavelength / delta_lambda if delta_lambda > 0 else self.model_line_width
         
-        # Expand wavelength range to account for RV shifts and ensure proper coverage
-        # Calculate maximum possible wavelength shift due to RV
-        max_rv_shift = abs(self._rv_shift)  # km/s
-        fractional_shift = max_rv_shift / c.SPEED_OF_LIGHT_KMS
-        
-        # Expand the range by the fractional shift plus a safety margin
-        range_expansion = (self.wavelength_range[1] - self.wavelength_range[0]) * (fractional_shift + 0.01)
-        expanded_lam_min = max(0.1, self.wavelength_range[0] - range_expansion)  # Don't go below 0.1 micron
-        expanded_lam_max = self.wavelength_range[1] + range_expansion
+        # Use global wavelength range if available, otherwise use default range
+        # This optimization limits spectrum calculation to only the needed range
+        if hasattr(self, '_wavelength_range') and self._wavelength_range is not None:
+            global_min, global_max = self._wavelength_range
+            # Still need a small expansion for RV shifts at the boundaries to avoid edge effects
+            max_rv_shift = abs(self._rv_shift)  # km/s
+            fractional_shift = max_rv_shift / c.SPEED_OF_LIGHT_KMS
+            # Use minimal expansion - just enough for RV boundary effects
+            boundary_expansion = (global_max - global_min) * (fractional_shift * 0.1)  # Reduced from full range expansion
+            spectrum_lam_min = max(0.1, global_min - boundary_expansion)
+            spectrum_lam_max = global_max + boundary_expansion
+        else:
+            # Fallback to expanded range for backward compatibility
+            max_rv_shift = abs(self._rv_shift)  # km/s
+            fractional_shift = max_rv_shift / c.SPEED_OF_LIGHT_KMS
+            range_expansion = (self.wavelength_range[1] - self.wavelength_range[0]) * (fractional_shift + 0.01)
+            spectrum_lam_min = max(0.1, self.wavelength_range[0] - range_expansion)
+            spectrum_lam_max = self.wavelength_range[1] + range_expansion
         
         self.spectrum = Spectrum(
-            lam_min=expanded_lam_min,
-            lam_max=expanded_lam_max,
+            lam_min=spectrum_lam_min,
+            lam_max=spectrum_lam_max,
             dlambda=self._model_pixel_res,
             R=spectral_resolution,
             distance=self._distance
@@ -543,7 +552,7 @@ class Molecule:
                 }
                 return (self.plot_lam, self.plot_flux)
             
-            # Get flux and wavelengths from the spectrum's native grid (no interpolation)
+            # Get flux and wavelengths from the spectrum's native grid
             spectrum_wavelengths, spectrum_flux = self.get_flux(filtered_wave_data, return_wavelengths=True, interpolate_to_input=False)
             
             # Filter the spectrum data to only include wavelengths within the requested range

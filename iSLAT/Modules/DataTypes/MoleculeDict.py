@@ -151,13 +151,13 @@ class MoleculeDict(dict):
             if mol_name in self:
                 molecule = self[mol_name]
                 try:
-                    # Get native grid data (no interpolation) - RV shift is applied internally
+                    # Get native grid data (RV shift is already applied by get_flux method)
                     mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
                     
                     if mol_wavelengths is not None and mol_flux is not None and len(mol_wavelengths) > 0:
                         print(f"Molecule {mol_name}: RV shift = {molecule.rv_shift:.2f} km/s, wavelength range = {mol_wavelengths[0]:.4f} - {mol_wavelengths[-1]:.4f} µm")
                         
-                        # Filter to global wavelength range
+                        # Filter to global wavelength range (after RV shift has been applied)
                         wave_mask = (mol_wavelengths >= global_min) & (mol_wavelengths <= global_max)
                         if np.any(wave_mask):
                             filtered_wavelengths = mol_wavelengths[wave_mask]
@@ -185,7 +185,7 @@ class MoleculeDict(dict):
         if len(all_wavelengths) == 0:
             return np.array([]), np.array([])
         
-        # Combine all wavelength grids and sum flux at common points
+        # Combine all wavelength grids using unified high-resolution grid approach
         combined_wavelengths, combined_flux = self._combine_wavelength_grids(all_wavelengths, all_fluxes)
         
         # Cache the result
@@ -1234,22 +1234,23 @@ class MoleculeDict(dict):
             pass
 
     def _combine_wavelength_grids(self, all_wavelengths: list, all_fluxes: list) -> Tuple[np.ndarray, np.ndarray]:
-        """Combine multiple wavelength grids by preserving all native wavelength points.
+        """Combine multiple wavelength grids with proper flux summation for RV-shifted molecules.
         
-        This method concatenates all wavelength/flux pairs and sorts them, preserving
-        the full spectral resolution of each molecule without any interpolation.
+        Creates a unified wavelength grid and interpolates all molecules onto it to ensure
+        proper flux summation at each wavelength point. This approach is simple, efficient,
+        and handles RV shifts correctly by always summing flux values rather than concatenating.
         
         Parameters
         ----------
         all_wavelengths : list
-            List of wavelength arrays from different molecules
+            List of wavelength arrays from different molecules (already RV-shifted)
         all_fluxes : list  
             List of flux arrays from different molecules
             
         Returns
         -------
         tuple
-            (combined_wavelengths, combined_flux) representing the merged spectrum
+            (combined_wavelengths, combined_flux) representing the summed spectrum
         """
         if len(all_wavelengths) == 0:
             return np.array([]), np.array([])
@@ -1258,15 +1259,51 @@ class MoleculeDict(dict):
         if len(all_wavelengths) == 1:
             return all_wavelengths[0].copy(), all_fluxes[0].copy()
         
-        # Concatenate all wavelength and flux points
-        all_wave_points = np.concatenate(all_wavelengths)
-        all_flux_points = np.concatenate(all_fluxes)
+        # Find the overall wavelength range covering all molecules
+        min_wave = min(np.min(waves) for waves in all_wavelengths)
+        max_wave = max(np.max(waves) for waves in all_wavelengths)
         
-        # Sort by wavelength to create proper spectrum
-        sort_indices = np.argsort(all_wave_points)
-        combined_wavelengths = all_wave_points[sort_indices]
-        combined_flux = all_flux_points[sort_indices]
+        # Create a unified wavelength grid using the densest molecular grid as reference
+        # This preserves the best resolution while ensuring proper flux summation
+        max_points = 0
+        reference_resolution = None
         
-        print(f"Combined {len(all_wavelengths)} molecular spectra into {len(combined_wavelengths)} wavelength points")
+        for waves in all_wavelengths:
+            if len(waves) > max_points:
+                max_points = len(waves)
+                if len(waves) > 1:
+                    # Use median spacing for robustness
+                    spacings = np.diff(waves)
+                    reference_resolution = np.median(spacings[spacings > 0])
         
-        return combined_wavelengths.astype(np.float32), combined_flux.astype(np.float32)
+        # If we couldn't determine resolution, use a reasonable default
+        if reference_resolution is None or reference_resolution <= 0:
+            reference_resolution = (max_wave - min_wave) / 10000
+        
+        # Create unified grid with the reference resolution
+        n_points = int((max_wave - min_wave) / reference_resolution) + 1
+        
+        # Reasonable limit for memory and performance
+        max_grid_points = 50000
+        if n_points > max_grid_points:
+            n_points = max_grid_points
+            reference_resolution = (max_wave - min_wave) / (n_points - 1)
+        
+        # Create the unified wavelength grid
+        unified_wavelengths = np.linspace(min_wave, max_wave, n_points, dtype=np.float32)
+        
+        # Initialize summed flux array
+        summed_flux = np.zeros(n_points, dtype=np.float32)
+        
+        # Interpolate each molecule onto the unified grid and sum
+        for mol_wavelengths, mol_flux in zip(all_wavelengths, all_fluxes):
+            # Interpolate this molecule's flux onto the unified grid
+            mol_flux_interp = np.interp(unified_wavelengths, mol_wavelengths, mol_flux, 
+                                       left=0.0, right=0.0)
+            # Add to the running sum (this is the key - always sum, never concatenate)
+            summed_flux += mol_flux_interp
+        
+        print(f"Combined {len(all_wavelengths)} molecular spectra into {len(unified_wavelengths)} wavelength points")
+        print(f"Grid resolution: {reference_resolution:.6f} μm, range: {min_wave:.4f} - {max_wave:.4f} μm")
+        
+        return unified_wavelengths, summed_flux
