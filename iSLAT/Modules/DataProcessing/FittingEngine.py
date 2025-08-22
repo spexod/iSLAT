@@ -118,11 +118,11 @@ class FittingEngine:
         Parameters
         ----------
         wave_data : array_like
-            Wavelength data
+            Wavelength data (should already be filtered to desired range)
         flux_data : array_like
-            Flux data
+            Flux data (should already be filtered to desired range)
         xmin, xmax : float, optional
-            Wavelength range for fitting. If None, uses full range
+            Wavelength range for fitting (used for multi-gaussian detection strategy)
         initial_guess : dict, optional
             Initial parameter guesses {'center': float, 'amplitude': float, 'sigma': float}
         deblend : bool, optional
@@ -137,17 +137,18 @@ class FittingEngine:
         fitted_flux : array_like
             Fitted flux values
         """
-        # Apply wavelength range constraints
-        if xmin is not None and xmax is not None:
-            mask = (wave_data >= xmin) & (wave_data <= xmax)
-            fit_wave = wave_data[mask]
-            fit_flux = flux_data[mask]
-        else:
-            fit_wave = wave_data
-            fit_flux = flux_data
+        # Data is assumed to already be filtered by caller
+        fit_wave = wave_data
+        fit_flux = flux_data
             
         if len(fit_wave) < 3:
             raise ValueError("Insufficient data points for fitting")
+        
+        # Set xmin/xmax from data if not provided (for multi-gaussian detection)
+        if xmin is None:
+            xmin = fit_wave.min()
+        if xmax is None:
+            xmax = fit_wave.max()
         
         if deblend:
             return self._fit_multi_gaussian(fit_wave, fit_flux, initial_guess, xmin, xmax)
@@ -156,30 +157,39 @@ class FittingEngine:
 
     def _fit_single_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
         """Fit a single Gaussian component."""
+        # Data is already filtered to the fit range by the caller
+        x_fit = wave_data
+        flux_fit = flux_data
+        
+        # Use gaussian model from LMFIT
         model = GaussianModel()
         
-        # Generate initial parameter estimates
-        if initial_guess is None:
-            initial_guess = model.guess(wave_data, flux_data)
+        # Get initial guess for parameters (let LMFIT do the guessing)
+        params = model.guess(flux_fit, x=x_fit)
         
-        params = model.make_params(
-            center=initial_guess.get('center', wave_data[np.argmax(flux_data)]),
-            amplitude=initial_guess.get('amplitude', np.max(flux_data)),
-            sigma=initial_guess.get('sigma', (wave_data[-1] - wave_data[0]) / 10)
-        )
+        # Get error data for weights if available
+        weights = None
+        if hasattr(self.islat, 'err_data') and self.islat.err_data is not None:
+            # Need to get error data for the same range
+            if xmin is not None and xmax is not None:
+                err_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
+                err_fit = self.islat.err_data[err_mask]
+                # Following LMFIT docs: use 1/error as weights, avoiding division by zero
+                if len(err_fit) == len(flux_fit) and len(err_fit) > 0:
+                    max_err = np.max(err_fit)
+                    if max_err > 0:
+                        err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
+                        weights = 1.0 / err_fit_safe
         
-        # Set reasonable bounds
-        params['center'].set(min=wave_data.min(), max=wave_data.max())
-        params['amplitude'].set(min=0)
-        params['sigma'].set(min=1e-6, max=(wave_data[-1] - wave_data[0]))
-        
-        # Perform fit
-        result = model.fit(flux_data, params, x=wave_data)
+        # Make the fit, using error data as weights and ignoring nans
+        if weights is not None:
+            result = model.fit(flux_fit, params, x=x_fit, weights=weights, nan_policy='omit')
+        else:
+            result = model.fit(flux_fit, params, x=x_fit, nan_policy='omit')
         
         print(result.fit_report())
 
-        # Generate fitted curve
-        #fitted_wave = np.linspace(wave_data.min(), wave_data.max(), 1000)
+        # Generate fitted curve on original wavelength grid
         fitted_wave = wave_data
         fitted_flux = result.eval(x=fitted_wave)
         
