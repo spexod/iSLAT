@@ -294,7 +294,7 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
                 row = [
                     mol_name,
                     getattr(mol_obj, 'filepath', getattr(mol_obj, 'hitran_data', '')),
-                    getattr(mol_obj, 'name', mol_name),
+                    getattr(mol_obj, 'displaylabel', mol_name),
                     getattr(mol_obj, 'temp', 600),
                     getattr(mol_obj, 'radius', 0.5),
                     getattr(mol_obj, 'n_mol', 1e17),
