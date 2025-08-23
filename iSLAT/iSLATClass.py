@@ -43,7 +43,6 @@ class iSLAT:
         self._default_molecule_csv_data = None
         self._user_saved_molecules = None
         self._molecules_data_default = None
-        self._startup_optimizations_applied = False
         self._molecules_loaded = False  # Track if molecules have been initialized
         
         # === MOLECULE CONSTANTS ===

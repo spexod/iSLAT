@@ -21,8 +21,10 @@ theme_file_path = data_files_path / "CONFIG" / "GUIThemes"
 user_configuration_file_name = "UserSettings.json"
 
 molsave_file_name = "molsave.csv"
-defaults_file_name = "default.csv"
 molecule_list_file_name = "molecules_list.csv"
+
+defaults_file_name = "default.csv"
+defaults_file_path = config_file_path
 
 default_molecule_parameters_file_name = "DefaultMoleculeParameters.json"
 default_initial_parameters_file_name = "DefaultMoleculeParameters.json"
@@ -73,7 +75,7 @@ def read_from_csv(file_path=save_folder_path, file_name=molsave_file_name):
             pass
     return MOLECULES_DATA
 
-def read_default_csv(file_path=save_folder_path, file_name=defaults_file_name):
+def read_default_csv(file_path=defaults_file_path, file_name=defaults_file_name):
     file = os.path.join(file_path, file_name)
     if os.path.exists(file):
         try:
@@ -86,6 +88,7 @@ def read_default_csv(file_path=save_folder_path, file_name=defaults_file_name):
 
 def read_from_user_csv(file_path=save_folder_path, file_name=molecule_list_file_name):
     file = os.path.join(file_path, file_name)
+    defaults_file = os.path.join(defaults_file_path, defaults_file_name)
     if os.path.exists(file):
         try:
             with open(file, 'r') as csvfile:
@@ -93,7 +96,14 @@ def read_from_user_csv(file_path=save_folder_path, file_name=molecule_list_file_
                 return {row['Molecule Name']: row for row in reader if 'Molecule Name' in row}
         except FileNotFoundError:
             pass
-    return MOLECULES_DATA
+    #return MOLECULES_DATA
+    elif os.path.exists(defaults_file):
+        try:
+            with open(defaults_file, 'r') as csvfile:
+                reader = csv.DictReader(csvfile)
+                return {row['Molecule Name']: row for row in reader if 'Molecule Name' in row}
+        except FileNotFoundError:
+            pass
 
 def read_full_molecule_parameters(file_path=config_file_path, file_name=default_molecule_parameters_file_name):
     """
@@ -129,6 +139,7 @@ def read_save_data(file_path = save_folder_path, file_name=molecule_list_file_na
     """
     #save_file = os.path.join("SAVES", "molecules_list.csv")
     file = os.path.join(file_path, file_name)
+    defaults_file = os.path.join(defaults_file_path, defaults_file_name)
     if os.path.exists(file):
         try:
             df = pd.read_csv(file)
@@ -138,6 +149,15 @@ def read_save_data(file_path = save_folder_path, file_name=molecule_list_file_na
             print(f"Error reading save file: {e}")
             savedata = {}
             return savedata
+    elif os.path.exists(defaults_file):
+        try:
+            df = pd.read_csv(defaults_file)
+            savedata = {row['Molecule Name']: {col: row[col] for col in df.columns if col != 'Molecule Name'} for _, row in df.iterrows()}
+            print("Huz:", savedata)
+            return savedata
+        except Exception as e:
+            print(f"Error reading defaults file: {e}")
+            return {}
     else:
         print("No save file found.")
         savedata = {}
