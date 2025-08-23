@@ -688,7 +688,8 @@ class FittingEngine:
             line_params['sigma_stderr'] = params['sigma'].stderr if params['sigma'].stderr is not None else None
             
             # Calculate derived parameters
-            line_params['fwhm'] = 2.355 * params['sigma'].value  # 2*sqrt(2*ln(2))
+            #line_params['fwhm'] = 2.355 * params['sigma'].value  # 2*sqrt(2*ln(2))
+            line_params['fwhm'] = params['fwhm'].value if 'fwhm' in params else None
             line_params['area'] = np.sqrt(2 * np.pi) * params['amplitude'].value * params['sigma'].value
             
             # Calculate area error using error propagation

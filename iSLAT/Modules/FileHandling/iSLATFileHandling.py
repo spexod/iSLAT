@@ -30,13 +30,15 @@ default_molecule_parameters_file_name = "DefaultMoleculeParameters.json"
 default_initial_parameters_file_name = "DefaultMoleculeParameters.json"
 
 line_saves_file_name = "saved_lines.csv"
+line_saves_file_path = data_files_path / "LINESAVES"
+
 fit_save_lines_file_name = "fit_save_lines.csv"
 atomic_lines_file_name = data_files_path / "LINELISTS" / "Atomic_lines.csv"
 models_folder_path = data_files_path / "MODELS"
 
 set_input_file_folder_path = data_files_path / "LINELISTS"
 
-set_output_file_folder_path = data_files_path / "LINESAVES"
+set_output_file_folder_path = line_saves_file_path
 set_output_file_name = "line_outputs.csv"
 
 def load_user_settings(file_path=user_configuration_file_path, file_name=user_configuration_file_name, theme_file_path=theme_file_path):
@@ -196,7 +198,7 @@ def read_line_saves(file_path=save_folder_path, file_name=line_saves_file_name) 
             return pd.DataFrame()
     return pd.DataFrame()
 
-def save_line(line_info, file_path=save_folder_path, file_name=line_saves_file_name):
+def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_file_name):
     """Save a line to the line saves file."""
     filename = os.path.join(file_path, file_name)
     
