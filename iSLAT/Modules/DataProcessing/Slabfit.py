@@ -38,7 +38,6 @@ from iSLAT.Modules.DataTypes import Intensity, Spectrum
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 import iSLAT.Constants as c
 
-
 class SlabModel:
     """
     Simplified slab fitting class that integrates with existing project components.

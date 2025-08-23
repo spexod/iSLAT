@@ -304,52 +304,6 @@ class LineAnalyzer:
             print(f"Error characterizing line at index {peak_idx}: {str(e)}")
             return None
     
-    def identify_lines(self, tolerance=0.01):
-        """
-        Identify detected lines by matching with known line databases.
-        
-        Parameters
-        ----------
-        tolerance : float, optional
-            Wavelength tolerance for line matching (microns)
-            
-        Returns
-        -------
-        identified_lines : list
-            List of identified lines with species information
-        """
-        if not self.detected_lines:
-            return []
-        
-        identified_lines = []
-        
-        for line in self.detected_lines:
-            wavelength = line['wavelength']
-            
-            # Search atomic lines
-            atomic_matches = self._search_atomic_lines(wavelength, tolerance)
-            
-            # Search molecular lines (if databases are loaded)
-            molecular_matches = self._search_molecular_lines(wavelength, tolerance)
-            
-            # Combine matches
-            all_matches = atomic_matches + molecular_matches
-            
-            if all_matches:
-                # Add identification to line info
-                line_with_id = line.copy()
-                line_with_id['identifications'] = all_matches
-                line_with_id['best_match'] = all_matches[0] if all_matches else None
-                identified_lines.append(line_with_id)
-            else:
-                # No identification found
-                line_with_id = line.copy()
-                line_with_id['identifications'] = []
-                line_with_id['best_match'] = None
-                identified_lines.append(line_with_id)
-        
-        return identified_lines
-    
     def _search_atomic_lines(self, wavelength, tolerance):
         """Search atomic line database for matches."""
         if self.atomic_lines.empty:
