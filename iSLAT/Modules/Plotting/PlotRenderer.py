@@ -334,10 +334,7 @@ class PlotRenderer:
         fit_result : Any, optional
             Fit results to plot if available
         """
-        # Clear old fit results if setting is enabled
-        if self._should_clear_old_fits():
-            self._clear_old_fit_results_in_range(xmin, xmax)
-        
+        # Always clear the line inspection plot to start fresh
         self.ax2.clear()
         
         if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
@@ -397,14 +394,21 @@ class PlotRenderer:
     
     def _render_fit_results_in_line_inspection(self, fit_result: Any, xmin: float, xmax: float, max_y: float) -> None:
         """Helper method to render fit results in the line inspection plot."""
+        
+        # Clear old fit results if setting is enabled (but preserve data and molecule plots)
+        if self._should_clear_old_fits():
+            self._clear_old_fit_results_in_range(xmin, xmax)
+        
         try:
             gauss_fit, fitted_wave, fitted_flux = fit_result
             if gauss_fit is not None and fitted_wave is not None and fitted_flux is not None:
                 # Filter fit data to range
                 fit_mask = (fitted_wave >= xmin) & (fitted_wave <= xmax)
                 if np.any(fit_mask):
-                    self.ax2.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], 
-                                color='red', linewidth=2, label='Total Fit', linestyle='--')
+                    fit_line = self.ax2.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], 
+                                color='red', linewidth=2, label='Total Fit', linestyle='--')[0]
+                    # Mark as fit result for future removal
+                    fit_line._islat_fit_result = True
                     
                     # Check if this is a multi-component fit by looking at the fit result structure
                     if hasattr(gauss_fit, 'params') and gauss_fit.params:
@@ -423,16 +427,20 @@ class PlotRenderer:
                                 for i, prefix in enumerate(sorted(component_prefixes)):
                                     if prefix in components:
                                         component_flux = components[prefix]
-                                        self.ax2.plot(fitted_wave[fit_mask], component_flux, 
+                                        comp_line = self.ax2.plot(fitted_wave[fit_mask], component_flux, 
                                                     linestyle='--', linewidth=1, 
-                                                    label=f"Component {i+1}")
+                                                    label=f"Component {i+1}")[0]
+                                        # Mark as fit result for future removal
+                                        comp_line._islat_fit_result = True
                             except Exception as e:
                                 debug_config.warning("plot_renderer", f"Could not plot fit components: {e}")
                         else:
                             # Single component fit, fill uncertainty area
                             dely = gauss_fit.eval_uncertainty(sigma = self.islat.user_settings.get('fit_line_uncertainty', 1.0))
-                            self.ax2.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
+                            fill_collection = self.ax2.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
                                                 color='gray', alpha=0.3, label=r'3-$\sigma$ uncertainty band')
+                            # Mark as fit result for future removal
+                            fill_collection._islat_fit_result = True
 
         except Exception as e:
             debug_config.warning("plot_renderer", f"Could not render fit results: {e}")
@@ -471,10 +479,40 @@ class PlotRenderer:
                         if (line_xmin <= xmax and line_xmax >= xmin):
                             lines_to_remove.append(line)
         
+        # Remove existing fit collections (fill_between objects) from the line inspection plot
+        collections_to_remove = []
+        for collection in self.ax2.collections:
+            if hasattr(collection, '_islat_fit_result') or (hasattr(collection, 'get_label') and 
+                                                           collection.get_label() and 
+                                                           ('uncertainty' in collection.get_label().lower() or 'sigma' in collection.get_label().lower())):
+                # For collections, we need to check their path bounds
+                try:
+                    paths = collection.get_paths()
+                    if paths:
+                        # Get bounds from the first path
+                        bounds = paths[0].get_extents()
+                        coll_xmin = bounds.xmin
+                        coll_xmax = bounds.xmax
+                        # Check for overlap
+                        if (coll_xmin <= xmax and coll_xmax >= xmin):
+                            collections_to_remove.append(collection)
+                except:
+                    # If we can't determine bounds, remove it to be safe
+                    collections_to_remove.append(collection)
+        
         # Remove the overlapping fit lines
         for line in lines_to_remove:
             line.remove()
             debug_config.trace("plot_renderer", f"Removed old fit result line: {line.get_label()}")
+            
+        # Remove the overlapping fit collections
+        for collection in collections_to_remove:
+            collection.remove()
+            debug_config.trace("plot_renderer", f"Removed old fit result collection: {collection.get_label()}")
+        
+        # Force canvas redraw if anything was removed
+        if lines_to_remove or collections_to_remove:
+            self.canvas.draw_idle()
     
     def render_population_diagram(self, molecule: 'Molecule', wave_range: Optional[Tuple[float, float]] = None) -> None:
         """
