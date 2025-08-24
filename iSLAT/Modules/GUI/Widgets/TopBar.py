@@ -16,6 +16,7 @@ from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, write_molecules_list_csv, generate_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name
+import iSLAT.Constants as c
 
 if TYPE_CHECKING:
     from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
@@ -275,6 +276,8 @@ class TopBar(ResizableFrame):
                                     current_intens = current_tripple[1]
                                     current_tau = current_tripple[2]
 
+                                    doppler = ((comp_params['center'] - current_line_info["lam"]) / current_line_info["lam"] * c.SPEED_OF_LIGHT_KMS) if current_line_info["lam"] else np.nan
+
                                     line_save_info = {
                                         'species': self.islat.active_molecule.name,
                                         'lev_up': current_line_info['lev_up'],
@@ -291,7 +294,7 @@ class TopBar(ResizableFrame):
                                         'FWHM_err': comp_params['fwhm_stderr'],
                                         'Centr_fit': comp_params['center'],
                                         'Centr_err': comp_params['center_stderr'],
-                                        'Doppler': comp_params['doppler_shift']
+                                        'Doppler': doppler
                                     }
 
                                     # Save this component
