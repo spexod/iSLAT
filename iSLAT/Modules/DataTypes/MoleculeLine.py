@@ -85,6 +85,28 @@ class MoleculeLine:
             'g_low': [self.g_low]
         })
     
+    def get_dict(self) -> Dict[str, Any]:
+        """
+        Convert the line data to a dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the line data.
+        """
+        return {
+            'nr': self.nr,
+            'lev_up': self.lev_up,
+            'lev_low': self.lev_low,
+            'lam': self.lam,
+            'freq': self.freq,
+            'a_stein': self.a_stein,
+            'e_up': self.e_up,
+            'e_low': self.e_low,
+            'g_up': self.g_up,
+            'g_low': self.g_low
+        }
+    
     @property
     def line_data(self) -> 'LineDataView':
         """
@@ -102,7 +124,6 @@ class MoleculeLine:
 
     def __repr__(self) -> str:
         return self.__str__()
-
 
 class LineDataView:
     """

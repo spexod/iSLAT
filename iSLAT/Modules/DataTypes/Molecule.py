@@ -310,7 +310,7 @@ class Molecule:
         # Always recreate spectrum when parameters change
         Spectrum = _get_spectrum_module()
         mean_wavelength = (self.wavelength_range[0] + self.wavelength_range[1]) / 2.0
-        delta_lambda = mean_wavelength * (self._fwhm / 299792.458)
+        delta_lambda = mean_wavelength * (self._fwhm / c.SPEED_OF_LIGHT_KMS)
         spectral_resolution = mean_wavelength / delta_lambda if delta_lambda > 0 else self.model_line_width
         
         # Use consistent wavelength range for all molecules to ensure identical grids

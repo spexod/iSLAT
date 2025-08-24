@@ -222,6 +222,12 @@ class TopBar(ResizableFrame):
                         # For deblending, show detailed results AND save lines automatically
                         self.data_field.insert_text("\nDe-blended line fit results:\n", clear_first=False)
                         
+                        selection = self.main_plot.current_selection
+                        if selection and len(selection) >= 2:
+                            xmin, xmax = selection[0], selection[-1]
+                        line_info = self.islat.active_molecule.intensity.get_lines_in_range_with_intensity(xmin, xmax)
+                        #print(line_info)
+
                         # Handle multi-component fits - show detailed information
                         component_idx = 0
                         saved_components = 0
@@ -246,11 +252,7 @@ class TopBar(ResizableFrame):
                             
                             # Automatically save this component
                             try:
-                                selection = self.main_plot.current_selection
-                                if selection and len(selection) >= 2:
-                                    xmin, xmax = selection[0], selection[-1]
-                                    
-                                    # Create line info dictionary for each component
+                                    '''# Create line info dictionary for each component
                                     line_info = {
                                         'species': self.islat.active_molecule,
                                         'lev_up': f'deblend_comp_{component_idx+1}',
@@ -266,10 +268,34 @@ class TopBar(ResizableFrame):
                                         'flux_fit': comp_params['area'],
                                         'fwhm_fit': comp_params['fwhm'],
                                         'centr_fit': comp_params['center']
+                                    }'''
+
+                                    current_tripple = line_info[component_idx]
+                                    current_line_info = current_tripple[0].get_dict()
+                                    current_intens = current_tripple[1]
+                                    current_tau = current_tripple[2]
+
+                                    line_save_info = {
+                                        'species': self.islat.active_molecule.name,
+                                        'lev_up': current_line_info['lev_up'],
+                                        'lev_low': current_line_info['lev_low'],
+                                        'lam': current_line_info['lam'],
+                                        'tau': current_tau,
+                                        'intens': current_intens,
+                                        'a_stein': current_line_info['a_stein'],
+                                        'e_up': current_line_info['e_up'],
+                                        'g_up': current_line_info['g_up'],
+                                        'Flux_fit': comp_params['area'],
+                                        'Err_fit': comp_params['area_stderr'],
+                                        'FWHM_fit': comp_params['fwhm'],
+                                        'FWHM_err': comp_params['fwhm_stderr'],
+                                        'Centr_fit': comp_params['center'],
+                                        'Centr_err': comp_params['center_stderr'],
+                                        'Doppler': comp_params['doppler_shift']
                                     }
-                                    
+
                                     # Save this component
-                                    ifh.save_line(line_info)
+                                    ifh.save_line(line_save_info)
                                     saved_components += 1
                                     
                             except Exception as save_error:
