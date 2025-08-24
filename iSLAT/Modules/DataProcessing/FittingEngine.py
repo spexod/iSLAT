@@ -28,14 +28,6 @@ class FittingEngine:
         self.islat = islat_instance
         self.last_fit_result = None
         self.last_fit_params = None
-        self.fit_uncertainty = 1.0  # Default uncertainty factor
-        
-        # Line detection strategy configuration
-        self.user_selected_centers = []  # For manual line selection strategy
-        
-    def set_fit_uncertainty(self, uncertainty):
-        """Set the uncertainty factor for fitting operations."""
-        self.fit_uncertainty = uncertainty
     
     def fit_gaussian_line(self, wave_data, flux_data, xmin=None, xmax=None, 
                          initial_guess=None, deblend=False):
@@ -174,15 +166,18 @@ class FittingEngine:
                 if len(err_fit) == len(flux_data) and len(err_fit) > 0:
                     # Avoid division by zero - replace zero or negative errors with a small value
                     max_err = np.max(err_fit)
-                    if max_err <= 0:
+                    '''if max_err <= 0:
                         # If all errors are zero or negative, don't use weights
                         weights = np.ones_like(flux_data)
                     else:
                         err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
-                        weights = 1.0 / err_fit_safe
+                        weights = 1.0 / err_fit_safe'''
+                    err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
+                    weights = 1.0 / err_fit_safe
         
         if weights is None:
-            weights = np.ones_like(flux_data)
+            err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
+            weights = 1.0 / err_fit_safe
         
         # Get tolerance settings from user_settings
         centrtolerance = self.islat.user_settings.get('centrtolerance', 0.0001)
@@ -265,21 +260,6 @@ class FittingEngine:
         """
         Use pre-selected line positions
         """
-        # First try to use manually set user-selected centers
-        if self.user_selected_centers:
-            # Filter user centers that are within the current wavelength range
-            if xmin is None:
-                xmin = wave_data.min()
-            if xmax is None:
-                xmax = wave_data.max()
-                
-            valid_centers = [center for center in self.user_selected_centers 
-                            if xmin <= center <= xmax]
-            
-            if valid_centers:
-                n_components = len(valid_centers)
-                return n_components, valid_centers
-        
         # Use molecular line data from the selected region (like onselect_lines['lam'])
         try:
             if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
@@ -299,17 +279,6 @@ class FittingEngine:
                         line_data = {'lam': line_centers, 'intens': intensities}
                 except Exception as e:
                     print(f"Warning: Could not use new MoleculeLine approach: {e}")
-                
-                # Fallback to pandas DataFrame approach  
-                if line_data is None:
-                    try:
-                        line_data_df = self.islat.active_molecule.intensity.get_table_in_range(xmin, xmax)
-                        if not line_data_df.empty:
-                            line_centers = np.array(line_data_df['lam'])
-                            intensities = np.array(line_data_df['intens'])
-                            line_data = {'lam': line_centers, 'intens': intensities}
-                    except Exception as e:
-                        print(f"Warning: Could not get line data: {e}")
                 
                 if line_data is not None:
                     line_threshold = 0.03 # default
@@ -332,6 +301,7 @@ class FittingEngine:
                         filtered_centers = line_centers[strong_mask]
                         n_components = len(filtered_centers)
                         return n_components, filtered_centers.tolist()
+                    
         except Exception as e:
             print(f"Warning: Could not use user selection detection: {e}")
     
@@ -394,34 +364,6 @@ class FittingEngine:
         except Exception as e:
             print(f"Error in slab fitting: {str(e)}")
             return None
-    
-    def get_fit_statistics(self):
-        """
-        Get statistical information about the last fit.
-        
-        Returns
-        -------
-        stats : dict
-            Dictionary containing fit statistics
-        """
-        if self.last_fit_result is None:
-            return {}
-        
-        result = self.last_fit_result
-        
-        stats = {
-            'chi_squared': result.chisqr,
-            'reduced_chi_squared': result.redchi,
-            'aic': result.aic,
-            'bic': result.bic,
-            'n_data': result.ndata,
-            'n_variables': result.nvarys,
-            'n_function_evals': result.nfev,
-            'success': result.success,
-            'method': result.method
-        }
-        
-        return stats
 
     def extract_line_parameters(self, rest_wavelength=None, sig_det_lim=2):
         """
@@ -499,17 +441,19 @@ class FittingEngine:
             center_err = params[f'{prefix}center'].stderr if params[f'{prefix}center'].stderr else 0.0
             amplitude = params[f'{prefix}amplitude'].value
             amplitude_err = params[f'{prefix}amplitude'].stderr if params[f'{prefix}amplitude'].stderr else 0.0
+            height = params[f'{prefix}height'].value if f'{prefix}height' in params else 0.0
+            height_err = params[f'{prefix}height'].stderr if f'{prefix}height' in params and params[f'{prefix}height'].stderr else 0.0
             sigma = params[f'{prefix}sigma'].value
             sigma_freq = c.SPEED_OF_LIGHT_MICRONS / (center**2) * sigma
             sigma_freq_err = c.SPEED_OF_LIGHT_MICRONS / (center**2) * params[f'{prefix}sigma'].stderr if params[f'{prefix}sigma'].stderr else 0.0
             
-            fwhm = params[f'{prefix}fwhm'].value if f'{prefix}fwhm' in params else 2.355 * sigma
-            fwhm_err = params[f'{prefix}fwhm'].stderr if f'{prefix}fwhm' in params and params[f'{prefix}fwhm'].stderr else 0.0
+            fwhm = params[f'{prefix}fwhm'].value / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params else 2.355 * sigma
+            fwhm_err = params[f'{prefix}fwhm'].stderr / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params and params[f'{prefix}fwhm'].stderr else 0.0
             
-            gauss_area = amplitude * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
-            if amplitude_err is not None and amplitude != 0 and sigma_freq != 0:
+            gauss_area = height * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
+            if height_err is not None and height != 0 and sigma_freq != 0:
                 gauss_area_err = np.absolute(gauss_area * np.sqrt(
-                    (amplitude_err / amplitude) ** 2 +
+                    (height_err / height) ** 2 +
                     (sigma_freq_err / sigma_freq) ** 2))  # get area error
             else:
                 gauss_area_err = np.nan

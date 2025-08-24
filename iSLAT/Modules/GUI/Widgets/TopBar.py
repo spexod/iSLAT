@@ -217,7 +217,6 @@ class TopBar(ResizableFrame):
                 if lmfit_result is not None and hasattr(lmfit_result, 'params'):
                     # Extract parameters using the FittingEngine methods
                     line_params = self.main_plot.fitting_engine.extract_line_parameters()
-                    fit_stats = self.main_plot.fitting_engine.get_fit_statistics()
                     
                     if deblend:
                         # For deblending, show detailed results AND save lines automatically
