@@ -11,10 +11,7 @@ This class handles all fitting operations including:
 
 import numpy as np
 from lmfit.models import GaussianModel
-from lmfit import Parameters, minimize, fit_report
-from scipy.optimize import fmin
-from scipy.signal import find_peaks
-#from iSLAT.Modules.DataTypes import Chi2Spectrum, FluxMeasurement
+from lmfit import Parameters
 from iSLAT.Modules.DataProcessing.Slabfit import SlabFit
 import iSLAT.Constants as c
 
@@ -41,70 +38,7 @@ class FittingEngine:
         self.fit_uncertainty = 1.0  # Default uncertainty factor
         
         # Line detection strategy configuration
-        self.line_detection_strategy = self._get_line_detection_strategy()
         self.user_selected_centers = []  # For manual line selection strategy
-        
-    def _get_line_detection_strategy(self):
-        """
-        Get the line detection strategy from iSLAT user settings.
-        
-        Returns
-        -------
-        str
-            Line detection strategy: 'molecular_table', 'peak_detection', or 'user_selection'
-        """
-        try:
-            # Get from iSLAT user settings (no direct file I/O)
-            if hasattr(self.islat, 'user_settings') and self.islat.user_settings:
-                return self.islat.user_settings.get('line_detection_strategy', 'user_selection')
-            
-            # Default fallback - use user_selection to match original iSLATOld behavior
-            return 'user_selection'
-            
-        except Exception as e:
-            print(f"Warning: Could not load line detection strategy from settings: {e}")
-            return 'user_selection'
-    
-    def set_line_detection_strategy(self, strategy):
-        """
-        Set the line detection strategy using iSLAT's settings management.
-        
-        Parameters
-        ----------
-        strategy : str
-            Strategy to use: 'molecular_table', 'peak_detection', or 'user_selection'
-        """
-        valid_strategies = ['molecular_table', 'peak_detection', 'user_selection']
-        if strategy not in valid_strategies:
-            raise ValueError(f"Invalid strategy. Must be one of: {valid_strategies}")
-        
-        self.line_detection_strategy = strategy
-        
-        # Update iSLAT user settings (let iSLAT handle persistence)
-        if hasattr(self.islat, 'user_settings'):
-            self.islat.user_settings['line_detection_strategy'] = strategy
-            
-            # If iSLAT has a method to save settings, use it
-            if hasattr(self.islat, 'save_user_settings'):
-                try:
-                    self.islat.save_user_settings()
-                except Exception as e:
-                    print(f"Warning: Could not save line detection strategy: {e}")
-    
-    def set_user_selected_centers(self, centers):
-        """
-        Set manually selected line centers for user_selection strategy.
-        
-        Parameters
-        ----------
-        centers : list or array_like
-            List of wavelength centers manually selected by user
-        """
-        if centers is None:
-            self.user_selected_centers = []
-        else:
-            # Convert to list to ensure hashable types (avoid numpy array issues)
-            self.user_selected_centers = list(np.atleast_1d(centers))
         
     def set_fit_uncertainty(self, uncertainty):
         """Set the uncertainty factor for fitting operations."""
@@ -231,8 +165,8 @@ class FittingEngine:
     def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
         """Fit multiple Gaussian components for deblending"""
         # Estimate number of components and line centers based on detection strategy
-        n_components, line_centers = self._estimate_n_components(wave_data, flux_data, xmin, xmax)
-        print(f"Detected {n_components} components based on strategy: {self.line_detection_strategy}")
+        n_components, line_centers = self._estimate_components_from_user_selection(wave_data, flux_data, xmin, xmax)
+        print(f"Detected {n_components} components")
         
         if n_components == 1:
             # If only one component detected, use single Gaussian fit
@@ -333,144 +267,6 @@ class FittingEngine:
         self.last_fit_params = result.params
         
         return result, fitted_wave, fitted_flux
-    
-    def _estimate_gaussian_params(self, wave_data, flux_data):
-        """Estimate initial Gaussian parameters from data."""
-        max_idx = np.argmax(flux_data)
-        center = wave_data[max_idx]
-        amplitude = flux_data[max_idx]
-        
-        # Estimate sigma from FWHM
-        half_max = amplitude / 2
-        indices = np.where(flux_data >= half_max)[0]
-        if len(indices) > 1:
-            fwhm = wave_data[indices[-1]] - wave_data[indices[0]]
-            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-        else:
-            sigma = (wave_data[-1] - wave_data[0]) / 10
-        
-        return {'center': center, 'amplitude': amplitude, 'sigma': sigma}
-    
-    def _estimate_n_components(self, wave_data, flux_data, xmin=None, xmax=None):
-        """
-        Estimate number of Gaussian components needed based on detection strategy.
-        
-        Parameters
-        ----------
-        wave_data : array_like
-            Wavelength data
-        flux_data : array_like
-            Flux data
-        xmin, xmax : float, optional
-            Wavelength range for analysis
-            
-        Returns
-        -------
-        int
-            Number of components
-        list
-            List of line centers (wavelengths)
-        """
-        if self.line_detection_strategy == 'molecular_table':
-            return self._estimate_components_from_molecular_table(wave_data, flux_data, xmin, xmax)
-        elif self.line_detection_strategy == 'user_selection':
-            return self._estimate_components_from_user_selection(wave_data, flux_data, xmin, xmax)
-        else:  # 'peak_detection' (default)
-            return self._estimate_components_from_peak_detection(wave_data, flux_data, xmin, xmax)
-    
-    def _estimate_components_from_peak_detection(self, wave_data, flux_data, xmin=None, xmax=None):
-        """Peak detection method"""
-        peaks, _ = find_peaks(flux_data, height=np.max(flux_data) * 0.1)
-        n_components = max(1, min(len(peaks), 3))  # Limit to 3 components
-        
-        # Extract peak centers
-        if len(peaks) > 0:
-            peak_centers = wave_data[peaks].tolist()
-        else:
-            peak_centers = [wave_data[np.argmax(flux_data)]]
-            
-        return n_components, peak_centers
-    
-    def _estimate_components_from_molecular_table(self, wave_data, flux_data, xmin=None, xmax=None):
-        """Use molecular line tables."""
-        try:
-            # Get line data from active molecule
-            if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
-                if xmin is None:
-                    xmin = wave_data.min()
-                if xmax is None:
-                    xmax = wave_data.max()
-                
-                # Try the new MoleculeLine approach first
-                line_data = None
-                try:
-                    lines_with_intensity = self.islat.active_molecule.intensity.get_lines_in_range_with_intensity(xmin, xmax)
-                    if lines_with_intensity:
-                        # Convert to DataFrame-like format for compatibility
-                        line_centers = np.array([line.lam for line, _, _ in lines_with_intensity])
-                        intensities = np.array([intensity for _, intensity, _ in lines_with_intensity])
-                        line_data = {'lam': line_centers, 'intens': intensities}
-                except Exception as e:
-                    print(f"Warning: Could not use new MoleculeLine approach: {e}")
-                
-                # Fallback to pandas DataFrame approach
-                if line_data is None:
-                    try:
-                        line_data_df = self.islat.active_molecule.intensity.get_table_in_range(xmin, xmax)
-                        if not line_data_df.empty:
-                            line_centers = np.array(line_data_df['lam'])
-                            intensities = np.array(line_data_df['intens'])
-                            line_data = {'lam': line_centers, 'intens': intensities}
-                    except Exception as e:
-                        print(f"Warning: Could not get line data: {e}")
-                
-                if line_data is not None:
-                    # Get centers and intensities
-                    line_centers = np.array(line_data['lam'])
-                    intensities = np.array(line_data['intens'])
-                    
-                    # Remove duplicate/very close lines (like MainPlotOld)
-                    if len(line_centers) > 1:
-                        line_centers = np.sort(line_centers)
-                        min_sep = 1e-4  # μm, same as MainPlotOld
-                        filtered_centers = [line_centers[0]]
-                        filtered_intensities = [intensities[0]]
-                        
-                        for i, lc in enumerate(line_centers[1:], 1):
-                            if np.all(np.abs(lc - np.array(filtered_centers)) > min_sep):
-                                filtered_centers.append(lc)
-                                filtered_intensities.append(intensities[i])
-                        
-                        line_centers = np.array(filtered_centers)
-                        intensities = np.array(filtered_intensities)
-                    
-                    # Sort line centers by intensity (descending) like MainPlotOld
-                    if len(line_centers) > 1:
-                        sort_idx = np.argsort(-intensities)
-                        line_centers = line_centers[sort_idx]
-                        intensities = intensities[sort_idx]
-                    
-                    # Check if we have sufficient data points for multi-gaussian fitting
-                    max_gaussians = len(line_centers)
-                    while max_gaussians > 0:
-                        num_params = 3 * max_gaussians  # center, sigma, amplitude per Gaussian
-                        if len(wave_data) >= num_params * 2:  # Same check as MainPlotOld
-                            break
-                        max_gaussians -= 1
-                    
-                    if max_gaussians == 0:
-                        max_gaussians = 1  # Always fit at least one component
-                    
-                    # Use only the most important (strongest) lines
-                    use_centers = line_centers[:max_gaussians].tolist()
-                    n_components = max_gaussians
-                    
-                    return n_components, use_centers
-        except Exception as e:
-            print(f"Warning: Could not use molecular table detection: {e}")
-        
-        # Fallback to peak detection
-        return self._estimate_components_from_peak_detection(wave_data, flux_data, xmin, xmax)
     
     def _estimate_components_from_user_selection(self, wave_data, flux_data, xmin=None, xmax=None):
         """
@@ -640,28 +436,6 @@ class FittingEngine:
         }
         
         return stats
-    
-    def is_multi_component_fit(self):
-        """
-        Check if the last fit result contains multiple components.
-        
-        Returns
-        -------
-        bool
-            True if multi-component fit, False if single component
-        """
-        if self.last_fit_result is None or self.last_fit_params is None:
-            return False
-        
-        # Check for component prefixes (g0_, g1_, etc.)
-        component_prefixes = set()
-        for param_name in self.last_fit_params:
-            if '_' in param_name:
-                prefix = param_name.split('_')[0] + '_'
-                if prefix.startswith('g') and prefix[1:-1].isdigit():
-                    component_prefixes.add(prefix)
-        
-        return len(component_prefixes) > 1
 
     def extract_line_parameters(self, rest_wavelength=None, sig_det_lim=2):
         """
