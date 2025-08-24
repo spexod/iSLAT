@@ -322,8 +322,10 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
                     getattr(mol_obj, 'n_mol', 1e17),
                     getattr(mol_obj, 'color', '#FF0000'),
                     getattr(mol_obj, 'is_visible', True),
-                    getattr(mol_obj, 'distance', 140),  # Default distance in pc
-                    getattr(mol_obj, 'stellar_rv', 0),   # Default stellar RV
+                    #getattr(mol_obj, 'distance', 140),  # Default distance in pc
+                    #getattr(mol_obj, 'stellar_rv', 0),   # Default stellar RV
+                    getattr(molecules_dict, '_global_dist', 140),
+                    getattr(molecules_dict, '_global_stellar_rv', 0),
                     getattr(mol_obj, 'fwhm', 200),       # Default FWHM in km/s
                     getattr(mol_obj, 'broad', 2.5),       # Default broadening
                     getattr(mol_obj, 'rv_shift', 0),      # Default RV shift
@@ -371,8 +373,10 @@ def write_molecules_list_csv(molecules_dict, file_path=save_folder_path, file_na
                     getattr(mol_obj, 'n_mol', 1e17),
                     getattr(mol_obj, 'color', '#FF0000'),
                     getattr(mol_obj, 'is_visible', True),
-                    getattr(mol_obj, 'distance', 140),  # Default distance in pc
-                    getattr(mol_obj, 'stellar_rv', 0),   # Default stellar RV
+                    #getattr(mol_obj, 'distance', 140),  # Default distance in pc
+                    #getattr(mol_obj, 'stellar_rv', 0),   # Default stellar RV
+                    getattr(molecules_dict, '_global_dist', 140),
+                    getattr(molecules_dict, '_global_stellar_rv', 0),
                     getattr(mol_obj, 'fwhm', 200),       # Default FWHM in km/s
                     getattr(mol_obj, 'broad', 2.5),       # Default broadening
                     getattr(mol_obj, 'rv_shift', 0),      # Default RV shift

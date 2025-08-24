@@ -400,8 +400,9 @@ class MoleculeDict(dict):
                 strategy = "parallel"
             else:
                 strategy = "sequential"
-        
-        self._global_dist = valid_molecules_data[0].get("Dist", default_parms.DEFAULT_DISTANCE)
+
+        self._global_dist = float(valid_molecules_data[0].get("Dist", default_parms.DEFAULT_DISTANCE))
+        self._global_stellar_rv = float(valid_molecules_data[0].get("StellarRV", default_parms.DEFAULT_STELLAR_RV))
 
         # Execute loading
         start_time = time.time()
