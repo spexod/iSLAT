@@ -1485,3 +1485,59 @@ class PlotRenderer:
                          if intensity >= threshold_intensity]
         
         return filtered_lines
+
+    def plot_fitted_saved_lines(self, fit_data, ax: Optional[plt.Axes] = None) -> None:
+        """
+        Plot the fitted saved lines on the provided axes using flux integral calculation.
+
+        Parameters
+        ----------
+        fit_data : Any
+            The data to plot.
+        ax : Optional[plt.Axes]
+            The axes to plot on. If None, uses the current axes.
+        """
+        if ax is None:
+            ax = plt.gca()
+
+        # Get fitting engine instance
+        if hasattr(self.islat, 'fitting_engine') and self.islat.fitting_engine is not None:
+            fitting_engine = self.islat.fitting_engine
+        else:
+            # Import and create fitting engine if not available
+            from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
+            fitting_engine = FittingEngine(self.islat)
+
+        for line in fit_data:
+            # Extract wavelength and flux data
+            wavelength = self.islat.wave_data #line.get('wavelength', [])
+            flux_data = self.islat.flux_data #line.get('Flux_data', [])
+            error_data = line.get('error_data', None)  # Optional error data
+            
+            if len(wavelength) == 0 or len(flux_data) == 0:
+                print(f"Warning: No data available for fitted line {line.get('id', 'unknown')}")
+                continue
+            
+            # Convert to numpy arrays if needed
+            if not isinstance(wavelength, np.ndarray):
+                wavelength = np.array(wavelength)
+            if not isinstance(flux_data, np.ndarray):
+                flux_data = np.array(flux_data)
+            
+            # Get wavelength range for integration
+            lam_min = np.min(wavelength)
+            lam_max = np.max(wavelength)
+            
+            # Calculate integrated flux using FittingEngine method
+            integrated_flux, integrated_error = fitting_engine.flux_integral(
+                wavelength, flux_data, error_data, lam_min, lam_max
+            )
+            
+            # Plot the original data
+            line_plot = ax.plot(wavelength, flux_data, 
+                               label=f"Fitted Line {line.get('id', 'unknown')} (F={integrated_flux:.2e})")
+            
+            # Add integrated flux information to the line metadata
+            if hasattr(line_plot[0], '_integrated_flux'):
+                line_plot[0]._integrated_flux = integrated_flux
+                line_plot[0]._integrated_error = integrated_error

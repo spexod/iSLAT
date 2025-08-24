@@ -552,7 +552,7 @@ class LineAnalyzer:
                 x_fit = self.islat.wave_data[fit_mask]
                 y_fit = self.islat.flux_data[fit_mask]
 
-                fit_result, _, _ = fitting_engine.fit_gaussian_line(
+                fit_result, fitted_wave, fitted_flux = fitting_engine.fit_gaussian_line(
                     wave_data=x_fit,
                     flux_data=y_fit,
                     xmin=xmin,
@@ -564,6 +564,8 @@ class LineAnalyzer:
                 # Create synthetic data arrays for formatting compatibility
                 wave_range = np.linspace(xmin, xmax, 50)
                 flux_range = np.ones(50)  # Placeholder flux
+                #wave_range = fitted_wave
+                #flux_range = fitted_flux
                 err_range = np.ones(50) * 0.1  # Placeholder error
                 
                 # Format results using existing method

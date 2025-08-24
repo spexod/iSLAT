@@ -383,6 +383,9 @@ class TopBar(ResizableFrame):
                 else:
                     wavelength = result.get('lam', 0)
                     self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_first=False)
+
+            #self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results, self.main_plot.ax1)
+
         else:
             self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_first=False)
 
