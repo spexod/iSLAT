@@ -365,6 +365,71 @@ class FittingEngine:
             print(f"Error in slab fitting: {str(e)}")
             return None
 
+    def _extract_component_parameters(self, params, prefix='', rest_wavelength=None, sig_det_lim=2):
+        """
+        Extract parameters for a single Gaussian component from fit results.
+        
+        Parameters
+        ----------
+        params : lmfit.Parameters
+            Fitted parameters object
+        prefix : str, optional
+            Parameter prefix (e.g., 'g1_' for multi-component fits, '' for single component)
+        rest_wavelength : float, optional
+            Rest wavelength for Doppler shift calculation
+        sig_det_lim : float, optional
+            Detection significance limit (default: 2)
+            
+        Returns
+        -------
+        dict
+            Dictionary containing extracted component parameters
+        """
+        center = params[f'{prefix}center'].value
+        center_err = params[f'{prefix}center'].stderr if params[f'{prefix}center'].stderr else 0.0
+        amplitude = params[f'{prefix}amplitude'].value
+        amplitude_err = params[f'{prefix}amplitude'].stderr if params[f'{prefix}amplitude'].stderr else 0.0
+        height = params[f'{prefix}height'].value if f'{prefix}height' in params else amplitude
+        height_err = params[f'{prefix}height'].stderr if f'{prefix}height' in params and params[f'{prefix}height'].stderr else amplitude_err
+        sigma = params[f'{prefix}sigma'].value
+        sigma_freq = c.SPEED_OF_LIGHT_MICRONS / (center**2) * sigma
+        sigma_freq_err = c.SPEED_OF_LIGHT_MICRONS / (center**2) * params[f'{prefix}sigma'].stderr if params[f'{prefix}sigma'].stderr else 0.0
+        
+        fwhm = params[f'{prefix}fwhm'].value / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params else 2.355 * sigma
+        fwhm_err = params[f'{prefix}fwhm'].stderr / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params and params[f'{prefix}fwhm'].stderr else 0.0
+        
+        gauss_area = height * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
+        if height_err is not None and height != 0 and sigma_freq != 0:
+            gauss_area_err = np.absolute(gauss_area * np.sqrt(
+                (height_err / height) ** 2 +
+                (sigma_freq_err / sigma_freq) ** 2))  # get area error
+        else:
+            gauss_area_err = np.nan
+        
+        # Calculate fit signal-to-noise and detection for component
+        fit_det = abs(gauss_area) > sig_det_lim * gauss_area_err if not np.isnan(gauss_area_err) else False
+        
+        # Calculate Doppler shift if rest wavelength provided
+        doppler = ((center - rest_wavelength) / rest_wavelength * c.SPEED_OF_LIGHT_KMS) if rest_wavelength else np.nan
+        
+        component_params = {
+            'center': center,
+            'center_stderr': center_err,
+            'amplitude': amplitude,
+            'amplitude_stderr': amplitude_err,
+            'sigma': sigma,
+            'sigma_freq': sigma_freq,
+            'sigma_freq_stderr': sigma_freq_err,
+            'fwhm': fwhm,
+            'fwhm_stderr': fwhm_err,
+            'area': gauss_area,
+            'area_stderr': gauss_area_err,
+            'fit_detected': fit_det,
+            'doppler_shift': doppler
+        }
+        
+        return component_params
+
     def extract_line_parameters(self, rest_wavelength=None, sig_det_lim=2):
         """
         Extract line parameters from the last fitting result.
@@ -389,97 +454,14 @@ class FittingEngine:
         
         # Extract parameters for single Gaussian fit
         if 'center' in params:
-            center = params['center'].value
-            center_err = params['center'].stderr if params['center'].stderr else 0.0
-            amplitude = params['amplitude'].value
-            amplitude_err = params['amplitude'].stderr if params['amplitude'].stderr else 0.0
-            sigma = params['sigma'].value
-            sigma_freq = c.SPEED_OF_LIGHT_MICRONS / (center**2) * sigma
-            sigma_freq_err = c.SPEED_OF_LIGHT_MICRONS / (center**2) * params['sigma'].stderr if params['sigma'].stderr else 0.0
+            line_params.update(self._extract_component_parameters(params, '', rest_wavelength, sig_det_lim))
             
-            fwhm = params['fwhm'].value if 'fwhm' in params else 2.355 * sigma
-            fwhm_err = params['fwhm'].stderr if 'fwhm' in params and params['fwhm'].stderr else 0.0
-            
-            gauss_area = amplitude * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
-            if amplitude_err is not None and amplitude != 0 and sigma_freq != 0:
-                gauss_area_err = np.absolute(gauss_area * np.sqrt(
-                    (amplitude_err / amplitude) ** 2 +
-                    (sigma_freq_err / sigma_freq) ** 2))  # get area error
-            else:
-                gauss_area_err = np.nan
-            
-            # Calculate fit signal-to-noise and detection
-            fit_det = abs(gauss_area) > sig_det_lim * gauss_area_err if not np.isnan(gauss_area_err) else False
-            
-            # Calculate Doppler shift if rest wavelength provided
-            doppler = ((center - rest_wavelength) / rest_wavelength * c.SPEED_OF_LIGHT_KMS) if rest_wavelength else np.nan
-            
-            line_params.update({
-                'center': center,
-                'center_stderr': center_err,
-                'amplitude': amplitude,
-                'amplitude_stderr': amplitude_err,
-                'sigma': sigma,
-                'sigma_freq': sigma_freq,
-                'sigma_freq_stderr': sigma_freq_err,
-                'fwhm': fwhm,
-                'fwhm_stderr': fwhm_err,
-                'area': gauss_area,
-                'area_stderr': gauss_area_err,
-                'fit_detected': fit_det,
-                'doppler_shift': doppler
-            })
-            
-        # Extract parameters for multi-component fits (check both 0-based and 1-based prefixes)
+        # Extract parameters for multi-component fits
         component_idx = 0
         
-        # First try 1-based prefixes (g1_, g2_, etc.)
         while f'g{component_idx+1}_center' in params:
             prefix = f'g{component_idx+1}_'
-            
-            center = params[f'{prefix}center'].value
-            center_err = params[f'{prefix}center'].stderr if params[f'{prefix}center'].stderr else 0.0
-            amplitude = params[f'{prefix}amplitude'].value
-            amplitude_err = params[f'{prefix}amplitude'].stderr if params[f'{prefix}amplitude'].stderr else 0.0
-            height = params[f'{prefix}height'].value if f'{prefix}height' in params else 0.0
-            height_err = params[f'{prefix}height'].stderr if f'{prefix}height' in params and params[f'{prefix}height'].stderr else 0.0
-            sigma = params[f'{prefix}sigma'].value
-            sigma_freq = c.SPEED_OF_LIGHT_MICRONS / (center**2) * sigma
-            sigma_freq_err = c.SPEED_OF_LIGHT_MICRONS / (center**2) * params[f'{prefix}sigma'].stderr if params[f'{prefix}sigma'].stderr else 0.0
-            
-            fwhm = params[f'{prefix}fwhm'].value / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params else 2.355 * sigma
-            fwhm_err = params[f'{prefix}fwhm'].stderr / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params and params[f'{prefix}fwhm'].stderr else 0.0
-            
-            gauss_area = height * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
-            if height_err is not None and height != 0 and sigma_freq != 0:
-                gauss_area_err = np.absolute(gauss_area * np.sqrt(
-                    (height_err / height) ** 2 +
-                    (sigma_freq_err / sigma_freq) ** 2))  # get area error
-            else:
-                gauss_area_err = np.nan
-            
-            # Calculate fit signal-to-noise and detection for component
-            fit_det = abs(gauss_area) > sig_det_lim * gauss_area_err if not np.isnan(gauss_area_err) else False
-            
-            # Calculate Doppler shift if rest wavelength provided
-            doppler = ((center - rest_wavelength) / rest_wavelength * c.SPEED_OF_LIGHT_KMS) if rest_wavelength else np.nan
-            
-            component_params = {
-                'center': center,
-                'center_stderr': center_err,
-                'amplitude': amplitude,
-                'amplitude_stderr': amplitude_err,
-                'sigma': sigma,
-                'sigma_freq': sigma_freq,
-                'sigma_freq_stderr': sigma_freq_err,
-                'fwhm': fwhm,
-                'fwhm_stderr': fwhm_err,
-                'area': gauss_area,
-                'area_stderr': gauss_area_err,
-                'fit_detected': fit_det,
-                'doppler_shift': doppler
-            }
-            
+            component_params = self._extract_component_parameters(params, prefix, rest_wavelength, sig_det_lim)
             line_params[f'component_{component_idx}'] = component_params
             component_idx += 1
         
@@ -546,33 +528,18 @@ class FittingEngine:
         
         # Process fit results if successful
         if fit_result and fit_result.success:
-            # Extract fit parameters
-            center = fit_result.params['center'].value
-            center_err = fit_result.params['center'].stderr if fit_result.params['center'].stderr else 0.0
-            amplitude = fit_result.params['amplitude'].value
-            amplitude_err = fit_result.params['amplitude'].stderr if fit_result.params['amplitude'].stderr else 0.0
-            sigma = fit_result.params['sigma'].value
-            sigma_freq = c.SPEED_OF_LIGHT_MICRONS / (center**2) * sigma
-            sigma_freq_err = c.SPEED_OF_LIGHT_MICRONS / (center**2) * fit_result.params['sigma'].stderr if fit_result.params['sigma'].stderr else 0.0
+            # Extract fit parameters using the helper method
+            component_params = self._extract_component_parameters(fit_result.params, '', rest_wavelength, sig_det_lim)
             
-            fwhm = fit_result.params['fwhm'].value
-            fwhm_err = fit_result.params['fwhm'].stderr if fit_result.params['fwhm'].stderr else 0.0
-            
-            gauss_area = amplitude * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
-            if amplitude_err is not None:
-                gauss_area_err = np.absolute (gauss_area * np.sqrt (
-                    (amplitude_err / amplitude) ** 2 +
-                    (sigma_freq_err / sigma_freq) ** 2))  # get area error
-            else:
-                gauss_area_err = np.nan
-
-            
-            # Calculate fit signal-to-noise and detection
-            #fit_sn = area / area_err if area_err > 0 else 0.0
-            fit_det = abs(gauss_area) > sig_det_lim * gauss_area_err
-
-            # Calculate Doppler shift
-            doppler = (center - rest_wavelength) / rest_wavelength * c.SPEED_OF_LIGHT_KMS  # km/s
+            # Get individual parameters for backward compatibility
+            center = component_params['center']
+            center_err = component_params['center_stderr']
+            gauss_area = component_params['area']
+            gauss_area_err = component_params['area_stderr']
+            fwhm = component_params['fwhm']
+            fwhm_err = component_params['fwhm_stderr']
+            fit_det = component_params['fit_detected']
+            doppler = component_params['doppler_shift']
             
             # Update result with fit information
             result_entry.update({
