@@ -370,7 +370,6 @@ class iSLAT:
         spectrum_range = (self.wave_data.min(), self.wave_data.max())
         print(f"Initializing molecules for spectrum range: {spectrum_range[0]:.1f} - {spectrum_range[1]:.1f} µm")
 
-        #mole_save_data = self.get_mole_save_data() 
         mole_save_data = self.user_saved_molecules
         
         try:

@@ -206,7 +206,7 @@ class Molecule:
         self._distance_val = usd.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = usd.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = usd.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._rv_shift = kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV)
+        self._rv_shift = usd.get('RV_Shift', kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV))
 
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -314,10 +314,9 @@ class Molecule:
         spectral_resolution = mean_wavelength / delta_lambda if delta_lambda > 0 else self.model_line_width
         
         # Use consistent wavelength range for all molecules to ensure identical grids
-        # RV shift is now handled in get_flux() method, so no need for RV-dependent expansion here
         if hasattr(self, '_wavelength_range') and self._wavelength_range is not None:
             global_min, global_max = self._wavelength_range
-            # Use the exact global range - no RV-dependent expansion needed
+            # Use the exact global range
             spectrum_lam_min = global_min
             spectrum_lam_max = global_max
         else:

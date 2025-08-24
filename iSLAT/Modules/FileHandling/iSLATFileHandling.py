@@ -358,7 +358,7 @@ def write_molecules_list_csv(molecules_dict, file_path=save_folder_path, file_na
         with open(csv_filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             # Use field names compatible with Molecule class expectations
-            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad']
+            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad', 'RV_Shift']
             writer.writerow(header)
             
             for mol_name, mol_obj in molecules_dict.items():
@@ -374,7 +374,8 @@ def write_molecules_list_csv(molecules_dict, file_path=save_folder_path, file_na
                     getattr(mol_obj, 'distance', 140),  # Default distance in pc
                     getattr(mol_obj, 'stellar_rv', 0),   # Default stellar RV
                     getattr(mol_obj, 'fwhm', 200),       # Default FWHM in km/s
-                    getattr(mol_obj, 'broad', 2.5)       # Default broadening
+                    getattr(mol_obj, 'broad', 2.5),       # Default broadening
+                    getattr(mol_obj, 'rv_shift', 0),      # Default RV shift
                 ]
                 writer.writerow(row)
         
