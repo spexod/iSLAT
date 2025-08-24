@@ -368,23 +368,23 @@ class TopBar(ResizableFrame):
         )
         
         if fit_results:
-            successful_fits = sum(1 for result in fit_results if result.get('Fit_det', False))
+            successful_fits = sum(1 for result in fit_results if result.get('Fit_det', True))
             total_lines = len(fit_results)
-            
-            self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n")
-            self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n")
-            
+
+            self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n", clear_first=False)
+            self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n", clear_first=False)
+
             # Update progress for each successful fit
             for i, result in enumerate(fit_results):
-                if result.get('Fit_det', False):
+                if result.get('Fit_det', True):
                     center = result.get('Centr_fit', result.get('lam', 0))
                     snr = result.get('Fit_SN', 0)
-                    self.data_field.insert_text(f"Line {i+1} at {center:.4f} μm: Fit successful (S/N={snr:.1f})\n")
+                    self.data_field.insert_text(f"Line {i+1} at {center:.4f} μm: Fit successful", clear_first=False)
                 else:
                     wavelength = result.get('lam', 0)
-                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed\n")  
+                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_first=False)
         else:
-            self.data_field.insert_text("No lines found or no fits completed successfully.\n")
+            self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_first=False)
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""
