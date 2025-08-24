@@ -1,12 +1,5 @@
 """
 FittingEngine - LMFIT operations and model fitting functionality
-
-This class handles all fitting operations including:
-- Gaussian line fitting
-- Multi-component fitting (deblending)
-- Slab model fitting
-- Chi-squared calculations
-- Parameter estimation and uncertainty analysis
 """
 
 import numpy as np
@@ -270,10 +263,7 @@ class FittingEngine:
     
     def _estimate_components_from_user_selection(self, wave_data, flux_data, xmin=None, xmax=None):
         """
-        Use pre-selected line positions like iSLATOld does.
-        
-        In iSLATOld, this method gets line centers from the molecular data in the selected range,
-        similar to molecular_table but with manual user confirmation through the selection process.
+        Use pre-selected line positions
         """
         # First try to use manually set user-selected centers
         if self.user_selected_centers:
@@ -290,7 +280,6 @@ class FittingEngine:
                 n_components = len(valid_centers)
                 return n_components, valid_centers
         
-        # If no manual centers set, mimic iSLATOld behavior:
         # Use molecular line data from the selected region (like onselect_lines['lam'])
         try:
             if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
@@ -323,14 +312,14 @@ class FittingEngine:
                         print(f"Warning: Could not get line data: {e}")
                 
                 if line_data is not None:
-                    line_threshold = 0.03 # default from old iSLAT
+                    line_threshold = 0.03 # default
                     try:
                         if hasattr(self.islat, 'user_settings') and self.islat.user_settings:
                             line_threshold = self.islat.user_settings.get('line_threshold', 0.03)
                     except:
                         pass
                     
-                    # Filter lines above threshold (like iSLATOld does)
+                    # Filter lines above threshold
                     line_centers = np.array(line_data['lam'])
                     intensities = np.array(line_data['intens'])
                     max_intensity = intensities.max()
@@ -345,9 +334,6 @@ class FittingEngine:
                         return n_components, filtered_centers.tolist()
         except Exception as e:
             print(f"Warning: Could not use user selection detection: {e}")
-        
-        print("Warning: No user-selected centers in current range, falling back to peak detection")
-        return self._estimate_components_from_peak_detection(wave_data, flux_data, xmin, xmax)
     
     def perform_slab_fit(self, target_file, molecule_name, 
                         start_temp=500, start_n_mol=1e17, start_radius=1.0):
