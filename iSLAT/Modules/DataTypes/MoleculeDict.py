@@ -401,6 +401,8 @@ class MoleculeDict(dict):
             else:
                 strategy = "sequential"
         
+        self._global_dist = valid_molecules_data[0].get("Dist", default_parms.DEFAULT_DISTANCE)
+
         # Execute loading
         start_time = time.time()
         if strategy == "parallel":
