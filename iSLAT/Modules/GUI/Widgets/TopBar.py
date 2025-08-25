@@ -4,7 +4,7 @@ import os
 import csv
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter import messagebox
+from tkinter import messagebox, font
 import traceback
 from typing import TYPE_CHECKING, Any, Dict, Optional
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
@@ -54,11 +54,6 @@ class TopBar(ResizableFrame):
         toolbar_frame = tk.Frame(self)
         toolbar_frame.grid(row=0, column=2, sticky="nsew")
         self.toolbar = self.main_plot.create_toolbar(toolbar_frame)
-
-
-        # settings_btn = tk.Button(self, text="Settings")
-        # settings_btn.grid(row = 0, column= 3, sticky= "e")
-        # self.grid_columnconfigure(3, weight=1)
         
         # Apply initial theme
         # self.apply_theme(theme)
@@ -577,6 +572,9 @@ class TopBar(ResizableFrame):
                 self.islat.molecules_dict, 
                 loaded_spectrum_name=spectrum_name
             )
+            
+            # Also save to the general molecules list for session persistence
+            #write_molecules_list_csv(self.islat.molecules_dict, loaded_spectrum_name=spectrum_name)
             
             if saved_file:
                 # Update the data field to show success message
