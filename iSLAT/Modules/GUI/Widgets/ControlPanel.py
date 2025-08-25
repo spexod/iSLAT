@@ -102,7 +102,11 @@ class ControlPanel(ttk.Frame):
             CreateToolTip(label, tip_text)
         
         var = tk.StringVar()
-        var.set(str(initial_value))
+        value_str = initial_value
+        if not isinstance(value_str, str):
+            value_str = self._format_value(initial_value, param_name=param_name)
+        
+        var.set(value_str)
         
         entry = tk.Entry(
             parent, 
@@ -546,6 +550,8 @@ class ControlPanel(ttk.Frame):
         return self._format_value(value, param_name)
         
     def _format_value(self, value, param_name) -> str:
+
+        print(f"formatting {param_name}")
         if not param_name:
             return f"{value:.2f}"
         
@@ -567,10 +573,9 @@ class ControlPanel(ttk.Frame):
             if field_config and isinstance(value, (int, float)):
                 return field_config['format'].format(value)
             # Fallback formatting for backward compatibility
-            elif param_name in ["global_distance", "stellar_rv", "fwhm", "broad"] and isinstance(value, (int, float)):
-                return f"{value:.2f}"
-            
-            return str(value)
+            # elif param_name in ["global_distance", "stellar_rv", "fwhm", "broad"] and isinstance(value, (int, float)):
+            #     return f"{value:.2f}"
+            return f"{value:.2f}"
         except Exception as e:
             print(f"Error with formatting: {e}")
             return ""
