@@ -248,7 +248,6 @@ class ControlPanel(ttk.Frame):
             mol_name = str(mol_name)
             
             current_mol = mol_obj
-            print(current_mol)
 
             mol_frame = tk.Frame(content_frame)
             self.mol_frames[mol_name] = mol_frame
@@ -551,7 +550,6 @@ class ControlPanel(ttk.Frame):
         
     def _format_value(self, value, param_name) -> str:
 
-        print(f"formatting {param_name}")
         if not param_name:
             return f"{value:.2f}"
         
@@ -687,8 +685,8 @@ class ControlPanel(ttk.Frame):
                 start, end = value_str
                 range_val = round(end - start, 2)
                 
-                self._set_var(self.plot_start_var, str(start))
-                self._set_var(self.plot_range_var, str(range_val))
+                self._set_var(self.plot_start_var, self._format_value(start, "display_range_start"))
+                self._set_var(self.plot_range_var, self._format_value(range_val, "display_range_range"))
 
             except Exception as e:
                 print(f"Error updating display range GUI from iSLAT: {e}")
@@ -875,9 +873,9 @@ class ControlPanel(ttk.Frame):
             current_range = self.plot_range_var.get()
             
             if str(current_start) != str(start):
-                self._set_var(self.plot_start_var, str(start))
+                self._set_var(self.plot_start_var, self._format_value(start, "display_range_start"))
             if str(current_range) != str(range_val):
-                self._set_var(self.plot_range_var, str(range_val))
+                self._set_var(self.plot_range_var, self._format_value(range_val, "display_range_range"))
         except (ValueError, AttributeError, TypeError):
             pass
 
