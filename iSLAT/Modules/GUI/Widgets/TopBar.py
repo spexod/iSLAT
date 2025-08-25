@@ -53,8 +53,12 @@ class TopBar(ResizableFrame):
         # Create and add toolbar 
         toolbar_frame = tk.Frame(self)
         toolbar_frame.grid(row=0, column=2, sticky="nsew")
-        
         self.toolbar = self.main_plot.create_toolbar(toolbar_frame)
+
+
+        settings_btn = tk.Button(self, text="Settings")
+        settings_btn.grid(row = 0, column= 3, sticky= "e")
+        self.grid_columnconfigure(3, weight=1)
         
         # Apply initial theme
         # self.apply_theme(theme)
