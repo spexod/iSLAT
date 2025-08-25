@@ -170,7 +170,7 @@ class iSLATPlot:
         # Refresh plots when global parameters change - molecules handle their own caching
         self.update_all_plots()
 
-    def match_display_range(self):
+    def match_display_range(self, match_y=False):
         # Sync plot xlim to islat.display_range if set, else update islat.display_range from plot
         if hasattr(self.islat, 'display_range'):
             # If display_range is set elsewhere, update plot xlim
@@ -199,7 +199,9 @@ class iSLATPlot:
         else:
             fig_height = np.nanmax(range_flux_cnts)
             fig_bottom_height = np.nanmin(range_flux_cnts)
-        self.ax1.set_ylim(ymin=fig_bottom_height, ymax=fig_height + (fig_height / 8))
+        
+        if match_y:
+            self.ax1.set_ylim(ymin=fig_bottom_height, ymax=fig_height + (fig_height / 8))
 
         self.canvas.draw_idle()
 
@@ -214,7 +216,7 @@ class iSLATPlot:
             self.ax1.set_xlim(self.islat.wave_data.min(), self.islat.wave_data.max())
         
         # Update display to match and set optimal y-limits
-        self.match_display_range()
+        self.match_display_range(match_y=True)
         self.canvas.draw_idle()
 
     def make_span_selector(self):

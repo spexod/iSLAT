@@ -805,7 +805,7 @@ class iSLAT:
         if isinstance(value, tuple) and len(value) == 2:
             self._display_range = value
             if hasattr(self, "GUI") and hasattr(self.GUI, "plot"):
-                self.GUI.plot.match_display_range()
+                self.GUI.plot.match_display_range(match_y=False)
             if hasattr(self, "GUI") and hasattr(self.GUI, "control_panel"):
                 self.GUI.control_panel._update_display_range(self._display_range)
         else:

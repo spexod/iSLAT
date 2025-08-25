@@ -283,7 +283,7 @@ def read_spectral_data(file_path : str):
         print("Spectral data file does not exist.")
         return pd.DataFrame()
 
-def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name=molsave_file_name, loaded_spectrum_name="unknown"):
+def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name=None, loaded_spectrum_name=None):
     """
     Write molecule parameters to CSV file.
     
@@ -293,14 +293,20 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
         Dictionary containing molecule objects
     file_path : str
         Path to save folder
-    file_name : str
-        Name of the CSV file (will be prefixed with spectrum name)
-    loaded_spectrum_name : str
-        Name of the currently loaded spectrum file
+    file_name : str, optional
+        Name of the CSV file. If None, uses molecule_list_file_name
+    loaded_spectrum_name : str, optional
+        Name of the currently loaded spectrum file. If provided, prefixes the filename
     """
-    # Create filename based on loaded spectrum
-    spectrum_base_name = os.path.splitext(loaded_spectrum_name)[0] if loaded_spectrum_name != "unknown" else "default"
-    csv_filename = os.path.join(file_path, f"{spectrum_base_name}-{file_name}")
+    # Determine the base filename
+    base_file_name = file_name if file_name is not None else molecule_list_file_name
+    
+    # Create filename based on loaded spectrum if provided
+    if loaded_spectrum_name:
+        spectrum_base_name = os.path.splitext(loaded_spectrum_name)[0]
+        csv_filename = os.path.join(file_path, f"{spectrum_base_name}-{base_file_name}")
+    else:
+        csv_filename = os.path.join(file_path, base_file_name)
     
     # Ensure the directory exists
     os.makedirs(file_path, exist_ok=True)
@@ -322,8 +328,6 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
                     getattr(mol_obj, 'n_mol', 1e17),
                     getattr(mol_obj, 'color', '#FF0000'),
                     getattr(mol_obj, 'is_visible', True),
-                    #getattr(mol_obj, 'distance', 140),  # Default distance in pc
-                    #getattr(mol_obj, 'stellar_rv', 0),   # Default stellar RV
                     getattr(molecules_dict, '_global_dist', 140),
                     getattr(molecules_dict, '_global_stellar_rv', 0),
                     getattr(mol_obj, 'fwhm', 200),       # Default FWHM in km/s
@@ -336,57 +340,6 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
         
     except Exception as e:
         print(f"Error saving molecule parameters: {e}")
-        return None
-
-def write_molecules_list_csv(molecules_dict, file_path=save_folder_path, file_name=molecule_list_file_name):
-    """
-    Write complete molecule list to CSV file for user session persistence.
-    
-    Parameters:
-    -----------
-    molecules_dict : MoleculeDict
-        Dictionary containing molecule objects
-    file_path : str
-        Path to save folder
-    file_name : str
-        Name of the CSV file
-    """
-    csv_filename = os.path.join(file_path, file_name)
-    
-    # Ensure the directory exists
-    os.makedirs(file_path, exist_ok=True)
-    
-    try:
-        with open(csv_filename, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            # Use field names compatible with Molecule class expectations
-            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad', 'RV_Shift']
-            writer.writerow(header)
-            
-            for mol_name, mol_obj in molecules_dict.items():
-                row = [
-                    mol_name,
-                    getattr(mol_obj, 'filepath', getattr(mol_obj, 'hitran_data', '')),
-                    getattr(mol_obj, 'name', mol_name),
-                    getattr(mol_obj, 'temp', 600),
-                    getattr(mol_obj, 'radius', 0.5),
-                    getattr(mol_obj, 'n_mol', 1e17),
-                    getattr(mol_obj, 'color', '#FF0000'),
-                    getattr(mol_obj, 'is_visible', True),
-                    #getattr(mol_obj, 'distance', 140),  # Default distance in pc
-                    #getattr(mol_obj, 'stellar_rv', 0),   # Default stellar RV
-                    getattr(molecules_dict, '_global_dist', 140),
-                    getattr(molecules_dict, '_global_stellar_rv', 0),
-                    getattr(mol_obj, 'fwhm', 200),       # Default FWHM in km/s
-                    getattr(mol_obj, 'broad', 2.5),       # Default broadening
-                    getattr(mol_obj, 'rv_shift', 0),      # Default RV shift
-                ]
-                writer.writerow(row)
-        
-        return csv_filename
-        
-    except Exception as e:
-        print(f"Error saving molecules list: {e}")
         return None
 
 def load_atomic_lines(file_path=atomic_lines_file_name):
