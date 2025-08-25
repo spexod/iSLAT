@@ -3,7 +3,7 @@ from tkinter import filedialog, ttk, font, simpledialog, messagebox
 import os
 
 from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
-from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_list_csv
+from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv
 
 from .Widgets.DataField import DataField
 from .Widgets.ControlPanel import ControlPanel
@@ -338,7 +338,7 @@ class GUI:
             
             try:
                 # Save the current molecule parameters
-                write_molecules_list_csv(
+                write_molecules_to_csv(
                     self.islat_class.molecules_dict, 
                     #loaded_spectrum_name=spectrum_name
                 )

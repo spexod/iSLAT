@@ -558,7 +558,7 @@ class Molecule:
         affected_params = set()
         
         # Special handling for rv_shift to use the custom setter
-        rv_shift_value = parameter_dict.pop('rv_shift', None)
+        rv_shift_value = parameter_dict.pop('rv_shift', 0.0)
         if rv_shift_value is not None:
             old_values['rv_shift'] = self._rv_shift
             self.rv_shift = rv_shift_value  # Use the property setter

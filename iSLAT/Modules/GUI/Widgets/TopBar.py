@@ -14,7 +14,7 @@ from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
-from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, write_molecules_list_csv, generate_csv
+from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name
 import iSLAT.Constants as c
 
@@ -573,9 +573,6 @@ class TopBar(ResizableFrame):
                 self.islat.molecules_dict, 
                 loaded_spectrum_name=spectrum_name
             )
-            
-            # Also save to the general molecules list for session persistence
-            #write_molecules_list_csv(self.islat.molecules_dict, loaded_spectrum_name=spectrum_name)
             
             if saved_file:
                 # Update the data field to show success message
