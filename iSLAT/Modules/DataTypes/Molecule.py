@@ -31,6 +31,8 @@ def _get_intensity_module():
 import iSLAT.Constants as c
 from .MoleculeLineList import MoleculeLineList
 
+from iSLAT.Modules.FileHandling import absolute_data_files_path
+
 class Molecule:
     """
     Optimized Molecule class with enhanced caching and performance improvements.
@@ -121,7 +123,7 @@ class Molecule:
             self._load_from_kwargs(kwargs)
 
         self.lines = None
-        self._lines_filepath = self.filepath
+        #self._lines_filepath = absolute_data_files_path / self.filepath
         
         # Calculate derived parameters
         self.n_mol_init = float(self.scale_number * (10 ** self.scale_exponent))
@@ -239,9 +241,9 @@ class Molecule:
         
     def _ensure_lines_loaded(self):
         if self.lines is None:
-            if self._lines_filepath:
-                print("Loading lines from filepath:", self._lines_filepath)
-                self.lines = MoleculeLineList(molecule_id=self.name, filename=self._lines_filepath)
+            if self.filepath:
+                #print("Loading lines from filepath:", self._lines_filepath)
+                self.lines = MoleculeLineList(molecule_id=self.name, filename=self.filepath)
             else:
                 print("Creating empty line list")
                 self.lines = MoleculeLineList(molecule_id=self.name)

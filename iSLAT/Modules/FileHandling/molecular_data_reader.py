@@ -13,12 +13,17 @@ The .par file format:
 - Following lines: molecular line data in fixed format
 
 - 01/06/2020: SB, initial version (as MolData)
-- 12/07/2025: Refactored into separate module for better organization
+- 07/12/2025: Johnny McCaskill, Refactored into separate module for better organization
 """
 
 import numpy as np
 from collections import namedtuple
 import time  # Add timing for performance debugging
+
+from pathlib import Path
+import os
+#from iSLAT.Modules.FileHandling.iSLATFileHandling import data_files_path, hitran_data_folder_name
+from iSLAT.Modules.FileHandling import data_files_path, hitran_data_folder_name
 
 try:
     import pandas as pd
@@ -66,20 +71,24 @@ class MolecularDataReader:
                                                'e_up', 'e_low', 'g_up', 'g_low'])
         self.debug = debug
 
-    def read_par_file(self, filename):
+    def read_par_file(self, filename, file_path=data_files_path):
         """
         Read molecular data from a .par file using the fastest possible method.
         """
-        print(f"Loading lines from filepath: {filename}")
-        
+        #full_file_path = Path(file_path) / filename
+        full_file_path = os.path.join(file_path, filename)
+        full_file_path = os.path.abspath(full_file_path)
+        #full_file_path = filename
+        print(f"Loading lines from filepath: {full_file_path}")
+
         # Try ultra-fast method first
         try:
-            return self._read_par_file_ultra_fast(filename)
+            return self._read_par_file_ultra_fast(full_file_path)
         except Exception as e:
             if self.debug:
                 print(f"Debug: Ultra-fast method failed: {e}, falling back to standard method")
-            return self._read_par_file_standard(filename)
-    
+            return self._read_par_file_standard(full_file_path)
+
     def _read_par_file_ultra_fast(self, filename):
         """Ultra-fast .par file reader using direct numpy operations."""
         # Read entire file at once using binary mode for speed
