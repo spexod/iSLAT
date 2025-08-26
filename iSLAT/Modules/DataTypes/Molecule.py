@@ -231,8 +231,8 @@ class Molecule:
         self._distance_val = kwargs.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = kwargs.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = kwargs.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._rv_shift = kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV)
-        
+        self._rv_shift = kwargs.get('rv_shift', kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV))
+
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
         self.scale_exponent = self.initial_molecule_parameters.get('scale_exponent', 1.0)
