@@ -27,6 +27,7 @@ class MoleculeDict(dict):
             'wavelength_range': kwargs.pop('global_wavelength_range', default_parms.WAVELENGTH_RANGE),
             'model_line_width': kwargs.pop('global_model_line_width', default_parms.MODEL_LINE_WIDTH),
             'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
+            #'model_pixel_res': f"{kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION):.2e}",
         }
         
         super().__init__(*args, **kwargs)
@@ -679,6 +680,8 @@ class MoleculeDict(dict):
     @global_model_pixel_res.setter
     def global_model_pixel_res(self, value: Optional[float]) -> None:
         old_value = self._global_model_pixel_res
+        value = f'{value:.2e}'
+        value = float(value)
         self._global_model_pixel_res = value
         self.bulk_update_parameters({'model_pixel_res': value})
         self._notify_global_parameter_change('model_pixel_res', old_value, value)
