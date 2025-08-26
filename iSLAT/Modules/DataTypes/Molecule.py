@@ -102,12 +102,12 @@ class Molecule:
     def __init__(self, **kwargs):
         self._initialize_caching_system()
         
-        if 'hitran_data' in kwargs:
-            print("Generating new molecule from default parameters.")
+        if 'hitran_data' in kwargs and kwargs['hitran_data'] is not None:
+            #print("Generating new molecule from default parameters.")
             self.user_save_data = None
             self.hitran_data = kwargs['hitran_data']
-        elif 'user_save_data' in kwargs:
-            print("Generating new molecule from user saved data.")
+        elif 'user_save_data' in kwargs and kwargs['user_save_data'] is not None:
+            #print("Generating new molecule from user saved data.")
             self.user_save_data = kwargs['user_save_data']
             self.hitran_data = None
         else:
