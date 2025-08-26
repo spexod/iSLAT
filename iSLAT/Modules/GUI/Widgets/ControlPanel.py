@@ -796,9 +796,9 @@ class ControlPanel(ttk.Frame):
         if (hasattr(self, 'min_wavelength_var') and hasattr(self, 'max_wavelength_var') 
             and hasattr(molecules_dict, 'global_wavelength_range')):
             min_val, max_val = molecules_dict.global_wavelength_range
-            self._set_var(self.min_wavelength_var, str(min_val))
-            self._set_var(self.max_wavelength_var, str(max_val))
-        
+            self._set_var(self.min_wavelength_var, f'{min_val:.2e}')
+            self._set_var(self.max_wavelength_var, f'{max_val:.2e}')
+
         # Update display range fields
         self._update_display_range_fields()
         

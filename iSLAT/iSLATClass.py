@@ -523,7 +523,11 @@ class iSLAT:
                     self.GUI.plot.update_model_plot()
                     if hasattr(self.GUI.plot, 'canvas'):
                         self.GUI.plot.canvas.draw()
-                        
+                
+                # Update control panel
+                if hasattr(self.GUI, "control_panel") and self.GUI.control_panel is not None:
+                    self.GUI.control_panel.refresh_from_molecules_dict()
+
                 # Update file label
                 if (hasattr(self.GUI, "file_interaction_pane") and 
                     hasattr(self, 'loaded_spectrum_name')):
