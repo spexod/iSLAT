@@ -20,6 +20,8 @@ user_configuration_file_path = config_file_path = data_files_path / "CONFIG"
 theme_file_path = data_files_path / "CONFIG" / "GUIThemes"
 user_configuration_file_name = "UserSettings.json"
 
+hitran_data_folder_path = data_files_path / "HITRANdata"
+
 molsave_file_name = "molsave.csv"
 molecule_list_file_name = "molecules_list.csv"
 
