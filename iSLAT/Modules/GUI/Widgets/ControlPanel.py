@@ -570,9 +570,8 @@ class ControlPanel(ttk.Frame):
             # Format value based on field configuration
             if field_config and isinstance(value, (int, float)):
                 return field_config['format'].format(value)
-            # Fallback formatting for backward compatibility
-            # elif param_name in ["global_distance", "stellar_rv", "fwhm", "broad"] and isinstance(value, (int, float)):
-            #     return f"{value:.2f}"
+            elif isinstance(value, str):
+                return value
             return f"{value:.2f}"
         except Exception as e:
             print(f"Error with formatting: {e}")

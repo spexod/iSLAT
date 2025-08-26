@@ -187,11 +187,10 @@ class MoleculeDict(dict):
         if use_parallel is None:
             use_parallel = len(valid_molecules) >= 3
         
-        # Apply parameter overrides if provided
-        if 'parameter_overrides' in kwargs:
-            for mol_name in valid_molecules:
-                if mol_name in self:
-                    self._apply_parameter_overrides(self[mol_name], kwargs['parameter_overrides'])
+        # Apply parameter overrides if provided - use bulk update for efficiency
+        if 'parameter_overrides' in kwargs and kwargs['parameter_overrides'] is not None:
+            print("Applying parameter overrides to multiple molecules...")
+            self._apply_bulk_parameter_overrides(valid_molecules, kwargs['parameter_overrides'])
         
         # Execute operation
         if use_parallel and len(valid_molecules) >= 2:
@@ -199,8 +198,24 @@ class MoleculeDict(dict):
         else:
             return self._process_molecules_sequential(operation, valid_molecules, **kwargs)
     
-    def _apply_parameter_overrides(self, molecule: 'Molecule', overrides: Dict[str, Any]) -> None:
-        """Apply parameter overrides to a molecule."""
+    def _apply_bulk_parameter_overrides(self, molecule_names: List[str], overrides: Dict[str, Any]) -> None:
+        """Apply parameter overrides to multiple molecules efficiently using bulk updates."""
+        if not overrides:
+            return
+            
+        # Apply overrides to all molecules in one pass using their bulk_update_parameters method
+        for mol_name in molecule_names:
+            if mol_name in self:
+                molecule = self[mol_name]
+                if hasattr(molecule, 'bulk_update_parameters'):
+                    # Use the molecule's efficient bulk update method
+                    molecule.bulk_update_parameters(overrides.copy(), skip_notification=True)
+                else:
+                    # Fallback to individual parameter setting (should not be needed)
+                    self._apply_parameter_overrides_fallback(molecule, overrides)
+    
+    def _apply_parameter_overrides_fallback(self, molecule: 'Molecule', overrides: Dict[str, Any]) -> None:
+        """Fallback method for applying parameter overrides (for compatibility)."""
         for param_name, value in overrides.items():
             if hasattr(molecule, param_name):
                 setattr(molecule, param_name, value)
@@ -505,7 +520,7 @@ class MoleculeDict(dict):
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
                 fwhm=safe_float("FWHM"),
-                rv_shift=safe_float("RV_Shift"),
+                rv_shift=safe_float("RV Shift"),
                 broad=mol_data.get("Broad"),
                 model_pixel_res=self._global_model_pixel_res,
                 model_line_width=self._global_model_line_width,
@@ -582,7 +597,7 @@ class MoleculeDict(dict):
                 color=mol_data.get("Color"),
                 is_visible=mol_data.get("Vis", True),
                 fwhm=safe_float("FWHM"),
-                rv_shift=mol_data.get("RV_Shift", global_params.get('stellar_rv')),
+                rv_shift=safe_float("RV Shift"),
                 broad=mol_data.get("Broad"),
                 initial_molecule_parameters=init_params.get(mol_name, {}),
                 **global_params

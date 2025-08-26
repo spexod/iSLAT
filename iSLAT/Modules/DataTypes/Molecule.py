@@ -134,11 +134,8 @@ class Molecule:
         self._n_mol = float(getattr(self, '_n_mol_val', None) or self.n_mol_init)
         self._distance = float(getattr(self, '_distance_val', None) or c.DEFAULT_DISTANCE)
         self._fwhm = float(getattr(self, '_fwhm_val', None) or c.DEFAULT_FWHM)
-        self._broad = float(getattr(self, '_broad_val', None) or c.INTRINSIC_LINE_WIDTH)
-        
-        # Ensure _rv_shift is properly initialized if not already set
-        if not hasattr(self, '_rv_shift') or self._rv_shift is None:
-            self._rv_shift = kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV)
+        self._broad = float(getattr(self, '_broad_val', 1.0) or c.INTRINSIC_LINE_WIDTH)
+        self._rv_shift = float(getattr(self, '_rv_shift', 0.0) or c.DEFAULT_STELLAR_RV)
 
         self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
         self._model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
@@ -208,7 +205,7 @@ class Molecule:
         self._distance_val = usd.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = usd.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = usd.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._rv_shift = usd.get('RV_Shift', kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV))
+        self._rv_shift = usd.get('RV Shift', kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV))
 
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -231,7 +228,7 @@ class Molecule:
         self._distance_val = kwargs.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = kwargs.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = kwargs.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._rv_shift = kwargs.get('rv_shift', kwargs.get('RV_Shift', c.DEFAULT_STELLAR_RV))
+        self._rv_shift = kwargs.get('rv_shift', kwargs.get('RV Shift', c.DEFAULT_STELLAR_RV))
 
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -432,6 +429,8 @@ class Molecule:
         
         # Apply RV shift correction to get flux on the unshifted grid
         # Create the shifted wavelength grid where the flux "came from"
+        print(f"Applying RV shift of {self._rv_shift} km/s for molecule {self.name}")
+        print(f'RV shift is of type {type(self._rv_shift)} with value {self._rv_shift}')
         if self._rv_shift != 0:
             shifted_source_lam_grid = lam_grid + (lam_grid / c.SPEED_OF_LIGHT_KMS * self._rv_shift)
 
@@ -556,40 +555,88 @@ class Molecule:
         self._notify_my_parameter_change('is_visible', old_value, self._is_visible)
 
     def bulk_update_parameters(self, parameter_dict: Dict[str, Any], skip_notification: bool = False):
+        if not parameter_dict:
+            return
+            
+        # Make a copy to avoid modifying the input dict
+        params_to_update = parameter_dict.copy()
         old_values = {}
         affected_params = set()
         
-        # Special handling for rv_shift to use the custom setter
-        rv_shift_value = parameter_dict.pop('rv_shift', 0.0)
-        if rv_shift_value is not None:
-            old_values['rv_shift'] = self._rv_shift
-            self.rv_shift = rv_shift_value  # Use the property setter
-            affected_params.add('rv_shift')
+        # Batch cache invalidation flags
+        needs_intensity_invalidation = False
+        needs_spectrum_invalidation = False
+        needs_flux_invalidation = False
         
-        # Handle other parameters normally
-        for param_name, value in parameter_dict.items():
-            if hasattr(self, f'_{param_name}'):
-                old_values[param_name] = getattr(self, f'_{param_name}')
-                setattr(self, f'_{param_name}', value)
+        # Type converters matching the property setters
+        converters = {
+            'temp': float, 'radius': float, 'distance': float, 'fwhm': float, 
+            'model_pixel_res': float, 'broad': float, 'rv_shift': float, 'n_mol': float,
+            'model_line_width': lambda x: float(x) if x is not None else None,
+            'is_visible': lambda x: x.lower() in ('true', '1', 'yes', 'on') if isinstance(x, str) else bool(x)
+        }
+        
+        # Batch process parameters with type conversion
+        for param_name, value in params_to_update.items():
+            # Apply type conversion if available
+            if param_name in converters:
+                try:
+                    if param_name == 'n_mol' and value is None:
+                        value = getattr(self, 'n_mol_init', 1e17)
+                    value = converters[param_name](value)
+                except (ValueError, TypeError):
+                    continue  # Skip invalid values
+            
+            private_attr = f'_{param_name}'
+            
+            # Try private attribute first (most common case)
+            if hasattr(self, private_attr):
+                old_values[param_name] = getattr(self, private_attr)
+                setattr(self, private_attr, value)
                 affected_params.add(param_name)
+                
+                # Apply special setters
+                if param_name == 'temp':
+                    self.t_kin = value
+                elif param_name == 'fwhm':
+                    self.spectrum = None
+                
+                # Determine cache invalidation needs
+                if param_name in self.INTENSITY_AFFECTING_PARAMS:
+                    needs_intensity_invalidation = True
+                    needs_spectrum_invalidation = True
+                    needs_flux_invalidation = True
+                elif param_name in self.SPECTRUM_AFFECTING_PARAMS:
+                    needs_spectrum_invalidation = True
+                    needs_flux_invalidation = True
+                else:
+                    needs_flux_invalidation = True
+                    
+            # Fallback to public attribute
             elif hasattr(self, param_name):
                 old_values[param_name] = getattr(self, param_name)
                 setattr(self, param_name, value)
                 affected_params.add(param_name)
+                needs_flux_invalidation = True  # Conservative invalidation for unknown params
         
-        # Invalidate caches for non-rv_shift parameters (rv_shift handled by its setter)
-        for param in affected_params:
-            if param != 'rv_shift':  # rv_shift cache invalidation is handled by its setter
-                self._invalidate_caches_for_parameter(param)
+        # Batch cache invalidation - more efficient than individual calls
+        if needs_intensity_invalidation:
+            self._dirty_flags['intensity'] = True
+        if needs_spectrum_invalidation:
+            self._dirty_flags['spectrum'] = True
+        if needs_flux_invalidation:
+            self._dirty_flags['flux'] = True
+            self._flux_cache.clear()
         
-        if not skip_notification:
-            for param_name in affected_params:
+        # Batch notifications if required
+        if not skip_notification and affected_params:
+            params_to_notify = affected_params            
+            for param_name in params_to_notify:
                 old_value = old_values.get(param_name)
-                new_value = getattr(self, f'_{param_name}') if hasattr(self, f'_{param_name}') else getattr(self, param_name)
+                # Fast attribute access
+                new_value = getattr(self, f'_{param_name}', None) or getattr(self, param_name, None)
                 if old_value != new_value:
-                    # Skip notification for rv_shift since it's handled by the setter
-                    if param_name != 'rv_shift':
-                        self._notify_my_parameter_change(param_name, old_value, new_value)
+                    self._notify_my_parameter_change(param_name, old_value, new_value)
     
     def force_recalculate(self):
         self.clear_all_caches()

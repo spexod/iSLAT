@@ -537,7 +537,7 @@ class iSLAT:
             print("No spectrum was loaded")
             return False
 
-    def update_model_spectrum(self, force_recalculate=False, use_parallel=False):
+    def update_model_spectrum(self, force_recalculate=False):
         """
         Update model spectrum using sequential calculations by default.
         

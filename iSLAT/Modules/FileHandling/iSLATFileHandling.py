@@ -289,7 +289,7 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
         with open(csv_filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             # Use field names compatible with Molecule class expectations
-            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad', 'RV_Shift']
+            header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad', 'RV Shift']
             writer.writerow(header)
             
             for mol_name, mol_obj in molecules_dict.items():
