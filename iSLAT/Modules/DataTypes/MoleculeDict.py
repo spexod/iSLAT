@@ -389,7 +389,7 @@ class MoleculeDict(dict):
             results = self._load_molecules_parallel(valid_molecules_data, initial_molecule_parameters, max_workers)
         else:
             results = self._load_molecules_sequential(valid_molecules_data, initial_molecule_parameters)
-        
+
         # Calculate intensities for loaded molecules
         if results['success'] > 0:
             intensity_results = self.bulk_calculate_intensities(results['molecules'])

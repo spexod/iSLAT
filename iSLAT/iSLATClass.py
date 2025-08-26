@@ -374,10 +374,6 @@ class iSLAT:
         mole_save_data = self.user_saved_molecules
         
         try:
-            # Apply full optimizations now that we're loading molecules
-            if not hasattr(self, '_full_optimizations_applied'):
-                print("Applying optimizations for molecule loading...")
-            
             # Initialize molecules with spectrum-optimized settings
             start_time = time.time()
             
@@ -521,6 +517,7 @@ class iSLAT:
                 print("Updating existing GUI with new spectrum...")
                 if hasattr(self.GUI, "plot") and self.GUI.plot is not None:
                     self.GUI.plot.update_model_plot()
+                    self.GUI.plot.match_display_range(match_y=True)
                     if hasattr(self.GUI.plot, 'canvas'):
                         self.GUI.plot.canvas.draw()
                 
