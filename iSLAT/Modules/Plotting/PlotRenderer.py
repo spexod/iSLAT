@@ -156,13 +156,6 @@ class PlotRenderer:
             if hasattr(line, '_molecule_name') and line._molecule_name == molecule_name:
                 print(f"found lines matching with {line._molecule_name} (metadata)")
                 lines_to_remove.append(line)
-            # Fallback: check by label if metadata not available
-            elif hasattr(line, 'get_label') and line.get_label():
-                label = line.get_label()
-                # Check both the molecule name and display label
-                if molecule_name == label or label in molecule_name.split('_'):
-                    print(f"found lines matching with {line._molecule_name} (label)")
-                    lines_to_remove.append(line)
 
         # Remove lines from plot and list
         for line in lines_to_remove:

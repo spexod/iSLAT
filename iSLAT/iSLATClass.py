@@ -215,7 +215,6 @@ class iSLAT:
             molecules_data.append(mol_data)
             print(f"mol_data is: {mol_data}")
         
-        
         print(f"Loading {len(molecules_data)} HITRAN molecule(s)...")
         
         try:

@@ -345,28 +345,6 @@ class MoleculeDict(dict):
         )
         return results
     
-    def get_visible_molecules(self, return_objects: bool = False) -> Union[set, List['Molecule']]:
-        """Get visible molecule names or objects."""
-        current_visible = {name for name, mol in self.items() if bool(mol.is_visible)}
-        self._visible_molecules = current_visible
-        
-        if return_objects:
-            return [self[name] for name in current_visible]
-        return current_visible
-    
-    def bulk_set_visibility(self, is_visible: bool, molecule_names: Optional[List[str]] = None) -> None:
-        """Update visibility for multiple molecules efficiently."""
-        if molecule_names is None:
-            molecule_names = list(self.keys())
-        
-        molecule_set = set(molecule_names) & set(self.keys())
-        
-        for mol_name in molecule_set:
-            self[mol_name].is_visible = is_visible
-            
-        self._clear_all_caches()
-        print(f"Updated visibility for {len(molecule_set)} molecules")
-    
     # ================================
     # Unified Molecule Loading
     # ================================
