@@ -615,6 +615,9 @@ class TopBar(ResizableFrame):
         
         spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
         save_file = os.path.join(save_folder_path, f"{spectrum_base_name}-{molsave_file_name}")
+
+        if not os.path.exists(save_file):
+            save_file = os.path.join(save_folder_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
         
         if not os.path.exists(save_file):
             if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):

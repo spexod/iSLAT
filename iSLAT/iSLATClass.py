@@ -348,9 +348,13 @@ class iSLAT:
             formatted_mol_save_file_name = f"{spectrum_base_name}-{molsave_file_name}"
             molsave_path = save_folder_path
             full_path = os.path.join(molsave_path, formatted_mol_save_file_name)
+            alternative_path = os.path.join(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
             if os.path.exists(full_path):
                 print(f"Loading molecules from saved file: {full_path}")
                 mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
+            elif os.path.exists(alternative_path):
+                print(f"Loading molecules from old format saved file: {alternative_path}")
+                mole_save_data = read_from_user_csv(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
             else:
                 print(f"Warning: Mole save path does not exist: {molsave_path}")
                 mole_save_data = None
