@@ -566,11 +566,14 @@ class TopBar(ResizableFrame):
         # Get the loaded spectrum name for filename
         spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
         
+        from iSLAT.Modules.FileHandling import molsave_file_name
+
         try:
             # Save the current molecule parameters
             saved_file = write_molecules_to_csv(
                 self.islat.molecules_dict, 
-                loaded_spectrum_name=spectrum_name
+                loaded_spectrum_name=spectrum_name,
+                file_name=molsave_file_name
             )
             
             # Also save to the general molecules list for session persistence
