@@ -439,7 +439,8 @@ class MoleculeDict(dict):
     # Unified Molecule Loading
     # ================================
     def load_molecules(self, molecules_data: List[Dict[str, Any]], 
-                       initial_molecule_parameters: Dict[str, Dict[str, Any]], 
+                       initial_molecule_parameters: Dict[str, Dict[str, Any]],
+                       update_global_parameters: bool = True, 
                        strategy: str = "auto",
                        max_workers: Optional[int] = None, 
                        force_multiprocessing: bool = False) -> Dict[str, Any]:
@@ -469,8 +470,9 @@ class MoleculeDict(dict):
             else:
                 strategy = "sequential"
 
-        self._global_dist = float(valid_molecules_data[0].get("Dist", default_parms.DEFAULT_DISTANCE))
-        self._global_stellar_rv = float(valid_molecules_data[0].get("StellarRV", default_parms.DEFAULT_STELLAR_RV))
+        if update_global_parameters:
+            self._global_dist = float(valid_molecules_data[0].get("Dist", default_parms.DEFAULT_DISTANCE))
+            self._global_stellar_rv = float(valid_molecules_data[0].get("StellarRV", default_parms.DEFAULT_STELLAR_RV))
 
         # Execute loading
         start_time = time.time()

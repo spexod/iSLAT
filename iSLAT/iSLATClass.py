@@ -222,6 +222,7 @@ class iSLAT:
             results = self.molecules_dict.load_molecules(
                 molecules_data, 
                 read_full_molecule_parameters(),
+                update_global_parameters=False,
                 strategy="auto",
                 force_multiprocessing=use_parallel or getattr(self, '_use_parallel_processing', False)
             )
