@@ -6,6 +6,7 @@ import ssl
 #from .global_identifier import get_global_identifier
 from astropy import units as un
 
+from typing import List, Tuple
 import os
 import datetime
 #from .Hitran_data import get_Hitran_data
@@ -150,7 +151,7 @@ def get_Hitran_data(Molecule_name, isotopologue_number, min_vu, max_vu):
         print(f"Error: {error_msg}")
         raise RuntimeError(error_msg) from e
 
-def download_hitran_data(mols, basem, isot):
+def download_hitran_data(mols, basem, isot) -> List[Tuple]:
     #mols = ["H2", "HD", "H2O", "H218O", "CO2", "13CO2", "CO", "13CO", "C18O", "CH4", "HCN", "H13CN", "NH3", "OH", "C2H2", "13CCH2", "C2H4", "C4H2", "C2H6", "HC3N"]
     #basem = ["H2", "H2", "H2O", "H2O", "CO2", "CO2", "CO", "CO", "CO", "CH4", "HCN", "HCN", "NH3", "OH", "C2H2", "C2H2", "C2H4", "C4H2", "C2H6", "HC3N"]
     #isot = [1, 2, 1, 2, 1, 2, 1, 2, 3, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1]
@@ -158,6 +159,8 @@ def download_hitran_data(mols, basem, isot):
     #mols = ["O2"]
     #basem = ["O2", "O2"]
     #isot = [1, 2]
+
+    missed_mols = []
 
     min_wave = 0.3  # micron
     max_wave = 1000  # micron
@@ -192,7 +195,10 @@ def download_hitran_data(mols, basem, isot):
             
         except (ValueError, RuntimeError) as e:
             print(f"Skipping molecule {mol}: {str(e)}")
+            missed_mols.append((bm, mol, isot))
             continue
         except Exception as e:
             print(f"Unexpected error downloading {mol}: {str(e)}")
             continue
+
+    return missed_mols
