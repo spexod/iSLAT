@@ -126,7 +126,7 @@ class MoleculeSelector:
             if missed_mols:
                 for (bm, mol, iso) in missed_mols:
                     error_message = f"Could not load Molecule: {bm}, Isotopologue: {mol}, Isotope Number: {iso}"
-                    self.data_field.insert_text(error_message, clear_first=False, console_print=True)
+                    self.data_field.insert_text(error_message, clear_after=False, console_print=True)
                     return
             
 
@@ -134,7 +134,7 @@ class MoleculeSelector:
 
             # Update the main GUI data_field
             self.data_field.delete('1.0', "end")
-            self.data_field.insert_text(f"{isotopologue} downloaded from HITRAN.", clear_first=True, console_print=True)
+            self.data_field.insert_text(f"{isotopologue} downloaded from HITRAN.", clear_after=True, console_print=True)
 
     def on_done(self):
         self.window.destroy()

@@ -454,7 +454,7 @@ class iSLATPlot:
             try:
                 # Check if the widget still exists before accessing it
                 if hasattr(self.islat.GUI.data_field, 'text') and self.islat.GUI.data_field.text.winfo_exists():
-                    self.islat.GUI.data_field.insert_text(info_str, clear_first=clear_data_field)
+                    self.islat.GUI.data_field.insert_text(info_str, clear_after=clear_data_field)
             except Exception as e:
                 # Silently ignore GUI access errors during initialization
                 print(f"Warning: Could not update data field: {e}")

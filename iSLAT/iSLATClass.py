@@ -332,7 +332,7 @@ class iSLAT:
                 if hasattr(self.GUI, 'data_field'):
                     self.GUI.data_field.insert_text(
                         f'Successfully loaded parameters from defaults',
-                        clear_first=True
+                        clear_after=True
                     )
             print(f"Successfully loaded {len(self.molecules_dict)} default molecules.")
                 

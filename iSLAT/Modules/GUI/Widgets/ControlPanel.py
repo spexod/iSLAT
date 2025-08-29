@@ -375,6 +375,7 @@ class ControlPanel(ttk.Frame):
                             
             except (ValueError, AttributeError) as e:
                 print(f"Error updating global {property_name}: {e}")
+                self.data_field.insert_text(f"Error updating global {property_name}: {e}")
         
         # Get current value from molecules_dict
         current_value = 0.0
@@ -425,15 +426,19 @@ class ControlPanel(ttk.Frame):
  
 
         if mol_name == default_mol:
-            print(f"Cannot delete {mol_name}!")
+            # print(f"Cannot delete {mol_name}!")
+            self.data_field.insert_text(f"Cannot delete {mol_name}!")
             return
+        
+        # print(f"destroying {mol_name}")
+        self.data_field.insert_text(f"destroying {mol_name}", clear_after = True)
 
         if mol_name == active_mol:
             new_active = self.islat.user_settings.get("default_active_molecule", "H2O")
             print(f"setting {new_active} as active molecule")
+            self.data_field.insert_text(f"setting {new_active} as active molecule", clear_after = False)
             self._set_active_molecule(mol_name=new_active)
 
-        print(f"destroying {mol_name}")
         frame.destroy()
 
         self.mol_frames.pop(mol_name, None)
@@ -501,6 +506,7 @@ class ControlPanel(ttk.Frame):
                             
             except (ValueError, AttributeError) as e:
                 print(f"Error updating {param_name}: {e}")
+                
         
         # Get initial value from active molecule
         initial_value = self._get_active_molecule_parameter_value(param_name)
