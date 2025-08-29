@@ -1147,12 +1147,14 @@ class PlotRenderer:
         try:
             # Method 1: Use intensity API
             if hasattr(molecule, 'intensity') and molecule.intensity is not None:
+                print("method 1")
                 intensity_obj = molecule.intensity
                 if hasattr(intensity_obj, 'get_lines_in_range_with_intensity'):
                     return intensity_obj.get_lines_in_range_with_intensity(xmin, xmax)
             
             # Method 2: Use MoleculeLineList directly
             if hasattr(molecule, 'lines') and molecule.lines is not None:
+                print("method 2")
                 lines = molecule.lines
                 if hasattr(lines, 'get_lines_in_range'):
                     lines_in_range = lines.get_lines_in_range(xmin, xmax)
@@ -1172,6 +1174,7 @@ class PlotRenderer:
                     else:
                         # Return lines with zero intensity
                         return [(line, 0.0, None) for line in lines_in_range]
+            print("method 3: returning []")
             return []
             
         except Exception as e:
