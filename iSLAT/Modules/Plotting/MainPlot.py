@@ -272,7 +272,6 @@ class iSLATPlot:
         self.selected_wave = self.islat.wave_data[mask]
         self.selected_flux = self.islat.flux_data[mask]
 
-
         if len(self.selected_wave) < 5:
             self.ax2.clear()
             self.current_selection = None
@@ -309,6 +308,7 @@ class iSLATPlot:
             # Use PlotRenderer which leverages molecule's internal caching
             line_data = self.plot_renderer.get_molecule_line_data(self.islat.active_molecule, xmin, xmax)
             if not line_data:
+                self.islat.GUI.data_field.insert_text(f"No transitions found for {self.islat.active_molecule.name} in the selected range")
                 # Clear active lines and update population diagram even if no lines in range
                 debug_config.verbose("line_inspection", "No lines in range, clearing active lines")
                 self.clear_active_lines()
@@ -325,7 +325,6 @@ class iSLATPlot:
             return
 
         # Clear previous active_lines before plotting
-        
         debug_config.trace("line_inspection", f"Found {len(line_data)} lines, plotting line inspection and population diagram")
         self.clear_active_lines()
         self.plot_line_inspection(xmin, xmax, line_data, highlight_strongest=highlight_strongest)

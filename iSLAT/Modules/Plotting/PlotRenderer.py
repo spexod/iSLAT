@@ -932,6 +932,7 @@ class PlotRenderer:
         if not line_data:
             return
         
+        
         # Get threshold and filter lines
         threshold_percent = self.get_line_intensity_threshold()
         filtered_line_data = self.filter_lines_by_threshold(line_data, threshold_percent)
