@@ -124,7 +124,6 @@ class ControlPanel(ttk.Frame):
         def on_change(*args):
             self.updating = True
             try:
-                print(f"param name: {param_name}")
                 value = float(var.get())
                 
                 match param_name:
@@ -506,7 +505,7 @@ class ControlPanel(ttk.Frame):
                             
             except (ValueError, AttributeError) as e:
                 print(f"Error updating {param_name}: {e}")
-                
+                # self.data_field.insert_text(f"Error updating {param_name}: {e}")
         
         # Get initial value from active molecule
         initial_value = self._get_active_molecule_parameter_value(param_name)
@@ -521,6 +520,7 @@ class ControlPanel(ttk.Frame):
             self.MOLECULE_FIELDS = config.get('molecule_fields', {})
         except Exception as e:
             print(f"Error loading control panel field configurations: {e}")
+            # self.data_field.insert_text(f"Error loading control panel field configurations: {e}")
             # Use fallback default configurations
             self.GLOBAL_FIELDS = {}
             self.MOLECULE_FIELDS = {}
@@ -538,6 +538,7 @@ class ControlPanel(ttk.Frame):
             
         except Exception as e:
             print(f"ControlPanel: Error registering callbacks: {e}")
+            # self.data_field.insert_text(f"ControlPanel: Error registering callbacks: {e}")
 
     def _on_active_molecule_change(self, old_molecule, new_molecule):
         """Handle active molecule changes from the iSLAT callback system"""
