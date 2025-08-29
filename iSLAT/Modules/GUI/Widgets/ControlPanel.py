@@ -132,6 +132,7 @@ class ControlPanel(ttk.Frame):
         
         def on_write(*args):
             if self.updating: # Updating means that the entry variable is being updated from iSLAT and should not turn grey
+                entry.event_generate("<Return>")
                 return
             entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
 
@@ -500,6 +501,7 @@ class ControlPanel(ttk.Frame):
     def _on_active_molecule_change(self, old_molecule, new_molecule):
         """Handle active molecule changes from the iSLAT callback system"""
         
+        
         self._update_molecule_parameter_fields()
         self._update_active_molecule_changes()
 
@@ -832,6 +834,7 @@ class ControlPanel(ttk.Frame):
         if not hasattr(self, '_molecule_parameter_entries'):
             return
             
+        print("updating molecule parameters")
         for param_name, (entry, var) in self._molecule_parameter_entries.items():
             new_value = self._get_active_molecule_parameter_value(param_name) 
             current_value = var.get()
