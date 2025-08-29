@@ -203,7 +203,7 @@ class TopBar(ResizableFrame):
         """Fit the currently selected line using LMFIT"""
 
         if not hasattr(self.main_plot, 'current_selection') or self.main_plot.current_selection is None:
-            self.data_field.insert_text("No region selected for fitting.\n", clear_first=False)
+            self.data_field.insert_text("No region selected for fitting.\n", clear_after=False)
             return
 
         try:
@@ -219,7 +219,7 @@ class TopBar(ResizableFrame):
                     
                     if deblend:
                         # For deblending, show detailed results AND save lines automatically
-                        self.data_field.insert_text("\nDe-blended line fit results:\n", clear_first=False)
+                        self.data_field.insert_text("\nDe-blended line fit results:\n", clear_after=False)
                         
                         selection = self.main_plot.current_selection
                         if selection and len(selection) >= 2:
@@ -232,7 +232,7 @@ class TopBar(ResizableFrame):
                         saved_components = 0
                         while f'component_{component_idx}' in line_params:
                             comp_params = line_params[f'component_{component_idx}']
-                            self.data_field.insert_text(f"\nComponent {component_idx+1}:\n", clear_first=False)
+                            self.data_field.insert_text(f"\nComponent {component_idx+1}:\n", clear_after=False)
                             
                             # Handle None values in stderr parameters
                             center_err = comp_params.get('center_stderr', 0)
@@ -245,9 +245,9 @@ class TopBar(ResizableFrame):
                             area_err = comp_params.get('area_stderr', 0)
                             area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
                             
-                            self.data_field.insert_text(f"Centroid (μm) = {comp_params['center']:.5f} +/- {center_err_str}", clear_first=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {comp_params['fwhm']:.1f} +/- {fwhm_err_kms}", clear_first=False)
-                            self.data_field.insert_text(f"Area (erg/s/cm2) = {comp_params['area']:.3e} +/- {area_err_str}", clear_first=False)
+                            self.data_field.insert_text(f"Centroid (μm) = {comp_params['center']:.5f} +/- {center_err_str}", clear_after=False)
+                            self.data_field.insert_text(f"FWHM (km/s) = {comp_params['fwhm']:.1f} +/- {fwhm_err_kms}", clear_after=False)
+                            self.data_field.insert_text(f"Area (erg/s/cm2) = {comp_params['area']:.3e} +/- {area_err_str}", clear_after=False)
                             
                             # Automatically save this component
                             try:
@@ -300,21 +300,21 @@ class TopBar(ResizableFrame):
                                     saved_components += 1
                                     
                             except Exception as save_error:
-                                self.data_field.insert_text(f"Error saving component {component_idx+1}: {save_error}", clear_first=False)
+                                self.data_field.insert_text(f"Error saving component {component_idx+1}: {save_error}", clear_after=False)
                             
                             component_idx += 1
                         
                         if component_idx == 0:
-                            self.data_field.insert_text("No components found in fit result.\n", clear_first=False)
+                            self.data_field.insert_text("No components found in fit result.\n", clear_after=False)
                         else:
                             # Show both detailed results
-                            self.data_field.insert_text(f"\nDe-blended line fit completed with {component_idx} components!", clear_first=False)
+                            self.data_field.insert_text(f"\nDe-blended line fit completed with {component_idx} components!", clear_after=False)
                             if saved_components > 0:
-                                self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_first=False)
+                                self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_after=False)
                             
                     else:
                         # Single Gaussian fit - show detailed results
-                        self.data_field.insert_text("\nGaussian fit results:\n", clear_first=False)
+                        self.data_field.insert_text("\nGaussian fit results:\n", clear_after=False)
                         
                         if 'center' in line_params:
                             # Handle None values in stderr parameters
@@ -327,19 +327,19 @@ class TopBar(ResizableFrame):
                             area_err = line_params.get('area_stderr', 0)
                             area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
                             
-                            self.data_field.insert_text(f"Centroid (μm) = {line_params['center']:.5f} +/- {center_err_str}", clear_first=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {line_params['fwhm']:.5f} +/- {fwhm_err_kms}", clear_first=False)
-                            self.data_field.insert_text(f"Area (erg/s/cm2) = {line_params['area']:.3e} +/- {area_err_str}", clear_first=False)
+                            self.data_field.insert_text(f"Centroid (μm) = {line_params['center']:.5f} +/- {center_err_str}", clear_after=False)
+                            self.data_field.insert_text(f"FWHM (km/s) = {line_params['fwhm']:.5f} +/- {fwhm_err_kms}", clear_after=False)
+                            self.data_field.insert_text(f"Area (erg/s/cm2) = {line_params['area']:.3e} +/- {area_err_str}", clear_after=False)
                         else:
-                            self.data_field.insert_text("Could not extract fit parameters.\n", clear_first=False)
+                            self.data_field.insert_text("Could not extract fit parameters.\n", clear_after=False)
                 else:
-                    self.data_field.insert_text("Fit completed but no valid result object returned.\n", clear_first=False)
+                    self.data_field.insert_text("Fit completed but no valid result object returned.\n", clear_after=False)
             else:
-                self.data_field.insert_text("Fit failed or insufficient data.\n", clear_first=False)
+                self.data_field.insert_text("Fit failed or insufficient data.\n", clear_after=False)
             
         except Exception as e:
-            self.data_field.insert_text(f"Error during fitting: {e}\n", clear_first=False)
-            self.data_field.insert_text(f"Traceback: {traceback.format_exc()}\n", clear_first=False)
+            self.data_field.insert_text(f"Error during fitting: {e}\n", clear_after=False)
+            self.data_field.insert_text(f"Traceback: {traceback.format_exc()}\n", clear_after=False)
 
     def fit_saved_lines(self):
         """
@@ -370,23 +370,23 @@ class TopBar(ResizableFrame):
             successful_fits = sum(1 for result in fit_results if result.get('Fit_det', True))
             total_lines = len(fit_results)
 
-            self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n", clear_first=False)
-            self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n", clear_first=False)
+            self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n", clear_after=False)
+            self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n", clear_after=False)
 
             # Update progress for each successful fit
             for i, result in enumerate(fit_results):
                 if result.get('Fit_det', True):
                     center = result.get('Centr_fit', result.get('lam', 0))
                     snr = result.get('Fit_SN', 0)
-                    self.data_field.insert_text(f"Line {i+1} at {center:.4f} μm: Fit successful", clear_first=False)
+                    self.data_field.insert_text(f"Line {i+1} at {center:.4f} μm: Fit successful", clear_after=False)
                 else:
                     wavelength = result.get('lam', 0)
-                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_first=False)
+                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_after=False)
 
             #self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results, self.main_plot.ax1)
 
         else:
-            self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_first=False)
+            self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_after=False)
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""
@@ -397,13 +397,13 @@ class TopBar(ResizableFrame):
             single_lines = self.main_plot.find_single_lines()
             self.main_plot.plot_single_lines()
             for i, line in enumerate(single_lines[:lines_to_show]):  # Show first lines_to_show lines
-                self.data_field.insert_text(f"  Line {i+1}:", clear_first=False)
+                self.data_field.insert_text(f"  Line {i+1}:", clear_after=False)
                 for key, value in line.items():
-                    self.data_field.insert_text(f"    {key}: {value}", clear_first=False)
-                self.data_field.insert_text("\n", clear_first=False)
+                    self.data_field.insert_text(f"    {key}: {value}", clear_after=False)
+                self.data_field.insert_text("\n", clear_after=False)
             
             if len(single_lines) > lines_to_show:
-                self.data_field.insert_text(f"  ... and {len(single_lines) - lines_to_show} more lines\n", clear_first=False)
+                self.data_field.insert_text(f"  ... and {len(single_lines) - lines_to_show} more lines\n", clear_after=False)
             
         except Exception as e:
             self.data_field.insert_text(f"Error finding single lines: {e}\n")
@@ -584,7 +584,7 @@ class TopBar(ResizableFrame):
                 if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
                     self.islat.GUI.data_field.insert_text(
                         f'Molecule parameters saved to: {saved_file}',
-                        clear_first=True
+                        clear_after=True
                     )
                 print(f"Molecule parameters saved successfully to: {saved_file}")
             else:
@@ -595,7 +595,7 @@ class TopBar(ResizableFrame):
             if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
                 self.islat.GUI.data_field.insert_text(
                     f'Error saving parameters: {str(e)}',
-                    clear_first=True
+                    clear_after=True
                 )
     
     def load_parameters(self):
@@ -623,7 +623,7 @@ class TopBar(ResizableFrame):
             if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
                 self.islat.GUI.data_field.insert_text(
                     'No save file found for this spectrum.',
-                    clear_first=True
+                    clear_after=True
                 )
             print(f"No save file found at: {save_file}")
             return
@@ -633,7 +633,7 @@ class TopBar(ResizableFrame):
             if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
                 self.islat.GUI.data_field.insert_text(
                     'Loading saved parameters, this may take a moment...',
-                    clear_first=True
+                    clear_after=True
                 )
                 
             # Clear existing molecules
@@ -653,7 +653,7 @@ class TopBar(ResizableFrame):
                 if hasattr(self.islat.GUI, 'data_field'):
                     self.islat.GUI.data_field.insert_text(
                         f'Successfully loaded parameters from: {save_file}',
-                        clear_first=True
+                        clear_after=True
                     )
             
             print(f"Successfully loaded {len(mole_save_data)} molecules from: {save_file}")
@@ -663,7 +663,7 @@ class TopBar(ResizableFrame):
             if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
                 self.islat.GUI.data_field.insert_text(
                     f'Error loading parameters: {str(e)}',
-                    clear_first=True
+                    clear_after=True
                 )
 
     def toggle_legend(self):

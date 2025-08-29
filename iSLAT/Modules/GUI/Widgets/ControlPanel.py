@@ -8,15 +8,17 @@ from .RegularFrame import RegularFrame
 from ..Tooltips import CreateToolTip
 
 class ControlPanel(ttk.Frame):
-    def __init__(self, master, islat, plot, font):
+    def __init__(self, master, islat, plot, data_field, font):
 
         super().__init__(master)
         
         self.master = master
         self.islat = islat
         self.plot = plot
-        self.mol_dict = islat.molecules_dict
+        self.data_field = data_field
         self.font = font
+
+        self.mol_dict = islat.molecules_dict
         self.updating = False
 
         self.mol_visibility = {}
@@ -29,6 +31,8 @@ class ControlPanel(ttk.Frame):
         
         self.label_frame = tk.LabelFrame(self, text="Molecule Control Panel", relief="solid", borderwidth=1)
         self.label_frame.grid(row=0, column=0, sticky="nsew", pady=0)
+        self.label_frame.grid_rowconfigure(0,weight=1)
+
 
         bg_frame = tk.Frame(self)
         self.bg_color = bg_frame.cget('bg')
@@ -73,6 +77,9 @@ class ControlPanel(ttk.Frame):
        wrapper = create_wrapper_frame(self.label_frame, 0, 1)
        self._create_selected_frame(wrapper, 0, 0)
        molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 170, horizontal=True, row=1, col=0)
+
+       molecule_param_frame.rowconfigure(0, weight=1)
+       molecule_param_frame.columnconfigure(0, weight=1)
 
        return molecule_param_frame
 
@@ -121,6 +128,21 @@ class ControlPanel(ttk.Frame):
             self.updating = True
             try:
                 value = float(var.get())
+                
+                match param_name:
+                    case "temp":
+                        if value < 1:
+                            self.data_field.insert_text("Cannot set temperature to less than 1")
+                            return
+                    case "n_mol":
+                        if value <= 0:
+                            self.data_field.insert_text("Cannot set Column Density to 0")
+                            return
+                    case "radius":
+                        if value <= 0: 
+                            self.data_field.insert_text("Cannot set value to 0")
+                            return
+                    
                 on_change_callback(value)
                 value_str = self._format_value(value, param_name)
                 var.set(value_str)
@@ -132,8 +154,19 @@ class ControlPanel(ttk.Frame):
         
         def on_write(*args):
             if self.updating: # Updating means that the entry variable is being updated from iSLAT and should not turn grey
+                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
                 return
-            entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
+            try:
+                new_entry = float(entry.get())
+                old_entry = float(self._get_active_molecule_parameter_value(param_name))
+            except ValueError: # If value is global parameter, turn grey
+                entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
+                return
+            
+            if new_entry == old_entry:
+                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+            else:
+                entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
 
         
         entry.bind("<Return>", on_change)
@@ -223,6 +256,8 @@ class ControlPanel(ttk.Frame):
                 self._global_parameter_entries[field_config['property']] = (entry, var)
             
             col_offset += 1
+
+        
 
     def _build_color_and_vis_controls(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -342,6 +377,7 @@ class ControlPanel(ttk.Frame):
                             
             except (ValueError, AttributeError) as e:
                 print(f"Error updating global {property_name}: {e}")
+                self.data_field.insert_text(f"Error updating global {property_name}: {e}")
         
         # Get current value from molecules_dict
         current_value = 0.0
@@ -357,8 +393,6 @@ class ControlPanel(ttk.Frame):
 
         parameters_frame = tk.Frame(parent)
         parameters_frame.grid(row=0, column=0, sticky="nsew")
-        parameters_frame.rowconfigure(0, weight=1)
-        parameters_frame.columnconfigure(0, weight=1)
         
         # Create fields based on the class-level dictionary
         row_offset = 1
@@ -366,6 +400,7 @@ class ControlPanel(ttk.Frame):
         col = 0
         row = start_row 
         for field_key, field_config in self.MOLECULE_FIELDS.items():
+            
             
             entry, var = self._create_molecule_parameter_entry(
                 parameters_frame,
@@ -381,7 +416,15 @@ class ControlPanel(ttk.Frame):
             row +=1
 
             col_offset += 1
-        
+
+        # default_btn = ttk.Button(parameters_frame, text="default parameters", command= lambda: self._update_molecule_parameter_fields(default=True))
+        # default_btn.grid(row=row, column=col, columnspan=2, sticky="s")
+        # CreateToolTip(default_btn, "reset current molecule's\nparameters to default values")
+        parameters_frame.rowconfigure(row, weight=1)
+    
+    def reset_parameters_to_default(self):
+        pass
+
     def _delete_molecule(self, mol_name = None, frame = None):
         mol_name = mol_name
         active_mol = self._get_active_molecule_object().name
@@ -389,15 +432,19 @@ class ControlPanel(ttk.Frame):
  
 
         if mol_name == default_mol:
-            print(f"Cannot delete {mol_name}!")
+            # print(f"Cannot delete {mol_name}!")
+            self.data_field.insert_text(f"Cannot delete default molecule: {mol_name}!")
             return
+        
+        # print(f"destroying {mol_name}")
+        self.data_field.insert_text(f"Deleting {mol_name}", clear_after = True)
 
         if mol_name == active_mol:
             new_active = self.islat.user_settings.get("default_active_molecule", "H2O")
             print(f"setting {new_active} as active molecule")
+            self.data_field.insert_text(f"setting {new_active} as active molecule", clear_after = False)
             self._set_active_molecule(mol_name=new_active)
 
-        print(f"destroying {mol_name}")
         frame.destroy()
 
         self.mol_frames.pop(mol_name, None)
@@ -465,6 +512,7 @@ class ControlPanel(ttk.Frame):
                             
             except (ValueError, AttributeError) as e:
                 print(f"Error updating {param_name}: {e}")
+                # self.data_field.insert_text(f"Error updating {param_name}: {e}")
         
         # Get initial value from active molecule
         initial_value = self._get_active_molecule_parameter_value(param_name)
@@ -479,6 +527,7 @@ class ControlPanel(ttk.Frame):
             self.MOLECULE_FIELDS = config.get('molecule_fields', {})
         except Exception as e:
             print(f"Error loading control panel field configurations: {e}")
+            # self.data_field.insert_text(f"Error loading control panel field configurations: {e}")
             # Use fallback default configurations
             self.GLOBAL_FIELDS = {}
             self.MOLECULE_FIELDS = {}
@@ -496,10 +545,10 @@ class ControlPanel(ttk.Frame):
             
         except Exception as e:
             print(f"ControlPanel: Error registering callbacks: {e}")
+            # self.data_field.insert_text(f"ControlPanel: Error registering callbacks: {e}")
 
     def _on_active_molecule_change(self, old_molecule, new_molecule):
         """Handle active molecule changes from the iSLAT callback system"""
-        
         self._update_molecule_parameter_fields()
         self._update_active_molecule_changes()
 
@@ -827,16 +876,27 @@ class ControlPanel(ttk.Frame):
         except Exception as e:
             print(f"Error during ControlPanel cleanup: {e}")
 
-    def _update_molecule_parameter_fields(self):
+    def _update_molecule_parameter_fields(self, default = False):
         """Update all molecule-specific parameter fields with values from the active molecule"""
         if not hasattr(self, '_molecule_parameter_entries'):
             return
-            
-        for param_name, (entry, var) in self._molecule_parameter_entries.items():
-            new_value = self._get_active_molecule_parameter_value(param_name) 
-            current_value = var.get()
-            if current_value != new_value:
-                self._set_var(var, new_value)
+        
+        if default:
+            print("resetting to defaults")
+            for field_key, field_config in self.MOLECULE_FIELDS.items():
+                param_name = field_config['attribute']
+                if hasattr(self, '_molecule_parameter_entries') and param_name in self._molecule_parameter_entries:
+                    entry, var = self._molecule_parameter_entries[param_name]
+                    new_value = float(field_config['default'])
+                    if float(var.get()) != new_value:
+                        self._set_var(var, new_value)
+            return
+        else:
+            for param_name, (entry, var) in self._molecule_parameter_entries.items():
+                new_value = self._get_active_molecule_parameter_value(param_name) 
+                current_value = var.get()
+                if current_value != new_value:
+                    self._set_var(var, new_value)
 
     def _update_global_parameter_fields(self):
         """Update all global parameter fields with values from the molecules_dict"""

@@ -1,5 +1,7 @@
 __pycache__/
 
+iSLAT/.DS_Store
+
 iSLAT/__pycache__/
 iSLAT/COMPONENTS/__pycache__/
 iSLAT/COMPONENTS/DataProcessing/__pycache__/
@@ -21,3 +23,6 @@ iSLAT/ir_model/__pycache__/
 
 iSLAT/DATAFILES/SAVES/
 iSLAT/DATAFILES/LINESAVES/
+iSLAT/DATAFILES/.DS_Store
+
+.DS_store

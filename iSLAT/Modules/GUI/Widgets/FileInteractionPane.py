@@ -128,7 +128,7 @@ class FileInteractionPane(ttk.Frame):
             filename: The filename to display. If None, checks islat_class for loaded spectrum name.
         """
         if filename:
-            display_text = f"Loaded: {filename}"
+            display_text = f"{filename}"
         elif hasattr(self.islat_class, 'loaded_spectrum_name') and self.islat_class.loaded_spectrum_name:
             display_text = f"Loaded: {self.islat_class.loaded_spectrum_name}"
         else:

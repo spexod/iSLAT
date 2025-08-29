@@ -100,6 +100,7 @@ class MoleculeSelector:
         self.done_button.grid(row=3, column=0, columnspan=2, pady=10)
 
     def update_isotopologues(self, event):
+        print("updating isotopologues")
         selected_molecule = self.molecule_var.get()
         isotopologues = self.isotopologue_data.get(selected_molecule, [])
         self.isotopologue_combobox['values'] = [iso[0] for iso in isotopologues]
@@ -109,6 +110,7 @@ class MoleculeSelector:
             self.isotopologue_var.set("")
 
     def add_molecule(self):
+        print("adding molecule")
         mol = self.molecule_var.get()
         isotopologue = self.isotopologue_var.get()
         isotopologue_list = self.isotopologue_data.get(mol, [])
@@ -118,13 +120,21 @@ class MoleculeSelector:
             self.mols.append(mol)
             self.basem.append(isotopologue)
             self.isot.append(isotope)
+            
 
-            download_hitran_data(self.basem, self.mols, self.isot)
+            missed_mols = download_hitran_data(self.basem, self.mols, self.isot)
+            if missed_mols:
+                for (bm, mol, iso) in missed_mols:
+                    error_message = f"Could not load Molecule: {bm}, Isotopologue: {mol}, Isotope Number: {iso}"
+                    self.data_field.insert_text(error_message, clear_after=False, console_print=True)
+                    return
+            
+
             print(f"Added Molecule: {mol}, Isotopologue: {isotopologue}, Isotope Number: {isotope}")
 
             # Update the main GUI data_field
             self.data_field.delete('1.0', "end")
-            self.data_field.insert_text(f"{isotopologue} downloaded from HITRAN.", clear_first=True, console_print=True)
+            self.data_field.insert_text(f"{isotopologue} downloaded from HITRAN.", clear_after=True, console_print=True)
 
     def on_done(self):
         self.window.destroy()

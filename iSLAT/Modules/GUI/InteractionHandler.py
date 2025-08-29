@@ -228,7 +228,7 @@ class InteractionHandler:
             if line_info['tau'] != 'N/A':
                 info_text += f"Optical Depth: {line_info['tau']:.3f}\n"
             
-            data_field.insert_text(info_text, console_print=True, clear_first=False)
+            data_field.insert_text(info_text, console_print=True, clear_after=False)
     
     def _on_scroll(self, event):
         """Handle scroll events for zooming"""        

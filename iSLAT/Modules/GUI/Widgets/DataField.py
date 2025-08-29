@@ -13,6 +13,7 @@ class DataField(ttk.Frame):
         
         self.name = name
         self.value = value
+        self.clear_before_next = False
 
         self.label_frame = tk.LabelFrame(self, relief="solid", borderwidth=1, text=self.name)
         self.label_frame.pack(fill="both", pady=0)
@@ -29,20 +30,29 @@ class DataField(ttk.Frame):
         self.text.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
         
-    def insert_text(self, content, clear_first=True, console_print = False):
+    def insert_text(self, content, clear_after=True, console_print = False):
         try:
             # Check if the widget still exists and is valid
             if not hasattr(self, 'text') or not self.text.winfo_exists():
                 return
-                
-            if clear_first:
+            
+            if self.clear_before_next:
                 self.clear()
+
+                
+            # if clear_after:
+            #     self.clear()
 
             if console_print:
                 print(content)
 
             self.text.insert("end", str(content) + "\n")
             self.text.see("end")
+
+            if clear_after:
+                self.clear_before_next = True
+            else:
+                self.clear_before_next = False
         except Exception as e:
             # Silently handle GUI destruction errors
             if console_print:
