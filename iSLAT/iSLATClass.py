@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import os
 import time
+import sys
 
 from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
 from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path, hitran_data_folder_path, hitran_data_folder_name
@@ -698,7 +699,10 @@ class iSLAT:
             print("\n" + "="*60)
             print("Please select a spectrum file to load.")
             print("="*60)
-            self.load_spectrum()
+            continue_init = self.load_spectrum()
+            if not continue_init:
+                print("No spectrum selected. Exiting...")
+                sys.exit(0)
             self.init_gui()
             
         except Exception as e:
