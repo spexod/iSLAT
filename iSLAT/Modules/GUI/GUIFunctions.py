@@ -52,11 +52,16 @@ def create_scrollable_frame(parent, height = 150, width = 300, vertical = False,
         canvas_frame.grid_columnconfigure(0, weight=1)
 
         data_frame = ttk.Frame(canvasscroll)
-        canvasscroll.create_window((0, 0), window=data_frame, anchor="nw")
+        window_item = canvasscroll.create_window((0, 0), window=data_frame, anchor="nw")
 
         data_frame.bind("<Configure>", 
                         lambda event: canvasscroll.configure(scrollregion=canvasscroll.bbox("all"))
                         )
+        def resize_frame(event):
+            canvasscroll.itemconfig(window_item, width=event.width, height=event.height)
+
+        canvasscroll.bind("<Configure>", resize_frame)
+        
         return data_frame
 
 def create_wrapper_frame(parent, row, col, bg = "darkgrey", sticky = "nsew", columnspan = 1) -> tk.Frame:

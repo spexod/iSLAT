@@ -8,15 +8,17 @@ from .RegularFrame import RegularFrame
 from ..Tooltips import CreateToolTip
 
 class ControlPanel(ttk.Frame):
-    def __init__(self, master, islat, plot, font):
+    def __init__(self, master, islat, plot, data_field, font):
 
         super().__init__(master)
         
         self.master = master
         self.islat = islat
         self.plot = plot
-        self.mol_dict = islat.molecules_dict
+        self.data_field = data_field
         self.font = font
+
+        self.mol_dict = islat.molecules_dict
         self.updating = False
 
         self.mol_visibility = {}
@@ -29,6 +31,8 @@ class ControlPanel(ttk.Frame):
         
         self.label_frame = tk.LabelFrame(self, text="Molecule Control Panel", relief="solid", borderwidth=1)
         self.label_frame.grid(row=0, column=0, sticky="nsew", pady=0)
+        self.label_frame.grid_rowconfigure(0,weight=1)
+
 
         bg_frame = tk.Frame(self)
         self.bg_color = bg_frame.cget('bg')
@@ -120,7 +124,9 @@ class ControlPanel(ttk.Frame):
         def on_change(*args):
             self.updating = True
             try:
+                print(f"param name: {param_name}")
                 value = float(var.get())
+                
                 on_change_callback(value)
                 value_str = self._format_value(value, param_name)
                 var.set(value_str)
@@ -134,8 +140,13 @@ class ControlPanel(ttk.Frame):
             if self.updating: # Updating means that the entry variable is being updated from iSLAT and should not turn grey
                 entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
                 return
-            new_entry = float(entry.get())
-            old_entry = float(self._get_active_molecule_parameter_value(param_name))
+            try:
+                new_entry = float(entry.get())
+                old_entry = float(self._get_active_molecule_parameter_value(param_name))
+            except ValueError: # If value is global parameter, turn grey
+                entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
+                return
+            
             if new_entry == old_entry:
                 entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
             else:
@@ -229,6 +240,8 @@ class ControlPanel(ttk.Frame):
                 self._global_parameter_entries[field_config['property']] = (entry, var)
             
             col_offset += 1
+
+        
 
     def _build_color_and_vis_controls(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -387,6 +400,9 @@ class ControlPanel(ttk.Frame):
             row +=1
 
             col_offset += 1
+        
+        # default_btn = ttk.Button(parameters_frame, text="default parameters")
+        # default_btn.grid(row=row, column=col, columnspan=2, sticky="s")
         
     def _delete_molecule(self, mol_name = None, frame = None):
         mol_name = mol_name
