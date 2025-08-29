@@ -78,6 +78,9 @@ class ControlPanel(ttk.Frame):
        self._create_selected_frame(wrapper, 0, 0)
        molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 170, horizontal=True, row=1, col=0)
 
+       molecule_param_frame.rowconfigure(0, weight=1)
+       molecule_param_frame.columnconfigure(0, weight=1)
+
        return molecule_param_frame
 
     def _create_color_and_vis_frame(self):
@@ -390,8 +393,6 @@ class ControlPanel(ttk.Frame):
 
         parameters_frame = tk.Frame(parent)
         parameters_frame.grid(row=0, column=0, sticky="nsew")
-        parameters_frame.rowconfigure(0, weight=1)
-        parameters_frame.columnconfigure(0, weight=1)
         
         # Create fields based on the class-level dictionary
         row_offset = 1
@@ -399,6 +400,7 @@ class ControlPanel(ttk.Frame):
         col = 0
         row = start_row 
         for field_key, field_config in self.MOLECULE_FIELDS.items():
+            
             
             entry, var = self._create_molecule_parameter_entry(
                 parameters_frame,
@@ -414,10 +416,15 @@ class ControlPanel(ttk.Frame):
             row +=1
 
             col_offset += 1
-        
-        # default_btn = ttk.Button(parameters_frame, text="default parameters")
+
+        # default_btn = ttk.Button(parameters_frame, text="default parameters", command= lambda: self._update_molecule_parameter_fields(default=True))
         # default_btn.grid(row=row, column=col, columnspan=2, sticky="s")
-        
+        # CreateToolTip(default_btn, "reset current molecule's\nparameters to default values")
+        parameters_frame.rowconfigure(row, weight=1)
+    
+    def reset_parameters_to_default(self):
+        pass
+
     def _delete_molecule(self, mol_name = None, frame = None):
         mol_name = mol_name
         active_mol = self._get_active_molecule_object().name
@@ -426,11 +433,11 @@ class ControlPanel(ttk.Frame):
 
         if mol_name == default_mol:
             # print(f"Cannot delete {mol_name}!")
-            self.data_field.insert_text(f"Cannot delete {mol_name}!")
+            self.data_field.insert_text(f"Cannot delete default molecule: {mol_name}!")
             return
         
         # print(f"destroying {mol_name}")
-        self.data_field.insert_text(f"destroying {mol_name}", clear_after = True)
+        self.data_field.insert_text(f"Deleting {mol_name}", clear_after = True)
 
         if mol_name == active_mol:
             new_active = self.islat.user_settings.get("default_active_molecule", "H2O")
@@ -542,8 +549,6 @@ class ControlPanel(ttk.Frame):
 
     def _on_active_molecule_change(self, old_molecule, new_molecule):
         """Handle active molecule changes from the iSLAT callback system"""
-        
-        
         self._update_molecule_parameter_fields()
         self._update_active_molecule_changes()
 
@@ -871,16 +876,27 @@ class ControlPanel(ttk.Frame):
         except Exception as e:
             print(f"Error during ControlPanel cleanup: {e}")
 
-    def _update_molecule_parameter_fields(self):
+    def _update_molecule_parameter_fields(self, default = False):
         """Update all molecule-specific parameter fields with values from the active molecule"""
         if not hasattr(self, '_molecule_parameter_entries'):
             return
-            
-        for param_name, (entry, var) in self._molecule_parameter_entries.items():
-            new_value = self._get_active_molecule_parameter_value(param_name) 
-            current_value = var.get()
-            if current_value != new_value:
-                self._set_var(var, new_value)
+        
+        if default:
+            print("resetting to defaults")
+            for field_key, field_config in self.MOLECULE_FIELDS.items():
+                param_name = field_config['attribute']
+                if hasattr(self, '_molecule_parameter_entries') and param_name in self._molecule_parameter_entries:
+                    entry, var = self._molecule_parameter_entries[param_name]
+                    new_value = float(field_config['default'])
+                    if float(var.get()) != new_value:
+                        self._set_var(var, new_value)
+            return
+        else:
+            for param_name, (entry, var) in self._molecule_parameter_entries.items():
+                new_value = self._get_active_molecule_parameter_value(param_name) 
+                current_value = var.get()
+                if current_value != new_value:
+                    self._set_var(var, new_value)
 
     def _update_global_parameter_fields(self):
         """Update all global parameter fields with values from the molecules_dict"""
