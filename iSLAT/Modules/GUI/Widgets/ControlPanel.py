@@ -127,6 +127,20 @@ class ControlPanel(ttk.Frame):
                 print(f"param name: {param_name}")
                 value = float(var.get())
                 
+                match param_name:
+                    case "temp":
+                        if value < 1:
+                            self.data_field.insert_text("Cannot set temperature to less than 1")
+                            return
+                    case "n_mol":
+                        if value <= 0:
+                            self.data_field.insert_text("Cannot set Column Density to 0")
+                            return
+                    case "radius":
+                        if value <= 0: 
+                            self.data_field.insert_text("Cannot set value to 0")
+                            return
+                    
                 on_change_callback(value)
                 value_str = self._format_value(value, param_name)
                 var.set(value_str)
