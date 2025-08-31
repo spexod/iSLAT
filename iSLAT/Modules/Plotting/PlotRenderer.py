@@ -651,6 +651,26 @@ class PlotRenderer:
             self.ax2.scatter([wave], [height], color=color, s=20, 
                            alpha=0.8, picker=True, zorder=5)
     
+    def plot_single_lines(self, wavelengths: List[float], heights: Optional[List[float]] = None, 
+                           colors: Optional[List[str]] = None, labels: Optional[List[str]] = None) -> None:
+        """Plot vertical lines at specified wavelengths"""
+        if heights is None:
+            # Get current y-limits for line height
+            ylim = self.ax1.get_ylim()
+            height = ylim[1] - ylim[0]
+            heights = [height] * len(wavelengths)
+        
+        if colors is None:
+            colors = ['blue'] * len(wavelengths)
+        
+        if labels is None:
+            labels = [None] * len(wavelengths)
+        
+        for i, (wave, height, color, label) in enumerate(zip(wavelengths, heights, colors, labels)):
+            # Plot vertical line from bottom to specified height
+            self.ax1.axvline(wave, color=color, alpha=0.7, linewidth=1, 
+                           linestyle='-', picker=True, label=label)
+    
     def get_visible_molecules(self, molecules: Union['MoleculeDict', List['Molecule']]) -> List['Molecule']:
         """Get visible molecules using the MoleculeDict's optimized method"""
         

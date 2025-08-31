@@ -1,20 +1,11 @@
 """
 LineAnalyzer - Line detection, identification, and analysis functionality
-
-This class handles all line analysis operations including:
-- Automatic line detection
-- Line identification and matching
-- Equivalent width calculations
-- Line strength measurements
-- Multi-line analysis and statistics
 """
 
 import numpy as np
 from datetime import datetime
 from scipy.signal import find_peaks, peak_widths
-from scipy.integrate import trapezoid, simpson
 from scipy.ndimage import median_filter
-from scipy.interpolate import interp1d
 import json
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 import pandas as pd
@@ -45,7 +36,6 @@ class LineAnalyzer:
         
         # Load atomic/molecular line databases
         self.atomic_lines = ifh.load_atomic_lines()
-        self.molecular_lines = {}  # Will be populated as needed
         
         # Detection parameters
         self.min_snr = 0.1
@@ -124,106 +114,136 @@ class LineAnalyzer:
         
         return continuum, noise_std
     
-    def detect_lines_automatic(self, wave_data, flux_data, detection_type='emission'):
+    def detect_lines_automatic(self, wave_data, flux_data, specsep=0.01, line_threshold=0.1, isolation_threshold=0.1):
         """
-        Automatically detect spectral lines in the data.
-        
         Parameters
         ----------
         wave_data : array_like
             Wavelength data
         flux_data : array_like
             Flux data
-        detection_type : str, optional
-            Type of lines to detect ('emission', 'absorption', 'both')
+        specsep : float, optional
+            Spectral separation distance to check for neighboring lines (default: 0.01 microns)
+        line_threshold : float, optional
+            Minimum line intensity as fraction of maximum intensity (default: 0.1)
+        isolation_threshold : float, optional
+            Local threshold for determining if a line is isolated (default: 0.1)
             
         Returns
         -------
         detected_lines : list
-            List of dictionaries containing line information
+            List of dictionaries containing isolated line information
         """
-        # Estimate continuum and noise if not already done
-        if self.continuum_level is None:
-            continuum, noise_std = self.estimate_continuum_and_noise(wave_data, flux_data)
-        else:
-            continuum = self.continuum_level
-            noise_std = self.noise_level
-        
-        #print("Wave data, and flux data", wave_data, flux_data)
+        continuum, noise_std = self.estimate_continuum_and_noise(wave_data, flux_data)
         
         detected_lines = []
         
-        if detection_type in ['emission', 'both']:
-            emission_lines = self._detect_emission_lines(wave_data, flux_data, continuum, noise_std)
-            detected_lines.extend(emission_lines)
-        
-        if detection_type in ['absorption', 'both']:
-            absorption_lines = self._detect_absorption_lines(wave_data, flux_data, continuum, noise_std)
-            detected_lines.extend(absorption_lines)
-        
-        #print(f"Detected {len(detected_lines)} lines ({len(emission_lines)} emission, {len(absorption_lines)} absorption)")
-
-        # Sort by wavelength
-        detected_lines.sort(key=lambda x: x['wavelength'])
-        
-        self.detected_lines = detected_lines
-        return detected_lines
-    
-    def _detect_emission_lines(self, wave_data, flux_data, continuum, noise_std):
-        """Detect emission lines above continuum."""
-        # Look for peaks above continuum + noise threshold
+        # Detect both emission and absorption lines in one pass
+        # For emission lines: look for peaks above continuum
         excess_flux = flux_data - continuum
-        threshold = self.min_snr * noise_std
+        emission_threshold = self.min_snr * noise_std
         
-        #print("Excess flux:", excess_flux, "\nThreshold for peak detection:", threshold)
-
-        # Find peaks
-        peaks, properties = find_peaks(
+        emission_peaks, _ = find_peaks(
             excess_flux,
-            height=threshold,
-            width=1,  # Minimum width in pixels
-            distance=3  # Minimum separation in pixels
-        )
-        
-        emission_lines = []
-        
-        for i, peak_idx in enumerate(peaks):
-            line_info = self._characterize_line(
-                wave_data, flux_data, continuum, peak_idx,
-                line_type='emission'
-            )
-            
-            if line_info is not None:
-                emission_lines.append(line_info)
-        
-        return emission_lines
-    
-    def _detect_absorption_lines(self, wave_data, flux_data, continuum, noise_std):
-        """Detect absorption lines below continuum."""
-        # Look for negative peaks (absorption)
-        deficit_flux = continuum - flux_data
-        threshold = self.min_snr * noise_std
-        
-        # Find peaks in the deficit (absorption lines)
-        peaks, properties = find_peaks(
-            deficit_flux,
-            height=threshold,
+            height=emission_threshold,
             width=1,
             distance=3
         )
         
-        absorption_lines = []
+        # For absorption lines: look for peaks below continuum
+        deficit_flux = continuum - flux_data
+        absorption_peaks, _ = find_peaks(
+            deficit_flux,
+            height=emission_threshold,
+            width=1,
+            distance=3
+        )
         
-        for i, peak_idx in enumerate(peaks):
-            line_info = self._characterize_line(
-                wave_data, flux_data, continuum, peak_idx,
-                line_type='absorption'
-            )
+        # Combine all detected peaks
+        all_peaks = []
+        
+        # Add emission lines
+        for peak_idx in emission_peaks:
+            line_strength = excess_flux[peak_idx]
+            all_peaks.append({
+                'peak_idx': peak_idx,
+                'wavelength': wave_data[peak_idx],
+                'line_strength': line_strength,
+                'line_type': 'emission'
+            })
+        
+        # Add absorption lines
+        for peak_idx in absorption_peaks:
+            line_strength = deficit_flux[peak_idx]
+            all_peaks.append({
+                'peak_idx': peak_idx,
+                'wavelength': wave_data[peak_idx],
+                'line_strength': line_strength,
+                'line_type': 'absorption'
+            })
+        
+        # Sort by wavelength
+        all_peaks.sort(key=lambda x: x['wavelength'])
+        
+        # Apply single_finder logic for isolation filtering
+        if not all_peaks:
+            self.detected_lines = detected_lines
+            return detected_lines
+        
+        # Find maximum line strength for global threshold
+        max_strength = max(peak['line_strength'] for peak in all_peaks)
+        max_threshold = max_strength * line_threshold
+        
+        # Filter for isolated lines using single_finder logic
+        for peak in all_peaks:
+            include = True  # Boolean for determining if line is isolated
+            peak_wavelength = peak['wavelength']
+            peak_strength = peak['line_strength']
             
-            if line_info is not None:
-                absorption_lines.append(line_info)
+            # Only consider lines above the global threshold
+            if peak_strength >= max_threshold:
+                # Define local search range
+                sub_xmin = peak_wavelength - specsep
+                sub_xmax = peak_wavelength + specsep
+                local_threshold = peak_strength * isolation_threshold
+                
+                # Check all other peaks in the local range
+                for other_peak in all_peaks:
+                    other_wavelength = other_peak['wavelength']
+                    other_strength = other_peak['line_strength']
+                    
+                    # Skip the peak itself
+                    if other_wavelength == peak_wavelength:
+                        continue
+                    
+                    # Check if other peak is within the local range
+                    if sub_xmin < other_wavelength < sub_xmax:
+                        # If nearby line is strong enough, this line is not isolated
+                        if other_strength >= local_threshold:
+                            include = False
+                            break
+                
+                # If line passes isolation test, characterize and add it
+                if include:
+                    line_info = self._characterize_line(
+                        wave_data, flux_data, continuum, peak['peak_idx'],
+                        line_type=peak['line_type']
+                    )
+                    
+                    if line_info is not None:
+                        # Add isolation parameters to line info
+                        line_info['is_isolated'] = True
+                        line_info['isolation_checked'] = True
+                        line_info['specsep_used'] = specsep
+                        line_info['line_threshold_used'] = line_threshold
+                        line_info['isolation_threshold_used'] = isolation_threshold
+                        detected_lines.append(line_info)
         
-        return absorption_lines
+        # Sort final results by wavelength
+        detected_lines.sort(key=lambda x: x['wavelength'])
+        
+        self.detected_lines = detected_lines
+        return detected_lines
     
     def _characterize_line(self, wave_data, flux_data, continuum, peak_idx, line_type):
         """
@@ -294,7 +314,7 @@ class LineAnalyzer:
                 'line_strength': line_strength,
                 'line_width': line_width,
                 'snr': snr,
-                'type': line_type,
+                #'type': line_type,
                 'peak_index': peak_idx
             }
             
@@ -342,64 +362,6 @@ class LineAnalyzer:
                 matches.append(match_info)
         
         return matches
-    
-    def _search_molecular_lines(self, wavelength, tolerance):
-        """Search molecular line databases for matches."""
-        # This would be expanded to search loaded molecular databases
-        # For now, return empty list
-        return []
-    
-    def analyze_line_ratios(self, line_pairs):
-        """
-        Analyze ratios between pairs of spectral lines.
-        
-        Parameters
-        ----------
-        line_pairs : list
-            List of tuples containing wavelength pairs for ratio analysis
-            
-        Returns
-        -------
-        ratios : dict
-            Dictionary containing line ratio information
-        """
-        ratios = {}
-        
-        for pair in line_pairs:
-            wave1, wave2 = pair
-            
-            # Get measurements for both lines
-            if wave1 in self.line_measurements and wave2 in self.line_measurements:
-                meas1 = self.line_measurements[wave1]
-                meas2 = self.line_measurements[wave2]
-                
-                # Calculate various ratios
-                ratio_info = {}
-                
-                # Flux ratio
-                if 'integrated_flux' in meas1 and 'integrated_flux' in meas2:
-                    if meas2['integrated_flux'] != 0:
-                        ratio_info['flux_ratio'] = meas1['integrated_flux'] / meas2['integrated_flux']
-                    else:
-                        ratio_info['flux_ratio'] = np.inf
-                
-                # Equivalent width ratio
-                if 'equivalent_width' in meas1 and 'equivalent_width' in meas2:
-                    if meas2['equivalent_width'] != 0:
-                        ratio_info['ew_ratio'] = meas1['equivalent_width'] / meas2['equivalent_width']
-                    else:
-                        ratio_info['ew_ratio'] = np.inf
-                
-                # Peak strength ratio
-                if 'line_strength' in meas1 and 'line_strength' in meas2:
-                    if meas2['line_strength'] != 0:
-                        ratio_info['strength_ratio'] = meas1['line_strength'] / meas2['line_strength']
-                    else:
-                        ratio_info['strength_ratio'] = np.inf
-                
-                ratios[f"{wave1:.3f}/{wave2:.3f}"] = ratio_info
-        
-        return ratios
     
     def export_line_analysis(self, filename=None):
         """

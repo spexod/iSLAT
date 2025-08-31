@@ -826,7 +826,7 @@ class iSLATPlot:
         
         try:
             detected_lines = self.line_analyzer.detect_lines_automatic(
-                range_wave, range_flux, detection_type='both'
+                range_wave, range_flux
             )
             
             # Create optimized line data structure
@@ -838,7 +838,7 @@ class iSLATPlot:
                     "wavelength": line['wavelength'], 
                     "ylim": ylim,
                     "strength": line['line_strength'],
-                    "type": line['type']
+                    #"type": line['type']
                 }
                 self.single_lines_list.append(line_info)
             
@@ -856,7 +856,7 @@ class iSLATPlot:
         # Extract wavelengths for batch plotting
         wavelengths = [line['wavelength'] for line in self.single_lines_list]
         # Delegate to PlotRenderer for plotting
-        self.plot_vertical_lines(wavelengths)
+        self.plot_renderer.plot_single_lines(wavelengths)
     
     def plot_saved_lines(self, saved_lines):
         """Plot saved lines using PlotRenderer with delegation."""
