@@ -435,13 +435,13 @@ class TopBar(ResizableFrame):
             return
         
         #try:
-        slab_model.fit_parameters()
+        fitted_params = slab_model.fit_parameters()
         '''except Exception as e:
             self.data_field.insert_text(f"Error fitting slab model: {e}\n")
             return'''
         
         try:
-            slab_model.save_results()
+            slab_model.save_results(fitted_params=fitted_params)
         except Exception as e:
             self.data_field.insert_text(f"Error saving slab model results: {e}\n")
             return
