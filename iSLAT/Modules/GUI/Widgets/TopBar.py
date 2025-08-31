@@ -367,21 +367,22 @@ class TopBar(ResizableFrame):
         fitting_engine = FittingEngine(self.islat)
         
         # Perform comprehensive line analysis
-        fit_results = line_analyzer.analyze_saved_lines(
+        fit_data = line_analyzer.analyze_saved_lines(
             saved_lines_file,
             fitting_engine,
             output_file
         )
         
-        if fit_results:
-            successful_fits = sum(1 for result in fit_results if result.get('Fit_det', True))
-            total_lines = len(fit_results)
+        if fit_data:
+            fit_results_csv_data, fit_results_data = fit_data
+            successful_fits = sum(1 for result in fit_results_csv_data if result.get('Fit_det', True))
+            total_lines = len(fit_results_csv_data)
 
             self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n", clear_after=False)
             self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n", clear_after=False)
 
             # Update progress for each successful fit
-            for i, result in enumerate(fit_results):
+            for i, result in enumerate(fit_results_csv_data):
                 if result.get('Fit_det', True):
                     center = result.get('Centr_fit', result.get('lam', 0))
                     snr = result.get('Fit_SN', 0)
@@ -390,7 +391,7 @@ class TopBar(ResizableFrame):
                     wavelength = result.get('lam', 0)
                     self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_after=False)
 
-            #self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results, self.main_plot.ax1)
+            self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)
 
         else:
             self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_after=False)

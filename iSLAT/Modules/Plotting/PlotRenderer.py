@@ -1205,7 +1205,7 @@ class PlotRenderer:
             
             molecule_name = plot_name or self._get_molecule_display_name(molecule)
             
-            # Debug cache status before attempting to get spectrum data
+            '''# Debug cache status before attempting to get spectrum data
             cache_debug = self.debug_molecule_cache_status(molecule)
             wave_cache_size = cache_debug.get('wave_data_cache_size', 0)
             debug_config.trace("plot_renderer", 
@@ -1214,7 +1214,7 @@ class PlotRenderer:
                              f"spectrum_cache_size={cache_debug.get('spectrum_cache_size', 0)}, "
                              f"intensity_cache_size={cache_debug.get('intensity_cache_size', 0)}")
             if wave_cache_size > 0:
-                debug_config.trace("plot_renderer", f"  Wave data cache contains {wave_cache_size} entries with parameter hashes")
+                debug_config.trace("plot_renderer", f"  Wave data cache contains {wave_cache_size} entries with parameter hashes")'''
             
             # Get spectrum data directly from molecule's caching system
             plot_lam, plot_flux = self.get_molecule_spectrum_data(molecule, wave_data)
@@ -1316,7 +1316,7 @@ class PlotRenderer:
             traceback.print_exc()
             return None
         
-    def debug_molecule_cache_status(self, molecule: 'Molecule') -> Dict[str, Any]:
+    '''def debug_molecule_cache_status(self, molecule: 'Molecule') -> Dict[str, Any]:
         """
         Debug the cache status of a molecule to understand why plots aren't updating.
         """
@@ -1402,7 +1402,7 @@ class PlotRenderer:
             return debug_info
             
         except Exception as e:
-            return {'error': f"Error debugging molecule cache: {e}"}
+            return {'error': f"Error debugging molecule cache: {e}"}'''
     
     def get_line_intensity_threshold(self) -> float:
         """
@@ -1502,16 +1502,22 @@ class PlotRenderer:
             from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
             fitting_engine = FittingEngine(self.islat)
 
-        for line in fit_data:
+        print(f"fit data: {fit_data}")
+
+        # Unpack the fit_data tuple
+        gauss_fits, fitted_waves, fitted_fluxes = fit_data
+        
+        # Iterate through each fit
+        for i, (gauss_fit, fitted_wave, fitted_flux) in enumerate(zip(gauss_fits, fitted_waves, fitted_fluxes)):
+            line = gauss_fit
+            print(f"Line: {line}")
+            print(f"Fitted wave: {fitted_wave}")
+            print(f"Fitted flux: {fitted_flux}")
             # Extract wavelength and flux data
             wavelength = self.islat.wave_data #line.get('wavelength', [])
             flux_data = self.islat.flux_data #line.get('Flux_data', [])
-            error_data = line.get('error_data', None)  # Optional error data
-            
-            if len(wavelength) == 0 or len(flux_data) == 0:
-                print(f"Warning: No data available for fitted line {line.get('id', 'unknown')}")
-                continue
-            
+            #error_data = line.get('error_data', None)  # Optional error data
+
             # Convert to numpy arrays if needed
             if not isinstance(wavelength, np.ndarray):
                 wavelength = np.array(wavelength)
@@ -1522,16 +1528,14 @@ class PlotRenderer:
             lam_min = np.min(wavelength)
             lam_max = np.max(wavelength)
             
-            # Calculate integrated flux using FittingEngine method
-            integrated_flux, integrated_error = fitting_engine.flux_integral(
-                wavelength, flux_data, error_data, lam_min, lam_max
-            )
-            
             # Plot the original data
-            line_plot = ax.plot(wavelength, flux_data, 
-                               label=f"Fitted Line {line.get('id', 'unknown')} (F={integrated_flux:.2e})")
+            ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
+            #ax.plot(wavelength, flux_data, label=f"Fitted Line {line.get('id', 'unknown')}")
+            #ax.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], color='red', linewidth=2, label='Total Fit', linestyle='--')[0]
+            ax.plot(fitted_wave, fitted_flux, color='red', linewidth=2, label=f'Gauss Fit {i}')[0]
+            dely = gauss_fit.eval_uncertainty(sigma = self.islat.user_settings.get('fit_line_uncertainty', 1.0))
+            ax.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
+                                    color='gray', alpha=0.3, label=r'3-$\sigma$ uncertainty band')
             
-            # Add integrated flux information to the line metadata
-            if hasattr(line_plot[0], '_integrated_flux'):
-                line_plot[0]._integrated_flux = integrated_flux
-                line_plot[0]._integrated_error = integrated_error
+            ax.legend()
+            self.canvas.draw_idle()

@@ -525,7 +525,10 @@ class LineAnalyzer:
             print(f"Error reading saved lines file: {e}")
             return []
             
+        fit_results_csv_data = []
         fit_results_data = []
+        fitted_fluxes = []
+        fitted_waves = []
         sig_det_lim = 2  # Detection limit for signal-to-noise ratio
         
         for i, line_row in saved_lines.iterrows():
@@ -566,6 +569,9 @@ class LineAnalyzer:
                 flux_range = np.ones(50)  # Placeholder flux
                 #wave_range = fitted_wave
                 #flux_range = fitted_flux
+                fit_results_data.append(fit_result)
+                fitted_waves.append(fitted_wave)
+                fitted_fluxes.append(fitted_flux)
                 err_range = np.ones(50) * 0.1  # Placeholder error
                 
                 # Format results using existing method
@@ -574,18 +580,18 @@ class LineAnalyzer:
                     xmin, xmax, center_wave, line_info, sig_det_lim
                 )
                 
-                fit_results_data.append(result_entry)
+                fit_results_csv_data.append(result_entry)
                 
             except Exception as e:
                 print(f"Error analyzing line {i+1}: {e}")
                 continue
         
         # Add rotation diagram values if we have successful fits with molecular data
-        if fit_results_data and any(entry.get('a_stein', 0) > 0 for entry in fit_results_data):
-            self.add_rotation_diagram_values(fit_results_data)
+        if fit_results_csv_data and any(entry.get('a_stein', 0) > 0 for entry in fit_results_csv_data):
+            self.add_rotation_diagram_values(fit_results_csv_data)
         
         # Save results if output file specified
-        if output_file and fit_results_data:
-            ifh.save_fit_results(fit_results_data, file_name=output_file)
+        if output_file and fit_results_csv_data:
+            ifh.save_fit_results(fit_results_csv_data, file_name=output_file)
 
-        return fit_results_data
+        return fit_results_csv_data, (fit_results_data, fitted_waves, fitted_fluxes)
