@@ -15,7 +15,7 @@ from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
-from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name
+from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name
 import iSLAT.Constants as c
 
 if TYPE_CHECKING:
@@ -230,6 +230,13 @@ class TopBar(ResizableFrame):
                         # Handle multi-component fits - show detailed information
                         component_idx = 0
                         saved_components = 0
+
+                        spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+                        
+                        spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
+                        #save_file = os.path.join(line_saves_file_path, f"{spectrum_base_name}-{line_saves_file_name}")
+                        save_file_name = f"{spectrum_base_name}-{line_saves_file_name}"
+
                         while f'component_{component_idx}' in line_params:
                             comp_params = line_params[f'component_{component_idx}']
                             self.data_field.insert_text(f"\nComponent {component_idx+1}:\n", clear_after=False)
@@ -296,7 +303,7 @@ class TopBar(ResizableFrame):
                                     }
 
                                     # Save this component
-                                    ifh.save_line(line_save_info)
+                                    ifh.save_line(line_save_info, file_name=save_file_name)
                                     saved_components += 1
                                     
                             except Exception as save_error:
