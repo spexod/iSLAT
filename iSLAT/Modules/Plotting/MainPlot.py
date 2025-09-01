@@ -825,7 +825,7 @@ class iSLATPlot:
             return []
         
         try:
-            detected_lines = self.line_analyzer.detect_lines_automatic(
+            detected_lines = self.line_analyzer.find_single_lines(
                 range_wave, range_flux
             )
             
@@ -837,7 +837,7 @@ class iSLATPlot:
                 line_info = {
                     "wavelength": line['wavelength'], 
                     "ylim": ylim,
-                    "strength": line['line_strength'],
+                    #"strength": line['line_strength'],
                     #"type": line['type']
                 }
                 self.single_lines_list.append(line_info)
