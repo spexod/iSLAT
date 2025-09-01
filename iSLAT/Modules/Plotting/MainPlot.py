@@ -660,7 +660,6 @@ class iSLATPlot:
     def on_molecule_parameter_changed(self, molecule_name, parameter_name, old_value, new_value):
         """
         Called when any molecule parameter changes.
-        Since we rely entirely on molecule caching, we just need to trigger plot updates.
         """
         debug_config.info("main_plot", f"Parameter change: {molecule_name}.{parameter_name}: {old_value} → {new_value}")
         
@@ -669,11 +668,6 @@ class iSLATPlot:
             molecule_name in self.islat.molecules_dict):
             
             molecule = self.islat.molecules_dict[molecule_name]
-            
-            # Debug molecule cache status
-            if hasattr(self.plot_renderer, 'debug_molecule_cache_status'):
-                cache_debug = self.plot_renderer.debug_molecule_cache_status(molecule)
-                debug_config.trace("main_plot", f"Cache debug for {molecule_name}: {cache_debug}")
         
         # Check if this molecule is visible - if so, we need to update the main spectrum plot
         if (hasattr(self.islat, 'molecules_dict') and 

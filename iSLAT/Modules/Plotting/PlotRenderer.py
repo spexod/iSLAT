@@ -1225,17 +1225,6 @@ class PlotRenderer:
             
             molecule_name = plot_name or self._get_molecule_display_name(molecule)
             
-            '''# Debug cache status before attempting to get spectrum data
-            cache_debug = self.debug_molecule_cache_status(molecule)
-            wave_cache_size = cache_debug.get('wave_data_cache_size', 0)
-            debug_config.trace("plot_renderer", 
-                             f"Rendering {molecule_name} - Cache debug: flux_cache_size={cache_debug.get('flux_cache_size', 0)}, "
-                             f"wave_data_cache_size={wave_cache_size}, "
-                             f"spectrum_cache_size={cache_debug.get('spectrum_cache_size', 0)}, "
-                             f"intensity_cache_size={cache_debug.get('intensity_cache_size', 0)}")
-            if wave_cache_size > 0:
-                debug_config.trace("plot_renderer", f"  Wave data cache contains {wave_cache_size} entries with parameter hashes")'''
-            
             # Get spectrum data directly from molecule's caching system
             plot_lam, plot_flux = self.get_molecule_spectrum_data(molecule, wave_data)
             
@@ -1335,94 +1324,6 @@ class PlotRenderer:
             import traceback
             traceback.print_exc()
             return None
-        
-    '''def debug_molecule_cache_status(self, molecule: 'Molecule') -> Dict[str, Any]:
-        """
-        Debug the cache status of a molecule to understand why plots aren't updating.
-        """
-        if molecule is None:
-            return {'error': 'No molecule provided'}
-        
-        try:
-            molecule_name = self._get_molecule_display_name(molecule)
-            debug_info = {
-                'molecule_name': molecule_name,
-                'molecule_id': id(molecule),
-                'has_intensity': hasattr(molecule, 'intensity') and molecule.intensity is not None,
-                'has_spectrum': hasattr(molecule, 'spectrum') and molecule.spectrum is not None,
-                'has_lines': hasattr(molecule, 'lines') and molecule.lines is not None,
-            }
-            
-            # Check parameter hash methods
-            debug_info['parameter_hash_methods'] = []
-            if hasattr(molecule, 'get_parameter_hash'):
-                debug_info['parameter_hash_methods'].append('get_parameter_hash')
-                try:
-                    debug_info['current_spectrum_hash'] = molecule.get_parameter_hash('spectrum')
-                    debug_info['current_intensity_hash'] = molecule.get_parameter_hash('intensity')
-                    debug_info['current_full_hash'] = molecule.get_parameter_hash('full')
-                except Exception as e:
-                    debug_info['hash_error'] = str(e)
-            
-            if hasattr(molecule, '_compute_spectrum_parameter_hash'):
-                debug_info['parameter_hash_methods'].append('_compute_spectrum_parameter_hash')
-            if hasattr(molecule, '_compute_intensity_parameter_hash'):
-                debug_info['parameter_hash_methods'].append('_compute_intensity_parameter_hash')
-            
-            # Check cache attributes
-            debug_info['cache_attributes'] = []
-            if hasattr(molecule, '_flux_cache'):
-                debug_info['cache_attributes'].append('_flux_cache')
-                debug_info['flux_cache_size'] = len(molecule._flux_cache) if molecule._flux_cache else 0
-                if molecule._flux_cache:
-                    debug_info['flux_cache_keys'] = list(molecule._flux_cache.keys())
-            
-            if hasattr(molecule, '_wave_data_cache'):
-                debug_info['cache_attributes'].append('_wave_data_cache')
-                debug_info['wave_data_cache_size'] = len(molecule._wave_data_cache) if molecule._wave_data_cache else 0
-                if molecule._wave_data_cache:
-                    # Show composite keys and their parameter hashes
-                    cache_info = []
-                    for cache_key in molecule._wave_data_cache.keys():
-                        if isinstance(cache_key, tuple) and len(cache_key) == 2:
-                            wave_hash, param_hash = cache_key
-                            cache_info.append(f"wave:{wave_hash}, params:{param_hash}")
-                        else:
-                            cache_info.append(str(cache_key))
-                    debug_info['wave_data_cache_keys'] = cache_info
-            
-            if hasattr(molecule, '_intensity_cache'):
-                debug_info['cache_attributes'].append('_intensity_cache')
-                debug_info['intensity_cache_size'] = len(molecule._intensity_cache) if molecule._intensity_cache else 0
-                if molecule._intensity_cache:
-                    debug_info['intensity_cache_keys'] = list(molecule._intensity_cache.keys())
-            
-            if hasattr(molecule, '_spectrum_cache'):
-                debug_info['cache_attributes'].append('_spectrum_cache')
-                debug_info['spectrum_cache_size'] = len(molecule._spectrum_cache) if molecule._spectrum_cache else 0
-                if molecule._spectrum_cache:
-                    debug_info['spectrum_cache_keys'] = list(molecule._spectrum_cache.keys())
-            
-            # Check current parameter values
-            debug_info['current_parameters'] = {}
-            for param in ['temp', 'radius', 'n_mol', 'distance', 'fwhm', 'broad']:
-                if hasattr(molecule, param):
-                    debug_info['current_parameters'][param] = getattr(molecule, param)
-            
-            # Check if molecule reports its cache as valid
-            debug_info['cache_validity'] = {}
-            if hasattr(molecule, 'is_cache_valid'):
-                try:
-                    debug_info['cache_validity']['spectrum'] = molecule.is_cache_valid('spectrum')
-                    debug_info['cache_validity']['intensity'] = molecule.is_cache_valid('intensity')
-                    debug_info['cache_validity']['full'] = molecule.is_cache_valid('full')
-                except Exception as e:
-                    debug_info['cache_validity']['error'] = str(e)
-            
-            return debug_info
-            
-        except Exception as e:
-            return {'error': f"Error debugging molecule cache: {e}"}'''
     
     def get_line_intensity_threshold(self) -> float:
         """
@@ -1514,48 +1415,29 @@ class PlotRenderer:
         if ax is None:
             ax = plt.gca()
 
-        # Get fitting engine instance
-        if hasattr(self.islat, 'fitting_engine') and self.islat.fitting_engine is not None:
-            fitting_engine = self.islat.fitting_engine
-        else:
-            # Import and create fitting engine if not available
-            from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
-            fitting_engine = FittingEngine(self.islat)
-
-        print(f"fit data: {fit_data}")
+        #print(f"fit data: {fit_data}")
 
         # Unpack the fit_data tuple
         gauss_fits, fitted_waves, fitted_fluxes = fit_data
         
         # Iterate through each fit
         for i, (gauss_fit, fitted_wave, fitted_flux) in enumerate(zip(gauss_fits, fitted_waves, fitted_fluxes)):
-            line = gauss_fit
-            print(f"Line: {line}")
-            print(f"Fitted wave: {fitted_wave}")
-            print(f"Fitted flux: {fitted_flux}")
-            # Extract wavelength and flux data
-            wavelength = self.islat.wave_data #line.get('wavelength', [])
-            flux_data = self.islat.flux_data #line.get('Flux_data', [])
-            #error_data = line.get('error_data', None)  # Optional error data
-
-            # Convert to numpy arrays if needed
-            if not isinstance(wavelength, np.ndarray):
-                wavelength = np.array(wavelength)
-            if not isinstance(flux_data, np.ndarray):
-                flux_data = np.array(flux_data)
+            #line = gauss_fit
+            #print(f"Line: {line}")
+            #print(f"Fitted wave: {fitted_wave}")
+            #print(f"Fitted flux: {fitted_flux}")
             
-            # Get wavelength range for integration
-            lam_min = np.min(wavelength)
-            lam_max = np.max(wavelength)
+            lam_min = np.min(fitted_wave)
+            lam_max = np.max(fitted_wave)
             
-            # Plot the original data
-            ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
-            #ax.plot(wavelength, flux_data, label=f"Fitted Line {line.get('id', 'unknown')}")
-            #ax.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], color='red', linewidth=2, label='Total Fit', linestyle='--')[0]
-            ax.plot(fitted_wave, fitted_flux, color='red', linewidth=2, label=f'Gauss Fit {i}')[0]
-            dely = gauss_fit.eval_uncertainty(sigma = self.islat.user_settings.get('fit_line_uncertainty', 1.0))
+            # plot the fit result
+            ax.plot(fitted_wave, fitted_flux, color='lime', linewidth=2, linestyle='--', label=f'Gauss Fit {i}')[0]
+            dely = gauss_fit.eval_uncertainty(sigma = self.islat.user_settings.get('fit_line_uncertainty', 3.0))
             ax.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
-                                    color='gray', alpha=0.3, label=r'3-$\sigma$ uncertainty band')
+                                    color='lime', alpha=0.3, label=r'3-$\sigma$ uncertainty band')
             
+            # plot the xmin and xmax for each line
+            ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
+
             ax.legend()
             self.canvas.draw_idle()
