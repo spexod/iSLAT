@@ -70,6 +70,7 @@ class TopBar(ResizableFrame):
         molecule_menu.add_command(label="HITRAN Query", command=self.hitran_query)
         molecule_menu.add_command(label="Default Molecules", command=self.default_molecules)
         molecule_menu.add_command(label="Add Molecules", command=self.add_molecule)
+        molecule_menu.add_command(label="Export Models", command=self.export_models)
         molecule_drpdwn.config(menu=molecule_menu)
 
         if os_name == "Darwin":

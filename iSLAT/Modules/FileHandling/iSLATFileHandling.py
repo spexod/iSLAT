@@ -617,9 +617,9 @@ def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, output_dir=model
         if mol_name not in molecules_data:
             print(f"Molecule '{mol_name}' not found in molecules_data")
             return
-            
-        molecule = molecules_data[mol_name]
-        
+
+        molecule: Molecule = molecules_data[mol_name]
+
         # Get wavelength and flux data from molecule using get_flux method
         if wave_data is not None:
             try:
@@ -655,7 +655,7 @@ def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, output_dir=model
             if hasattr(molecule, 'intensity') and molecule.intensity is not None:
                 if hasattr(molecule.intensity, 'get_table'):
                     try:
-                        line_params = molecule.intensity.get_table()
+                        line_params = molecule.intensity.get_table
                         if hasattr(line_params, 'to_csv'):
                             line_params_path = os.path.join(output_dir, f"{mol_name}_line_params.csv")
                             line_params.to_csv(line_params_path, index=False)
