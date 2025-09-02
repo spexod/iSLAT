@@ -223,6 +223,7 @@ class iSLAT:
             results = self.molecules_dict.load_molecules(
                 molecules_data, 
                 read_full_molecule_parameters(),
+                update_global_parameters=False,
                 strategy="auto",
                 force_multiprocessing=use_parallel or getattr(self, '_use_parallel_processing', False)
             )
@@ -348,9 +349,13 @@ class iSLAT:
             formatted_mol_save_file_name = f"{spectrum_base_name}-{molsave_file_name}"
             molsave_path = save_folder_path
             full_path = os.path.join(molsave_path, formatted_mol_save_file_name)
+            alternative_path = os.path.join(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
             if os.path.exists(full_path):
                 print(f"Loading molecules from saved file: {full_path}")
                 mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
+            elif os.path.exists(alternative_path):
+                print(f"Loading molecules from old format saved file: {alternative_path}")
+                mole_save_data = read_from_user_csv(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
             else:
                 print(f"Warning: Mole save path does not exist: {molsave_path}")
                 mole_save_data = None
@@ -694,8 +699,10 @@ class iSLAT:
             print("\n" + "="*60)
             print("Please select a spectrum file to load.")
             print("="*60)
-            
-
+            continue_init = self.load_spectrum()
+            if not continue_init:
+                print("No spectrum selected. Exiting...")
+                sys.exit(0)
             self.init_gui()
             
         except Exception as e:

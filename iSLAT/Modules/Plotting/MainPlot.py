@@ -374,6 +374,7 @@ class iSLATPlot:
             
         # Integrate using trapezoidal rule
         line_flux = np.trapz(flux_region, wave_region)
+        line_flux *= -1e23  # Convert from Jy to erg/s/cm^2
         
         # Calculate error if available
         if err_data is not None:

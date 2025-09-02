@@ -17,7 +17,7 @@ class MoleculeDict(dict):
     
     def __init__(self, *args, **kwargs):
         # Core caches
-        self._summed_flux_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
+        self._summed_flux_cache: Dict[int, Tuple[np.ndarray, np.ndarray, int]] = {}  # Added param hash
         self._visible_molecules: set = set()
         
         # Global parameters
@@ -63,11 +63,18 @@ class MoleculeDict(dict):
         
         molecule_set = set(molecule_names) & set(self.keys())
         
+        changed_molecules = []
         for mol_name in molecule_set:
+            old_visibility = self[mol_name].is_visible
             self[mol_name].is_visible = is_visible
+            if old_visibility != is_visible:
+                changed_molecules.append(mol_name)
+        
+        # Only clear caches if visibility actually changed
+        if changed_molecules:
+            self._selective_cache_invalidation(changed_molecules)
             
-        self._clear_all_caches()
-        print(f"Updated visibility for {len(molecule_set)} molecules")
+        print(f"Updated visibility for {len(molecule_set)} molecules ({len(changed_molecules)} changed)")
     
     def get_summed_flux(self, wave_data: np.ndarray, visible_only: bool = True) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -92,10 +99,19 @@ class MoleculeDict(dict):
         if not molecules:
             return np.array([]), np.array([])
         
-        # Try cache lookup first
+        # Generate cache key and get current parameter hash
         cache_key = self._get_flux_cache_key(wave_data, molecules)
+        current_param_hash = self._compute_molecules_parameter_hash(molecules)
+        
+        # Check cache validity
         if cache_key in self._summed_flux_cache:
-            return self._summed_flux_cache[cache_key]
+            cached_wavelengths, cached_flux, cached_param_hash = self._summed_flux_cache[cache_key]
+            
+            # Validate cache entry
+            if (cached_param_hash == current_param_hash and
+                self._validate_summed_cache_entry(cached_wavelengths, cached_flux)):
+                # Return copies to prevent accidental modification
+                return cached_wavelengths.copy(), cached_flux.copy()
         
         # All molecules should return identical wavelength grids, so we can directly sum fluxes
         combined_wavelengths = None
@@ -137,21 +153,79 @@ class MoleculeDict(dict):
         if combined_wavelengths is None:
             return np.array([]), np.array([])
         
-        # Cache result
-        if len(self._summed_flux_cache) > 50:
-            self._summed_flux_cache.clear()
-        self._summed_flux_cache[cache_key] = (combined_wavelengths, combined_flux)
+        # Cache result with parameter hash for validation
+        self._cache_summed_flux_result(cache_key, combined_wavelengths, combined_flux, current_param_hash)
         
         return combined_wavelengths, combined_flux
     
     def _get_flux_cache_key(self, wave_data: np.ndarray, molecules: List[str]) -> int:
         """Generate cache key for flux calculations."""
         try:
+            # Include input wavelength array
             wave_hash = hash(wave_data.tobytes()) if hasattr(wave_data, 'tobytes') else str(wave_data)
+            
+            # Include molecule set and their visibility
+            molecule_set = frozenset(molecules)
+            
+            # Include RV shifts for each molecule
             rv_shifts = frozenset((name, self[name].rv_shift) for name in molecules if name in self)
-            return hash((wave_hash, frozenset(molecules), rv_shifts))
+            
+            # Include global parameters that affect flux calculation
+            global_params = (
+                tuple(self._global_wavelength_range),
+                self._global_model_pixel_res,
+                self._global_dist
+            )
+            
+            return hash((wave_hash, molecule_set, rv_shifts, global_params))
         except (TypeError, ValueError):
-            return hash(str(molecules))
+            # Fallback for unhashable types
+            return hash((str(wave_data), str(sorted(molecules))))
+    
+    def _compute_molecules_parameter_hash(self, molecules: List[str]) -> int:
+        """Compute combined parameter hash for a set of molecules."""
+        param_hashes = []
+        for mol_name in molecules:
+            if mol_name in self:
+                molecule = self[mol_name]
+                if hasattr(molecule, 'get_parameter_hash'):
+                    param_hashes.append(molecule.get_parameter_hash('full'))
+        return hash(tuple(param_hashes))
+    
+    def _validate_summed_cache_entry(self, wavelengths: np.ndarray, flux: np.ndarray) -> bool:
+        """Validate that a summed flux cache entry is still valid."""
+        if wavelengths is None or flux is None:
+            return False
+        
+        if len(wavelengths) == 0 or len(flux) == 0:
+            return False
+        
+        if len(wavelengths) != len(flux):
+            return False
+        
+        # Check for finite values
+        if not np.all(np.isfinite(wavelengths)) or not np.all(np.isfinite(flux)):
+            return False
+        
+        return True
+    
+    def _cache_summed_flux_result(self, cache_key: int, wavelengths: np.ndarray, 
+                                 flux: np.ndarray, param_hash: int) -> None:
+        """Cache the summed flux result with proper memory management."""
+        # Store copies to prevent modification
+        self._summed_flux_cache[cache_key] = (
+            wavelengths.copy(),
+            flux.copy(),
+            param_hash
+        )
+        
+        # Limit cache size - use more intelligent eviction
+        cache_limit = 50
+        if len(self._summed_flux_cache) > cache_limit:
+            # Remove oldest 25% of entries
+            oldest_keys = list(self._summed_flux_cache.keys())[:-int(cache_limit * 0.75)]
+            for key in oldest_keys:
+                del self._summed_flux_cache[key]
 
     def process_molecules(self, operation: str, molecule_names: Optional[List[str]] = None, 
                          use_parallel: bool = None, max_workers: Optional[int] = None, 
@@ -365,7 +439,8 @@ class MoleculeDict(dict):
     # Unified Molecule Loading
     # ================================
     def load_molecules(self, molecules_data: List[Dict[str, Any]], 
-                       initial_molecule_parameters: Dict[str, Dict[str, Any]], 
+                       initial_molecule_parameters: Dict[str, Dict[str, Any]],
+                       update_global_parameters: bool = True, 
                        strategy: str = "auto",
                        max_workers: Optional[int] = None, 
                        force_multiprocessing: bool = False) -> Dict[str, Any]:
@@ -395,8 +470,9 @@ class MoleculeDict(dict):
             else:
                 strategy = "sequential"
 
-        self._global_dist = float(valid_molecules_data[0].get("Dist", default_parms.DEFAULT_DISTANCE))
-        self._global_stellar_rv = float(valid_molecules_data[0].get("StellarRV", default_parms.DEFAULT_STELLAR_RV))
+        if update_global_parameters:
+            self._global_dist = float(valid_molecules_data[0].get("Dist", default_parms.DEFAULT_DISTANCE))
+            self._global_stellar_rv = float(valid_molecules_data[0].get("StellarRV", default_parms.DEFAULT_STELLAR_RV))
 
         # Execute loading
         start_time = time.time()
@@ -548,23 +624,139 @@ class MoleculeDict(dict):
                 old_params = {param: getattr(molecule, param, None) for param in parameter_dict.keys()}
                 molecule.bulk_update_parameters(parameter_dict, skip_notification=True)
                 
-                if any(old_params[param] != parameter_dict[param] for param in parameter_dict.keys()):
+                # Check if any parameters actually changed
+                if any(old_params[param] != parameter_dict[param] for param in parameter_dict.keys() if param in old_params):
                     affected_molecules.append(mol_name)
         
+        # Only invalidate cache for molecules that actually changed
         if affected_molecules:
-            self._clear_all_caches()
+            self._selective_cache_invalidation(affected_molecules)
         
-        print(f"Bulk updated parameters for {len(affected_molecules)} molecules")
+        print(f"Bulk updated parameters for {len(affected_molecules)} molecules (out of {len(molecule_names)} requested)")
     
     def _clear_all_caches(self) -> None:
         """Clear all caches."""
         self._summed_flux_cache.clear()
     
+    def _selective_cache_invalidation(self, molecule_names: Optional[List[str]] = None) -> None:
+        """Selectively invalidate cache entries that involve specific molecules."""
+        if not molecule_names:
+            self._clear_all_caches()
+            return
+        
+        # Convert to set for faster lookup
+        mol_set = set(molecule_names)
+        
+        # Find cache entries that need to be invalidated
+        keys_to_remove = []
+        for cache_key in list(self._summed_flux_cache.keys()):
+            # For now, we'll use a conservative approach and remove all entries
+            # In the future, we could track which molecules contributed to each cache entry
+            keys_to_remove.append(cache_key)
+        
+        # Remove invalidated entries
+        for key in keys_to_remove:
+            if key in self._summed_flux_cache:
+                del self._summed_flux_cache[key]
+    
     def _on_molecule_parameter_changed(self, molecule_name: str, parameter_name: str, 
                                       old_value: Any, new_value: Any) -> None:
-        """Handle molecule parameter changes."""
+        """Handle molecule parameter changes with selective cache invalidation."""
         if old_value != new_value:
-            self._clear_all_caches()
+            # For flux-affecting parameters, clear all caches for now
+            # In the future, we could be more selective
+            if parameter_name in ['temp', 'radius', 'n_mol', 'rv_shift', 'fwhm', 'broad', 'distance', 'wavelength_range']:
+                self._selective_cache_invalidation([molecule_name])
+            else:
+                # For other parameters, we might not need to clear all caches
+                pass
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get comprehensive cache statistics."""
+        stats = {
+            'summed_flux_cache_size': len(self._summed_flux_cache),
+            'summed_flux_cache_entries': []
+        }
+        
+        # Get details about each cache entry
+        for cache_key, (wavelengths, flux, param_hash) in self._summed_flux_cache.items():
+            entry_stats = {
+                'cache_key': cache_key,
+                'wavelength_points': len(wavelengths) if wavelengths is not None else 0,
+                'flux_points': len(flux) if flux is not None else 0,
+                'param_hash': param_hash,
+                'memory_size_mb': (wavelengths.nbytes + flux.nbytes) / 1024 / 1024 if wavelengths is not None and flux is not None else 0
+            }
+            stats['summed_flux_cache_entries'].append(entry_stats)
+        
+        return stats
+    
+    def validate_cache_integrity(self) -> Dict[str, Any]:
+        """Validate cache integrity and return diagnostic information."""
+        validation_results = {
+            'valid_entries': 0,
+            'invalid_entries': 0,
+            'corrupted_entries': [],
+            'total_memory_mb': 0
+        }
+        
+        corrupted_keys = []
+        for cache_key, (wavelengths, flux, param_hash) in self._summed_flux_cache.items():
+            try:
+                if self._validate_summed_cache_entry(wavelengths, flux):
+                    validation_results['valid_entries'] += 1
+                    if wavelengths is not None and flux is not None:
+                        validation_results['total_memory_mb'] += (wavelengths.nbytes + flux.nbytes) / 1024 / 1024
+                else:
+                    validation_results['invalid_entries'] += 1
+                    corrupted_keys.append(cache_key)
+                    validation_results['corrupted_entries'].append({
+                        'cache_key': cache_key,
+                        'reason': 'Failed validation'
+                    })
+            except Exception as e:
+                validation_results['invalid_entries'] += 1
+                corrupted_keys.append(cache_key)
+                validation_results['corrupted_entries'].append({
+                    'cache_key': cache_key,
+                    'reason': str(e)
+                })
+        
+        # Clean up corrupted entries
+        for key in corrupted_keys:
+            if key in self._summed_flux_cache:
+                del self._summed_flux_cache[key]
+        
+        return validation_results
+    
+    def refresh_summed_flux_cache(self, wave_data: np.ndarray = None, visible_only: bool = True) -> Dict[str, Any]:
+        """Manually refresh the summed flux cache and return statistics."""
+        # Clear existing cache
+        old_cache_size = len(self._summed_flux_cache)
+        self._clear_all_caches()
+        
+        # If wave_data is provided, pre-populate cache
+        if wave_data is not None:
+            molecules = list(self.get_visible_molecules() if visible_only else self.keys())
+            if molecules:
+                # This will populate the cache
+                result_wavelengths, result_flux = self.get_summed_flux(wave_data, visible_only)
+                
+                return {
+                    'cache_cleared': True,
+                    'old_cache_size': old_cache_size,
+                    'new_cache_size': len(self._summed_flux_cache),
+                    'molecules_processed': len(molecules),
+                    'result_points': len(result_wavelengths) if result_wavelengths is not None else 0
+                }
+        
+        return {
+            'cache_cleared': True,
+            'old_cache_size': old_cache_size,
+            'new_cache_size': 0,
+            'molecules_processed': 0,
+            'result_points': 0
+        }
     
     @staticmethod
     def _create_molecule_worker(args):

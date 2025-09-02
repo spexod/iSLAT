@@ -566,11 +566,14 @@ class TopBar(ResizableFrame):
         # Get the loaded spectrum name for filename
         spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
         
+        from iSLAT.Modules.FileHandling import molsave_file_name
+
         try:
             # Save the current molecule parameters
             saved_file = write_molecules_to_csv(
                 self.islat.molecules_dict, 
-                loaded_spectrum_name=spectrum_name
+                loaded_spectrum_name=spectrum_name,
+                file_name=molsave_file_name
             )
             
             # Also save to the general molecules list for session persistence
@@ -612,6 +615,9 @@ class TopBar(ResizableFrame):
         
         spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
         save_file = os.path.join(save_folder_path, f"{spectrum_base_name}-{molsave_file_name}")
+
+        if not os.path.exists(save_file):
+            save_file = os.path.join(save_folder_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
         
         if not os.path.exists(save_file):
             if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):

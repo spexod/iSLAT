@@ -356,10 +356,16 @@ class Molecule:
         """Clear specific cache and update stats"""
         if cache_type == 'flux':
             self._flux_cache.clear()
+            self._dirty_flags['flux'] = True
         elif cache_type == 'intensity':
             self._intensity_cache = {'data': None, 'hash': None}
+            self._dirty_flags['intensity'] = True
+            self._dirty_flags['spectrum'] = True  # Spectrum depends on intensity
+            self._dirty_flags['flux'] = True      # Flux depends on spectrum
         elif cache_type == 'spectrum':
             self._spectrum_cache = {'data': None, 'hash': None}
+            self._dirty_flags['spectrum'] = True
+            self._dirty_flags['flux'] = True      # Flux depends on spectrum
 
     def get_flux(self, wavelength_array=None, return_wavelengths=False, interpolate_to_input=False):
         """Get flux data with RV shift properly applied
@@ -399,12 +405,14 @@ class Molecule:
         current_param_hash = self._compute_full_parameter_hash()
         cache_entry = self._flux_cache.get(cache_key)
         
-        if (cache_entry is not None and 
-            cache_entry.get('param_hash') == current_param_hash):
+        # Check both dirty flags and validate cache entry for cache validity
+        if (not self._dirty_flags['flux'] and 
+            self._validate_flux_cache_entry(cache_entry, current_param_hash)):
             self._cache_stats['hits'] += 1
             if return_wavelengths:
-                return cache_entry['wavelengths'], cache_entry['flux']
-            return cache_entry['flux']
+                # Return copies to prevent accidental modification of cached data
+                return cache_entry['wavelengths'].copy(), cache_entry['flux'].copy()
+            return cache_entry['flux'].copy()
         
         # Ensure we have a valid spectrum
         self._ensure_spectrum_calculated()
@@ -429,9 +437,11 @@ class Molecule:
         
         # Apply RV shift correction to get flux on the unshifted grid
         # Create the shifted wavelength grid where the flux "came from"
-        print(f"Applying RV shift of {self._rv_shift} km/s for molecule {self.name}")
-        print(f'RV shift is of type {type(self._rv_shift)} with value {self._rv_shift}')
         if self._rv_shift != 0:
+            # Only print debug info for significant RV shifts or when debugging is enabled
+            if abs(self._rv_shift) > 0.1:  # Only log if RV shift > 0.1 km/s
+                print(f"Applying RV shift of {self._rv_shift} km/s for molecule {self.name}")
+            
             shifted_source_lam_grid = lam_grid + (lam_grid / c.SPEED_OF_LIGHT_KMS * self._rv_shift)
 
             # Interpolate the flux from the shifted source back to the unshifted grid
@@ -445,17 +455,17 @@ class Molecule:
             # Interpolate the RV-corrected flux to the input wavelength array
             interpolated_flux = np.interp(wavelength_array, lam_grid, rv_corrected_flux, left=0, right=0)
             
-            result_wavelengths = wavelength_array
+            result_wavelengths = wavelength_array.copy()  # Copy to prevent modification
             result_flux = interpolated_flux
         else:
             # Return on the native grid with RV shift applied
-            result_wavelengths = lam_grid
+            result_wavelengths = lam_grid.copy()  # Copy to prevent modification
             result_flux = rv_corrected_flux
         
-        # Cache the result
+        # Cache the result (store copies to prevent modification)
         self._flux_cache[cache_key] = {
-            'wavelengths': result_wavelengths,
-            'flux': result_flux,
+            'wavelengths': result_wavelengths.copy(),
+            'flux': result_flux.copy(),
             'param_hash': current_param_hash
         }
         
@@ -468,6 +478,8 @@ class Molecule:
             for key in oldest_keys:
                 del self._flux_cache[key]
         
+        # Mark flux as clean since we just calculated it
+        self._dirty_flags['flux'] = False
         self._cache_stats['misses'] += 1
         
         if return_wavelengths:
@@ -504,30 +516,10 @@ class Molecule:
     model_pixel_res = _make_property('model_pixel_res', converter=float)
     broad = _make_property('broad', converter=float)
     rv_shift = _make_property('rv_shift', converter=float)
-    
-    @property
-    def model_line_width(self):
-        return getattr(self, '_model_line_width', None)
-    
-    @model_line_width.setter  
-    def model_line_width(self, value):
-        old_value = getattr(self, '_model_line_width', None)
-        self._model_line_width = float(value) if value is not None else None
-        self._notify_my_parameter_change('model_line_width', old_value, self._model_line_width)
+    n_mol = _make_property('n_mol', converter=float)
+    model_line_width = _make_property('model_line_width', converter=float)
     
     # Special case properties
-    @property
-    def n_mol(self):
-        return self._n_mol
-    
-    @n_mol.setter
-    def n_mol(self, value):
-        if value is None:
-            value = getattr(self, 'n_mol_init', 1e17)
-        old_value = self._n_mol
-        self._n_mol = float(value)
-        self._notify_my_parameter_change('n_mol', old_value, self._n_mol)
-
     @property
     def wavelength_range(self):
         return self._wavelength_range
@@ -568,24 +560,27 @@ class Molecule:
         needs_spectrum_invalidation = False
         needs_flux_invalidation = False
         
-        # Type converters matching the property setters
-        converters = {
-            'temp': float, 'radius': float, 'distance': float, 'fwhm': float, 
-            'model_pixel_res': float, 'broad': float, 'rv_shift': float, 'n_mol': float,
-            'model_line_width': lambda x: float(x) if x is not None else None,
+        # Properties with special converters - default to float for all others
+        special_converters = {
             'is_visible': lambda x: x.lower() in ('true', '1', 'yes', 'on') if isinstance(x, str) else bool(x)
+        }
+        
+        # Properties with special setters
+        special_setters = {
+            'temp': lambda self, value: setattr(self, 't_kin', value),
+            'fwhm': lambda self, value: setattr(self, 'spectrum', None)
         }
         
         # Batch process parameters with type conversion
         for param_name, value in params_to_update.items():
-            # Apply type conversion if available
-            if param_name in converters:
-                try:
-                    if param_name == 'n_mol' and value is None:
-                        value = getattr(self, 'n_mol_init', 1e17)
-                    value = converters[param_name](value)
-                except (ValueError, TypeError):
-                    continue  # Skip invalid values
+            # Apply type conversion - use special converter if available, otherwise float
+            try:
+                if param_name in special_converters:
+                    value = special_converters[param_name](value)
+                else:
+                    value = float(value)
+            except (ValueError, TypeError):
+                continue  # Skip invalid values
             
             private_attr = f'_{param_name}'
             
@@ -596,10 +591,8 @@ class Molecule:
                 affected_params.add(param_name)
                 
                 # Apply special setters
-                if param_name == 'temp':
-                    self.t_kin = value
-                elif param_name == 'fwhm':
-                    self.spectrum = None
+                if param_name in special_setters:
+                    special_setters[param_name](self, value)
                 
                 # Determine cache invalidation needs
                 if param_name in self.INTENSITY_AFFECTING_PARAMS:
@@ -664,6 +657,29 @@ class Molecule:
             return (self.is_cache_valid('intensity') and 
                    self.is_cache_valid('spectrum') and 
                    self.is_cache_valid('flux'))
+    
+    def _validate_flux_cache_entry(self, cache_entry, expected_param_hash):
+        """Validate that a flux cache entry is still valid"""
+        if cache_entry is None:
+            return False
+        
+        # Check parameter hash
+        if cache_entry.get('param_hash') != expected_param_hash:
+            return False
+        
+        # Validate that arrays exist and are not empty
+        wavelengths = cache_entry.get('wavelengths')
+        flux = cache_entry.get('flux')
+        
+        if (wavelengths is None or flux is None or 
+            len(wavelengths) == 0 or len(flux) == 0):
+            return False
+        
+        # Check that arrays have the same length
+        if len(wavelengths) != len(flux):
+            return False
+        
+        return True
 
     def __str__(self):
         return f"Molecule(name={self.name}, temp={self._temp}, radius={self._radius}, n_mol={self._n_mol})"
