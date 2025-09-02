@@ -1434,7 +1434,7 @@ class PlotRenderer:
             lam_max = np.max(fitted_wave)
             
             # plot the fit result
-            ax.plot(fitted_wave, fitted_flux, color='lime', linewidth=2, linestyle='--', label=f'Gauss Fit {i}')[0]
+            ax.plot(fitted_wave, fitted_flux, color='lime', linewidth=2, zorder=10, linestyle='--', label=f'Gauss Fit {i}')[0]
             dely = gauss_fit.eval_uncertainty(sigma = self.islat.user_settings.get('fit_line_uncertainty', 3.0))
             ax.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
                                     color='lime', alpha=0.3, label=r'3-$\sigma$ uncertainty band')
