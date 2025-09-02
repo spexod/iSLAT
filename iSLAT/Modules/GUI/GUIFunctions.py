@@ -57,10 +57,11 @@ def create_scrollable_frame(parent, height = 150, width = 300, vertical = False,
         data_frame.bind("<Configure>", 
                         lambda event: canvasscroll.configure(scrollregion=canvasscroll.bbox("all"))
                         )
-        def resize_frame(event):
-            canvasscroll.itemconfig(window_item, width=event.width, height=event.height)
+        # this is attempt to add default parameters button 
+        # def resize_frame(event):
+        #     canvasscroll.itemconfig(window_item, width=event.width, height=event.height)
 
-        canvasscroll.bind("<Configure>", resize_frame)
+        # canvasscroll.bind("<Configure>", resize_frame)
         
         return data_frame
 
