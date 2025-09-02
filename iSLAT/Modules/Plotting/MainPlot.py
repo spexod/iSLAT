@@ -374,7 +374,7 @@ class iSLATPlot:
             
         # Integrate using trapezoidal rule
         line_flux = np.trapz(flux_region, wave_region)
-        line_flux *= -1e23  # Convert from Jy to erg/s/cm^2
+        line_flux *= 1e-23  # Convert from Jy to erg/s/cm^2
         
         # Calculate error if available
         if err_data is not None:
@@ -660,7 +660,6 @@ class iSLATPlot:
     def on_molecule_parameter_changed(self, molecule_name, parameter_name, old_value, new_value):
         """
         Called when any molecule parameter changes.
-        Since we rely entirely on molecule caching, we just need to trigger plot updates.
         """
         debug_config.info("main_plot", f"Parameter change: {molecule_name}.{parameter_name}: {old_value} → {new_value}")
         
@@ -669,11 +668,6 @@ class iSLATPlot:
             molecule_name in self.islat.molecules_dict):
             
             molecule = self.islat.molecules_dict[molecule_name]
-            
-            # Debug molecule cache status
-            if hasattr(self.plot_renderer, 'debug_molecule_cache_status'):
-                cache_debug = self.plot_renderer.debug_molecule_cache_status(molecule)
-                debug_config.trace("main_plot", f"Cache debug for {molecule_name}: {cache_debug}")
         
         # Check if this molecule is visible - if so, we need to update the main spectrum plot
         if (hasattr(self.islat, 'molecules_dict') and 
@@ -825,8 +819,8 @@ class iSLATPlot:
             return []
         
         try:
-            detected_lines = self.line_analyzer.detect_lines_automatic(
-                range_wave, range_flux, detection_type='both'
+            detected_lines = self.line_analyzer.find_single_lines(
+                range_wave, range_flux
             )
             
             # Create optimized line data structure
@@ -837,8 +831,8 @@ class iSLATPlot:
                 line_info = {
                     "wavelength": line['wavelength'], 
                     "ylim": ylim,
-                    "strength": line['line_strength'],
-                    "type": line['type']
+                    #"strength": line['line_strength'],
+                    #"type": line['type']
                 }
                 self.single_lines_list.append(line_info)
             
@@ -856,7 +850,7 @@ class iSLATPlot:
         # Extract wavelengths for batch plotting
         wavelengths = [line['wavelength'] for line in self.single_lines_list]
         # Delegate to PlotRenderer for plotting
-        self.plot_vertical_lines(wavelengths)
+        self.plot_renderer.plot_single_lines(wavelengths)
     
     def plot_saved_lines(self, saved_lines):
         """Plot saved lines using PlotRenderer with delegation."""

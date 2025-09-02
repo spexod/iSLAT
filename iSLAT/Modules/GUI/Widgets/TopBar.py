@@ -15,7 +15,7 @@ from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
-from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name
+from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name
 import iSLAT.Constants as c
 
 if TYPE_CHECKING:
@@ -70,6 +70,7 @@ class TopBar(ResizableFrame):
         molecule_menu.add_command(label="HITRAN Query", command=self.hitran_query)
         molecule_menu.add_command(label="Default Molecules", command=self.default_molecules)
         molecule_menu.add_command(label="Add Molecules", command=self.add_molecule)
+        molecule_menu.add_command(label="Export Models", command=self.export_models)
         molecule_drpdwn.config(menu=molecule_menu)
 
         if os_name == "Darwin":
@@ -230,6 +231,13 @@ class TopBar(ResizableFrame):
                         # Handle multi-component fits - show detailed information
                         component_idx = 0
                         saved_components = 0
+
+                        spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+                        
+                        spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
+                        #save_file = os.path.join(line_saves_file_path, f"{spectrum_base_name}-{line_saves_file_name}")
+                        save_file_name = f"{spectrum_base_name}-{line_saves_file_name}"
+
                         while f'component_{component_idx}' in line_params:
                             comp_params = line_params[f'component_{component_idx}']
                             self.data_field.insert_text(f"\nComponent {component_idx+1}:\n", clear_after=False)
@@ -296,7 +304,7 @@ class TopBar(ResizableFrame):
                                     }
 
                                     # Save this component
-                                    ifh.save_line(line_save_info)
+                                    ifh.save_line(line_save_info, file_name=save_file_name)
                                     saved_components += 1
                                     
                             except Exception as save_error:
@@ -360,21 +368,22 @@ class TopBar(ResizableFrame):
         fitting_engine = FittingEngine(self.islat)
         
         # Perform comprehensive line analysis
-        fit_results = line_analyzer.analyze_saved_lines(
+        fit_data = line_analyzer.analyze_saved_lines(
             saved_lines_file,
             fitting_engine,
             output_file
         )
         
-        if fit_results:
-            successful_fits = sum(1 for result in fit_results if result.get('Fit_det', True))
-            total_lines = len(fit_results)
+        if fit_data:
+            fit_results_csv_data, fit_results_data = fit_data
+            successful_fits = sum(1 for result in fit_results_csv_data if result.get('Fit_det', True))
+            total_lines = len(fit_results_csv_data)
 
             self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n", clear_after=False)
             self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n", clear_after=False)
 
             # Update progress for each successful fit
-            for i, result in enumerate(fit_results):
+            for i, result in enumerate(fit_results_csv_data):
                 if result.get('Fit_det', True):
                     center = result.get('Centr_fit', result.get('lam', 0))
                     snr = result.get('Fit_SN', 0)
@@ -383,7 +392,7 @@ class TopBar(ResizableFrame):
                     wavelength = result.get('lam', 0)
                     self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_after=False)
 
-            #self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results, self.main_plot.ax1)
+            self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)
 
         else:
             self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_after=False)
@@ -427,13 +436,13 @@ class TopBar(ResizableFrame):
             return
         
         #try:
-        slab_model.fit_parameters()
+        fitted_params = slab_model.fit_parameters()
         '''except Exception as e:
             self.data_field.insert_text(f"Error fitting slab model: {e}\n")
             return'''
         
         try:
-            slab_model.save_results()
+            slab_model.save_results(fitted_params=fitted_params)
         except Exception as e:
             self.data_field.insert_text(f"Error saving slab model results: {e}\n")
             return

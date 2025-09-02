@@ -21,7 +21,7 @@ defaults_file_path = config_file_path
 default_molecule_parameters_file_name = "DefaultMoleculeParameters.json"
 default_initial_parameters_file_name = "DefaultMoleculeParameters.json"
 
-line_saves_file_name = "saved_lines.csv"
+line_saves_file_name = "deblended_linecenter.csv"
 line_saves_file_path = data_files_path / "LINESAVES"
 
 fit_save_lines_file_name = "fit_save_lines.csv"
