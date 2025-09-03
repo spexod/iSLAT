@@ -1227,6 +1227,7 @@ class PlotRenderer:
             self._plot_stats['renders_count'] += 1
             
             molecule_name = plot_name or self._get_molecule_display_name(molecule)
+            print(f"plotting ")
             
             # Get spectrum data directly from molecule's caching system
             plot_lam, plot_flux = self.get_molecule_spectrum_data(molecule, wave_data)

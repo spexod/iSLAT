@@ -315,6 +315,7 @@ class Molecule:
         # Use consistent wavelength range for all molecules to ensure identical grids
         if hasattr(self, '_wavelength_range') and self._wavelength_range is not None:
             global_min, global_max = self._wavelength_range
+            print(f"getting wavelength range: {self._wavelength_range}")
             # Use the exact global range
             spectrum_lam_min = global_min
             spectrum_lam_max = global_max
