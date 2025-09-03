@@ -462,8 +462,6 @@ class iSLAT:
             self.wave_data = np.array(df['wave'].values) * self.user_settings.get("wave_data_scalar", 1.0)
             self.wave_data_original = self.wave_data.copy()
             self.flux_data = np.array(df['flux'].values) * self.user_settings.get("flux_data_scalar", 1.0)
-
-            print(f"len wave_data is: {len(self.wave_data)}, len flux_data is {len(self.flux_data)}")
             
             # Load optional data with defaults if not present
             if 'err' in df.columns:

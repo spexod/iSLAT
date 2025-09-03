@@ -229,9 +229,7 @@ class PlotRenderer:
         """Plot the observed spectrum data"""
         print("plotting spectrum")
         if flux_data is not None and len(flux_data) > 0:
-            print("flux data not None")
             if error_data is not None and len(error_data) == len(flux_data):
-                print("error_data not None")
                 # Plot with error bars
                 self.ax1.errorbar(
                     wave_data, 
@@ -1169,14 +1167,12 @@ class PlotRenderer:
         try:
             # Method 1: Use intensity API
             if hasattr(molecule, 'intensity') and molecule.intensity is not None:
-                print("method 1")
                 intensity_obj = molecule.intensity
                 if hasattr(intensity_obj, 'get_lines_in_range_with_intensity'):
                     return intensity_obj.get_lines_in_range_with_intensity(xmin, xmax)
             
             # Method 2: Use MoleculeLineList directly
             if hasattr(molecule, 'lines') and molecule.lines is not None:
-                print("method 2")
                 lines = molecule.lines
                 if hasattr(lines, 'get_lines_in_range'):
                     lines_in_range = lines.get_lines_in_range(xmin, xmax)
@@ -1196,7 +1192,6 @@ class PlotRenderer:
                     else:
                         # Return lines with zero intensity
                         return [(line, 0.0, None) for line in lines_in_range]
-            print("method 3: returning []")
             return []
             
         except Exception as e:
@@ -1228,9 +1223,7 @@ class PlotRenderer:
             # Increment render stats
             self._plot_stats['renders_count'] += 1
             
-            molecule_name = plot_name or self._get_molecule_display_name(molecule)
-            print(f"plotting ")
-            
+            molecule_name = plot_name or self._get_molecule_display_name(molecule)            
             # Get spectrum data directly from molecule's caching system
             plot_lam, plot_flux = self.get_molecule_spectrum_data(molecule, wave_data)
             
