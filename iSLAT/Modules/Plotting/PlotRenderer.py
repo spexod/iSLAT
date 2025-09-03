@@ -344,13 +344,14 @@ class PlotRenderer:
                          linewidth=1, label="Data")
         
         # Calculate max_y for plot scaling
-        max_y = np.nanmax(observed_flux) if len(observed_flux) > 0 else 1.0
+        max_y = np.nanmax(observed_flux) if len(observed_flux) > 0 else 0.15
         
         # Plot the active molecule model using PlotRenderer's molecule spectrum method
         if active_molecule is not None:
             try:
                 # Use PlotRenderer's get_molecule_spectrum_data which leverages molecule caching
                 plot_lam, model_flux = self.get_molecule_spectrum_data(active_molecule, wave_data)
+                
                 
                 if plot_lam is not None and model_flux is not None and len(model_flux) > 0:
                     # Filter the molecule data to the selected wavelength range
@@ -365,6 +366,8 @@ class PlotRenderer:
                             self.ax2.plot(model_wave_range, model_flux_range, 
                                          color=color, linestyle="--", 
                                          linewidth=1, label=label)
+                            if len(observed_flux) <= 0:
+                                max_y = np.nanmax(model_flux_range)
             except Exception as e:
                 mol_name = self._get_molecule_display_name(active_molecule)
                 debug_config.warning("plot_renderer", f"Could not get model data for molecule {mol_name}: {e}")
@@ -606,7 +609,6 @@ class PlotRenderer:
         self.canvas.draw_idle()
 
     def remove_saved_lines(self) -> None:
-        print("in remove lines")
         for line in self.saved_lines:
             try:
                 line.remove()
