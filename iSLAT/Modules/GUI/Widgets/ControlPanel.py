@@ -159,7 +159,7 @@ class ControlPanel(ttk.Frame):
             try:
                 new_entry = float(entry.get())
                 old_entry = float(self._get_active_molecule_parameter_value(param_name))
-            except ValueError: # If value is global parameter, turn grey
+            except (ValueError, TypeError): # If value is global parameter, turn grey
                 entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
                 return
             
