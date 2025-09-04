@@ -381,6 +381,7 @@ class iSLATPlot:
             return 0.0, 0.0
             
         # Integrate using trapezoidal rule
+        wave_region = c.SPEED_OF_LIGHT_MICRONS/wave_region[::-1]  # Reverse for decreasing wavelength
         line_flux = np.trapz(flux_region, wave_region)
         line_flux *= 1e-23  # Convert from Jy to erg/s/cm^2
         
