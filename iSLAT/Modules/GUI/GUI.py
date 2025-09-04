@@ -268,8 +268,8 @@ class GUI:
         # Spectrum file selector
         self.file_interaction_pane = FileInteractionPane(parent, self.islat_class, self.theme)
         
-        self.control_panel.grid(padx=(1,0), sticky="nsew", pady=0)
         self.file_interaction_pane.grid(padx=(1,0), sticky="nsew",  pady=0)
+        self.control_panel.grid(padx=(1,0), sticky="nsew", pady=0)
         self.data_field.grid(padx=(1,0), sticky="nsew", pady=0)
 
     def update_frame_sizes(self):
