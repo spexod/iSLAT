@@ -79,7 +79,7 @@ class InteractionHandler:
     def _on_span_select(self, xmin: float, xmax: float):
         """Handle span selection on main plot"""
         if xmin == xmax:
-            # self.clear_current_selection()
+            self.clear_current_selection()
             return
         
         # Ensure proper order
@@ -449,7 +449,9 @@ class InteractionHandler:
     
     def clear_current_selection(self):
         """Clear the current selection"""
-        self._clear_selection()
+        self.selected_range = None
+        if hasattr(self.plot_manager, 'clear_selection'):
+            self.plot_manager.clear_selection()
     
     def get_interaction_info(self) -> Dict[str, Any]:
         """Get information about current interaction state"""
