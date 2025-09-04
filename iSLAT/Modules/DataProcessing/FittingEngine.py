@@ -503,8 +503,14 @@ class FittingEngine:
         
         # Calculate signal-to-noise ratios for data
         #line_sn = flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0
+        line_sn = np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1)
         #line_det = abs(flux_data_integral) > sig_det_lim * err_data_integral
-        
+
+        if np.absolute(flux_data_integral) > sig_det_lim * err_data_integral:
+            line_det = True
+        else:
+            line_det = False
+
         # Prepare base result dictionary with data measurements
         result_entry = {
             'species': line_info.get('species', 'Unknown'),
@@ -519,11 +525,11 @@ class FittingEngine:
             'xmin': xmin,
             'xmax': xmax,
             'Flux_data': np.float64(f'{flux_data_integral:.{3}e}'),
-            #'Err_data': np.float64(f'{err_data_integral:.{3}e}'),
-            #'Line_SN': np.round(line_sn, decimals=1),
-            #'Line_det': bool(line_det),
-            #'Flux_islat': np.float64(f'{flux_data_integral:.{3}e}'),  # Default to data values
-            #'Err_islat': np.float64(f'{err_data_integral:.{3}e}')     # Will be overwritten if fit succeeds
+            'Err_data': np.float64(f'{err_data_integral:.{3}e}'),
+            'Line_SN': np.round(line_sn, decimals=1),
+            'Line_det': bool(line_det),
+            'Flux_islat': np.float64(f'{flux_data_integral:.{3}e}'),  # Default to data values
+            'Err_islat': np.float64(f'{err_data_integral:.{3}e}')     # Will be overwritten if fit succeeds
         }
         
         # Process fit results if successful
@@ -540,11 +546,13 @@ class FittingEngine:
             fwhm_err = component_params['fwhm_stderr']
             fit_det = component_params['fit_detected']
             doppler = component_params['doppler_shift']
+
+            fit_sn = gauss_area / gauss_area_err if gauss_area_err > 0 else 0.0
             
             # Update result with fit information
             result_entry.update({
-                #'Fit_SN': np.round(fit_sn, decimals=1),
-                #'Fit_det': bool(fit_det),
+                'Fit_SN': np.round(fit_sn, decimals=1),
+                'Fit_det': bool(fit_det),
                 'Flux_fit': np.float64(f'{gauss_area:.{3}e}'),
                 'Err_fit': np.float64(f'{gauss_area_err:.{3}e}'),
                 'FWHM_fit': np.round(fwhm, decimals=5) if fit_det else np.nan,
@@ -555,17 +563,17 @@ class FittingEngine:
                 'Red-chisq': np.round(fit_result.redchi, decimals=2)
             })
             
-            '''# Update iSLAT flux values if fit is good and detected
+            # Update iSLAT flux values if fit is good and detected
             if fit_det:
-                result_entry['Flux_islat'] = np.float64(f'{area:.{3}e}')
-                result_entry['Err_islat'] = np.float64(f'{area_err:.{3}e}')'''
+                result_entry['Flux_islat'] = np.float64(f'{gauss_area:.{3}e}')
+                result_entry['Err_islat'] = np.float64(f'{gauss_area_err:.{3}e}')
         else:
             # Fit failed - fill with NaN values but keep data measurements
             result_entry.update({
                 #'Fit_SN': np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1),
-                #'Fit_det': False,
+                'Fit_det': False,
                 'Flux_fit': np.float64(f'{flux_data_integral:.{3}e}'),  # Use data flux for failed fit
-                #'Err_fit': np.float64(f'{err_data_integral:.{3}e}'),
+                'Err_fit': np.float64(f'{err_data_integral:.{3}e}'),
                 'FWHM_fit': np.nan,
                 'FWHM_err': np.nan,
                 'Centr_fit': np.nan,
