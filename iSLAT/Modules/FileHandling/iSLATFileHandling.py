@@ -6,6 +6,7 @@ import numpy as np
 from ...Constants import MOLECULES_DATA
 from .molecular_data_reader import read_molecular_data
 
+
 #from pathlib import Path
 
 from iSLAT.Modules.FileHandling import *
@@ -564,7 +565,7 @@ def generate_all_csv(molecules_data: 'MoleculeDict', output_dir=models_folder_pa
     
     print(f'All models exported to {output_dir}')
 
-def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, output_dir=models_folder_path, wave_data=None):
+def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, data_field, output_dir=models_folder_path, wave_data=None):
     """
     Generate CSV file for a specific molecule or summed spectrum.
     
@@ -662,8 +663,11 @@ def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, output_dir=model
                             print(f"Exported line parameters for {mol_name}")
                     except Exception as e:
                         print(f"Error exporting line parameters for {mol_name}: {e}")
-            
+
+
+            data_field.insert_text(f'{mol_name} model exported to {output_dir}')
             print(f'{mol_name} model exported to {output_dir}')
             
         except Exception as e:
+            data_field.insert_text(f"Error writing CSV for {mol_name}: {e}")
             print(f"Error writing CSV for {mol_name}: {e}")

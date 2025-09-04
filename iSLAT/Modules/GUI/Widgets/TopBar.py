@@ -454,6 +454,8 @@ class TopBar(ResizableFrame):
         # Create a new window for exporting the spectrum
         export_window = tk.Toplevel(self.master)
         export_window.title("Export Spectrum")
+        # Always on top
+        export_window.attributes("-topmost", True)
 
         # Create a label in the new window
         label = tk.Label(export_window, text="Select a molecule:")
@@ -468,7 +470,7 @@ class TopBar(ResizableFrame):
         dropdown.grid(row=1, column=0)
 
         # Create a button in the new window
-        button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(), wave_data=self.islat.wave_data))
+        button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(),data_field=self.data_field, wave_data=self.islat.wave_data))
         button.grid(row=1, column=1)
 
     def show_atomic_lines(self):
