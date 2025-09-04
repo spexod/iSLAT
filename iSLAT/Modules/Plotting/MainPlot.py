@@ -272,18 +272,11 @@ class iSLATPlot:
         self.selected_wave = self.islat.wave_data[mask]
         self.selected_flux = self.islat.flux_data[mask]
 
-
-        # if len(self.selected_wave) < 5:
+        # if xmax - xmin < 0.025:
         #     self.ax2.clear()
         #     self.current_selection = None
         #     self.canvas.draw_idle()
         #     return
-
-        if xmax - xmin < 0.025:
-            self.ax2.clear()
-            self.current_selection = None
-            self.canvas.draw_idle()
-            return
 
         self.plot_spectrum_around_line(
             xmin=xmin,
