@@ -253,13 +253,18 @@ class iSLATPlot:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
     
+        wave_data = self.islat.wave_data_original
+        wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
+        self.islat.wave_data = wave_data # Update islat wave_data to match adjusted grid
+
         self.plot_renderer.render_main_spectrum_plot(
-            wave_data,
-            self.islat.flux_data,
+            wave_data=wave_data,
+            flux_data=self.islat.flux_data,
             molecules=self.islat.molecules_dict,
+            summed_wavelengths=summed_wavelengths,
             summed_flux=summed_flux,
             error_data=getattr(self.islat, 'err_data', None),
-            observed_wave_data=self.islat.wave_data  # Pass observed data separately
+            #observed_wave_data=self.islat.wave_data  # Pass observed data separately
         )
         
         # Recreate span selector and redraw

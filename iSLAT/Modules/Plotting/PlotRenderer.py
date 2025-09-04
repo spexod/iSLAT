@@ -169,6 +169,7 @@ class PlotRenderer:
     def render_main_spectrum_plot(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                  molecules: Union[List['Molecule'], 'MoleculeDict'], 
                                  summed_flux: Optional[np.ndarray] = None, 
+                                 summed_wavelengths: Optional[np.ndarray] = None,
                                  error_data: Optional[np.ndarray] = None,
                                  observed_wave_data: Optional[np.ndarray] = None) -> None:
         """Render the main spectrum plot with observed data, model spectra, and sum
@@ -201,11 +202,12 @@ class PlotRenderer:
             return
         
         # Use observed wavelength data if provided, otherwise use model wavelength data
-        obs_wave_for_plotting = observed_wave_data if observed_wave_data is not None else wave_data
+        #obs_wave_for_plotting = observed_wave_data if observed_wave_data is not None else wave_data
+        obs_wave_for_plotting = wave_data
         
         # Plot observed spectrum using appropriate wavelength grid
-        observed_wave = obs_wave_for_plotting - (obs_wave_for_plotting / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
-        self._plot_observed_spectrum(observed_wave, flux_data, error_data)
+        #observed_wave = obs_wave_for_plotting - (obs_wave_for_plotting / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
+        self._plot_observed_spectrum(obs_wave_for_plotting, flux_data, error_data)
 
         # Plot individual molecule spectra
         if molecules:
@@ -213,8 +215,8 @@ class PlotRenderer:
             
         # Plot summed spectrum
         if summed_flux is not None and len(summed_flux) > 0:
-            self._plot_summed_spectrum(wave_data, summed_flux)
-        
+            self._plot_summed_spectrum(summed_wavelengths, summed_flux)
+
         # Configure plot appearance
         self._configure_main_plot_appearance()
         
