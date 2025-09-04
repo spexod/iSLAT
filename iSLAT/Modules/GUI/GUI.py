@@ -260,7 +260,7 @@ class GUI:
 
     def build_left_panel(self, parent: tk.Frame):
         # Main data field - create this first so we can pass it to other components
-        self.data_field = DataField("Main Data Field", "", parent, theme=self.theme)
+        self.data_field = DataField("", parent, theme=self.theme)
 
         #Control panel for molecule controls
         self.control_panel = ControlPanel(parent, self.islat_class, self.plot, self.data_field, self.default_font)
@@ -268,8 +268,8 @@ class GUI:
         # Spectrum file selector
         self.file_interaction_pane = FileInteractionPane(parent, self.islat_class, self.theme)
         
-        self.control_panel.grid(padx=(1,0), sticky="nsew", pady=0)
         self.file_interaction_pane.grid(padx=(1,0), sticky="nsew",  pady=0)
+        self.control_panel.grid(padx=(1,0), sticky="nsew", pady=0)
         self.data_field.grid(padx=(1,0), sticky="nsew", pady=0)
 
     def update_frame_sizes(self):

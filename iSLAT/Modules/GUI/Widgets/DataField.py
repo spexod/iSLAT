@@ -7,15 +7,14 @@ class DataField(ttk.Frame):
     A class to represent a text area in a GUI application.
     Now inherits from ResizableFrame for consolidated theming.
     """
-    def __init__(self, name: str, value: any, master: tk.Widget, theme=None):
+    def __init__(self, value: any, master: tk.Widget, theme=None):
         # Initialize the ResizableFrame with theme
         super().__init__(master)
         
-        self.name = name
         self.value = value
         self.clear_before_next = False
 
-        self.label_frame = tk.LabelFrame(self, relief="solid", borderwidth=1, text=self.name)
+        self.label_frame = tk.LabelFrame(self, relief="solid", borderwidth=1, text="iSLAT Text Output")
         self.label_frame.pack(fill="both", pady=0)
 
         self.label_frame.rowconfigure(0, weight=1)

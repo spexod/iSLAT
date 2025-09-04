@@ -29,7 +29,7 @@ class ControlPanel(ttk.Frame):
             "Color": "change color\nfor this model"
             }
         
-        self.label_frame = tk.LabelFrame(self, text="Molecule Control Panel", relief="solid", borderwidth=1)
+        self.label_frame = tk.LabelFrame(self, text="Spectrum and Models Control Panel", relief="solid", borderwidth=1)
         self.label_frame.grid(row=0, column=0, sticky="nsew", pady=0)
         self.label_frame.grid_rowconfigure(0,weight=1)
 
