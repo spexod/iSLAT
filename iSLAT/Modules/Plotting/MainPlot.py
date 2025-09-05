@@ -503,8 +503,8 @@ class iSLATPlot:
         # Get the max y value for scaling line heights
         data_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
         data_region_y = self.islat.flux_data[data_mask]
-        max_y = np.nanmax(data_region_y) if len(data_region_y) > 0 else 1.0
-
+        max_y = np.nanmax(data_region_y) if len(data_region_y) > 0 else (self.plot_renderer.ax2.get_ylim()[1] / 1.1) #returns ymin, ymax
+            
         # Clear and add vertical lines using PlotRenderer
         self.clear_active_lines()
         self.plot_renderer.render_active_lines_in_line_inspection(line_data, self.active_lines, max_y)
