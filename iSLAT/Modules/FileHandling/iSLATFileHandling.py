@@ -237,6 +237,94 @@ def save_fit_results(fit_results_data, file_path = save_folder_path, file_name= 
     
     return full_path
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.inf):
+            return "Infinity"
+        return json.JSONEncoder.default(self, obj)
+
+def save_deblended_models(deblended_data, file_path=deblend_models_file_path, file_name=deblend_models_file_name):
+    """
+    Save deblended model data to CSV file.
+    
+    Parameters
+    ----------
+    deblended_data : dict from LMFIT summary function
+        List of dictionaries containing deblended model data
+    file_path : str
+        Directory path to save the file
+    file_name : str
+        Name of the CSV file
+        
+    Returns
+    -------
+    str
+        Full path to the saved file
+    """
+    # Ensure the directory exists
+    os.makedirs(file_path, exist_ok=True)
+
+    # Save the deblended data to the CSV file
+    df = pd.DataFrame(deblended_data)
+    df.to_csv(os.path.join(file_path, file_name), index=False)
+
+    return os.path.join(file_path, file_name)
+
+def save_deblended_fit_stats(deblended_data, file_path=deblended_fit_stats_file_path, file_name=deblended_fit_stats_file_name):
+    """
+    Save deblended model data to JSON file.
+    
+    Parameters
+    ----------
+    deblended_data : dict from LMFIT summary function
+        List of dictionaries containing deblended model data
+    file_path : str
+        Directory path to save the file
+    file_name : str
+        Name of the JSON file
+        
+    Returns
+    -------
+    str
+        Full path to the saved file
+    """
+    # Ensure the directory exists
+    os.makedirs(file_path, exist_ok=True)
+
+    # Save the deblended data to the JSON file
+    with open(os.path.join(file_path, file_name), 'w') as f:
+        json.dump(deblended_data, f, indent=4, cls=NpEncoder)
+
+    return os.path.join(file_path, file_name)
+
+def save_deblended_fit_stats_and_models(deblended_data, components_data, file_path=deblended_fit_stats_file_path, stats_file_name=deblended_fit_stats_file_name, models_file_name=deblend_models_file_name):
+    """
+    Save deblended fit statistics to JSON file and models to CSV file.
+    
+    Parameters
+    ----------
+    deblended_data : dict from LMFIT summary function
+        Dictionary containing deblended fit statistics
+    models_data : dict from LMFIT summary function
+        Dictionary containing deblended model data
+    file_path : str
+        Directory path to save the files
+    stats_file_name : str
+        Name of the JSON file for fit statistics
+    models_file_name : str
+        Name of the CSV file for models
+    """
+    # parse deblended_data into stats and models
+    #stats_data = {k: v for k, v in deblended_data.items() if k != 'params'}
+    #models_data = deblended_data.get('params', {})
+    stats_data = deblended_data
+    models_data = components_data
+
+    save_deblended_fit_stats(stats_data, file_path=file_path, file_name=stats_file_name)
+    save_deblended_models(models_data, file_path=file_path, file_name=models_file_name)
+
 def read_spectral_data(file_path : str):
     """
     read_spectral_data() reads the spectral data from the provided file path.
