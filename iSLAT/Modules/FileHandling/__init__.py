@@ -24,6 +24,12 @@ default_initial_parameters_file_name = "DefaultMoleculeParameters.json"
 line_saves_file_name = "deblended_linecenter.csv"
 line_saves_file_path = data_files_path / "LINESAVES"
 
+deblend_models_file_name = "deblend_models.csv"
+deblend_models_file_path = line_saves_file_path
+
+deblended_fit_stats_file_name = "deblended_fit_statistics.json"
+deblended_fit_stats_file_path = line_saves_file_path
+
 fit_save_lines_file_name = "fit_save_lines.csv"
 atomic_lines_file_name = data_files_path / "LINELISTS" / "Atomic_lines.csv"
 models_folder_path = data_files_path / "MODELS"
@@ -57,4 +63,8 @@ __all__ = [
     "set_input_file_folder_path",
     "set_output_file_folder_path",
     "set_output_file_name",
+    "deblend_models_file_name",
+    "deblend_models_file_path",
+    "deblended_fit_stats_file_name",
+    "deblended_fit_stats_file_path",
 ]

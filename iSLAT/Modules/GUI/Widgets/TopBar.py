@@ -317,6 +317,11 @@ class TopBar(ResizableFrame):
                         else:
                             # Show both detailed results
                             self.data_field.insert_text(f"\nDe-blended line fit completed with {component_idx} components!", clear_after=False)
+                            fit_result_summary = self.main_plot.fitting_engine.get_fit_results_summary()
+                            fit_results_components = self.main_plot.fitting_engine.get_fit_results_components()
+                            ifh.save_deblended_fit_stats_and_models(deblended_data = fit_result_summary, components_data=fit_results_components, models_file_name=f"{spectrum_base_name}-deblend_models.csv", stats_file_name=f"{spectrum_base_name}-deblended_fit_statistics.json")
+                            figpath = os.path.join(line_saves_file_path, f"{spectrum_base_name}-deblend_plot.pdf")
+                            self.main_plot.save_fig(figpath, dpi=10)
                             if saved_components > 0:
                                 self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_after=False)
                             

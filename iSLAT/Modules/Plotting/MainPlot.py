@@ -804,6 +804,14 @@ class iSLATPlot:
             debug_config.error("main_plot", f"Error in fitting: {str(e)}")
             return None
     
+    def save_fig(self, filename, dpi=10):
+        """Save the current figure to a file."""
+        try:
+            self.fig.savefig(filename, dpi=dpi, bbox_inches='tight')
+            debug_config.info("main_plot", f"Figure saved to {filename}")
+        except Exception as e:
+            debug_config.error("main_plot", f"Error saving figure: {e}")
+
     def find_single_lines(self, xmin=None, xmax=None):
         """
         Find single lines using LineAnalyzer with data processing.

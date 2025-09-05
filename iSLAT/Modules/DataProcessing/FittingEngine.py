@@ -246,16 +246,35 @@ class FittingEngine:
                           method='leastsq', nan_policy='omit')
         
         print(result.fit_report())
-
-        # Generate fitted curve
-        fitted_wave = np.linspace(wave_data.min(), wave_data.max(), 1000)
+        self.fit_results_summary = result.summary()
+        
+        # Generate fitted curve from x min and x max and wave data
+        fitted_wave = np.linspace(xmin, xmax, 1000)
+        #fitted_wave = wave_data
         fitted_flux = result.eval(x=fitted_wave)
         
         self.last_fit_result = result
         self.last_fit_params = result.params
-        
+
+        wave_mask = (wave_data >= xmin) & (wave_data <= xmax)
+        self.fit_results_components = result.eval_components(x=wave_data[wave_mask])
+
         return result, fitted_wave, fitted_flux
     
+    def get_fit_results_summary(self):
+        """Return a summary string of the last fit results."""
+        if not hasattr(self, 'fit_results_summary') or self.fit_results_summary is None:
+            print("No fit summary available.")
+            return
+        return self.fit_results_summary
+    
+    def get_fit_results_components(self):
+        """Return the evaluated components of the last multi-component fit."""
+        if not hasattr(self, 'fit_results_components') or self.fit_results_components is None:
+            print("No fit components available.")
+            return
+        return self.fit_results_components
+
     def _estimate_components_from_user_selection(self, wave_data, flux_data, xmin=None, xmax=None):
         """
         Use pre-selected line positions
