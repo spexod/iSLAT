@@ -346,7 +346,7 @@ class iSLATPlot:
             self._display_line_info(picked_value)
         self.canvas.draw_idle()
 
-    def flux_integral_basic(self, wave_data, flux_data, err_data, xmin, xmax):
+    def flux_integral_basic(self, wave_data, flux_data, xmin, xmax, err_data = None):
         """
         Calculate the flux integral in a given wavelength range.
         
@@ -419,9 +419,16 @@ class iSLATPlot:
             line_flux, line_err = self.flux_integral_basic(
                 self.islat.wave_data, 
                 self.islat.flux_data, 
-                err_data, 
                 xmin, 
-                xmax
+                xmax,
+                err_data=err_data
+            )
+            molecule_wave, molecule_flux = self.islat.active_molecule.get_flux(return_wavelengths=True)
+            molecule_flux_in_range, _ = self.flux_integral_basic(
+                molecule_wave, 
+                molecule_flux, 
+                xmin=xmin, 
+                xmax=xmax
             )
         else:
             line_flux = [0.0]
@@ -453,7 +460,8 @@ class iSLATPlot:
             f"Einstein-A coeff. (1/s) = {einstein_str}\n"
             f"Upper level energy (K) = {energy_str}\n"
             f"Opacity = {tau_str}\n"
-            f"Flux in sel. range (erg/s/cm2) = {flux_str}\n"
+            f"Data flux in sel. range (erg/s/cm2) = {flux_str}\n"
+            f"Model flux in sel. range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
         )
         
         # Add the information without clearing the data field, with error protection
