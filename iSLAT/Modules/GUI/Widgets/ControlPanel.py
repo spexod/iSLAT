@@ -149,6 +149,7 @@ class ControlPanel(ttk.Frame):
                 entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
             except ValueError as e:
                 print(f"Error with new value: {e}")
+                self.data_field.insert_text(f"Error with new value: {e}")
             finally:
                 self.updating = False
         
