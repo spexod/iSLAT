@@ -365,7 +365,7 @@ class PlotRenderer:
                             color = self._get_molecule_color(active_molecule)
                             self.ax2.plot(model_wave_range, model_flux_range, 
                                          color=color, linestyle="--", 
-                                         linewidth=1, label=label)
+                                         linewidth=2, label=label)
                             if len(observed_flux) <= 0:
                                 max_y = np.nanmax(model_flux_range)
             except Exception as e:
@@ -402,7 +402,7 @@ class PlotRenderer:
                 fit_mask = (fitted_wave >= xmin) & (fitted_wave <= xmax)
                 if np.any(fit_mask):
                     fit_line = self.ax2.plot(fitted_wave[fit_mask], fitted_flux[fit_mask], 
-                                color='red', linewidth=2, label='Total Fit', linestyle='--')[0]
+                                color='red', linewidth=1, label='Total Fit', linestyle='--')[0]
                     # Mark as fit result for future removal
                     fit_line._islat_fit_result = True
                     
