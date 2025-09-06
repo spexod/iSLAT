@@ -1249,8 +1249,8 @@ class PlotRenderer:
                 plot_flux,
                 linestyle='--',
                 color=color,
-                alpha=0.7,
-                linewidth=self._get_theme_value("model_plot_line_width", 1.5),
+                alpha=0.8,
+                linewidth=2,
                 label=label,
                 zorder=self._get_theme_value("zorder_model", 3)
             )
