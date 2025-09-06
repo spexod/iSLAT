@@ -90,7 +90,7 @@ class TopBar(ResizableFrame):
         spec_functions_menu.add_command(label="Save Line", command=self.save_line)
         spec_functions_menu.add_command(label="Fit Line", command=self.fit_selected_line)
         spec_functions_menu.add_command(label="Fit Saved Lines", command=self.fit_saved_lines)
-        spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
+        #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
         spec_functions_drpwn.config(menu=spec_functions_menu)
