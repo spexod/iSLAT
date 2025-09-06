@@ -30,7 +30,7 @@ class FittingEngine:
         self.last_fit_params = None
     
     def fit_gaussian_line(self, wave_data, flux_data, xmin=None, xmax=None, 
-                         initial_guess=None, deblend=False):
+                         initial_guess=None, deblend=False, err_data=None):
         """
         Fit a Gaussian model to spectral line data.
         
@@ -72,13 +72,14 @@ class FittingEngine:
         if deblend:
             return self._fit_multi_gaussian(fit_wave, fit_flux, initial_guess, xmin, xmax)
         else:
-            return self._fit_single_gaussian(fit_wave, fit_flux, initial_guess, xmin, xmax)
+            return self._fit_single_gaussian(fit_wave, fit_flux, initial_guess, xmin, xmax, err_data)
 
-    def _fit_single_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
+    def _fit_single_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None, err_data=None):
         """Fit a single Gaussian component."""
         # Data is already filtered to the fit range by the caller
         x_fit = wave_data
         flux_fit = flux_data
+        calc_err_data = err_data #if err_data is not None else self.islat.err_data
         
         # Use gaussian model from LMFIT
         model = GaussianModel()
@@ -88,11 +89,11 @@ class FittingEngine:
         
         # Get error data for weights if available
         weights = None
-        if hasattr(self.islat, 'err_data') and self.islat.err_data is not None:
+        if calc_err_data is not None:
             # Need to get error data for the same range
             if xmin is not None and xmax is not None:
-                err_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
-                err_fit = self.islat.err_data[err_mask]
+                #err_mask = (wave_data >= xmin) & (wave_data <= xmax)
+                err_fit = calc_err_data#[err_mask]
                 # Following LMFIT docs: use 1/error as weights, avoiding division by zero
                 if len(err_fit) == len(flux_fit) and len(err_fit) > 0:
                     max_err = np.max(err_fit)

@@ -111,7 +111,6 @@ class FileInteractionPane(ttk.Frame):
         widget.configure(text=text)
         widget.trim_text()
 
-
         if widget.trimmed:
             widget.tooltip = CreateToolTip(widget, text)
         else:

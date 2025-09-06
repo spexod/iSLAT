@@ -15,7 +15,7 @@ from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
-from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name
+from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name
 import iSLAT.Constants as c
 
 if TYPE_CHECKING:
@@ -90,6 +90,7 @@ class TopBar(ResizableFrame):
         spec_functions_menu.add_command(label="Save Line", command=self.save_line)
         spec_functions_menu.add_command(label="Fit Line", command=self.fit_selected_line)
         spec_functions_menu.add_command(label="Fit Saved Lines", command=self.fit_saved_lines)
+        spec_functions_menu.add_command(label="Fit Saved Lines To Sample", command=self.fit_saved_lines_to_sample)
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
@@ -354,20 +355,87 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Error during fitting: {e}\n", clear_after=False)
             self.data_field.insert_text(f"Traceback: {traceback.format_exc()}\n", clear_after=False)
 
-    def fit_saved_lines(self):
+    def fit_saved_lines(self, multiple_files=False):
         """
         Fit all saved lines using LineAnalyzer for comprehensive analysis.
+        
+        Args:
+            multiple_files (bool): If True, allows user to select multiple spectrum files.
+                                 If False, fits saved lines to the currently loaded spectrum.
+        """
+        if not self.islat.input_line_list:
+            self.data_field.insert_text("No input line list file configured.\n")
+            return
+        
+        if not self.islat.output_line_measurements:
+            self.data_field.insert_text("No output line measurements file configured.\n")
+            return
+        
+        if multiple_files:
+            # Ask user to select multiple spectrum files
+            from tkinter import filedialog
+            spectrum_files = filedialog.askopenfilenames(
+                title="Select Spectrum Files to Fit Saved Lines",
+                filetypes=[("All files", "*.*")]
+            )
+            
+            if not spectrum_files:
+                self.data_field.insert_text("No spectrum files selected.\n")
+                return
+            
+            self.data_field.insert_text(f"Fitting saved lines to {len(spectrum_files)} spectrum files...\n")
+
+            for spec_file in spectrum_files:
+                try:
+                    # Load the spectrum data
+                    spectrum_df = ifh.read_spectral_data(spec_file)
+                    wavedata=np.array(spectrum_df['wave'].values)
+                    fluxdata=np.array(spectrum_df['flux'].values)
+                    err_data=np.array(spectrum_df['err'].values) #if 'err' in spectrum_df.columns else None
+                    print(f'Err data loaded: {err_data}')
+                    print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
+                    # Fit the saved lines to the loaded spectrum
+                    self._perform_saved_lines_fit(
+                        spectrum_name=os.path.basename(spec_file),
+                        wavedata=wavedata,
+                        fluxdata=fluxdata,
+                        err_data=err_data,
+                        plot_results=False
+                    )
+
+                    self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spec_file)}\n", clear_after=False)
+                    
+                except Exception as e:
+                    self.data_field.insert_text(f"Error processing {os.path.basename(spec_file)}: {e}\n", clear_after=False)
+            
+            self.data_field.insert_text("Completed fitting saved lines to all selected spectra.\n")
+        else:
+            # Fit saved lines to the currently loaded spectrum
+            self._perform_saved_lines_fit()
+
+    def _perform_saved_lines_fit(self, spectrum_name=None, wavedata=None, fluxdata=None, err_data=None, plot_results=True):
+        """
+        Internal method to perform the actual saved lines fitting.
         """
         saved_lines_file = self.islat.input_line_list
-        output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
+        #output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
         
+        if spectrum_name is not None:
+            spectrum_base_name = os.path.splitext(spectrum_name)[0]
+            output_file = f"{spectrum_base_name}-{fit_save_lines_file_name}"
+        else:
+            output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
+
+        if spectrum_name is None:
+            spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+
         # Validate that files are properly configured
         if not saved_lines_file:
             self.data_field.insert_text("No input line list file configured.\n")
             return
-            
-        self.data_field.insert_text(f"Fitting saved lines from: {saved_lines_file}\n")
-        
+
+        self.data_field.insert_text(f"Fitting saved lines from: {saved_lines_file} to spectrum: {spectrum_name}\n")
+
         # Initialize LineAnalyzer and FittingEngine
         line_analyzer = LineAnalyzer(self.islat)
         fitting_engine = FittingEngine(self.islat)
@@ -376,7 +444,10 @@ class TopBar(ResizableFrame):
         fit_data = line_analyzer.analyze_saved_lines(
             saved_lines_file,
             fitting_engine,
-            output_file
+            output_file,
+            wavedata=wavedata,
+            fluxdata=fluxdata,
+            err_data=err_data if err_data is not None else None,
         )
         
         if fit_data:
@@ -397,10 +468,15 @@ class TopBar(ResizableFrame):
                     wavelength = result.get('lam', 0)
                     self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_after=False)
 
-            self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)
+            if plot_results:
+                self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)
 
         else:
             self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_after=False)
+
+    def fit_saved_lines_to_sample(self):
+        """Fit saved line list to a number of spectrum files at once."""
+        self.fit_saved_lines(multiple_files=True)
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""

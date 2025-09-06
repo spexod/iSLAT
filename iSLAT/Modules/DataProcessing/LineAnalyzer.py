@@ -233,7 +233,7 @@ class LineAnalyzer:
             except (ValueError, TypeError, ZeroDivisionError):
                 entry['RD_y'] = np.nan
 
-    def analyze_saved_lines(self, saved_lines_file, fitting_engine, output_file=None):
+    def analyze_saved_lines(self, saved_lines_file, fitting_engine, output_file=None, wavedata=None, fluxdata=None, err_data=None):
         """
         Comprehensive analysis of saved lines using data already present in the saved lines file.
         Performs fitting and rotation diagram calculations without external spectral arrays.
@@ -266,61 +266,65 @@ class LineAnalyzer:
         fitted_fluxes = []
         fitted_waves = []
         sig_det_lim = 2  # Detection limit for signal-to-noise ratio
+
+        calc_wave_data = self.islat.wave_data if wavedata is None else wavedata
+        calc_flux_data = self.islat.flux_data if fluxdata is None else fluxdata
         
         for i, line_row in saved_lines.iterrows():
-            try:
-                # Extract all line information from saved file
-                center_wave = float(line_row['lam']) if 'lam' in line_row else 0.0
-                xmin = float(line_row['xmin']) if 'xmin' in line_row and not pd.isna(line_row['xmin']) else center_wave - 0.01
-                xmax = float(line_row['xmax']) if 'xmax' in line_row and not pd.isna(line_row['xmax']) else center_wave + 0.01
-                
-                # Create line info from saved data
-                line_info = {
-                    'species': line_row.get('species', 'Unknown'),
-                    'lev_up': line_row.get('lev_up', ''),
-                    'lev_low': line_row.get('lev_low', ''),
-                    'lam': center_wave,
-                    'a_stein': float(line_row.get('a_stein', 0.0)) if not pd.isna(line_row.get('a_stein', 0.0)) else 0.0,
-                    'e_up': float(line_row.get('e_up', 0.0)) if not pd.isna(line_row.get('e_up', 0.0)) else 0.0,
-                    'g_up': float(line_row.get('g_up', 1.0)) if not pd.isna(line_row.get('g_up', 1.0)) else 1.0,
-                    #'intens': float(line_row.get('intens', 0.0)) if not pd.isna(line_row.get('intens', 0.0)) else 0.0,
-                    #'tau': float(line_row.get('tau', 0.0)) if not pd.isna(line_row.get('tau', 0.0)) else 0.0
-                }
+            #try:
+            # Extract all line information from saved file
+            center_wave = float(line_row['lam']) if 'lam' in line_row else 0.0
+            xmin = float(line_row['xmin']) if 'xmin' in line_row and not pd.isna(line_row['xmin']) else center_wave - 0.01
+            xmax = float(line_row['xmax']) if 'xmax' in line_row and not pd.isna(line_row['xmax']) else center_wave + 0.01
+            
+            # Create line info from saved data
+            line_info = {
+                'species': line_row.get('species', 'Unknown'),
+                'lev_up': line_row.get('lev_up', ''),
+                'lev_low': line_row.get('lev_low', ''),
+                'lam': center_wave,
+                'a_stein': float(line_row.get('a_stein', 0.0)) if not pd.isna(line_row.get('a_stein', 0.0)) else 0.0,
+                'e_up': float(line_row.get('e_up', 0.0)) if not pd.isna(line_row.get('e_up', 0.0)) else 0.0,
+                'g_up': float(line_row.get('g_up', 1.0)) if not pd.isna(line_row.get('g_up', 1.0)) else 1.0,
+                #'intens': float(line_row.get('intens', 0.0)) if not pd.isna(line_row.get('intens', 0.0)) else 0.0,
+                #'tau': float(line_row.get('tau', 0.0)) if not pd.isna(line_row.get('tau', 0.0)) else 0.0
+            }
 
-                fit_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
-                x_fit = self.islat.wave_data[fit_mask]
-                y_fit = self.islat.flux_data[fit_mask]
+            fit_mask = (calc_wave_data >= xmin) & (calc_wave_data <= xmax)
+            x_fit = calc_wave_data[fit_mask]
+            y_fit = calc_flux_data[fit_mask]
 
-                fit_result, fitted_wave, fitted_flux = fitting_engine.fit_gaussian_line(
-                    wave_data=x_fit,
-                    flux_data=y_fit,
-                    xmin=xmin,
-                    xmax=xmax,
-                    initial_guess=None,
-                    deblend=False
-                )
+            fit_result, fitted_wave, fitted_flux = fitting_engine.fit_gaussian_line(
+                wave_data=x_fit,
+                flux_data=y_fit,
+                xmin=xmin,
+                xmax=xmax,
+                initial_guess=None,
+                deblend=False,
+                err_data=err_data
+            )
+            
+            # Create synthetic data arrays for formatting compatibility
+            wave_range = np.linspace(xmin, xmax, 50)
+            flux_range = np.ones(50)  # Placeholder flux
+            #wave_range = fitted_wave
+            #flux_range = fitted_flux
+            fit_results_data.append(fit_result)
+            fitted_waves.append(fitted_wave)
+            fitted_fluxes.append(fitted_flux)
+            err_range = np.ones(50) * 0.1  # Placeholder error
+            
+            # Format results using existing method
+            result_entry = fitting_engine.format_fit_results_for_csv(
+                fit_result, wave_range, flux_range, err_range,
+                xmin, xmax, center_wave, line_info, sig_det_lim
+            )
+            
+            fit_results_csv_data.append(result_entry)
                 
-                # Create synthetic data arrays for formatting compatibility
-                wave_range = np.linspace(xmin, xmax, 50)
-                flux_range = np.ones(50)  # Placeholder flux
-                #wave_range = fitted_wave
-                #flux_range = fitted_flux
-                fit_results_data.append(fit_result)
-                fitted_waves.append(fitted_wave)
-                fitted_fluxes.append(fitted_flux)
-                err_range = np.ones(50) * 0.1  # Placeholder error
-                
-                # Format results using existing method
-                result_entry = fitting_engine.format_fit_results_for_csv(
-                    fit_result, wave_range, flux_range, err_range,
-                    xmin, xmax, center_wave, line_info, sig_det_lim
-                )
-                
-                fit_results_csv_data.append(result_entry)
-                
-            except Exception as e:
+            '''except Exception as e:
                 print(f"Error analyzing line {i+1}: {e}")
-                continue
+                continue'''
         
         # Add rotation diagram values if we have successful fits with molecular data
         if fit_results_csv_data and any(entry.get('a_stein', 0) > 0 for entry in fit_results_csv_data):
