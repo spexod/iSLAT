@@ -27,3 +27,5 @@ iSLAT/DATAFILES/MODELS/
 iSLAT/DATAFILES/.DS_Store
 
 .DS_store
+
+./venv

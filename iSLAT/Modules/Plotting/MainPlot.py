@@ -460,8 +460,8 @@ class iSLATPlot:
             f"Einstein-A coeff. (1/s) = {einstein_str}\n"
             f"Upper level energy (K) = {energy_str}\n"
             f"Opacity = {tau_str}\n"
-            f"Data flux in sel. range (erg/s/cm2) = {flux_str}\n"
-            f"Model flux in sel. range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
+            f"Data flux in range (erg/s/cm2) = {flux_str}\n"
+            f"Model flux in range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
         )
         
         # Add the information without clearing the data field, with error protection
