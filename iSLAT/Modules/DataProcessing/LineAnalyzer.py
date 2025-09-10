@@ -305,14 +305,15 @@ class LineAnalyzer:
             )
             
             # Create synthetic data arrays for formatting compatibility
-            wave_range = np.linspace(xmin, xmax, 50)
-            flux_range = np.ones(50)  # Placeholder flux
-            #wave_range = fitted_wave
-            #flux_range = fitted_flux
+            #wave_range = np.linspace(xmin, xmax, 50)
+            #flux_range = np.ones(50)  # Placeholder flux
+            wave_range = fitted_wave
+            flux_range = fitted_flux
             fit_results_data.append(fit_result)
             fitted_waves.append(fitted_wave)
             fitted_fluxes.append(fitted_flux)
-            err_range = np.ones(50) * 0.1  # Placeholder error
+            #err_range = np.ones(50) * 0.1  # Placeholder error
+            err_range = err_data
             
             # Format results using existing method
             result_entry = fitting_engine.format_fit_results_for_csv(
