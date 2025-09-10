@@ -34,9 +34,11 @@ class ControlPanel(ttk.Frame):
         self.label_frame.grid_rowconfigure(0,weight=1)
 
 
-        bg_frame = tk.Frame(self)
-        self.bg_color = bg_frame.cget('bg')
-        bg_frame.destroy()
+        temp_label = tk.Label(self)
+        self.bg_color = temp_label.cget('bg')
+        self.fg_color = temp_label.cget('fg')
+        temp_label.destroy()
+        fg_text = tk.Text()
         self.selected_color = "#007BFF"
         
         self.max_name_len = 4
@@ -146,7 +148,7 @@ class ControlPanel(ttk.Frame):
                 on_change_callback(value)
                 value_str = self._format_value(value, param_name)
                 var.set(value_str)
-                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+                entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
             except ValueError as e:
                 print(f"Error with new value: {e}")
                 self.data_field.insert_text(f"Error with new value: {e}")
@@ -155,7 +157,7 @@ class ControlPanel(ttk.Frame):
         
         def on_write(*args):
             if self.updating: # Updating means that the entry variable is being updated from iSLAT and should not turn grey
-                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+                entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
                 return
             try:
                 new_entry = float(entry.get())
@@ -165,7 +167,7 @@ class ControlPanel(ttk.Frame):
                 return
             
             if new_entry == old_entry:
-                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+                entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
             else:
                 entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
 
