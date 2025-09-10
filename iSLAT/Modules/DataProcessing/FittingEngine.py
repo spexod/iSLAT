@@ -118,35 +118,6 @@ class FittingEngine:
         
         return result, fitted_wave, fitted_flux
     
-    def flux_integral(self, lam, flux, err, lam_min, lam_max):
-        # Use vectorized operations for efficiency
-        wavelength_mask = (lam >= lam_min) & (lam <= lam_max)
-        
-        if not np.any(wavelength_mask):
-            return 0.0, 0.0
-            
-        lam_range = lam[wavelength_mask]
-        flux_range = flux[wavelength_mask]
-        
-        if len(lam_range) < 2:
-            return 0.0, 0.0
-        
-        # Convert to frequency space for proper integration
-        freq_range = c.SPEED_OF_LIGHT_KMS / lam_range
-        
-        # Integrate in frequency space (reverse order for proper frequency ordering)
-        line_flux_meas = np.trapz(flux_range[::-1], x=freq_range[::-1])
-        line_flux_meas = -line_flux_meas * 1e-23  # Convert Jy*Hz to erg/s/cm^2
-        
-        # Calculate error propagation if error data provided
-        if err is not None:
-            err_range = err[wavelength_mask]
-            line_err_meas = np.trapz(err_range[::-1], x=freq_range[::-1])
-            line_err_meas = -line_err_meas * 1e-23
-        else:
-            line_err_meas = 0.0
-            
-        return line_flux_meas, line_err_meas
 
     def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
         """Fit multiple Gaussian components for deblending"""
@@ -487,7 +458,7 @@ class FittingEngine:
         
         return line_params
     
-    def format_fit_results_for_csv(self, fit_result, wave_data, flux_data, error_data, 
+    def format_fit_results_for_csv(self, fit_result, flux_data_integral, err_data_integral,
                                    xmin, xmax, rest_wavelength, line_info, sig_det_lim=2):
         """
         Format fit results into a standardized dictionary for CSV output.
@@ -512,15 +483,7 @@ class FittingEngine:
         dict
             Formatted result dictionary
         """
-        from scipy.integrate import trapezoid
-        
-        # Calculate line flux integral (direct calculation since we have the data)
-        flux_data_integral = trapezoid(flux_data, wave_data)
-        if error_data is not None:
-            err_data_integral = np.sqrt(trapezoid(error_data**2, wave_data))
-        else:
-            err_data_integral = abs(flux_data_integral) * 0.1
-        
+
         # Calculate signal-to-noise ratios for data
         #line_sn = flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0
         line_sn = np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1)
