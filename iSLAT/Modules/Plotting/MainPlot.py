@@ -346,53 +346,6 @@ class iSLATPlot:
             self._display_line_info(picked_value)
         self.canvas.draw_idle()
 
-    def flux_integral_basic(self, wave_data, flux_data, xmin, xmax, err_data = None):
-        """
-        Calculate the flux integral in a given wavelength range.
-        
-        Parameters:
-        -----------
-        wave_data : array
-            Wavelength array
-        flux_data : array
-            Flux array
-        err_data : array or None
-            Error array (optional)
-        xmin, xmax : float
-            Wavelength range
-            
-        Returns:
-        --------
-        line_flux : float
-            Integrated flux
-        line_err : float
-            Error on integrated flux
-        """
-        mask = (wave_data >= xmin) & (wave_data <= xmax)
-        if not np.any(mask):
-            return 0.0, 0.0
-            
-        wave_region = wave_data[mask]
-        flux_region = flux_data[mask]
-        
-        if len(wave_region) < 2:
-            return 0.0, 0.0
-            
-        # Integrate using trapezoidal rule
-        wave_region = c.SPEED_OF_LIGHT_MICRONS/wave_region[::-1]  # Reverse for decreasing wavelength
-        line_flux = np.trapz(flux_region, wave_region)
-        line_flux *= 1e-23  # Convert from Jy to erg/s/cm^2
-        
-        # Calculate error if available
-        if err_data is not None:
-            err_region = err_data[mask]
-            # Simple error propagation for integration
-            line_err = np.sqrt(np.sum(err_region**2)) * (wave_region[-1] - wave_region[0]) / len(wave_region)
-        else:
-            line_err = 0.0
-            
-        return line_flux, line_err
-
     def highlight_strongest_line(self):
         """
         Highlight the strongest line by delegating to PlotRenderer.
@@ -416,19 +369,20 @@ class iSLATPlot:
             xmin, xmax = self.current_selection
             # Calculate flux integral
             err_data = getattr(self.islat, 'err_data', None)
-            line_flux, line_err = self.flux_integral_basic(
-                self.islat.wave_data, 
-                self.islat.flux_data, 
-                xmin, 
-                xmax,
-                err_data=err_data
+            line_flux, line_err = self.flux_integral(
+                lam=self.islat.wave_data, 
+                flux=self.islat.flux_data, 
+                lam_min=xmin, 
+                lam_max=xmax,
+                err=err_data
             )
             molecule_wave, molecule_flux = self.islat.active_molecule.get_flux(return_wavelengths=True)
-            molecule_flux_in_range, _ = self.flux_integral_basic(
-                molecule_wave, 
-                molecule_flux, 
-                xmin=xmin, 
-                xmax=xmax
+            molecule_flux_in_range, _ = self.flux_integral(
+                lam=molecule_wave, 
+                flux=molecule_flux, 
+                lam_min=xmin, 
+                lam_max=xmax,
+                err=None
             )
         else:
             line_flux = [0.0]
@@ -600,7 +554,7 @@ class iSLATPlot:
         tuple
             (line_flux_meas, line_err_meas) in erg/s/cm^2
         """
-        self.fitting_engine.flux_integral(lam, flux, err, lam_min, lam_max)
+        return self.line_analyzer.flux_integral(lam, flux, err, lam_min, lam_max)
 
     def clear_active_lines(self) -> None:
         """

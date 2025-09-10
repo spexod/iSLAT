@@ -247,7 +247,7 @@ class LineAnalyzer:
             return 0.0, 0.0
 
         # Convert to frequency space for proper integration
-        freq_range = c.SPEED_OF_LIGHT_KMS / lam_range
+        freq_range = c.SPEED_OF_LIGHT_MICRONS / lam_range[::-1]
 
         # Integrate in frequency space (reverse order for proper frequency ordering)
         line_flux_meas = np.trapz(flux_range[::-1], x=freq_range[::-1])
