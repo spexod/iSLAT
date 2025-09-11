@@ -135,12 +135,12 @@ class ControlPanel(ttk.Frame):
                             self.data_field.insert_text("Cannot set temperature to less than 1")
                             return
                     case "n_mol":
-                        if value <= 0:
+                        if value == 0:
                             self.data_field.insert_text("Cannot set Column Density to 0")
                             return
                     case "radius":
                         if value <= 0: 
-                            self.data_field.insert_text("Cannot set value to 0")
+                            self.data_field.insert_text("Cannot set radius to 0 or negative")
                             return
                     
                 on_change_callback(value)
