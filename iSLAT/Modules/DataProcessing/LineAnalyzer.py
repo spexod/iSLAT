@@ -298,6 +298,7 @@ class LineAnalyzer:
 
         calc_wave_data = self.islat.wave_data if wavedata is None else wavedata
         calc_flux_data = self.islat.flux_data if fluxdata is None else fluxdata
+        err_data = self.islat.err_data if err_data is None else err_data
         
         for i, line_row in saved_lines.iterrows():
             #try:
@@ -333,7 +334,7 @@ class LineAnalyzer:
                 err_data=err_data
             )
 
-            flux_data_integral, err_data_integral = self.flux_integral(calc_wave_data, calc_flux_data, err_data, xmin, xmax)
+            flux_data_integral, err_data_integral = self.flux_integral(calc_wave_data, calc_flux_data, err=err_data, lam_min=xmin, lam_max=xmax)
 
             # Create synthetic data arrays for formatting compatibility
             fit_results_data.append(fit_result)

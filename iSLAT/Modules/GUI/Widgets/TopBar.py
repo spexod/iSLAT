@@ -451,7 +451,7 @@ class TopBar(ResizableFrame):
             output_file,
             wavedata=wavedata,
             fluxdata=fluxdata,
-            err_data=err_data if err_data is not None else None,
+            err_data=err_data,
         )
         
         if fit_data:
