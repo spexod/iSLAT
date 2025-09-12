@@ -210,7 +210,7 @@ def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_fi
         df.to_csv(filename, mode='a', header=do_header, index=False)
     print(f"Saved line at ~{clean_line_info['lam']:.4f} μm to {filename}")
 
-def save_fit_results(fit_results_data, file_path = save_folder_path, file_name= fit_save_lines_file_name, overwritefile=True):
+def save_fit_results(fit_results_data, file_path = line_saves_file_path, file_name= fit_save_lines_file_name, overwritefile=True):
     """
     Save fit results data to CSV file.
     

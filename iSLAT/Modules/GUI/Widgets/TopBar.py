@@ -15,7 +15,7 @@ from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
-from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name
+from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name, example_data_folder_path
 import iSLAT.Constants as c
 
 if TYPE_CHECKING:
@@ -378,7 +378,8 @@ class TopBar(ResizableFrame):
             from tkinter import filedialog
             spectrum_files = filedialog.askopenfilenames(
                 title="Select Spectrum Files to Fit Saved Lines",
-                filetypes=[("All files", "*.*")]
+                filetypes=[("All files", "*.*")],
+                initialdir=example_data_folder_path
             )
             
             if not spectrum_files:
@@ -424,7 +425,8 @@ class TopBar(ResizableFrame):
         
         if spectrum_name is not None:
             spectrum_base_name = os.path.splitext(spectrum_name)[0]
-            output_file = f"{spectrum_base_name}-{fit_save_lines_file_name}"
+            output_file = f"{spectrum_base_name}-{os.path.basename(saved_lines_file)}"
+            print(f"Output file for spectrum {spectrum_name}: {output_file}")
         else:
             output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
 
