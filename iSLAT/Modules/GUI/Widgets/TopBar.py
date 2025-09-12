@@ -171,6 +171,8 @@ class TopBar(ResizableFrame):
             'a_stein': selected_line_info.get('a', 0.0),
             'e_up': selected_line_info.get('e', 0.0),
             'g_up': selected_line_info.get('g', 1.0),
+            'e_low': selected_line_info.get('e_low', 0.0),
+            'g_low': selected_line_info.get('g_low', 1.0),
             'xmin': xmin,
             'xmax': xmax,
         }
