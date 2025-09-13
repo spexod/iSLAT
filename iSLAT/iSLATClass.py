@@ -342,25 +342,31 @@ class iSLAT:
             print(f"Error loading default molecules: {e}")
             raise
 
-    def get_mole_save_data(self):
+    def get_mole_save_data(self, spectrum_name=None):
         # Check to see if a save for the current spectrum file exists
-        if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
-            spectrum_base_name = os.path.splitext(self.loaded_spectrum_name)[0]
-            formatted_mol_save_file_name = f"{spectrum_base_name}-{molsave_file_name}"
-            molsave_path = save_folder_path
-            full_path = os.path.join(molsave_path, formatted_mol_save_file_name)
-            alternative_path = os.path.join(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
-            if os.path.exists(full_path):
-                print(f"Loading molecules from saved file: {full_path}")
-                mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
-            elif os.path.exists(alternative_path):
-                print(f"Loading molecules from old format saved file: {alternative_path}")
-                mole_save_data = read_from_user_csv(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
-            else:
-                print(f"Warning: Mole save path does not exist: {molsave_path}")
-                mole_save_data = None
+        if spectrum_name is not None:
+            file_name = spectrum_name
+        elif hasattr(self, 'loaded_spectrum_name'):
+            file_name = self.loaded_spectrum_name
         else:
-            mole_save_data = None   
+            return None
+        
+        #if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
+        
+        spectrum_base_name = os.path.splitext(file_name)[0]
+        formatted_mol_save_file_name = f"{spectrum_base_name}-{molsave_file_name}"
+        molsave_path = save_folder_path
+        full_path = os.path.join(molsave_path, formatted_mol_save_file_name)
+        alternative_path = os.path.join(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
+        if os.path.exists(full_path):
+            print(f"Loading molecules from saved file: {full_path}")
+            mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
+        elif os.path.exists(alternative_path):
+            print(f"Loading molecules from old format saved file: {alternative_path}")
+            mole_save_data = read_from_user_csv(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
+        else:
+            print(f"Warning: Mole save path does not exist: {molsave_path}")
+            mole_save_data = None
         
         return mole_save_data
 

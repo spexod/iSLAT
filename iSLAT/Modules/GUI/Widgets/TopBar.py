@@ -352,8 +352,8 @@ class TopBar(ResizableFrame):
             return
         
         if not self.islat.output_line_measurements:
-            self.data_field.insert_text("No output line measurements file configured.\n")
-            return
+            #self.data_field.insert_text("No output line measurements file configured.\n")
+            self.data_field.insert_text("No output line measurements file configured. Using default\n")
         
         if multiple_files:
             # Ask user to select multiple spectrum files
@@ -370,18 +370,24 @@ class TopBar(ResizableFrame):
             
             self.data_field.insert_text(f"Fitting saved lines to {len(spectrum_files)} spectrum files...\n")
 
-            for spec_file in spectrum_files:
+            for spectrum_file in spectrum_files:
                 #try:
+                    save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
+                    stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
+                    stellar_rv = float(stellar_rv)
+                    print(f"Stellar RV for {os.path.basename(spectrum_file)}: {stellar_rv} km/s")
+
                     # Load the spectrum data
-                    spectrum_df = ifh.read_spectral_data(spec_file)
+                    spectrum_df = ifh.read_spectral_data(spectrum_file)
                     wavedata=np.array(spectrum_df['wave'].values)
+                    wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)  # Apply stellar RV correction
                     fluxdata=np.array(spectrum_df['flux'].values)
                     err_data=np.array(spectrum_df['err'].values) #if 'err' in spectrum_df.columns else None
-                    print(f'Err data loaded: {err_data}')
-                    print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
+                    #print(f'Err data loaded: {err_data}')
+                    #print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
                     # Fit the saved lines to the loaded spectrum
                     self._perform_saved_lines_fit(
-                        spectrum_name=os.path.basename(spec_file),
+                        spectrum_name=os.path.basename(spectrum_file),
                         wavedata=wavedata,
                         fluxdata=fluxdata,
                         err_data=err_data,
@@ -389,10 +395,10 @@ class TopBar(ResizableFrame):
                         plot_grid=True
                     )
 
-                    self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spec_file)}\n", clear_after=False)
+                    self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spectrum_file)}\n", clear_after=False)
                     
                 #except Exception as e:
-                #    self.data_field.insert_text(f"Error processing {os.path.basename(spec_file)}: {e}\n", clear_after=False)
+                #    self.data_field.insert_text(f"Error processing {os.path.basename(spectrum_file)}: {e}\n", clear_after=False)
             
             self.data_field.insert_text("Completed fitting saved lines to all selected spectra.\n")
         else:
