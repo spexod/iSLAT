@@ -6,7 +6,6 @@ import numpy as np
 from ...Constants import MOLECULES_DATA
 from .molecular_data_reader import read_molecular_data
 
-
 #from pathlib import Path
 
 from iSLAT.Modules.FileHandling import *

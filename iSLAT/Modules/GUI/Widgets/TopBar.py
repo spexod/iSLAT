@@ -507,7 +507,7 @@ class TopBar(ResizableFrame):
         self.data_field.insert_text("Running single slab fit analysis...\n")
         
         try:
-            output_folder = self.islat.output_line_measurements
+            output_folder = os.path.dirname(self.islat.output_line_measurements)
             # Use the SlabModel class to perform the fit
             slab_model = SlabModel(
                 mol_object=self.islat.active_molecule,

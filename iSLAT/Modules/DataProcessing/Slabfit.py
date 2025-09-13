@@ -306,6 +306,5 @@ class SlabModel:
         print(f"Results saved to {output_path}")
         return output_path
 
-
 # Backward compatibility alias
 SlabFit = SlabModel
