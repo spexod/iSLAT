@@ -262,24 +262,6 @@ class TopBar(ResizableFrame):
                             
                             # Automatically save this component
                             try:
-                                    '''# Create line info dictionary for each component
-                                    line_info = {
-                                        'species': self.islat.active_molecule,
-                                        'lev_up': f'deblend_comp_{component_idx+1}',
-                                        'lev_low': '',
-                                        'lam': comp_params['center'],
-                                        'tau': comp_params['amplitude'],
-                                        'intens': comp_params['area'],
-                                        'a_stein': '',
-                                        'e_up': '',
-                                        'g_up': '',
-                                        'xmin': xmin,
-                                        'xmax': xmax,
-                                        'flux_fit': comp_params['area'],
-                                        'fwhm_fit': comp_params['fwhm'],
-                                        'centr_fit': comp_params['center']
-                                    }'''
-
                                     current_tripple = line_info[component_idx]
                                     current_line_info = current_tripple[0].get_dict()
                                     current_intens = current_tripple[1]
@@ -520,12 +502,18 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Error loading single slab fit: {e}\n")
             return
         
-        #try:
-        fitted_params = slab_model.fit_parameters()
-        '''except Exception as e:
+        try:
+            fitted_params = slab_model.fit_parameters()
+        except Exception as e:
             self.data_field.insert_text(f"Error fitting slab model: {e}\n")
-            return'''
+            return
         
+        try:
+            slab_model.update_molecule_parameters(fitted_params=fitted_params)
+        except Exception as e:
+            self.data_field.insert_text(f"Error updating molecule parameters: {e}\n")
+            return
+
         try:
             slab_model.save_results(fitted_params=fitted_params)
         except Exception as e:
@@ -547,7 +535,6 @@ class TopBar(ResizableFrame):
         label.grid(row=0, column=0)
 
         # Create a dropdown menu in the new window
-        #options = [molecule[0] for molecule in molecules_data] + ["SUM"] + ["ALL"]
         options = list(self.islat.molecules_dict.keys()) + ["SUM", "ALL"]
         dropdown_var = tk.StringVar()
         dropdown = ttk.Combobox(export_window, textvariable=dropdown_var, values=options)
