@@ -67,8 +67,11 @@ PARSEC_CM = 3.086e18
 PARSEC_CM_ALT = 3.08567758128e18
 """Alternative parsec conversion from parsec to cm."""
 
+AVAGADRO_NUMBER = 6.02214076e23
+"""Avogadro's number in 1/mol."""
+
 PI = np.pi
-"""Mathematical constant π."""
+"""Mathematical constant pi."""
 
 # =============================================================================
 # NAMEDTUPLE FOR BACKWARD COMPATIBILITY

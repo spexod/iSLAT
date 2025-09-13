@@ -242,18 +242,16 @@ class iSLATPlot:
             self.canvas.draw_idle()
             return
         
-        wave_data = self._get_model_wavelength_grid()
+        wave_data = self.islat.wave_data_original
         
         try:
             if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
                 debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
                 summed_wavelengths, summed_flux = self.islat.molecules_dict.get_summed_flux(wave_data, visible_only=True)
-                wave_data = summed_wavelengths  # Use the combined wavelength grid
         except Exception as e:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
     
-        wave_data = self.islat.wave_data_original
         wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
         self.islat.wave_data = wave_data # Update islat wave_data to match adjusted grid
 
@@ -276,12 +274,6 @@ class iSLATPlot:
         mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
         self.selected_wave = self.islat.wave_data[mask]
         self.selected_flux = self.islat.flux_data[mask]
-
-        # if xmax - xmin < 0.025:
-        #     self.ax2.clear()
-        #     self.current_selection = None
-        #     self.canvas.draw_idle()
-        #     return
 
         self.plot_spectrum_around_line(
             xmin=xmin,
@@ -844,46 +836,3 @@ class iSLATPlot:
         # Also update any existing plots to use colors
         if hasattr(self, 'update_all_plots'):
                 self.update_all_plots()
-
-    def _get_model_wavelength_grid(self):
-        """
-        Generate wavelength grid for model calculations.
-        
-        If a global wavelength range is set and extends beyond the observed data,
-        create an extended grid. Otherwise, use the observed data wavelength grid.
-        
-        Returns
-        -------
-        np.ndarray
-            Wavelength grid for model calculations
-        """
-        # Start with observed data wavelength grid
-        obs_wave_data = self.islat.wave_data
-        
-        # Check if molecules_dict has a global wavelength range set
-        if (hasattr(self.islat.molecules_dict, '_global_wavelength_range') and 
-            self.islat.molecules_dict._global_wavelength_range is not None):
-            
-            global_min, global_max = self.islat.molecules_dict._global_wavelength_range
-            obs_min, obs_max = obs_wave_data.min(), obs_wave_data.max()
-            
-            # Check if global range extends beyond observed data
-            extends_beyond = global_min < obs_min or global_max > obs_max
-            
-            if extends_beyond:
-                # Create extended wavelength grid
-                # Use the same resolution as the observed data
-                obs_resolution = np.median(np.diff(obs_wave_data))
-                
-                # Create extended grid from global range
-                n_points = int((global_max - global_min) / obs_resolution) + 1
-                extended_wave_data = np.linspace(global_min, global_max, n_points)
-                
-                debug_config.info("main_plot", 
-                    f"Using extended wavelength grid: {global_min:.3f} - {global_max:.3f} µm "
-                    f"(vs observed: {obs_min:.3f} - {obs_max:.3f} µm)")
-                
-                return extended_wave_data
-        
-        # Use observed data wavelength grid (default behavior)
-        return obs_wave_data

@@ -92,7 +92,4 @@ class FitLinesPlotGrid:
             #ax.set_xlabel("Wavelength")
             ax.set_ylabel("Flux (Jy)")
 
-        #plt.show()
-        #plt.tight_layout()
-        #plt.subplots_adjust(wspace=0.3, hspace=0.3)
         plt.show(block=False)
