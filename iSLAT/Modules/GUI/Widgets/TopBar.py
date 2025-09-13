@@ -14,6 +14,7 @@ from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
+from iSLAT.Modules.GUI.PlotGridWindow import PlotGridWindow
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name, example_data_folder_path
 import iSLAT.Constants as c
@@ -370,6 +371,8 @@ class TopBar(ResizableFrame):
             
             self.data_field.insert_text(f"Fitting saved lines to {len(spectrum_files)} spectrum files...\n")
 
+            plot_grid_list = []
+
             for spectrum_file in spectrum_files:
                 #try:
                     save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
@@ -386,7 +389,7 @@ class TopBar(ResizableFrame):
                     #print(f'Err data loaded: {err_data}')
                     #print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
                     # Fit the saved lines to the loaded spectrum
-                    self._perform_saved_lines_fit(
+                    plot = self._perform_saved_lines_fit(
                         spectrum_name=os.path.basename(spectrum_file),
                         wavedata=wavedata,
                         fluxdata=fluxdata,
@@ -394,6 +397,7 @@ class TopBar(ResizableFrame):
                         plot_results=False,
                         plot_grid=True
                     )
+                    plot_grid_list.append(plot)
 
                     self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spectrum_file)}\n", clear_after=False)
                     
@@ -401,6 +405,14 @@ class TopBar(ResizableFrame):
                 #    self.data_field.insert_text(f"Error processing {os.path.basename(spectrum_file)}: {e}\n", clear_after=False)
             
             self.data_field.insert_text("Completed fitting saved lines to all selected spectra.\n")
+
+            if plot_grid_list:
+                # Open a new window to display the plot grid
+                grid_window = tk.Toplevel(self.master)
+                #grid_window.title("Fit Lines Plot Grid")
+                plot_grid_window = PlotGridWindow(grid_window, plot_grid_list, theme=self.theme)
+                #plot_grid_window.pack(fill="both", expand=True)
+
         else:
             # Fit saved lines to the currently loaded spectrum
             self._perform_saved_lines_fit()
@@ -463,18 +475,17 @@ class TopBar(ResizableFrame):
 
             if plot_grid:
                 from iSLAT.Modules.Plotting.FitLinesPlotGrid import FitLinesPlotGrid
-                #plot_grid_window = tk.Toplevel(self.master)
-                #plot_grid_window.title("Fit Lines Plot Grid")
                 plot_grid = FitLinesPlotGrid(
-                    #files=[self.islat.loaded_spectrum_name],
-                    #molecules_dict=self.islat.molecules_dict,
                     fit_data=fit_data,
                     wave_data = wavedata,
                     flux_data = fluxdata,
                     err_data = err_data,
                     fit_line_uncertainty = self.config.get('fit_line_uncertainty', 3.0),
+                    spectrum_name=spectrum_name
                 )
-                plot_grid.plot()
+                plot_grid.generate_plot()
+                #plot_grid.plot()
+                return plot_grid
 
             if plot_results:
                 self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)

@@ -37,7 +37,8 @@ class FitLinesPlotGrid:
                 cols = int(np.ceil(n_plots / rows))
         self.rows = rows
         self.cols = cols
-        
+
+        self.spectrum_name = kwargs.get('spectrum_name', 'Spectrum')
         self.figsize = kwargs.get('figsize', (5 * self.cols, 5 * self.rows))
         self.fig: Figure
         self.axs: np.ndarray[Axes]
@@ -49,7 +50,7 @@ class FitLinesPlotGrid:
         self.err_data = kwargs.get('err_data', None)
         self.fit_line_uncertainty = kwargs.get('fit_line_uncertainty', 3.0)
 
-    def plot(self):
+    def generate_plot(self):
         gauss_fits, fitted_waves, fitted_fluxes = self.fit_data_tuple_list
         for idx, (gauss_fit, fitted_wave, fitted_flux) in enumerate(zip(gauss_fits, fitted_waves, fitted_fluxes)):
             if idx >= self.rows * self.cols:
@@ -96,4 +97,10 @@ class FitLinesPlotGrid:
             #ax.set_xlabel("Wavelength")
             ax.set_ylabel("Flux (Jy)")
 
+            self.axs[row, col] = ax
+
+        #plt.show(block=False)
+    
+    def plot(self):
+        self.generate_plot()
         plt.show(block=False)
