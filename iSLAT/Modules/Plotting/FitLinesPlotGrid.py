@@ -6,6 +6,9 @@ from typing import Dict, List, Optional, Tuple, Callable, Any, Union, TYPE_CHECK
 if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.Molecule import Molecule
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+    from lmfit.model import ModelResult
 
 class FitLinesPlotGrid:
     def __init__(self, #files : List[str], 
@@ -17,6 +20,8 @@ class FitLinesPlotGrid:
                  ):
         #self.files = files
         #self.molecules_dict = molecules_dict
+        self.fit_csv_dict: Dict[str, Any]
+        self.fit_data_tuple_list: List[Tuple[ModelResult, np.ndarray, np.ndarray]]
         self.fit_csv_dict, self.fit_data_tuple_list = fit_data
         #self.gauss_fit, self.fitted_wave, self.fitted_flux = fit_data
         
@@ -34,6 +39,8 @@ class FitLinesPlotGrid:
         self.cols = cols
         
         self.figsize = kwargs.get('figsize', (5 * self.cols, 5 * self.rows))
+        self.fig: Figure
+        self.axs: np.ndarray[Axes]
         self.fig, self.axs = plt.subplots(rows, cols, figsize=self.figsize, layout='constrained')
         #self.fig.tight_layout(pad=2.0)
         self.plt_extra_range = kwargs.get('plt_extra_range', 0.015)  # extra range to plot for each line
@@ -49,7 +56,7 @@ class FitLinesPlotGrid:
                 break
             row = idx // self.cols
             col = idx % self.cols
-            ax = self.axs[row, col]
+            ax: Axes = self.axs[row, col]
 
             xmin = self.fit_csv_dict[idx]['xmin']
             xmax = self.fit_csv_dict[idx]['xmax']
@@ -65,14 +72,11 @@ class FitLinesPlotGrid:
             # Plot the spectrum
             ax.plot(spectrum_wave, spectrum_flux, color='black', linewidth=1, zorder=5)
             ax.errorbar(spectrum_wave, spectrum_flux, yerr=spectrum_err, fmt='-', color='black')
-
-            # Plot fits
-            lam_min = np.min(fitted_wave)
-            lam_max = np.max(fitted_wave)
             
             # plot the fit result
             if fitted_wave is None or fitted_flux is None:
                 ax.set_title(f"Line {idx+1}: Fit Error")
+                ax.text(0, 0, 'Fit Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
                 continue
 
             # get color based on fit det
