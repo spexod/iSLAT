@@ -371,7 +371,7 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Fitting saved lines to {len(spectrum_files)} spectrum files...\n")
 
             for spec_file in spectrum_files:
-                try:
+                #try:
                     # Load the spectrum data
                     spectrum_df = ifh.read_spectral_data(spec_file)
                     wavedata=np.array(spectrum_df['wave'].values)
@@ -385,20 +385,21 @@ class TopBar(ResizableFrame):
                         wavedata=wavedata,
                         fluxdata=fluxdata,
                         err_data=err_data,
-                        plot_results=False
+                        plot_results=False,
+                        plot_grid=True
                     )
 
                     self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spec_file)}\n", clear_after=False)
                     
-                except Exception as e:
-                    self.data_field.insert_text(f"Error processing {os.path.basename(spec_file)}: {e}\n", clear_after=False)
+                #except Exception as e:
+                #    self.data_field.insert_text(f"Error processing {os.path.basename(spec_file)}: {e}\n", clear_after=False)
             
             self.data_field.insert_text("Completed fitting saved lines to all selected spectra.\n")
         else:
             # Fit saved lines to the currently loaded spectrum
             self._perform_saved_lines_fit()
 
-    def _perform_saved_lines_fit(self, spectrum_name=None, wavedata=None, fluxdata=None, err_data=None, plot_results=True):
+    def _perform_saved_lines_fit(self, spectrum_name=None, wavedata=None, fluxdata=None, err_data=None, plot_results=True, plot_grid=False):
         """
         Internal method to perform the actual saved lines fitting.
         """
@@ -453,6 +454,21 @@ class TopBar(ResizableFrame):
                 else:
                     wavelength = result.get('lam', 0)
                     self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_after=False)
+
+            if plot_grid:
+                from iSLAT.Modules.Plotting.FitLinesPlotGrid import FitLinesPlotGrid
+                #plot_grid_window = tk.Toplevel(self.master)
+                #plot_grid_window.title("Fit Lines Plot Grid")
+                plot_grid = FitLinesPlotGrid(
+                    #files=[self.islat.loaded_spectrum_name],
+                    #molecules_dict=self.islat.molecules_dict,
+                    fit_data=fit_data,
+                    wave_data = wavedata,
+                    flux_data = fluxdata,
+                    err_data = err_data,
+                    fit_line_uncertainty = self.config.get('fit_line_uncertainty', 3.0),
+                )
+                plot_grid.plot()
 
             if plot_results:
                 self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)

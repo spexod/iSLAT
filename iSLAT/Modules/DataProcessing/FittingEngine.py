@@ -60,8 +60,8 @@ class FittingEngine:
         fit_wave = wave_data
         fit_flux = flux_data
             
-        if len(fit_wave) < 3:
-            raise ValueError("Insufficient data points for fitting")
+        #if len(fit_wave) < 3:
+        #    raise ValueError("Insufficient data points for fitting")
         
         # Set xmin/xmax from data if not provided (for multi-gaussian detection)
         if xmin is None:
@@ -81,43 +81,46 @@ class FittingEngine:
         flux_fit = flux_data
         calc_err_data = err_data #if err_data is not None else self.islat.err_data
         
-        # Use gaussian model from LMFIT
-        model = GaussianModel()
-        
-        # Get initial guess for parameters (let LMFIT do the guessing)
-        params = model.guess(flux_fit, x=x_fit)
-        
-        # Get error data for weights if available
-        weights = None
-        if calc_err_data is not None:
-            # Need to get error data for the same range
-            if xmin is not None and xmax is not None:
-                #err_mask = (wave_data >= xmin) & (wave_data <= xmax)
-                err_fit = calc_err_data#[err_mask]
-                # Following LMFIT docs: use 1/error as weights, avoiding division by zero
-                if len(err_fit) == len(flux_fit) and len(err_fit) > 0:
-                    max_err = np.max(err_fit)
-                    if max_err > 0:
-                        err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
-                        weights = 1.0 / err_fit_safe
-        
-        # Make the fit, using error data as weights and ignoring nans
-        if weights is not None:
-            result = model.fit(flux_fit, params, x=x_fit, weights=weights, nan_policy='omit')
-        else:
-            result = model.fit(flux_fit, params, x=x_fit, nan_policy='omit')
-        
-        print(result.fit_report())
+        try:
+            # Use gaussian model from LMFIT
+            model = GaussianModel()
+            
+            # Get initial guess for parameters (let LMFIT do the guessing)
+            params = model.guess(flux_fit, x=x_fit)
+            
+            # Get error data for weights if available
+            weights = None
+            if calc_err_data is not None:
+                # Need to get error data for the same range
+                if xmin is not None and xmax is not None:
+                    #err_mask = (wave_data >= xmin) & (wave_data <= xmax)
+                    err_fit = calc_err_data#[err_mask]
+                    # Following LMFIT docs: use 1/error as weights, avoiding division by zero
+                    if len(err_fit) == len(flux_fit) and len(err_fit) > 0:
+                        max_err = np.max(err_fit)
+                        if max_err > 0:
+                            err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
+                            weights = 1.0 / err_fit_safe
+            
+            # Make the fit, using error data as weights and ignoring nans
+            if weights is not None:
+                result = model.fit(flux_fit, params, x=x_fit, weights=weights, nan_policy='omit')
+            else:
+                result = model.fit(flux_fit, params, x=x_fit, nan_policy='omit')
+            
+            print(result.fit_report())
 
-        # Generate fitted curve on original wavelength grid
-        fitted_wave = wave_data
-        fitted_flux = result.eval(x=fitted_wave)
-        
-        self.last_fit_result = result
-        self.last_fit_params = result.params
-        
-        return result, fitted_wave, fitted_flux
-    
+            # Generate fitted curve on original wavelength grid
+            fitted_wave = wave_data
+            fitted_flux = result.eval(x=fitted_wave)
+            
+            self.last_fit_result = result
+            self.last_fit_params = result.params
+            
+            return result, fitted_wave, fitted_flux
+        except Exception as e:
+            print(f"Error during single Gaussian fit: {e}")
+            return None, None, None
 
     def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
         """Fit multiple Gaussian components for deblending"""
