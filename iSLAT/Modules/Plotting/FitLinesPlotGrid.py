@@ -34,8 +34,8 @@ class FitLinesPlotGrid:
         self.cols = cols
         
         self.figsize = kwargs.get('figsize', (5 * self.cols, 5 * self.rows))
-        self.fig, self.axs = plt.subplots(rows, cols, figsize=self.figsize)
-        self.fig.tight_layout(pad=2.0)
+        self.fig, self.axs = plt.subplots(rows, cols, figsize=self.figsize, layout='constrained')
+        #self.fig.tight_layout(pad=2.0)
         self.plt_extra_range = kwargs.get('plt_extra_range', 0.015)  # extra range to plot for each line
         self.wave_data = kwargs.get('wave_data', None)
         self.flux_data = kwargs.get('flux_data', None)
