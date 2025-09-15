@@ -546,7 +546,8 @@ class FittingEngine:
                 'Centr_fit': np.round(center, decimals=5) if fit_det else np.nan,
                 'Centr_err': np.round(center_err, decimals=5) if fit_det else np.nan,
                 'Doppler': np.round(doppler, decimals=1) if fit_det else np.nan,
-                'Red-chisq': np.float64(f'{fit_result.redchi:.{3}e}' if fit_result.redchi is not None else np.nan)
+                'Red-chisq': np.float64(f'{fit_result.redchi:.{3}e}' if fit_result.redchi is not None else np.nan),
+                'Fit_success': bool(True)
             })
             
             # Update iSLAT flux values if fit is good and detected
@@ -566,7 +567,8 @@ class FittingEngine:
                 'Centr_fit': np.nan,
                 'Centr_err': np.nan,
                 'Doppler': np.nan,
-                'Red-chisq': np.nan
+                'Red-chisq': np.nan,
+                'Fit_success': bool(False)
             })
         
         return result_entry
