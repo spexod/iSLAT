@@ -14,8 +14,9 @@ from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
+from iSLAT.Modules.GUI.PlotGridWindow import PlotGridWindow
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
-from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name
+from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name, example_data_folder_path
 import iSLAT.Constants as c
 
 if TYPE_CHECKING:
@@ -171,6 +172,8 @@ class TopBar(ResizableFrame):
             'a_stein': selected_line_info.get('a', 0.0),
             'e_up': selected_line_info.get('e', 0.0),
             'g_up': selected_line_info.get('g', 1.0),
+            'e_low': selected_line_info.get('e_low', 0.0),
+            'g_low': selected_line_info.get('g_low', 1.0),
             'xmin': xmin,
             'xmax': xmax,
         }
@@ -260,24 +263,6 @@ class TopBar(ResizableFrame):
                             
                             # Automatically save this component
                             try:
-                                    '''# Create line info dictionary for each component
-                                    line_info = {
-                                        'species': self.islat.active_molecule,
-                                        'lev_up': f'deblend_comp_{component_idx+1}',
-                                        'lev_low': '',
-                                        'lam': comp_params['center'],
-                                        'tau': comp_params['amplitude'],
-                                        'intens': comp_params['area'],
-                                        'a_stein': '',
-                                        'e_up': '',
-                                        'g_up': '',
-                                        'xmin': xmin,
-                                        'xmax': xmax,
-                                        'flux_fit': comp_params['area'],
-                                        'fwhm_fit': comp_params['fwhm'],
-                                        'centr_fit': comp_params['center']
-                                    }'''
-
                                     current_tripple = line_info[component_idx]
                                     current_line_info = current_tripple[0].get_dict()
                                     current_intens = current_tripple[1]
@@ -368,15 +353,16 @@ class TopBar(ResizableFrame):
             return
         
         if not self.islat.output_line_measurements:
-            self.data_field.insert_text("No output line measurements file configured.\n")
-            return
+            #self.data_field.insert_text("No output line measurements file configured.\n")
+            self.data_field.insert_text("No output line measurements file configured. Using default\n")
         
         if multiple_files:
             # Ask user to select multiple spectrum files
             from tkinter import filedialog
             spectrum_files = filedialog.askopenfilenames(
                 title="Select Spectrum Files to Fit Saved Lines",
-                filetypes=[("All files", "*.*")]
+                filetypes=[("All files", "*.*")],
+                initialdir=example_data_folder_path
             )
             
             if not spectrum_files:
@@ -385,35 +371,53 @@ class TopBar(ResizableFrame):
             
             self.data_field.insert_text(f"Fitting saved lines to {len(spectrum_files)} spectrum files...\n")
 
-            for spec_file in spectrum_files:
-                try:
+            plot_grid_list = []
+
+            for spectrum_file in spectrum_files:
+                #try:
+                    save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
+                    stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
+                    stellar_rv = float(stellar_rv)
+                    print(f"Stellar RV for {os.path.basename(spectrum_file)}: {stellar_rv} km/s")
+
                     # Load the spectrum data
-                    spectrum_df = ifh.read_spectral_data(spec_file)
+                    spectrum_df = ifh.read_spectral_data(spectrum_file)
                     wavedata=np.array(spectrum_df['wave'].values)
+                    wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)  # Apply stellar RV correction
                     fluxdata=np.array(spectrum_df['flux'].values)
                     err_data=np.array(spectrum_df['err'].values) #if 'err' in spectrum_df.columns else None
-                    print(f'Err data loaded: {err_data}')
-                    print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
+                    #print(f'Err data loaded: {err_data}')
+                    #print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
                     # Fit the saved lines to the loaded spectrum
-                    self._perform_saved_lines_fit(
-                        spectrum_name=os.path.basename(spec_file),
+                    plot = self._perform_saved_lines_fit(
+                        spectrum_name=os.path.basename(spectrum_file),
                         wavedata=wavedata,
                         fluxdata=fluxdata,
                         err_data=err_data,
-                        plot_results=False
+                        plot_results=False,
+                        plot_grid=True
                     )
+                    plot_grid_list.append(plot)
 
-                    self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spec_file)}\n", clear_after=False)
+                    self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spectrum_file)}\n", clear_after=False)
                     
-                except Exception as e:
-                    self.data_field.insert_text(f"Error processing {os.path.basename(spec_file)}: {e}\n", clear_after=False)
+                #except Exception as e:
+                #    self.data_field.insert_text(f"Error processing {os.path.basename(spectrum_file)}: {e}\n", clear_after=False)
             
             self.data_field.insert_text("Completed fitting saved lines to all selected spectra.\n")
+
+            if plot_grid_list:
+                # Open a new window to display the plot grid
+                grid_window = tk.Toplevel(self.master)
+                #grid_window.title("Fit Lines Plot Grid")
+                plot_grid_window = PlotGridWindow(grid_window, plot_grid_list, theme=self.theme)
+                #plot_grid_window.pack(fill="both", expand=True)
+
         else:
             # Fit saved lines to the currently loaded spectrum
             self._perform_saved_lines_fit()
 
-    def _perform_saved_lines_fit(self, spectrum_name=None, wavedata=None, fluxdata=None, err_data=None, plot_results=True):
+    def _perform_saved_lines_fit(self, spectrum_name=None, wavedata=None, fluxdata=None, err_data=None, plot_results=True, plot_grid=False):
         """
         Internal method to perform the actual saved lines fitting.
         """
@@ -422,7 +426,8 @@ class TopBar(ResizableFrame):
         
         if spectrum_name is not None:
             spectrum_base_name = os.path.splitext(spectrum_name)[0]
-            output_file = f"{spectrum_base_name}-{fit_save_lines_file_name}"
+            output_file = f"{spectrum_base_name}-{os.path.basename(saved_lines_file)}"
+            print(f"Output file for spectrum {spectrum_name}: {output_file}")
         else:
             output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
 
@@ -447,7 +452,7 @@ class TopBar(ResizableFrame):
             output_file,
             wavedata=wavedata,
             fluxdata=fluxdata,
-            err_data=err_data if err_data is not None else None,
+            err_data=err_data,
         )
         
         if fit_data:
@@ -467,6 +472,20 @@ class TopBar(ResizableFrame):
                 else:
                     wavelength = result.get('lam', 0)
                     self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_after=False)
+
+            if plot_grid:
+                from iSLAT.Modules.Plotting.FitLinesPlotGrid import FitLinesPlotGrid
+                plot_grid = FitLinesPlotGrid(
+                    fit_data=fit_data,
+                    wave_data = wavedata,
+                    flux_data = fluxdata,
+                    err_data = err_data,
+                    fit_line_uncertainty = self.config.get('fit_line_uncertainty', 3.0),
+                    spectrum_name=spectrum_name
+                )
+                plot_grid.generate_plot()
+                #plot_grid.plot()
+                return plot_grid
 
             if plot_results:
                 self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)
@@ -503,7 +522,7 @@ class TopBar(ResizableFrame):
         self.data_field.insert_text("Running single slab fit analysis...\n")
         
         try:
-            output_folder = self.islat.output_line_measurements
+            output_folder = os.path.dirname(self.islat.output_line_measurements)
             # Use the SlabModel class to perform the fit
             slab_model = SlabModel(
                 mol_object=self.islat.active_molecule,
@@ -516,12 +535,18 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Error loading single slab fit: {e}\n")
             return
         
-        #try:
-        fitted_params = slab_model.fit_parameters()
-        '''except Exception as e:
+        try:
+            fitted_params = slab_model.fit_parameters()
+        except Exception as e:
             self.data_field.insert_text(f"Error fitting slab model: {e}\n")
-            return'''
+            return
         
+        try:
+            slab_model.update_molecule_parameters(fitted_params=fitted_params)
+        except Exception as e:
+            self.data_field.insert_text(f"Error updating molecule parameters: {e}\n")
+            return
+
         try:
             slab_model.save_results(fitted_params=fitted_params)
         except Exception as e:
@@ -543,7 +568,6 @@ class TopBar(ResizableFrame):
         label.grid(row=0, column=0)
 
         # Create a dropdown menu in the new window
-        #options = [molecule[0] for molecule in molecules_data] + ["SUM"] + ["ALL"]
         options = list(self.islat.molecules_dict.keys()) + ["SUM", "ALL"]
         dropdown_var = tk.StringVar()
         dropdown = ttk.Combobox(export_window, textvariable=dropdown_var, values=options)

@@ -295,17 +295,16 @@ class SlabModel:
             f.write(f"Input file: {self.input_file}\n\n")
             f.write(f"Fitted Parameters:\n")
             f.write(f"  Temperature: {fitted_params['temperature']:.2f} K\n")
-            f.write(f"  Column density: {fitted_params['n_mol']:.3e} cm⁻²\n")
+            f.write(f"  Column density: {fitted_params['n_mol']:.3e} cm**-2\n")
             f.write(f"  Radius: {fitted_params['radius']:.3f} au\n\n")
             f.write(f"Fitting Statistics:\n")
-            f.write(f"  Final χ²: {fitted_params['chi2_final']:.6e}\n")
+            f.write(f"  Final chi2: {fitted_params['chi2_final']:.6e}\n")
             f.write(f"  Iterations: {fitted_params['iterations']}\n")
             f.write(f"  Function calls: {fitted_params['function_calls']}\n")
             f.write(f"  Convergence flag: {fitted_params['convergence_flag']}\n")
         
         print(f"Results saved to {output_path}")
         return output_path
-
 
 # Backward compatibility alias
 SlabFit = SlabModel

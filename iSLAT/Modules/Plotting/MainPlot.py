@@ -242,18 +242,16 @@ class iSLATPlot:
             self.canvas.draw_idle()
             return
         
-        wave_data = self._get_model_wavelength_grid()
+        wave_data = self.islat.wave_data_original
         
         try:
             if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
                 debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
                 summed_wavelengths, summed_flux = self.islat.molecules_dict.get_summed_flux(wave_data, visible_only=True)
-                wave_data = summed_wavelengths  # Use the combined wavelength grid
         except Exception as e:
                 #mol_name = self._get_molecule_display_name(molecule)
                 debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
     
-        wave_data = self.islat.wave_data_original
         wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
         self.islat.wave_data = wave_data # Update islat wave_data to match adjusted grid
 
@@ -276,12 +274,6 @@ class iSLATPlot:
         mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
         self.selected_wave = self.islat.wave_data[mask]
         self.selected_flux = self.islat.flux_data[mask]
-
-        # if xmax - xmin < 0.025:
-        #     self.ax2.clear()
-        #     self.current_selection = None
-        #     self.canvas.draw_idle()
-        #     return
 
         self.plot_spectrum_around_line(
             xmin=xmin,
@@ -346,53 +338,6 @@ class iSLATPlot:
             self._display_line_info(picked_value)
         self.canvas.draw_idle()
 
-    def flux_integral_basic(self, wave_data, flux_data, xmin, xmax, err_data = None):
-        """
-        Calculate the flux integral in a given wavelength range.
-        
-        Parameters:
-        -----------
-        wave_data : array
-            Wavelength array
-        flux_data : array
-            Flux array
-        err_data : array or None
-            Error array (optional)
-        xmin, xmax : float
-            Wavelength range
-            
-        Returns:
-        --------
-        line_flux : float
-            Integrated flux
-        line_err : float
-            Error on integrated flux
-        """
-        mask = (wave_data >= xmin) & (wave_data <= xmax)
-        if not np.any(mask):
-            return 0.0, 0.0
-            
-        wave_region = wave_data[mask]
-        flux_region = flux_data[mask]
-        
-        if len(wave_region) < 2:
-            return 0.0, 0.0
-            
-        # Integrate using trapezoidal rule
-        wave_region = c.SPEED_OF_LIGHT_MICRONS/wave_region[::-1]  # Reverse for decreasing wavelength
-        line_flux = np.trapz(flux_region, wave_region)
-        line_flux *= 1e-23  # Convert from Jy to erg/s/cm^2
-        
-        # Calculate error if available
-        if err_data is not None:
-            err_region = err_data[mask]
-            # Simple error propagation for integration
-            line_err = np.sqrt(np.sum(err_region**2)) * (wave_region[-1] - wave_region[0]) / len(wave_region)
-        else:
-            line_err = 0.0
-            
-        return line_flux, line_err
-
     def highlight_strongest_line(self):
         """
         Highlight the strongest line by delegating to PlotRenderer.
@@ -416,19 +361,20 @@ class iSLATPlot:
             xmin, xmax = self.current_selection
             # Calculate flux integral
             err_data = getattr(self.islat, 'err_data', None)
-            line_flux, line_err = self.flux_integral_basic(
-                self.islat.wave_data, 
-                self.islat.flux_data, 
-                xmin, 
-                xmax,
-                err_data=err_data
+            line_flux, line_err = self.flux_integral(
+                lam=self.islat.wave_data, 
+                flux=self.islat.flux_data, 
+                lam_min=xmin, 
+                lam_max=xmax,
+                err=err_data
             )
             molecule_wave, molecule_flux = self.islat.active_molecule.get_flux(return_wavelengths=True)
-            molecule_flux_in_range, _ = self.flux_integral_basic(
-                molecule_wave, 
-                molecule_flux, 
-                xmin=xmin, 
-                xmax=xmax
+            molecule_flux_in_range, _ = self.flux_integral(
+                lam=molecule_wave, 
+                flux=molecule_flux, 
+                lam_min=xmin, 
+                lam_max=xmax,
+                err=None
             )
         else:
             line_flux = [0.0]
@@ -600,7 +546,7 @@ class iSLATPlot:
         tuple
             (line_flux_meas, line_err_meas) in erg/s/cm^2
         """
-        self.fitting_engine.flux_integral(lam, flux, err, lam_min, lam_max)
+        return self.line_analyzer.flux_integral(lam, flux, err, lam_min, lam_max)
 
     def clear_active_lines(self) -> None:
         """
@@ -890,46 +836,3 @@ class iSLATPlot:
         # Also update any existing plots to use colors
         if hasattr(self, 'update_all_plots'):
                 self.update_all_plots()
-
-    def _get_model_wavelength_grid(self):
-        """
-        Generate wavelength grid for model calculations.
-        
-        If a global wavelength range is set and extends beyond the observed data,
-        create an extended grid. Otherwise, use the observed data wavelength grid.
-        
-        Returns
-        -------
-        np.ndarray
-            Wavelength grid for model calculations
-        """
-        # Start with observed data wavelength grid
-        obs_wave_data = self.islat.wave_data
-        
-        # Check if molecules_dict has a global wavelength range set
-        if (hasattr(self.islat.molecules_dict, '_global_wavelength_range') and 
-            self.islat.molecules_dict._global_wavelength_range is not None):
-            
-            global_min, global_max = self.islat.molecules_dict._global_wavelength_range
-            obs_min, obs_max = obs_wave_data.min(), obs_wave_data.max()
-            
-            # Check if global range extends beyond observed data
-            extends_beyond = global_min < obs_min or global_max > obs_max
-            
-            if extends_beyond:
-                # Create extended wavelength grid
-                # Use the same resolution as the observed data
-                obs_resolution = np.median(np.diff(obs_wave_data))
-                
-                # Create extended grid from global range
-                n_points = int((global_max - global_min) / obs_resolution) + 1
-                extended_wave_data = np.linspace(global_min, global_max, n_points)
-                
-                debug_config.info("main_plot", 
-                    f"Using extended wavelength grid: {global_min:.3f} - {global_max:.3f} µm "
-                    f"(vs observed: {obs_min:.3f} - {obs_max:.3f} µm)")
-                
-                return extended_wave_data
-        
-        # Use observed data wavelength grid (default behavior)
-        return obs_wave_data

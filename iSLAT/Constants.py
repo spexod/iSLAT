@@ -67,8 +67,11 @@ PARSEC_CM = 3.086e18
 PARSEC_CM_ALT = 3.08567758128e18
 """Alternative parsec conversion from parsec to cm."""
 
+AVAGADRO_NUMBER = 6.02214076e23
+"""Avogadro's number in 1/mol."""
+
 PI = np.pi
-"""Mathematical constant π."""
+"""Mathematical constant pi."""
 
 # =============================================================================
 # NAMEDTUPLE FOR BACKWARD COMPATIBILITY
@@ -146,18 +149,5 @@ MODEL_LINE_WIDTH = SPEED_OF_LIGHT_KMS / DEFAULT_FWHM
 MODEL_PIXEL_RESOLUTION = (np.mean([MIN_WAVELENGTH, MAX_WAVELENGTH]) / SPEED_OF_LIGHT_KMS * DEFAULT_FWHM) / PIXELS_PER_FWHM
 """Calculated model pixel resolution."""
 
-# =============================================================================
-# SPECTROSCOPIC ANALYSIS PARAMETERS
-# =============================================================================
-
-DEFAULT_SPAN_MOLECULE = "h2o"
-"""Default molecule for spanning analysis."""
-
-SPECTRAL_SEPARATION = 0.01
-"""Default value for separation to determine if line is single."""
-
 FWHM_TOLERANCE = 5
 """Default tolerance in FWHM for the de-blender in km/s."""
-
-CENTROID_TOLERANCE = 0.0001
-"""Default tolerance in centroid for the de-blender in μm."""

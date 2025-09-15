@@ -6,7 +6,6 @@ import numpy as np
 from ...Constants import MOLECULES_DATA
 from .molecular_data_reader import read_molecular_data
 
-
 #from pathlib import Path
 
 from iSLAT.Modules.FileHandling import *
@@ -63,7 +62,7 @@ def read_default_csv(file_path=defaults_file_path, file_name=defaults_file_name)
             pass
     return MOLECULES_DATA
 
-def read_from_user_csv(file_path=save_folder_path, file_name=molecule_list_file_name):
+def read_from_user_csv(file_path: str = save_folder_path, file_name: str = molecule_list_file_name) -> Dict[str, Dict[str, Any]]:
     file = os.path.join(file_path, file_name)
     defaults_file = os.path.join(defaults_file_path, defaults_file_name)
     if os.path.exists(file):
@@ -173,7 +172,7 @@ def read_line_saves(file_path=save_folder_path, file_name=line_saves_file_name) 
             return pd.DataFrame()
     return pd.DataFrame()
 
-def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_file_name):
+def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_file_name, overwritefile=False):
     """Save a line to the line saves file."""
     filename = os.path.join(file_path, file_name)
     
@@ -204,10 +203,13 @@ def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_fi
         do_header = True
 
     # Save the line to the CSV file
-    df.to_csv(filename, mode='a', header=do_header, index=False)
+    if overwritefile and os.path.exists(filename):
+        df.to_csv(filename, mode='w', header=True, index=False)
+    else:
+        df.to_csv(filename, mode='a', header=do_header, index=False)
     print(f"Saved line at ~{clean_line_info['lam']:.4f} μm to {filename}")
 
-def save_fit_results(fit_results_data, file_path = save_folder_path, file_name= fit_save_lines_file_name):
+def save_fit_results(fit_results_data, file_path = line_saves_file_path, file_name= fit_save_lines_file_name, overwritefile=True):
     """
     Save fit results data to CSV file.
     
@@ -225,13 +227,14 @@ def save_fit_results(fit_results_data, file_path = save_folder_path, file_name= 
     str
         Full path to the saved file
     """
-    '''# Ensure .csv extension
-    if not file_name.endswith('.csv'):
-        file_name += '.csv'''
     
     full_path = os.path.join(file_path, file_name)
     
     # Save each fit result using the existing save_line function
+    # Overwrite the file only for the first entry if overwritefile is True
+    if overwritefile and os.path.exists(full_path):
+        # Clear the output but do not delete the file
+        open(full_path, 'w').close()
     for fit_result in fit_results_data:
         save_line(fit_result, file_path=file_path, file_name=file_name)
     

@@ -60,8 +60,8 @@ class FittingEngine:
         fit_wave = wave_data
         fit_flux = flux_data
             
-        if len(fit_wave) < 3:
-            raise ValueError("Insufficient data points for fitting")
+        #if len(fit_wave) < 3:
+        #    raise ValueError("Insufficient data points for fitting")
         
         # Set xmin/xmax from data if not provided (for multi-gaussian detection)
         if xmin is None:
@@ -81,72 +81,46 @@ class FittingEngine:
         flux_fit = flux_data
         calc_err_data = err_data #if err_data is not None else self.islat.err_data
         
-        # Use gaussian model from LMFIT
-        model = GaussianModel()
-        
-        # Get initial guess for parameters (let LMFIT do the guessing)
-        params = model.guess(flux_fit, x=x_fit)
-        
-        # Get error data for weights if available
-        weights = None
-        if calc_err_data is not None:
-            # Need to get error data for the same range
-            if xmin is not None and xmax is not None:
-                #err_mask = (wave_data >= xmin) & (wave_data <= xmax)
-                err_fit = calc_err_data#[err_mask]
-                # Following LMFIT docs: use 1/error as weights, avoiding division by zero
-                if len(err_fit) == len(flux_fit) and len(err_fit) > 0:
-                    max_err = np.max(err_fit)
-                    if max_err > 0:
-                        err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
-                        weights = 1.0 / err_fit_safe
-        
-        # Make the fit, using error data as weights and ignoring nans
-        if weights is not None:
-            result = model.fit(flux_fit, params, x=x_fit, weights=weights, nan_policy='omit')
-        else:
-            result = model.fit(flux_fit, params, x=x_fit, nan_policy='omit')
-        
-        print(result.fit_report())
+        try:
+            # Use gaussian model from LMFIT
+            model = GaussianModel()
+            
+            # Get initial guess for parameters (let LMFIT do the guessing)
+            params = model.guess(flux_fit, x=x_fit)
+            
+            # Get error data for weights if available
+            weights = None
+            if calc_err_data is not None:
+                # Need to get error data for the same range
+                if xmin is not None and xmax is not None:
+                    #err_mask = (wave_data >= xmin) & (wave_data <= xmax)
+                    err_fit = calc_err_data#[err_mask]
+                    # Following LMFIT docs: use 1/error as weights, avoiding division by zero
+                    if len(err_fit) == len(flux_fit) and len(err_fit) > 0:
+                        max_err = np.max(err_fit)
+                        if max_err > 0:
+                            err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
+                            weights = 1.0 / err_fit_safe
+            
+            # Make the fit, using error data as weights and ignoring nans
+            if weights is not None:
+                result = model.fit(flux_fit, params, x=x_fit, weights=weights, nan_policy='omit')
+            else:
+                result = model.fit(flux_fit, params, x=x_fit, nan_policy='omit')
+            
+            print(result.fit_report())
 
-        # Generate fitted curve on original wavelength grid
-        fitted_wave = wave_data
-        fitted_flux = result.eval(x=fitted_wave)
-        
-        self.last_fit_result = result
-        self.last_fit_params = result.params
-        
-        return result, fitted_wave, fitted_flux
-    
-    def flux_integral(self, lam, flux, err, lam_min, lam_max):
-        # Use vectorized operations for efficiency
-        wavelength_mask = (lam >= lam_min) & (lam <= lam_max)
-        
-        if not np.any(wavelength_mask):
-            return 0.0, 0.0
+            # Generate fitted curve on original wavelength grid
+            fitted_wave = wave_data
+            fitted_flux = result.eval(x=fitted_wave)
             
-        lam_range = lam[wavelength_mask]
-        flux_range = flux[wavelength_mask]
-        
-        if len(lam_range) < 2:
-            return 0.0, 0.0
-        
-        # Convert to frequency space for proper integration
-        freq_range = c.SPEED_OF_LIGHT_KMS / lam_range
-        
-        # Integrate in frequency space (reverse order for proper frequency ordering)
-        line_flux_meas = np.trapz(flux_range[::-1], x=freq_range[::-1])
-        line_flux_meas = -line_flux_meas * 1e-23  # Convert Jy*Hz to erg/s/cm^2
-        
-        # Calculate error propagation if error data provided
-        if err is not None:
-            err_range = err[wavelength_mask]
-            line_err_meas = np.trapz(err_range[::-1], x=freq_range[::-1])
-            line_err_meas = -line_err_meas * 1e-23
-        else:
-            line_err_meas = 0.0
+            self.last_fit_result = result
+            self.last_fit_params = result.params
             
-        return line_flux_meas, line_err_meas
+            return result, fitted_wave, fitted_flux
+        except Exception as e:
+            print(f"Error during single Gaussian fit: {e}")
+            return None, None, None
 
     def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
         """Fit multiple Gaussian components for deblending"""
@@ -487,7 +461,7 @@ class FittingEngine:
         
         return line_params
     
-    def format_fit_results_for_csv(self, fit_result, wave_data, flux_data, error_data, 
+    def format_fit_results_for_csv(self, fit_result, flux_data_integral, err_data_integral,
                                    xmin, xmax, rest_wavelength, line_info, sig_det_lim=2):
         """
         Format fit results into a standardized dictionary for CSV output.
@@ -512,15 +486,7 @@ class FittingEngine:
         dict
             Formatted result dictionary
         """
-        from scipy.integrate import trapezoid
-        
-        # Calculate line flux integral (direct calculation since we have the data)
-        flux_data_integral = trapezoid(flux_data, wave_data)
-        if error_data is not None:
-            err_data_integral = np.sqrt(trapezoid(error_data**2, wave_data))
-        else:
-            err_data_integral = abs(flux_data_integral) * 0.1
-        
+
         # Calculate signal-to-noise ratios for data
         #line_sn = flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0
         line_sn = np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1)

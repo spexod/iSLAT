@@ -233,6 +233,35 @@ class LineAnalyzer:
             except (ValueError, TypeError, ZeroDivisionError):
                 entry['RD_y'] = np.nan
 
+    def flux_integral(self, lam, flux, err, lam_min, lam_max):
+        wavelength_mask = (lam >= lam_min) & (lam <= lam_max)
+
+        if not np.any (wavelength_mask):
+            return 0.0, 0.0
+
+        lam_range = lam[wavelength_mask]
+        flux_range = flux[wavelength_mask]
+
+        if len (lam_range) < 2:
+            return 0.0, 0.0
+
+        # Convert to frequency space for proper integration
+        freq_range = c.SPEED_OF_LIGHT_MICRONS / lam_range[::-1]
+
+        # Integrate in frequency space (reverse order for proper frequency ordering)
+        line_flux_meas = np.trapz(flux_range[::-1], x=freq_range[::-1])
+        line_flux_meas = -line_flux_meas * 1e-23  # Convert Jy*Hz to erg/s/cm^2
+
+        # Calculate error propagation if error data provided
+        if err is not None:
+            err_range = err[wavelength_mask]
+            line_err_meas = np.trapz(err_range[::-1], x=freq_range[::-1])
+            line_err_meas = -line_err_meas * 1e-23
+        else:
+            line_err_meas = 0.0
+
+        return line_flux_meas, line_err_meas
+
     def analyze_saved_lines(self, saved_lines_file, fitting_engine, output_file=None, wavedata=None, fluxdata=None, err_data=None):
         """
         Comprehensive analysis of saved lines using data already present in the saved lines file.
@@ -269,6 +298,7 @@ class LineAnalyzer:
 
         calc_wave_data = self.islat.wave_data if wavedata is None else wavedata
         calc_flux_data = self.islat.flux_data if fluxdata is None else fluxdata
+        err_data = self.islat.err_data if err_data is None else err_data
         
         for i, line_row in saved_lines.iterrows():
             #try:
@@ -303,20 +333,17 @@ class LineAnalyzer:
                 deblend=False,
                 err_data=err_data
             )
-            
+
+            flux_data_integral, err_data_integral = self.flux_integral(calc_wave_data, calc_flux_data, err=err_data, lam_min=xmin, lam_max=xmax)
+
             # Create synthetic data arrays for formatting compatibility
-            wave_range = np.linspace(xmin, xmax, 50)
-            flux_range = np.ones(50)  # Placeholder flux
-            #wave_range = fitted_wave
-            #flux_range = fitted_flux
             fit_results_data.append(fit_result)
             fitted_waves.append(fitted_wave)
             fitted_fluxes.append(fitted_flux)
-            err_range = np.ones(50) * 0.1  # Placeholder error
-            
+
             # Format results using existing method
             result_entry = fitting_engine.format_fit_results_for_csv(
-                fit_result, wave_range, flux_range, err_range,
+                fit_result, flux_data_integral, err_data_integral,
                 xmin, xmax, center_wave, line_info, sig_det_lim
             )
             
