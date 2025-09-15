@@ -95,6 +95,10 @@ class FitLinesPlotGrid:
                 #ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
             
                 ax.set_title(f"Line {idx+1}: {self.fit_csv_dict[idx]['species']}_{self.fit_csv_dict[idx]['lam']:.2f}")
+                # set y lim to 10% above and below the observed flux in the fit range
+                y_min = np.min(spectrum_flux) - 0.1 * np.abs(np.min(spectrum_flux))
+                y_max = np.max(spectrum_flux) + 0.1 * np.abs(np.max(spectrum_flux))
+                ax.set_ylim(y_min, y_max)
                 #ax.set_xlabel("Wavelength")
                 ax.set_ylabel("Flux (Jy)")
             except Exception as e:
