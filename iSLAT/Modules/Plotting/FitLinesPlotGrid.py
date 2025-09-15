@@ -77,7 +77,7 @@ class FitLinesPlotGrid:
             # plot the fit result
             if fitted_wave is None or fitted_flux is None:
                 ax.set_title(f"Line {idx+1}: Fit Error")
-                ax.text(0, 0, 'Fit Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
+                #ax.text(0, 0, 'Fit Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
                 continue
 
             # get color based on fit det
@@ -99,7 +99,7 @@ class FitLinesPlotGrid:
                 ax.set_ylabel("Flux (Jy)")
             except Exception as e:
                 ax.set_title(f"Line {idx+1}: Plot Error")
-                ax.text(0, 0, 'Plot Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
+                #ax.text(0, 0, 'Plot Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
                 print(f"Error plotting line {idx+1}: {e}")       
 
             self.axs[row, col] = ax
