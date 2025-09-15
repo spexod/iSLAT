@@ -6,7 +6,6 @@ import numpy as np
 from ...Constants import MOLECULES_DATA
 from .molecular_data_reader import read_molecular_data
 
-
 #from pathlib import Path
 
 from iSLAT.Modules.FileHandling import *
@@ -63,7 +62,7 @@ def read_default_csv(file_path=defaults_file_path, file_name=defaults_file_name)
             pass
     return MOLECULES_DATA
 
-def read_from_user_csv(file_path=save_folder_path, file_name=molecule_list_file_name):
+def read_from_user_csv(file_path: str = save_folder_path, file_name: str = molecule_list_file_name) -> Dict[str, Dict[str, Any]]:
     file = os.path.join(file_path, file_name)
     defaults_file = os.path.join(defaults_file_path, defaults_file_name)
     if os.path.exists(file):

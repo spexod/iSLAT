@@ -12,7 +12,7 @@ user_configuration_file_name = "UserSettings.json"
 hitran_data_folder_name = Path("HITRANdata")
 hitran_data_folder_path = os.path.join(data_files_path, hitran_data_folder_name)
 
-example_data_folder_path = data_files_path / "EXAMPLEDATA"
+example_data_folder_path = data_files_path / "EXAMPLE-data"
 
 molsave_file_name = "molsave.csv"
 molecule_list_file_name = "molecules_list.csv"
