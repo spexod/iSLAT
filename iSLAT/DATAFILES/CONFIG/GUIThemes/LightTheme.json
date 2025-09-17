@@ -1,0 +1,60 @@
+{
+    "theme_name": "Light Theme",
+    "description": "A light theme for iSLAT with a white background and black text.",
+    "foreground": "#000000",
+    "background": "#FFFFFF",
+    "background_accent_color": "lightgray",
+    "toolbar": "#FFFFFF",
+    "data_field_background": "lightgray",
+    "graph_fill_color": "#FFFFFF",
+    "axis_text_label_color": "#000000",
+    "selection_color": "#00FF00",
+    "uncertainty_band_color": "#ABABAB",
+    "toolbar_highlight_background": "lightgray",
+    "toolbar_highlight_color": "#000000",
+    "toolbar_active_color": "#FFFFFF",
+    "highlight": "#FFFF00",
+    "control_panel_text_highlight_color": "#8c8ca9",
+    "fit_line_color": "#FF0000",
+    "scatter_main_color": "#838B8B",
+    "active_scatter_line_color": "green",
+    "active_scatter_selected_line_color": "orange",
+    "total_fit_line_color": "red",
+    "single_line_plot_color": "blue",
+    "summed_spectra_color": "lightgray",
+    "saved_line_color": "orange",
+    "saved_line_color_two": "coral",
+    "highlighted_line_color": "yellow",
+    "delete_button_bg_color": "#a38d89",
+    "delete_button_fg_color": "#000000",
+    "ax1_grid": false,
+    "ax2_grid": false,
+    "ax3_grid": false,
+    "model_plot_line_width": 1.5,
+    "buttons": {
+        "DefaultBotton": {
+            "background": "#D3D3D3",
+            "active_background": "#808080",
+            "description": "If a button is not specified, this will be used as the default button style."
+        },
+        "ToggleLegend": {
+            "background": "#D3D3D3",
+            "active_background": "#808080"
+        }
+    },
+    "default_molecule_colors": [
+        "#FF0000", 
+        "#00FF00", 
+        "#0000FF", 
+        "#FFFF00", 
+        "#FF00FF", 
+        "#00FFFF",
+        "#FFA500",
+        "#800080",
+        "#008080",
+        "#FFC0CB",
+        "#808080",
+        "#A52A2A",
+        "#000080"
+    ]
+}

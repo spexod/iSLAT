@@ -1,0 +1,59 @@
+{
+    "theme_name": "Red",
+    "description": "REd",
+    "foreground": "red",
+    "background": "red",
+    "background_accent_color": "red",
+    "toolbar": "red",
+    "graph_fill_color": "red",
+    "axis_text_label_color": "red",
+    "selection_color": "red",
+    "uncertainty_band_color": "red",
+    "toolbar_highlight_background": "red",
+    "toolbar_highlight_color": "red",
+    "toolbar_active_color": "red",
+    "highlight": "red",
+    "fit_line_color": "red",
+    "scatter_main_color": "red",
+    "active_scatter_line_color": "red",
+    "active_scatter_selected_line_color": "red",
+    "total_fit_line_color": "red",
+    "single_line_plot_color": "red",
+    "summed_spectra_color": "red",
+    "saved_line_color": "red",
+    "saved_line_color_two": "red",
+    "highlighted_line_color": "red",
+    "delete_button_bg_color": "red",
+    "delete_button_fg_color": "red",
+    "data_field_background": "red",
+    "buttons": {
+        "DefaultBotton": {
+            "background": "red",
+            "active_background": "red",
+            "description": "If a button is not specified, this will be used as the default button style."
+        },
+        "ToggleLegend": {
+            "background": "red",
+            "active_background": "red"
+        }
+    },
+    "default_molecule_colors": [
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red",
+        "red"
+    ]
+}

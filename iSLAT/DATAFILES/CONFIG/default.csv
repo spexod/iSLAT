@@ -1,0 +1,7 @@
+Molecule Name,File Path,Molecule Label,Temp,Rad,N_Mol,Color,Vis,Dist,StellarRV,FWHM,Broad,RV Shift
+H2O,HITRANdata/data_Hitran_2020_H2O.par,H$_2$O,850,0.5,1e+18,dodgerblue,True,160.0,0.0,130.0,1.0,0.0
+OH,HITRANdata/data_Hitran_2020_OH.par,OH,2000,0.3,1e+16,#8000ff,False,160.0,0.0,130.0,1.0,0.0
+HCN,HITRANdata/data_Hitran_2020_HCN.par,HCN,850,0.5,1e+16,orangered,False,160.0,0.0,130.0,1.0,0.0
+C2H2,HITRANdata/data_Hitran_2020_C2H2.par,C$_2$H$_2$,600,0.1,1e+17,limegreen,False,160.0,0.0,130.0,1.0,0.0
+CO2,HITRANdata/data_Hitran_2020_CO2.par,CO$_2$,300,0.5,1e+17,mediumorchid,False,160.0,0.0,130.0,1.0,0.0
+CO,HITRANdata/data_Hitran_2020_CO.par,CO,1200,0.4,1e+18,magenta,False,160.0,0.0,130.0,1.0,0.0

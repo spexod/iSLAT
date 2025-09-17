@@ -1,0 +1,55 @@
+{
+    "theme_name": "Pastel Blue Theme",
+    "description": "A soft pastel blue theme for iSLAT with sky blue accents, gentle backgrounds, and calming blue elements.",
+    "foreground": "#2C3E50",
+    "background": "#b3d6f4",
+    "background_accent_color": "#a5bcd1",
+    "toolbar": "#a5bcd1",
+    "graph_fill_color": "#b4c7da",
+    "axis_text_label_color": "#2C3E50",
+    "selection_color": "#87CEEB",
+    "uncertainty_band_color": "#B8D4E3",
+    "toolbar_highlight_background": "#a5bcd1",
+    "toolbar_highlight_color": "#4682B4",
+    "toolbar_active_color": "#2C3E50",
+    "highlight": "#00BFFF",
+    "fit_line_color": "#4169E1",
+    "scatter_main_color": "#6495ED",
+    "active_scatter_line_color": "#1E90FF",
+    "active_scatter_selected_line_color": "#00BFFF",
+    "total_fit_line_color": "#4169E1",
+    "single_line_plot_color": "#1E90FF",
+    "summed_spectra_color": "#708090",
+    "saved_line_color": "#00BFFF",
+    "saved_line_color_two": "#87CEEB",
+    "highlighted_line_color": "#00BFFF",
+    "delete_button_bg_color": "#F08080",
+    "delete_button_fg_color": "#FFFFFF",
+    "data_field_background": "#E6F3FF",
+    "buttons": {
+        "DefaultBotton": {
+            "background": "#a5bcd1",
+            "active_background": "#87CEEB",
+            "description": "If a button is not specified, this will be used as the default button style."
+        },
+        "ToggleLegend": {
+            "background": "#a5bcd1",
+            "active_background": "#87CEEB"
+        }
+    },
+    "default_molecule_colors": [
+        "#1E90FF",
+        "#87CEEB",
+        "#4169E1",
+        "#6495ED",
+        "#00BFFF",
+        "#5F9EA0",
+        "#4682B4",
+        "#B0C4DE",
+        "#ADD8E6",
+        "#87CEFA",
+        "#00CED1",
+        "#48CAE4",
+        "#0077B6"
+    ]
+}
