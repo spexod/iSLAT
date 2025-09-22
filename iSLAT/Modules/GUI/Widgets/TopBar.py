@@ -17,6 +17,7 @@ from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.GUI.PlotGridWindow import PlotGridWindow
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name, example_data_folder_path
+from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
 import iSLAT.Constants as c
 
 if TYPE_CHECKING:
@@ -95,6 +96,7 @@ class TopBar(ResizableFrame):
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
+        spec_functions_menu.add_command(label="Output Full Spectrum", command=lambda: output_full_spectrum(self.islat))
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
         saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
