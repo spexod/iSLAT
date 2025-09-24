@@ -77,7 +77,7 @@ class FitLinesPlotGrid:
             # plot the fit result
             if fitted_wave is None or fitted_flux is None:
                 ax.set_title(f"Line {idx+1}: Fit Error")
-                ax.text(0, 0, 'Fit Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
+                #ax.text(0, 0, 'Fit Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
                 continue
 
             # get color based on fit det
@@ -85,17 +85,26 @@ class FitLinesPlotGrid:
                 line_color = 'lime'
             else:
                 line_color = 'red'
-            ax.plot(fitted_wave, fitted_flux, color=line_color, linewidth=2, zorder=10, linestyle='--')[0]#, label=f'Gauss Fit {i}')[0]
-            dely = gauss_fit.eval_uncertainty(sigma = self.fit_line_uncertainty)
-            ax.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
-                                    color=line_color, alpha=0.3)#, label=r'3-$\sigma$ uncertainty band')
+            try:
+                ax.plot(fitted_wave, fitted_flux, color=line_color, linewidth=2, zorder=10, linestyle='--')[0]#, label=f'Gauss Fit {i}')[0]
+                dely = gauss_fit.eval_uncertainty(sigma = self.fit_line_uncertainty)
+                ax.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
+                                        color=line_color, alpha=0.3)#, label=r'3-$\sigma$ uncertainty band')
 
-            # plot the xmin and xmax for each line
-            #ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
-        
-            ax.set_title(f"Line {idx+1}: {self.fit_csv_dict[idx]['species']}_{self.fit_csv_dict[idx]['lam']:.2f}")
-            #ax.set_xlabel("Wavelength")
-            ax.set_ylabel("Flux (Jy)")
+                # plot the xmin and xmax for each line
+                #ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
+            
+                ax.set_title(f"Line {idx+1}: {self.fit_csv_dict[idx]['species']}_{self.fit_csv_dict[idx]['lam']:.2f}")
+                # set y lim to 10% above and below the observed flux in the fit range
+                y_min = np.min(spectrum_flux) - 0.1 * np.abs(np.min(spectrum_flux))
+                y_max = np.max(spectrum_flux) + 0.1 * np.abs(np.max(spectrum_flux))
+                ax.set_ylim(y_min, y_max)
+                #ax.set_xlabel("Wavelength")
+                ax.set_ylabel("Flux (Jy)")
+            except Exception as e:
+                ax.set_title(f"Line {idx+1}: Plot Error")
+                #ax.text(0, 0, 'Plot Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
+                print(f"Error plotting line {idx+1}: {e}")       
 
             self.axs[row, col] = ax
 

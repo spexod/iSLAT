@@ -546,7 +546,8 @@ class FittingEngine:
                 'Centr_fit': np.round(center, decimals=5) if fit_det else np.nan,
                 'Centr_err': np.round(center_err, decimals=5) if fit_det else np.nan,
                 'Doppler': np.round(doppler, decimals=1) if fit_det else np.nan,
-                'Red-chisq': np.round(fit_result.redchi, decimals=2)
+                'Red-chisq': np.float64(f'{fit_result.redchi:.{3}e}' if fit_result.redchi is not None else np.nan),
+                'Fit_success': bool(True)
             })
             
             # Update iSLAT flux values if fit is good and detected
@@ -557,15 +558,17 @@ class FittingEngine:
             # Fit failed - fill with NaN values but keep data measurements
             result_entry.update({
                 #'Fit_SN': np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1),
+                'Fit_SN': 0.0,
                 'Fit_det': False,
-                'Flux_fit': np.float64(f'{flux_data_integral:.{3}e}'),  # Use data flux for failed fit
-                'Err_fit': np.float64(f'{err_data_integral:.{3}e}'),
+                'Flux_fit': np.nan, #np.float64(f'{flux_data_integral:.{3}e}'),  # Use data flux for failed fit
+                'Err_fit': np.nan, #np.float64(f'{err_data_integral:.{3}e}'),
                 'FWHM_fit': np.nan,
                 'FWHM_err': np.nan,
                 'Centr_fit': np.nan,
                 'Centr_err': np.nan,
                 'Doppler': np.nan,
-                'Red-chisq': np.nan
+                'Red-chisq': np.nan,
+                'Fit_success': bool(False)
             })
         
         return result_entry

@@ -380,28 +380,32 @@ class TopBar(ResizableFrame):
                     save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
                     stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
                     stellar_rv = float(stellar_rv)
-                    print(f"Stellar RV for {os.path.basename(spectrum_file)}: {stellar_rv} km/s")
+                    #print(f"Stellar RV for {os.path.basename(spectrum_file)}: {stellar_rv} km/s")
 
-                    # Load the spectrum data
-                    spectrum_df = ifh.read_spectral_data(spectrum_file)
-                    wavedata=np.array(spectrum_df['wave'].values)
-                    wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)  # Apply stellar RV correction
-                    fluxdata=np.array(spectrum_df['flux'].values)
-                    err_data=np.array(spectrum_df['err'].values) #if 'err' in spectrum_df.columns else None
-                    #print(f'Err data loaded: {err_data}')
-                    #print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
-                    # Fit the saved lines to the loaded spectrum
-                    plot = self._perform_saved_lines_fit(
-                        spectrum_name=os.path.basename(spectrum_file),
-                        wavedata=wavedata,
-                        fluxdata=fluxdata,
-                        err_data=err_data,
-                        plot_results=False,
-                        plot_grid=True
-                    )
-                    plot_grid_list.append(plot)
+                    try:
+                        # Load the spectrum data
+                        spectrum_df = ifh.read_spectral_data(spectrum_file)
+                        wavedata=np.array(spectrum_df['wave'].values)
+                        wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)  # Apply stellar RV correction
+                        fluxdata=np.array(spectrum_df['flux'].values)
+                        err_data=np.array(spectrum_df['err'].values) #if 'err' in spectrum_df.columns else None
+                        #print(f'Err data loaded: {err_data}')
+                        #print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
+                        # Fit the saved lines to the loaded spectrum
+                        plot = self._perform_saved_lines_fit(
+                            spectrum_name=os.path.basename(spectrum_file),
+                            wavedata=wavedata,
+                            fluxdata=fluxdata,
+                            err_data=err_data,
+                            plot_results=False,
+                            plot_grid=True
+                        )
+                        plot_grid_list.append(plot)
 
-                    self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spectrum_file)}\n", clear_after=False)
+                        self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spectrum_file)}\n", clear_after=False)
+                    except Exception as load_error:
+                        self.data_field.insert_text(f"Error loading spectrum {os.path.basename(spectrum_file)}: {load_error}\n", clear_after=False)
+                        continue
                     
                 #except Exception as e:
                 #    self.data_field.insert_text(f"Error processing {os.path.basename(spectrum_file)}: {e}\n", clear_after=False)
@@ -410,9 +414,9 @@ class TopBar(ResizableFrame):
 
             if plot_grid_list:
                 # Open a new window to display the plot grid
-                grid_window = tk.Toplevel(self.master)
+                #grid_window = tk.Toplevel(self.master)
                 #grid_window.title("Fit Lines Plot Grid")
-                plot_grid_window = PlotGridWindow(grid_window, plot_grid_list, theme=self.theme)
+                plot_grid_window = PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
                 #plot_grid_window.pack(fill="both", expand=True)
 
         else:
