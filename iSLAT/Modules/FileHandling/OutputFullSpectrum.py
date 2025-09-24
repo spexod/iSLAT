@@ -109,12 +109,18 @@ def output_full_spectrum(islat_ref):
             plt.legend("Test")
         if n == len (xlim1) - 1:
             plt.xlabel("Wavelength (μm)")
-    file_name = spectrum_path.stem + "_output.pdf"
-    save_dir = filedialog.askdirectory(title="Select a Directory")
+    default_name = spectrum_path.stem + "_spec.pdf"
 
-    save_path = Path(save_dir) / file_name
+    save_path = filedialog.asksaveasfilename(
+    title="Save Spectrum Output",
+    defaultextension=".pdf",          
+    initialfile=default_name,
+    initialdir=absolute_data_files_path,
+    filetypes=[("PDF files", "*.pdf")]
+    )
 
-    plt.savefig(save_path, bbox_inches='tight', format = 'pdf')
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', format = 'pdf')
 
-    islat_ref.GUI.data_field.insert_text(f"Spectrum output saved to: {save_path}")
-    print('done!')
+        islat_ref.GUI.data_field.insert_text(f"Spectrum output saved to: {save_path}")
+        print('done!')
