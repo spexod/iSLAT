@@ -3,14 +3,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
+from pathlib import Path 
+from tkinter import filedialog
 
 from iSLAT.Modules.FileHandling import *
 
 
 
-def output_full_spectrum(islat_ref, target = "DQTau_Sep11"):
+def output_full_spectrum(islat_ref):
 
-    # target = 'DQTau_Sep11'
     version = 'v8.3'
     Wfct = 4
 
@@ -24,10 +25,8 @@ def output_full_spectrum(islat_ref, target = "DQTau_Sep11"):
 
     plot_renderer = islat_ref.GUI.get_plot_renderer()
 
-    spectrum_path = islat_ref.loaded_spectrum_file
+    spectrum_path = Path(islat_ref.loaded_spectrum_file)
 
-    # atomic lines
-    # svd_lns = pd.read_csv ("/Users/a_b1140/PycharmProjects/iSLAT/iSLAT/LINELISTS/Atomic_lines.csv", sep=',')
     svd_lns = pd.read_csv(atomic_lines_file_name, sep=',')
     svd_lamb = np.array (svd_lns['wave'])
     svd_species = svd_lns['species']
@@ -56,28 +55,16 @@ def output_full_spectrum(islat_ref, target = "DQTau_Sep11"):
                 plt.text(wat_lamb[i], label_y, '|', fontsize=6, va='bottom', ha='center', color=clr)
                 plt.text(wat_lamb[i]+offs, label_y + ymax/20, label, fontsize=6, rotation=90, va='bottom', ha='center', color=clr)
 
-    # # water PAR lines
-    # def plot_waterPAR(fct,xr):
-    #     for i in range(len(wat_lamb)):
-    #         if wat_lamb[i] > xr[0] and wat_lamb[i] < xr[1]:
-    #             plt.vlines(wat_lamb[i], 0, wat_intens[i]/fct, colors=clrs[i], linewidth=1, zorder=4) #, linestyles='dashed'
-
-    # def plot_singles(spec,ymax):
-    #     label_y = np.interp(wat_single.lam, spec['wave'], spec['flux']) + ymax/10
-    #     plt.scatter(wat_single.lam, label_y, c=wat_clrs.astype(int), marker='*',linestyle="None", alpha=0.9, cmap=cmap, zorder=3)
-
 
     # read input spectrum
     cc = 2.99792458e5  # speed of light in km/s
-    # path_spectra = '/Users/a_b1140/Library/CloudStorage/OneDrive-TexasStateUniversity/TexasState/RESEARCH/JWST_analysis/'+version+'/'
-    # data_contsub = pd.read_csv(path_spectra + target + '_1d_'+version+'_csub.csv', sep=',')
 
     RV = 15. # this should be taken from the GUI
     spectrum = pd.read_csv(spectrum_path, sep=',')
     rv = islat_ref.molecules_dict._global_parms.get("stellar_rv", RV)
 
     waveCI = spectrum['wave']
-    waveCI = waveCI - (waveCI / cc * RV)
+    waveCI = waveCI - (waveCI / cc * rv)
     fluxCI = spectrum['flux']
     offsetCI = 0.
 
@@ -101,18 +88,7 @@ def output_full_spectrum(islat_ref, target = "DQTau_Sep11"):
         plt.ylim([ymin,ymax])
         plt.ylabel("Flux dens. (Jy)")
         plot_atomic(xr,ymin,ymax)
-    # #    plot_water('v2-1',' v=2-1','tomato',xr,ymin,ymax,water,offslabl)
-    #     plot_water('v1-1',' v=1-1','tomato',xr,ymin,ymax,water,offslabl)
-    # #    plot_water('v1-0extra4paper',' v=1-0','tomato',xr,ymin,ymax,water,offslabl)
-    #     plot_water('ortho-para-pairs',' O-P','blue',xr,ymin,ymax,water,-offslabl)
-    #     #plt.plot(waveGQ, fluxGQ, color='black', linewidth=1, ls=':', zorder=-1)
-    #     plt.plot(waveCI, fluxCI + offsetCI, color='black', linewidth=1, zorder=-1)
-    #     plt.plot(H2['wave'], H2['flux'], color='lime', ls='--', linewidth=lw, zorder=0)
-    #     plt.plot(HCN['wave'], HCN['flux'], color='orangered', ls='--', linewidth=lw, zorder=0)
-    #     plt.plot(C2H2['wave'], C2H2['flux'], color='limegreen', ls='--', linewidth=lw, zorder=0)
-    #     plt.plot(CO2['wave'], CO2['flux'], color='mediumorchid', ls='--', linewidth=lw, zorder=0)
-    #     plt.plot(CO['wave'], CO['flux'], color='magenta', ls='--', linewidth=lw, zorder=0)
-    #     plt.plot(OH['wave'], OH['flux'], color='darkorange', ls='--', linewidth=lw, zorder=0)
+   
         summed_wavelengths, summed_flux = islat_ref.molecules_dict.get_summed_flux(islat_ref.wave_data_original, visible_only=True)
 
         plot_renderer.render_main_spectrum_output(
@@ -124,29 +100,21 @@ def output_full_spectrum(islat_ref, target = "DQTau_Sep11"):
             summed_flux = summed_flux
             )
         
-
-
-        # if xlim1[n]+step < 10:
-        #     Wfct = Wfct
-        # else:
-        #     Wfct = 1
-        #     plt.plot (waterW['wave'], waterW['flux'], color='dodgerblue', ls='--', linewidth=lw, zorder=2)
-        #     plt.plot (waterC['wave'], waterC['flux'], color='cyan', ls='--', linewidth=lw, zorder=3)
-
-        # plt.plot (water['wave'], water['flux']/Wfct, color='blue', ls='--', linewidth=lw, zorder=1)
-        # TOTALM = water['flux']/Wfct + waterW['flux']/Wfct + waterC['flux'] + OH['flux'] + HCN['flux'] + C2H2['flux'] + CO2['flux'] + \
-        #         CO['flux'] + H2['flux']
-        # plt.fill_between(water['wave'], TOTALM, color='lightgray', alpha=1, rasterized=True, zorder=-3)
-
         #plot_waterPAR(fct, xr)
         if n == 0:
+            plt.legend()
             # plt.legend(['CO','OH', 'H$_2$O (T=850 K)', 'H$_2$', 'HCN', 'C$_2$H$_2$', 'CO$_2$', 'H$_2$O (T=400 K)', 'H$_2$O (T=190 K)'],
             #             labelcolor=['magenta','orange', 'blue', 'lime', 'orangered', 'limegreen', 'mediumorchid', 'dodgerblue', 'cyan'], loc='upper center', ncols=9,
             #             handletextpad=-0.2, bbox_to_anchor=(0.5, 1.4),  handlelength=0, fontsize=10, prop={'weight':'bold'})
             plt.legend("Test")
         if n == len (xlim1) - 1:
             plt.xlabel("Wavelength (μm)")
+    file_name = spectrum_path.stem + "_output.pdf"
+    save_dir = filedialog.askdirectory(title="Select a Directory")
 
-    plt.savefig(spectrum_path + 'output.pdf', bbox_inches='tight')
+    save_path = Path(save_dir) / file_name
 
+    plt.savefig(save_path, bbox_inches='tight', format = 'pdf')
+
+    islat_ref.GUI.data_field.insert_text(f"Spectrum output saved to: {save_path}")
     print('done!')

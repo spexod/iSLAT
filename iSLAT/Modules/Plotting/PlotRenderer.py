@@ -90,6 +90,8 @@ class PlotRenderer:
         self.model_lines: List[Line2D] = []
         self.active_lines: List[Line2D] = []
         self.saved_lines: List[Line2D] = []
+
+        self.render_out = False
         
         # Simplified stats - only for performance monitoring, no data caching
         self._plot_stats = {
@@ -228,7 +230,8 @@ class PlotRenderer:
                 self.ax1.set_xlim(current_xlim)
                 self.ax1.set_ylim(current_ylim)
 
-    def render_main_spectrum_output(self, subplot: Axes, wave_data: np.ndarray, flux_data: np.ndarray, 
+    def render_main_spectrum_output(self, subplot: Axes, wave_data: np.ndarray, 
+                                 flux_data: np.ndarray, 
                                  molecules: Union[List['Molecule'], 'MoleculeDict'], 
                                  summed_flux: Optional[np.ndarray] = None, 
                                  summed_wavelengths: Optional[np.ndarray] = None,
@@ -240,6 +243,8 @@ class PlotRenderer:
             return
         
         obs_wave_for_plotting = wave_data
+
+        self.render_out = True
 
         self._plot_observed_spectrum(obs_wave_for_plotting, flux_data, error_data, subplot=subplot)
 
@@ -253,6 +258,8 @@ class PlotRenderer:
         # Plot summed spectrum
         if summed_flux is not None and len(summed_flux) > 0:
             self._plot_summed_spectrum(summed_wavelengths, summed_flux, subplot=subplot)
+
+        self.render_out = False
 
 
 
@@ -1289,6 +1296,7 @@ class PlotRenderer:
             color = self._get_molecule_color(molecule)
             label = getattr(molecule, 'displaylabel', molecule_name)
             
+            lw = 1 if self.render_out else 2
             # Plot the spectrum
             line, = plot.plot(
                 plot_lam,
@@ -1296,7 +1304,7 @@ class PlotRenderer:
                 linestyle='--',
                 color=color,
                 alpha=0.8,
-                linewidth=2,
+                linewidth=lw,
                 label=label,
                 zorder=self._get_theme_value("zorder_model", 3)
             )
