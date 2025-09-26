@@ -12,15 +12,10 @@ from iSLAT.Modules.FileHandling import *
 
 def output_full_spectrum(islat_ref):
 
-    version = 'v8.3'
-    Wfct = 4
-
     step = 2.3
     xlim1 = np.arange(4.9,26,step)
-    fct = 130
     offslabl = 0.003
     ymaxfct = 0.2
-    plotname='compact'
     figs = (12, 16.)
 
     plot_renderer = islat_ref.GUI.get_plot_renderer()

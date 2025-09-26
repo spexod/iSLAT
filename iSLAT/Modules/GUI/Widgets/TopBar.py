@@ -210,7 +210,7 @@ class TopBar(ResizableFrame):
         """Fit the currently selected line using LMFIT"""
 
         if not hasattr(self.main_plot, 'current_selection') or self.main_plot.current_selection is None:
-            self.data_field.insert_text("No region selected for fitting.\n", clear_after=False)
+            self.data_field.insert_text("No region selected for fitting.\n")
             return
 
         try:
