@@ -5,9 +5,9 @@ import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 from pathlib import Path 
 from tkinter import filedialog
+# import tkinter as tk
 
 from iSLAT.Modules.FileHandling import *
-
 
 
 def output_full_spectrum(islat_ref):
@@ -44,17 +44,6 @@ def output_full_spectrum(islat_ref):
                 plt.text(label_x, label_y, svd_species[i] + ' ' + svd_lineID[i]+' ', fontsize=6, rotation=90, va='top',
                         ha='left', color='grey')
 
-    # water special lines
-    def plot_water(lnls,label,clr,xr,ymin,ymax, spec, offs):
-        wat_lns = pd.read_csv ('/Users/a_b1140/PycharmProjects/iSLAT/iSLAT/LINELISTS/MIRI_H2O_'+lnls+'.csv', sep=',')
-        wat_lamb = np.array (wat_lns['lam'])
-        for i in range(len(wat_lamb)):
-            if wat_lamb[i] > xr[0] and wat_lamb[i] < xr[1]:
-                # plt.vlines(wat_lamb[i], ymin, ymax, linestyles='dashed', color=clr, linewidth=0.7)
-                label_y = np.interp(wat_lamb[i], spec['wave'], spec['flux'])
-                plt.text(wat_lamb[i], label_y, '|', fontsize=6, va='bottom', ha='center', color=clr)
-                plt.text(wat_lamb[i]+offs, label_y + ymax/20, label, fontsize=6, rotation=90, va='bottom', ha='center', color=clr)
-
 
     # read input spectrum
     cc = 2.99792458e5  # speed of light in km/s
@@ -69,8 +58,17 @@ def output_full_spectrum(islat_ref):
     offsetCI = 0.
 
 
-    # make figure
     fig = plt.figure(figsize=figs)
+
+    mol_dict = islat_ref.molecules_dict
+    mol_labels = []
+    mol_colors = []
+
+    for key, mol in mol_dict.items():
+        if mol._is_visible == "True":
+            print(f"adding {key} to list")
+            mol_labels.append(mol.displaylabel)
+            mol_colors.append(mol.color)
 
     lw = 1.
 
@@ -99,17 +97,26 @@ def output_full_spectrum(islat_ref):
             summed_wavelengths = summed_wavelengths,
             summed_flux = summed_flux
             )
+        plt.draw()
         
         #plot_waterPAR(fct, xr)
         if n == 0:
             plt.legend()
-            # plt.legend(['CO','OH', 'H$_2$O (T=850 K)', 'H$_2$', 'HCN', 'C$_2$H$_2$', 'CO$_2$', 'H$_2$O (T=400 K)', 'H$_2$O (T=190 K)'],
-            #             labelcolor=['magenta','orange', 'blue', 'lime', 'orangered', 'limegreen', 'mediumorchid', 'dodgerblue', 'cyan'], loc='upper center', ncols=9,
-            #             handletextpad=-0.2, bbox_to_anchor=(0.5, 1.4),  handlelength=0, fontsize=10, prop={'weight':'bold'})
-            plt.legend("Test")
+    
+            plt.legend(
+                mol_labels,
+                labelcolor = mol_colors,
+                loc = 'upper center',
+                ncols = 9,
+                handletextpad = 0.2,
+                bbox_to_anchor = (0.5,1.4),
+                handlelength = 0,
+                fontsize = 10,
+                prop = {'weight':'bold'},
+            )
         if n == len (xlim1) - 1:
             plt.xlabel("Wavelength (μm)")
-    default_name = spectrum_path.stem + "_spec.pdf"
+    default_name = spectrum_path.stem + "_full_output.pdf"
 
     save_path = filedialog.asksaveasfilename(
     title="Save Spectrum Output",
