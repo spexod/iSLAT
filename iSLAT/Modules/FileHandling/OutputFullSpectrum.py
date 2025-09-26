@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import matplotlib.cm as cm
 from pathlib import Path 
 from tkinter import filedialog
 # import tkinter as tk
@@ -53,7 +53,7 @@ def output_full_spectrum(islat_ref):
     offsetCI = 0.
 
 
-    fig = plt.figure(figsize=figs)
+    plt.figure(figsize=figs)
 
     mol_dict = islat_ref.molecules_dict
     mol_labels = []
@@ -126,3 +126,5 @@ def output_full_spectrum(islat_ref):
 
         islat_ref.GUI.data_field.insert_text(f"Spectrum output saved to: {save_path}")
         print('done!')
+
+    plt.close()
