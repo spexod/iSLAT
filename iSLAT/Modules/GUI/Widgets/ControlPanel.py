@@ -754,6 +754,7 @@ class ControlPanel(ttk.Frame):
                     # Only update if the values are actually different to avoid unnecessary callbacks
                     if not hasattr(self.islat, '_display_range') or self.islat._display_range != new_display_range:
                         self.islat.display_range = new_display_range
+                        self.islat.GUI.plot.match_display_range(match_y = True)
             except (ValueError, AttributeError):
                 pass
 
