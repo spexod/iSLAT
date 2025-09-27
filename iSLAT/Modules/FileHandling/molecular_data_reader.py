@@ -62,10 +62,11 @@ class MolecularDataReader:
     Currently supports .par files in the format used by the original Fortran 90 code.
     """
     
-    __slots__ = ('_partition_type', '_lines_type', 'debug')
+    __slots__ = ('_partition_type', '_lines_type', '_other_fields', 'debug')
     
     def __init__(self, debug=False):
         # Define namedtuple types for data structure
+        self._other_fields = namedtuple('other_fields', ['Molecular_Mass'])
         self._partition_type = namedtuple('partition', ['t', 'q'])
         self._lines_type = namedtuple('lines', ['nr', 'lev_up', 'lev_low', 'lam', 'freq', 'a_stein',
                                                'e_up', 'e_low', 'g_up', 'g_low'])
@@ -98,10 +99,36 @@ class MolecularDataReader:
         # Decode and normalize line endings
         file_str = file_bytes.decode('utf-8', errors='ignore')
         all_lines = file_str.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-        
+
         # Filter out comments and empty lines
-        clean_lines = [line for line in all_lines if line.strip() and not line.strip().startswith('#')]
+        #clean_lines = [line for line in all_lines if line.strip() and not line.strip().startswith('#')]
+        clean_lines = []
+        comment_lines = []
+        for line in all_lines:
+            if line.strip().startswith('#'):
+                comment_lines.append(line)
+                continue
+            elif line.strip():
+                clean_lines.append(line)
+            else:
+                continue
         
+        other_fields_list = []
+
+        # get any fields in the comments that were specfied in self._other_fields
+        for field in self._other_fields._fields:
+            search_field = field.replace('_', ' ')
+            #print(f"Looking for field: {field}")
+            for comment in comment_lines:
+                #print("Comment line:", comment)
+                if search_field in comment:
+                    #print("Found field in comment:", comment)
+                    try:
+                        value = float(comment.split(':')[1].strip())
+                        other_fields_list.append((field, value))
+                    except (IndexError, ValueError):
+                        continue
+
         if len(clean_lines) < 3:
             return None, None
         
@@ -139,7 +166,7 @@ class MolecularDataReader:
         molecular_lines = clean_lines[lines_start:lines_start + num_lines]
         lines_data = self._parse_lines_ultra_fast_direct(molecular_lines)
         
-        return partition_function, lines_data
+        return partition_function, lines_data, other_fields_list
     
     def _parse_lines_ultra_fast_direct(self, molecular_lines):
         """Parse lines using direct numpy array operations - fastest possible."""

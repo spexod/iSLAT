@@ -700,7 +700,7 @@ class ControlPanel(ttk.Frame):
             if hasattr(selected_mol, '_notify_my_parameter_change'):
                 selected_mol._notify_my_parameter_change('color', old_color, color_code)
 
-    def _get_active_molecule_object(self):
+    def _get_active_molecule_object(self) -> Molecule:
         """Get the active molecule object, similar to MoleculeWindow logic"""
         if not hasattr(self.islat, 'active_molecule') or not self.islat.active_molecule:
             return None
@@ -721,8 +721,8 @@ class ControlPanel(ttk.Frame):
         if len(active_mol.name) > self.max_name_len + 4:
             selected_name = active_mol.name[:self.max_name_len] + "..."
             CreateToolTip(self.selected_label, active_mol.name, bg = self.bg_color)
-            
-        self.selected_label.config(text=f"Selected Molecule: {selected_name}")
+
+        self.selected_label.config(text=f"Selected Molecule: {selected_name}\nThermal Broadening: {active_mol.thermal_broad}")
 
     def _update_display_range(self, value_str=None):
         """Update display range bidirectionally between GUI and iSLAT class"""

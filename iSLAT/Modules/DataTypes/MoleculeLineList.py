@@ -24,7 +24,7 @@ class MoleculeLineList:
     __slots__ = ('molecule_id', 'lines', 'partition_function', '_partition_type', 
                  '_lines_type', '_lines_cache', '_lines_cache_valid', '_wavelengths_cache',
                  '_frequencies_cache', '_data_loaded', '_filename', '_raw_lines_data',
-                 '_pandas_df_cache')
+                 '_pandas_df_cache', '_molecular_mass')
     
     def __init__(self, molecule_id: Optional[str] = None, filename: Optional[str] = None, 
                  lines_data: Optional[List[dict]] = None):
@@ -47,6 +47,7 @@ class MoleculeLineList:
         self._filename = filename
         self._raw_lines_data = None
         self._pandas_df_cache = None
+        self._molecular_mass = None
         
         # Define namedtuple types for data structure
         self._partition_type = namedtuple('partition', ['t', 'q'])
@@ -90,9 +91,12 @@ class MoleculeLineList:
         """
         from iSLAT.Modules.FileHandling.molecular_data_reader import read_molecular_data
         
-        partition_function, lines_data = read_molecular_data(self.molecule_id, filename)
+        partition_function, lines_data, other_fields = read_molecular_data(self.molecule_id, filename)
         self.partition_function = partition_function
         
+        self._molecular_mass = other_fields[0][1]
+        print(f'Molecular_mass: {self._molecular_mass}')
+
         # Store raw data for lazy MoleculeLine creation
         self._raw_lines_data = lines_data
         self.lines = None  # Will be created on demand
