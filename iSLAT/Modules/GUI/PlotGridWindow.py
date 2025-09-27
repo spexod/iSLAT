@@ -31,9 +31,6 @@ class PlotGridWindow(tk.Toplevel):
         #self.plot_grid = FitLinesPlotGrid(fit_data=fit_data, rows=rows, cols=cols, figsize=figsize, **kwargs)
         #self.plot_grid.plot()
         
-        '''self.canvas = FigureCanvasTkAgg(self.plot_grid.fig, master=self)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)'''
         self.plot_grid_list = plot_grid_list if plot_grid_list is not None else []
         
         self.generate_plots()

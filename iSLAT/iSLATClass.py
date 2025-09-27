@@ -10,6 +10,8 @@ import sys
 from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
 from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path, hitran_data_folder_path, hitran_data_folder_name
 
+from .Modules.Hitran_data import download_hitran_data
+
 import iSLAT.Constants as c
 from .Modules.GUI import *
 from .Modules.DataTypes.Molecule import Molecule
@@ -263,31 +265,28 @@ class iSLAT:
         Checks that all expected HITRAN files are present and loads them efficiently.
         Only loads when specifically requested to avoid startup delays.
         """
-        if not self.user_settings.get("auto_load_hitran", False):
+        '''if not self.user_settings.get("auto_load_hitran", False):
             print("HITRAN auto-loading disabled. Files will be loaded on demand.")
-            return
+            return'''
             
         print("Checking HITRAN files:")
 
-        if self.user_settings.get("first_startup", False) or self.user_settings.get("reload_default_files", False):
+        #if self.user_settings.get("first_startup", False) or self.user_settings.get("reload_default_files", False):
+        if True:
             print('First startup or reload_default_files is True. Loading default HITRAN files ...')
             
             for mol, bm, iso in zip(self.mols, self.basem, self.isot):
-                hitran_file = f"HITRANdata/data_Hitran_2020_{mol}.par"
+                hitran_file = f"DATAFILES/HITRANdata/data_Hitran_2020_{mol}.par"
                 if not os.path.exists(hitran_file):
                     print(f"WARNING: HITRAN file for {mol} not found at {hitran_file}")
-                    self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
+                    #self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
+                    #continue
+                    try:
+                        missed_mols=download_hitran_data([bm], [mol], [iso])
+                    except Exception as e:
+                        print(f"ERROR: Failed to load HITRAN file for {mol}: {e}")
+                        #self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
                     continue
-
-                try:
-                    lines = read_HITRAN_data(hitran_file)
-                    if lines:
-                        self.hitran_data[mol] = {"lines": lines, "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
-                    else:
-                        self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
-                except Exception as e:
-                    print(f"ERROR: Failed to load HITRAN file for {mol}: {e}")
-                    self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
         else:
             print('Not the first startup and reload_default_files is False. Skipping HITRAN files loading.')
 
@@ -705,6 +704,7 @@ class iSLAT:
             print("\n" + "="*60)
             print("Please select a spectrum file to load.")
             print("="*60)
+            self.check_HITRAN()
             continue_init = self.load_spectrum()
             if not continue_init:
                 print("No spectrum selected. Exiting...")

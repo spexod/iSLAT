@@ -47,7 +47,8 @@ class Molecule:
         't_kin', 'scale_exponent', 'scale_number', 'radius_init', 'n_mol_init',
         '_wavelength_range', '_model_pixel_res', '_model_line_width',
         '_intensity_cache', '_spectrum_cache', '_flux_cache',
-        '_param_hash_cache', '_dirty_flags', '_cache_stats'
+        '_param_hash_cache', '_dirty_flags', '_cache_stats',
+        '_molecular_mass', '_thermal_broad'
     )
     
     _molecule_parameter_change_callbacks = []
@@ -241,6 +242,8 @@ class Molecule:
             if self.filepath:
                 #print("Loading lines from filepath:", self._lines_filepath)
                 self.lines = MoleculeLineList(molecule_id=self.name, filename=self.filepath)
+                self._molecular_mass = self.lines._molecular_mass
+                print(f"molecule molecular_mass: {self._molecular_mass}")
             else:
                 print("Creating empty line list")
                 self.lines = MoleculeLineList(molecule_id=self.name)
@@ -546,6 +549,15 @@ class Molecule:
         else:
             self._is_visible = bool(value)
         self._notify_my_parameter_change('is_visible', old_value, self._is_visible)
+
+    @property
+    def thermal_broad(self):
+        self._molecular_mass = self.lines._molecular_mass
+        multi = c.BOLTZMANN_CONSTANT_JOULE*self._temp
+        div = (multi/((self._molecular_mass/1000) / c.AVAGADRO_NUMBER))
+        calcsqrt = np.sqrt(div)
+        thermal_broad = (calcsqrt)/1000
+        return thermal_broad
 
     def bulk_update_parameters(self, parameter_dict: Dict[str, Any], skip_notification: bool = False):
         if not parameter_dict:

@@ -40,6 +40,9 @@ from collections import namedtuple
 BOLTZMANN_CONSTANT = 1.3806504e-16
 """Boltzmann constant in erg/K."""
 
+BOLTZMANN_CONSTANT_JOULE = 1.380649e-23
+"""Boltzmann constant in J/K."""
+
 SPEED_OF_LIGHT_CGS = 2.99792458e10
 """Speed of light in cm/s."""
 
