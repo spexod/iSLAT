@@ -200,7 +200,7 @@ def download_hitran_data(mols, basem, isot) -> List[Tuple]:
 
             with open(file_path, 'w') as fh:
                 fh.write("# HITRAN 2020 {:}; id:{:}; iso:{:};gid:{:}\n".format(mol, M, iso, G))
-                fh.write("# Molecular Mass: {:}\n".format(get_molar_mass(bm, iso)))
+                fh.write("# Molar Mass: {:}\n".format(get_molar_mass(bm, iso)))
                 fh.write("# Downloaded from the Hitran website\n")
                 fh.write("# {:s}\n".format(str(datetime.date.today())))
                 fh = write_partition_function(fh, qdata)

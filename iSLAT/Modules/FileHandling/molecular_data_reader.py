@@ -66,7 +66,7 @@ class MolecularDataReader:
     
     def __init__(self, debug=False):
         # Define namedtuple types for data structure
-        self._other_fields = namedtuple('other_fields', ['Molecular_Mass'])
+        self._other_fields = namedtuple('other_fields', ['Molar_Mass'])
         self._partition_type = namedtuple('partition', ['t', 'q'])
         self._lines_type = namedtuple('lines', ['nr', 'lev_up', 'lev_low', 'lam', 'freq', 'a_stein',
                                                'e_up', 'e_low', 'g_up', 'g_low'])

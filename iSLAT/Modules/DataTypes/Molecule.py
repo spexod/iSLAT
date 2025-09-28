@@ -48,7 +48,7 @@ class Molecule:
         '_wavelength_range', '_model_pixel_res', '_model_line_width',
         '_intensity_cache', '_spectrum_cache', '_flux_cache',
         '_param_hash_cache', '_dirty_flags', '_cache_stats',
-        '_molecular_mass', '_thermal_broad'
+        '_molar_mass', '_thermal_broad'
     )
     
     _molecule_parameter_change_callbacks = []
@@ -242,8 +242,6 @@ class Molecule:
             if self.filepath:
                 #print("Loading lines from filepath:", self._lines_filepath)
                 self.lines = MoleculeLineList(molecule_id=self.name, filename=self.filepath)
-                self._molecular_mass = self.lines._molecular_mass
-                print(f"molecule molecular_mass: {self._molecular_mass}")
             else:
                 print("Creating empty line list")
                 self.lines = MoleculeLineList(molecule_id=self.name)
@@ -552,12 +550,11 @@ class Molecule:
 
     @property
     def thermal_broad(self):
-        self._molecular_mass = self.lines._molecular_mass
-        multi = c.BOLTZMANN_CONSTANT_JOULE*self._temp
-        div = (multi/((self._molecular_mass/1000) / c.AVAGADRO_NUMBER))
-        calcsqrt = np.sqrt(div)
-        thermal_broad = (calcsqrt)/1000
-        return thermal_broad
+        try:
+            return np.sqrt((c.BOLTZMANN_CONSTANT_JOULE * self._temp) / ((self.lines._molar_mass / 1000) / c.AVAGADRO_NUMBER)) / 1000
+        except Exception:
+            print("Warning: Unable to compute thermal broadening due to missing or invalid molar mass.")
+            return 0.0
 
     def bulk_update_parameters(self, parameter_dict: Dict[str, Any], skip_notification: bool = False):
         if not parameter_dict:

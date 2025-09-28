@@ -33,7 +33,6 @@ class ControlPanel(ttk.Frame):
         self.label_frame.grid(row=0, column=0, sticky="nsew", pady=0)
         self.label_frame.grid_rowconfigure(0,weight=1)
 
-
         bg_frame = tk.Frame(self)
         self.bg_color = bg_frame.cget('bg')
         bg_frame.destroy()
@@ -257,8 +256,6 @@ class ControlPanel(ttk.Frame):
                 self._global_parameter_entries[field_config['property']] = (entry, var)
             
             col_offset += 1
-
-        
 
     def _build_color_and_vis_controls(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -716,13 +713,13 @@ class ControlPanel(ttk.Frame):
     def _update_active_molecule_changes(self):
         """Update color button and visibility checkbox based on active molecule"""
         active_mol = self._get_active_molecule_object()
-        selected_name = active_mol.name
+        self.selected_name = active_mol.name
         self.mol_frames[active_mol.name].config(bg=self.selected_color)
         if len(active_mol.name) > self.max_name_len + 4:
-            selected_name = active_mol.name[:self.max_name_len] + "..."
+            self.selected_name = active_mol.name[:self.max_name_len] + "..."
             CreateToolTip(self.selected_label, active_mol.name, bg = self.bg_color)
 
-        self.selected_label.config(text=f"Selected Molecule: {selected_name}\nThermal Broadening: {active_mol.thermal_broad}")
+        self.selected_label.config(text=f"Selected Molecule: {self.selected_name}\nThermal Broadening: {active_mol.thermal_broad:.2g} km/s")
 
     def _update_display_range(self, value_str=None):
         """Update display range bidirectionally between GUI and iSLAT class"""
