@@ -1,6 +1,8 @@
 import numpy as np
 from collections import namedtuple
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, NamedTuple
+
+#from .MoleculeLine import MoleculeLine
 
 # Lazy imports for performance
 _pandas_imported = False
@@ -16,6 +18,29 @@ def _get_pandas():
             pd = None
             _pandas_imported = True
     return pd
+
+class LineTuple(NamedTuple):
+    """Named tuple for line data"""
+    nr: int
+    '''Line number'''
+    lev_up: int
+    '''Upper energy level'''
+    lev_low: int
+    '''Lower energy level'''
+    lam: float
+    '''Wavelength in microns'''
+    freq: float
+    '''Frequency in Hz'''
+    a_stein: float
+    '''Einstein A coefficient'''
+    e_up: float
+    '''Upper state energy'''
+    e_low: float
+    '''Lower state energy'''
+    g_up: int
+    '''Upper state degeneracy'''
+    g_low: int
+    '''Lower state degeneracy'''
 
 class MoleculeLineList:
     """
@@ -51,8 +76,9 @@ class MoleculeLineList:
         
         # Define namedtuple types for data structure
         self._partition_type = namedtuple('partition', ['t', 'q'])
-        self._lines_type = namedtuple('lines', ['nr', 'lev_up', 'lev_low', 'lam', 'freq', 'a_stein',
-                                               'e_up', 'e_low', 'g_up', 'g_low'])
+        self._lines_type = LineTuple
+        #namedtuple('lines', ['nr', 'lev_up', 'lev_low', 'lam', 'freq', 'a_stein',
+                           #                    'e_up', 'e_low', 'g_up', 'g_low'])
         
         # Cache for performance optimization
         self._lines_cache = None
@@ -479,7 +505,7 @@ class MoleculeLineList:
     def fname(self, value):
         """Set file name"""
         self._filename = value
-    
+
     def enable_parallel_line_loading(self, use_parallel=True):
         """
         Enable or disable parallel line loading for very large molecules.

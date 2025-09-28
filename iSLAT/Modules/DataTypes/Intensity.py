@@ -132,7 +132,7 @@ class Intensity:
                 cls._GAUSS_QUAD_INITIALIZED = True
     
     @classmethod
-    def _fint_optimized(cls, tau: np.ndarray) -> np.ndarray:
+    def _fint(cls, tau: np.ndarray) -> np.ndarray:
         """Vectorized calculation of the curve-of-growth integral.
         
         This method pre-computes all quadrature points and uses optimized broadcasting
@@ -164,16 +164,6 @@ class Intensity:
         
         return integral_values.reshape(original_shape)
     
-    @staticmethod
-    def _fint(tau: np.ndarray) -> np.ndarray:
-        """Legacy method for backward compatibility - redirects to optimized version."""
-        return Intensity._fint_optimized(tau)
-    
-    @staticmethod
-    def _fint_vectorized(tau: np.ndarray) -> np.ndarray:
-        """Vectorized method - redirects to optimized version."""
-        return Intensity._fint_optimized(tau)
-
     def _calc_intensity_core(self, t_kin_vals: np.ndarray, n_mol_vals: np.ndarray, 
                             dv_vals: np.ndarray, method: str = "curve_growth") -> tuple:
         """Core intensity calculation optimized for both single and batch operations.
@@ -283,7 +273,7 @@ class Intensity:
                            freq_ratio * bb_vals * (1.0 - np.exp(-tau)))
         elif method == "curve_growth":
             # Use optimized _fint calculation
-            fint_vals = self._fint_optimized(tau)
+            fint_vals = self._fint(tau)
             sqrt_ln2_inv = 1.0 / (2.0 * np.sqrt(np.log(2.0)))  # Pre-compute constant
             if is_scalar:
                 intensity = (sqrt_ln2_inv * 1e5 * dv * freq_ratio * bb_vals * fint_vals)
