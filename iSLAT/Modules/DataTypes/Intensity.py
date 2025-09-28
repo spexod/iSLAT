@@ -133,7 +133,7 @@ class Intensity:
     
     @classmethod
     def _fint_optimized(cls, tau: np.ndarray) -> np.ndarray:
-        """Ultra-efficient vectorized calculation of the curve-of-growth integral.
+        """Vectorized calculation of the curve-of-growth integral.
         
         This method pre-computes all quadrature points and uses optimized broadcasting
         to calculate the integral for all tau values simultaneously.
@@ -299,7 +299,7 @@ class Intensity:
             tau = tau.reshape(output_shape + (len(lines.freq),))
             
         return intensity, tau
-    
+
     def calc_intensity(self, t_kin: Optional[float] = None, n_mol: Optional[float] = None, 
                       dv: Optional[float] = None, method: Literal["curve_growth", "radex"] = "curve_growth") -> None:
         """Calculate the intensity for a given set of physical parameters. This implements Eq. A1 and A2 in
