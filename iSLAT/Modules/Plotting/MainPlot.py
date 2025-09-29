@@ -270,9 +270,9 @@ class iSLATPlot:
             #observed_wave_data=self.islat.wave_data  # Pass observed data separately
         )
 
-        if self.atomic_toggle:
-            self.plot_atomic_lines()
-        
+        if self.islat.GUI.top_bar.atomic_toggle:
+            self.plot_atomic_lines(self.atomic_lines)
+
         # Recreate span selector and redraw
         self.make_span_selector()
         self.canvas.draw_idle()
