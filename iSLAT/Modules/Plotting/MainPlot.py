@@ -57,6 +57,7 @@ class iSLATPlot:
         self.islat = islat_class_ref
 
         self.active_lines = []  # List of (line, text, scatter, values) tuples for active molecular lines
+        self.atomic_lines = []
 
         self.fig = plt.Figure(figsize=(10, 7))
         # Adjust subplot parameters to minimize margins and maximize plot area
@@ -577,6 +578,18 @@ class iSLATPlot:
         self.plot_renderer.highlight_line_selection(xmin, xmax)
         self.canvas.draw_idle()
     
+    def plot_atomic_lines(self, atomic_lines):
+        # Get wavelength and other data from the atomic lines DataFrame
+        wavelengths = atomic_lines['wave'].values
+        species = atomic_lines['species'].values
+        line_ids = atomic_lines['line'].values
+                
+        self.plot_renderer.render_atomic_lines(self.atomic_lines, self.ax1, 
+        wavelengths, species, line_ids)
+
+        self.canvas.draw()
+
+
     def plot_vertical_lines(self, wavelengths, heights=None, colors=None, labels=None):
         """
         Plot vertical lines at specified wavelengths.

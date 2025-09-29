@@ -865,6 +865,27 @@ class PlotRenderer:
         # Update summed spectrum using PlotRenderer
         self.update_summed_spectrum_only(wave_data, summed_flux)
     
+    def render_atomic_lines(self, atomic_lines, ax1, wavelengths, species, line_ids):
+        for i in range(len(wavelengths)):
+            line = ax1.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
+            
+            # Adjust the y-coordinate to place labels within the plot borders
+            ylim = ax1.get_ylim()
+            label_y = ylim[1]
+            
+            # Adjust the x-coordinate to place labels just to the right of the line
+            xlim = ax1.get_xlim()
+            label_x = wavelengths[i] + 0.006 * (xlim[1] - xlim[0])
+            
+            # Add text label for the line
+            label_text = f"{species[i]} {line_ids[i]}"
+            label = ax1.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
+                                                va='top', ha='left', color='tomato')
+            
+            atomic_lines.append((line, label))
+
+            
+
     def clear_active_lines(self, active_lines_list: List[Any]) -> None:
         """
         Properly clear active lines by removing matplotlib artists first.

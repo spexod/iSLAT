@@ -44,7 +44,7 @@ class TopBar(ResizableFrame):
         self.config = config
         self.control_panel = control_panel
 
-        self.atomic_lines = []
+
 
         self.button_frame = tk.Frame(self)
         self.button_frame.grid(row=0, column=1)
@@ -588,34 +588,29 @@ class TopBar(ResizableFrame):
         """
         Show atomic lines as vertical dashed lines on the plot.
         """
-        if self.atomic_lines:
-            for (line, text) in self.atomic_lines:
-                try:
-                    line.remove()
-                    text.remove()
-                except ValueError:
-                    pass
-            
-            self.atomic_lines.clear()
-            self.main_plot.canvas.draw()
+        atomic_lines = self.main_plot.atomic_lines
+        if atomic_lines:
+            self.remove_atomic_lines(atomic_lines)
             return
 
         try:
             # Load atomic lines from file using the file handling module
-            atomic_lines = ifh.load_atomic_lines()
+            loaded_atomic_lines = ifh.load_atomic_lines()
             
-            if atomic_lines.empty:
+            if loaded_atomic_lines.empty:
                 self.data_field.insert_text("No atomic lines data found.\n")
                 return
+            
+            self.main_plot.render_atomic_lines(loaded_atomic_lines)
             
             # Get the main plot axes
             if hasattr(self.main_plot, 'ax1'):
                 ax1 = self.main_plot.ax1
                 
                 # Get wavelength and other data from the atomic lines DataFrame
-                wavelengths = atomic_lines['wave'].values
-                species = atomic_lines['species'].values
-                line_ids = atomic_lines['line'].values
+                wavelengths = loaded_atomic_lines['wave'].values
+                species = loaded_atomic_lines['species'].values
+                line_ids = loaded_atomic_lines['line'].values
                 
                 # Plot vertical lines for each atomic line
                 
@@ -635,7 +630,7 @@ class TopBar(ResizableFrame):
                     label = ax1.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
                                                         va='top', ha='left', color='tomato')
                     
-                    self.atomic_lines.append((line, label))
+                    atomic_lines.append((line, label))
                 
                 # Update the plot
                 self.main_plot.canvas.draw()
@@ -650,6 +645,23 @@ class TopBar(ResizableFrame):
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
             traceback.print_exc()
+
+    def remove_atomic_lines(self, lines):
+        if not self.main_plot.active_lines:
+            lines.clear()
+            return
+
+        
+        for (line, text) in lines:
+            try:
+                line.remove()
+                text.remove()
+            except ValueError:
+                pass
+        
+        lines.clear()
+        self.main_plot.canvas.draw()
+
 
     def hitran_query(self):
         """
@@ -769,7 +781,7 @@ class TopBar(ResizableFrame):
             # Update GUI components
             if hasattr(self.islat, 'GUI'):
                 if hasattr(self.islat.GUI, 'plot'):
-                    self.islat.GUI.plot.update_all_plots()
+                    self.main_plot.update_all_plots()
                 if hasattr(self.islat.GUI, 'control_panel'):
                     self.islat.GUI.control_panel.refresh_from_molecules_dict()
                 if hasattr(self.islat.GUI, 'data_field'):
@@ -790,4 +802,4 @@ class TopBar(ResizableFrame):
 
     def toggle_legend(self):
         #print("Toggled legend on plot")
-        self.islat.GUI.plot.toggle_legend()
+        self.main_plot.toggle_legend()
