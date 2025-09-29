@@ -293,7 +293,6 @@ class PlotRenderer:
                     color=self._get_theme_value("foreground", "black"),
                     linewidth=1,
                     label='Data',
-                    zorder=2,
                     zorder=self._get_theme_value("zorder_observed", 2)
                 )
     

@@ -84,6 +84,7 @@ class TopBar(ResizableFrame):
         spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
         spectrum_menu.add_command(label="Save Parameters", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters", command=self.load_parameters)
+        spectrum_menu.add_command(label="Output Full Spectrum", command=lambda: output_full_spectrum(self.islat))
         spectrum_drpdwn.config(menu=spectrum_menu)
 
         if os_name == "Darwin":
@@ -98,7 +99,7 @@ class TopBar(ResizableFrame):
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
-        spec_functions_menu.add_command(label="Output Full Spectrum", command=lambda: output_full_spectrum(self.islat))
+        
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
         saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
