@@ -28,5 +28,6 @@ iSLAT/DATAFILES/.DS_Store
 
 .DS_store
 
-./venv
-.venv
+.venv/
+
+.idea/
