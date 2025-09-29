@@ -13,6 +13,7 @@ from .PlotRenderer import PlotRenderer
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
+from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
 
 # Import debug configuration with fallback
 try:
@@ -58,6 +59,7 @@ class iSLATPlot:
 
         self.active_lines = []  # List of (line, text, scatter, values) tuples for active molecular lines
         self.atomic_lines = []
+        self.atomic_toggle: bool = False
 
         self.fig = plt.Figure(figsize=(10, 7))
         # Adjust subplot parameters to minimize margins and maximize plot area
@@ -256,6 +258,8 @@ class iSLATPlot:
         wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
         self.islat.wave_data = wave_data # Update islat wave_data to match adjusted grid
 
+        self.atomic_lines.clear()
+
         self.plot_renderer.render_main_spectrum_plot(
             wave_data=wave_data,
             flux_data=self.islat.flux_data,
@@ -265,6 +269,9 @@ class iSLATPlot:
             error_data=getattr(self.islat, 'err_data', None),
             #observed_wave_data=self.islat.wave_data  # Pass observed data separately
         )
+
+        if self.atomic_toggle:
+            self.plot_atomic_lines()
         
         # Recreate span selector and redraw
         self.make_span_selector()
@@ -577,8 +584,20 @@ class iSLATPlot:
         """
         self.plot_renderer.highlight_line_selection(xmin, xmax)
         self.canvas.draw_idle()
+
     
-    def plot_atomic_lines(self, atomic_lines):
+    def remove_atomic_lines(self):
+        self.plot_renderer.remove_atomic_lines(self.atomic_lines)
+        self.canvas.draw()
+
+    def plot_atomic_lines(self, data_field = None, atomic_lines = load_atomic_lines()):
+
+        if atomic_lines.empty:
+                if data_field: 
+                    self.data_field.insert_text("No atomic lines data found.\n")
+                return
+        
+        
         # Get wavelength and other data from the atomic lines DataFrame
         wavelengths = atomic_lines['wave'].values
         species = atomic_lines['species'].values
@@ -588,6 +607,7 @@ class iSLATPlot:
         wavelengths, species, line_ids)
 
         self.canvas.draw()
+        return wavelengths
 
 
     def plot_vertical_lines(self, wavelengths, heights=None, colors=None, labels=None):

@@ -884,7 +884,15 @@ class PlotRenderer:
             
             atomic_lines.append((line, label))
 
-            
+    def remove_atomic_lines(self, lines):
+        for (line, text) in lines:
+            try:
+                line.remove()
+                text.remove()
+            except ValueError:
+                pass
+        
+        lines.clear()
 
     def clear_active_lines(self, active_lines_list: List[Any]) -> None:
         """

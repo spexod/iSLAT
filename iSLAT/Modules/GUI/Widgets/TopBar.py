@@ -56,6 +56,8 @@ class TopBar(ResizableFrame):
         toolbar_frame = tk.Frame(self)
         toolbar_frame.grid(row=0, column=2, sticky="nsew")
         self.toolbar = self.main_plot.create_toolbar(toolbar_frame)
+
+        self.atomic_toggle: bool = False
         
         # Apply initial theme
         # self.apply_theme(theme)
@@ -104,7 +106,7 @@ class TopBar(ResizableFrame):
         export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off"
         create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
-        create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.show_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
+        create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 5, tip_text=toggle_legend_tip)
 
 
@@ -584,83 +586,37 @@ class TopBar(ResizableFrame):
         button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(),data_field=self.data_field, wave_data=self.islat.wave_data))
         button.grid(row=1, column=1)
 
-    def show_atomic_lines(self):
+    def toggle_atomic_lines(self):
         """
         Show atomic lines as vertical dashed lines on the plot.
         """
-        atomic_lines = self.main_plot.atomic_lines
-        if atomic_lines:
-            self.remove_atomic_lines(atomic_lines)
-            return
-
         try:
-            # Load atomic lines from file using the file handling module
-            loaded_atomic_lines = ifh.load_atomic_lines()
-            
-            if loaded_atomic_lines.empty:
-                self.data_field.insert_text("No atomic lines data found.\n")
-                return
-            
-            self.main_plot.render_atomic_lines(loaded_atomic_lines)
-            
-            # Get the main plot axes
-            if hasattr(self.main_plot, 'ax1'):
-                ax1 = self.main_plot.ax1
-                
-                # Get wavelength and other data from the atomic lines DataFrame
-                wavelengths = loaded_atomic_lines['wave'].values
-                species = loaded_atomic_lines['species'].values
-                line_ids = loaded_atomic_lines['line'].values
-                
-                # Plot vertical lines for each atomic line
-                
-                for i in range(len(wavelengths)):
-                    line = ax1.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
-                    
-                    # Adjust the y-coordinate to place labels within the plot borders
-                    ylim = ax1.get_ylim()
-                    label_y = ylim[1]
-                    
-                    # Adjust the x-coordinate to place labels just to the right of the line
-                    xlim = ax1.get_xlim()
-                    label_x = wavelengths[i] + 0.006 * (xlim[1] - xlim[0])
-                    
-                    # Add text label for the line
-                    label_text = f"{species[i]} {line_ids[i]}"
-                    label = ax1.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
-                                                        va='top', ha='left', color='tomato')
-                    
-                    atomic_lines.append((line, label))
-                
-                # Update the plot
-                self.main_plot.canvas.draw()
-                
-                # Update data field
-                self.data_field.insert_text(f"Displayed {len(wavelengths)} atomic lines on plot.\n")
-                self.data_field.insert_text("Atomic lines retrieved from file.\n")
-                
+            self.atomic_toggle = not self.atomic_toggle
+
+            if self.atomic_toggle:
+                self.main_plot.plot_atomic_lines(data_field=self.data_field)
             else:
-                self.data_field.insert_text("Main plot not available for atomic lines display.\n")
-                
+                self.main_plot.remove_atomic_lines()
+
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
             traceback.print_exc()
 
-    def remove_atomic_lines(self, lines):
-        if not self.main_plot.active_lines:
-            lines.clear()
-            return
+    # def remove_atomic_lines(self, lines):
+    #     if not self.main_plot.active_lines:
+    #         lines.clear()
+    #         return
 
         
-        for (line, text) in lines:
-            try:
-                line.remove()
-                text.remove()
-            except ValueError:
-                pass
+    #     for (line, text) in lines:
+    #         try:
+    #             line.remove()
+    #             text.remove()
+    #         except ValueError:
+    #             pass
         
-        lines.clear()
-        self.main_plot.canvas.draw()
+    #     lines.clear()
+    #     self.main_plot.canvas.draw()
 
 
     def hitran_query(self):
