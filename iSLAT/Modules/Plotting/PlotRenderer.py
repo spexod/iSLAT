@@ -261,10 +261,6 @@ class PlotRenderer:
 
         self.render_out = False
 
-
-
-
-
                                  
         
     def _plot_observed_spectrum(self, wave_data: np.ndarray, flux_data: np.ndarray, 
@@ -272,8 +268,8 @@ class PlotRenderer:
         """Plot the observed spectrum data"""
         print("plotting spectrum")
         
-        plot = subplot if subplot else self.ax1 # Use subplot for output full spectrum if given.
-
+        plot = subplot if subplot else self.ax1 # Use subplot for output if given.
+        alpha = 0.8 if self.render_out else 1
         if flux_data is not None and len(flux_data) > 0:
             if error_data is not None and len(error_data) == len(flux_data):
                 # Plot with error bars
@@ -287,7 +283,7 @@ class PlotRenderer:
                     label='Data',
                     zorder=self._get_theme_value("zorder_observed", 2),
                     elinewidth=0.5,
-                    capsize=0
+                    capsize=0,
                 )
             else:
                 # Plot without error bars
@@ -297,6 +293,7 @@ class PlotRenderer:
                     color=self._get_theme_value("foreground", "black"),
                     linewidth=1,
                     label='Data',
+                    zorder=2,
                     zorder=self._get_theme_value("zorder_observed", 2)
                 )
     
@@ -1326,13 +1323,14 @@ class PlotRenderer:
             label = getattr(molecule, 'displaylabel', molecule_name)
             
             lw = 1 if self.render_out else 2
+            alpha = 1 if self.render_out else 0.8
             # Plot the spectrum
             line, = plot.plot(
                 plot_lam,
                 plot_flux,
                 linestyle='--',
                 color=color,
-                alpha=0.8,
+                alpha=alpha,
                 linewidth=lw,
                 label=label,
                 zorder=self._get_theme_value("zorder_model", 3)
