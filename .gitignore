@@ -25,8 +25,12 @@ iSLAT/DATAFILES/SAVES/
 iSLAT/DATAFILES/LINESAVES/
 iSLAT/DATAFILES/MODELS/
 iSLAT/DATAFILES/.DS_Store
+iSLAT/DATAFILES/HITRANdata/*
+!iSLAT/DATAFILES/HITRANdata/data_Arabhavi_*.par
+!iSLAT/DATAFILES/HITRANdata/data_HITEMP_*.par
+
+
+.idea/
+.venv/
 
 .DS_store
-
-.venv/
-.idea/

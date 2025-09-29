@@ -109,7 +109,6 @@ class TopBar(ResizableFrame):
         create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 5, tip_text=toggle_legend_tip)
 
-
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file using the new MoleculeLine approach."""
         if not hasattr(self.main_plot, 'current_selection') or self.main_plot.current_selection is None:

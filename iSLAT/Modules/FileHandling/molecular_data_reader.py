@@ -62,10 +62,11 @@ class MolecularDataReader:
     Currently supports .par files in the format used by the original Fortran 90 code.
     """
     
-    __slots__ = ('_partition_type', '_lines_type', 'debug')
+    __slots__ = ('_partition_type', '_lines_type', '_other_fields', 'debug')
     
     def __init__(self, debug=False):
         # Define namedtuple types for data structure
+        self._other_fields = namedtuple('other_fields', ['Molar_Mass'])
         self._partition_type = namedtuple('partition', ['t', 'q'])
         self._lines_type = namedtuple('lines', ['nr', 'lev_up', 'lev_low', 'lam', 'freq', 'a_stein',
                                                'e_up', 'e_low', 'g_up', 'g_low'])
@@ -81,16 +82,16 @@ class MolecularDataReader:
         #full_file_path = filename
         print(f"Loading lines from filepath: {full_file_path}")
 
-        # Try ultra-fast method first
+        # Try fast method first
         try:
-            return self._read_par_file_ultra_fast(full_file_path)
+            return self._read_par_file(full_file_path)
         except Exception as e:
             if self.debug:
-                print(f"Debug: Ultra-fast method failed: {e}, falling back to standard method")
+                print(f"Debug: Fast method failed: {e}, falling back to standard method")
             return self._read_par_file_standard(full_file_path)
 
-    def _read_par_file_ultra_fast(self, filename):
-        """Ultra-fast .par file reader using direct numpy operations."""
+    def _read_par_file(self, filename):
+        """Fast .par file reader using direct numpy operations."""
         # Read entire file at once using binary mode for speed
         with open(filename, 'rb') as f:
             file_bytes = f.read()
@@ -98,10 +99,36 @@ class MolecularDataReader:
         # Decode and normalize line endings
         file_str = file_bytes.decode('utf-8', errors='ignore')
         all_lines = file_str.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-        
+
         # Filter out comments and empty lines
-        clean_lines = [line for line in all_lines if line.strip() and not line.strip().startswith('#')]
+        #clean_lines = [line for line in all_lines if line.strip() and not line.strip().startswith('#')]
+        clean_lines = []
+        comment_lines = []
+        for line in all_lines:
+            if line.strip().startswith('#'):
+                comment_lines.append(line)
+                continue
+            elif line.strip():
+                clean_lines.append(line)
+            else:
+                continue
         
+        other_fields_list = []
+
+        # get any fields in the comments that were specfied in self._other_fields
+        for field in self._other_fields._fields:
+            search_field = field.replace('_', ' ')
+            #print(f"Looking for field: {field}")
+            for comment in comment_lines:
+                #print("Comment line:", comment)
+                if search_field in comment:
+                    #print("Found field in comment:", comment)
+                    try:
+                        value = float(comment.split(':')[1].strip())
+                        other_fields_list.append((field, value))
+                    except (IndexError, ValueError):
+                        continue
+
         if len(clean_lines) < 3:
             return None, None
         
@@ -137,11 +164,11 @@ class MolecularDataReader:
         
         # Parse molecular lines using ultra-fast numpy operations
         molecular_lines = clean_lines[lines_start:lines_start + num_lines]
-        lines_data = self._parse_lines_ultra_fast_direct(molecular_lines)
+        lines_data = self._parse_lines_fast_direct(molecular_lines)
         
-        return partition_function, lines_data
-    
-    def _parse_lines_ultra_fast_direct(self, molecular_lines):
+        return partition_function, lines_data, other_fields_list
+
+    def _parse_lines_fast_direct(self, molecular_lines):
         """Parse lines using direct numpy array operations - fastest possible."""
         num_lines = len(molecular_lines)
         
@@ -270,27 +297,18 @@ class MolecularDataReader:
             
         if self.debug:
             print(f"Debug: Processing {num_lines} line data entries")
-        
-        # For small files, use original method
-        if num_lines < 100:
-            return self._read_lines_data_original(data_lines)
-        
-        # For large files, try ultra-fast parsing first
-        if num_lines > 10000:
-            try:
-                # Use ultra-fast numpy vectorized parsing
-                molecular_lines = data_lines[2:2+num_lines]  # Skip header lines
-                lines_data = self._parse_lines_ultra_fast(molecular_lines)
-                if lines_data:
-                    if self.debug:
-                        print(f"Debug: Ultra-fast parsing processed {len(lines_data)} lines")
-                    return lines_data
-            except Exception as e:
+
+        try:
+            # Use fast numpy vectorized parsing
+            molecular_lines = data_lines[2:2+num_lines]  # Skip header lines
+            lines_data = self._parse_lines_fast(molecular_lines)
+            if lines_data:
                 if self.debug:
-                    print(f"Debug: Ultra-fast parsing failed: {e}")
-        
-        # Fall back to optimized method
-        return self._read_lines_data_optimized(data_lines[2:], num_lines)
+                    print(f"Debug: Ultra-fast parsing processed {len(lines_data)} lines")
+                return lines_data
+        except Exception as e:
+            if self.debug:
+                print(f"Debug: Ultra-fast parsing failed: {e}")
     
     def _read_lines_data_original(self, data_lines):
         """Original method for small files."""
@@ -327,78 +345,9 @@ class MolecularDataReader:
             print(f"Debug: Created {len(lines_data)} line data dictionaries")
             
         return lines_data
-        
-    def _read_lines_data_optimized(self, line_data, num_lines):
-        """
-        Optimized method for larger files using chunked processing and faster parsing.
-        """
-        # For very large files (>200k lines), try memory mapping
-        if num_lines > 200000:
-            if self.debug:
-                print(f"Debug: Using memory mapping for {num_lines} lines")
-            # Note: This would require file handle, for now use pandas
-        
-        # Convert lines to a single string for faster processing
-        data_string = '\n'.join(line_data[:num_lines])
-        
-        # Use faster parsing with pandas if available
-        if pd is not None:
-            return self._read_lines_with_pandas(data_string)
-        else:
-            return self._read_lines_with_numpy_optimized(data_string)
-            
-    def _read_lines_with_pandas(self, data_string):
-        """Use pandas for fast fixed-width parsing with optimizations."""
-        import io
-        
-        try:
-            # Define column specifications for fixed-width format
-            colspecs = [(0, 6), (6, 36), (36, 66), (66, 77), (77, 92), 
-                       (92, 105), (105, 120), (120, 135), (135, 142), (142, 149)]
-            names = ['nr', 'lev_up', 'lev_low', 'lam', 'freq', 'a_stein', 'e_up', 'e_low', 'g_up', 'g_low']
-            
-            # Use more efficient data types and processing options
-            df = pd.read_fwf(io.StringIO(data_string), 
-                            colspecs=colspecs, 
-                            names=names, 
-                            dtype={
-                                'nr': 'int32',
-                                'lev_up': 'str', 
-                                'lev_low': 'str',
-                                'lam': 'float32',  # Use float32 for better memory efficiency
-                                'freq': 'float64',  # Keep freq as float64 for precision
-                                'a_stein': 'float32',
-                                'e_up': 'float32',
-                                'e_low': 'float32',
-                                'g_up': 'float32',
-                                'g_low': 'float32'
-                            },
-                            na_filter=False)  # Skip NaN checking for speed
-            
-            # Clean string columns efficiently
-            df['lev_up'] = df['lev_up'].str.strip()
-            df['lev_low'] = df['lev_low'].str.strip()
-            
-            # Convert frequency from GHz to Hz using vectorized operation
-            df['freq'] = df['freq'].astype('float64') * 1e9
-            
-            # Convert to list of dictionaries efficiently using to_dict
-            lines_data = df.to_dict('records')
-            
-            if self.debug:
-                print(f"Debug: Pandas processed {len(lines_data)} lines")
-                
-            return lines_data
-            
-        except Exception as e:
-            if self.debug:
-                print(f"Debug: Pandas parsing failed: {e}, falling back to numpy")
-            return self._read_lines_with_numpy_optimized(data_string)
             
     def _read_lines_with_numpy_optimized(self, data_string):
-        """Optimized numpy parsing for when pandas is not available."""
-        import io
-        
+        """Optimized numpy parsing for when pandas is not available."""        
         try:
             # Use numpy's fromstring for faster parsing
             lines = data_string.strip().split('\n')
@@ -461,7 +410,6 @@ class MolecularDataReader:
         """
         try:
             import mmap
-            import struct
             
             print(f"Using ultra-fast loading for {filename}")
             
@@ -494,7 +442,7 @@ class MolecularDataReader:
             molecular_lines = clean_lines[lines_start:lines_start + num_lines]
             
             # Ultra-fast parsing using numpy structured arrays
-            lines_data = self._parse_lines_ultra_fast(molecular_lines)
+            lines_data = self._parse_lines_fast(molecular_lines)
             
             return partition_function, lines_data
             
@@ -503,7 +451,7 @@ class MolecularDataReader:
                 print(f"Debug: Ultra-fast parsing failed: {e}, falling back")
             return None, []
     
-    def _parse_lines_ultra_fast(self, molecular_lines):
+    def _parse_lines_fast(self, molecular_lines):
         """Parse molecular lines using the fastest possible method."""
         try:
             # Try pure numpy vectorized approach first (fastest)
@@ -575,105 +523,9 @@ class MolecularDataReader:
                 continue
         return lines_data
 
-    @staticmethod
-    def validate_par_file(filename):
-        """
-        Validate that a .par file has the correct format.
-        
-        Parameters
-        ----------
-        filename : str
-            Path to the .par file
-            
-        Returns
-        -------
-        bool
-            True if file format is valid, False otherwise
-        """
-        try:
-            with open(filename, "r") as f:
-                # Read only what we need for validation
-                lines_read = 0
-                data_clean = []
-                
-                for line in f:
-                    stripped = line.strip()
-                    if stripped and not stripped.startswith("#"):
-                        data_clean.append(stripped)
-                        lines_read += 1
-                        
-                        # Early exit if we have enough to validate
-                        if lines_read == 1:
-                            try:
-                                n_partition = int(data_clean[0])
-                            except ValueError:
-                                return False
-                        elif lines_read >= 3:  # Minimum needed for validation
-                            break
-            
-            if len(data_clean) < 3:
-                return False
-                
-            # Check if we would have enough lines for partition function
-            n_partition = int(data_clean[0])
-            return len(data_clean) >= n_partition + 2  # +2 for partition count and line count
-                
-        except (IOError, OSError, ValueError):
-            return False
-    
-    @staticmethod
-    def get_file_info(filename):
-        """
-        Get basic information about a .par file without fully loading it.
-        
-        Parameters
-        ----------
-        filename : str
-            Path to the .par file
-            
-        Returns
-        -------
-        dict
-            Dictionary containing file information: 
-            {'num_partition_points': int, 'num_lines': int, 'valid': bool}
-        """
-        info = {'num_partition_points': 0, 'num_lines': 0, 'valid': False}
-        
-        try:
-            with open(filename, "r") as f:
-                # Read only the lines we need for file info
-                data_clean = []
-                for line in f:
-                    stripped = line.strip()
-                    if stripped and not stripped.startswith("#"):
-                        data_clean.append(stripped)
-                        
-                        # Stop early once we have what we need
-                        if len(data_clean) == 1:
-                            try:
-                                n_partition = int(data_clean[0])
-                                info['num_partition_points'] = n_partition
-                            except ValueError:
-                                return info
-                        elif len(data_clean) > n_partition + 1:
-                            try:
-                                n_lines = int(data_clean[n_partition + 1])
-                                info['num_lines'] = n_lines
-                                info['valid'] = True
-                                break
-                            except ValueError:
-                                return info
-                    
-        except (IOError, OSError):
-            pass
-            
-        return info
-
     def _parse_lines_vectorized(self, molecular_lines):
         """Ultra-optimized parsing using pure numpy vectorization."""
-        try:
-            import numpy as np
-            
+        try:            
             # Convert all lines to a single numpy array
             lines_array = np.array(molecular_lines, dtype='U150')
             

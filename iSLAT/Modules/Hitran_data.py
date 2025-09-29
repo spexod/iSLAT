@@ -123,6 +123,11 @@ def get_molecule_identifier(molecule_name):
     trans = {v:k for k,v in trans.items()}
     return(int(trans[molecule_name]))
 
+def get_molar_mass(molecule_name, isotopologue_number):
+    M = get_molecule_identifier(molecule_name)
+    ISO_Info = hitran.Hitran.ISO[(M, isotopologue_number)]
+    molar_mass = ISO_Info[-2]
+    return molar_mass
 
 def get_Hitran_data(Molecule_name, isotopologue_number, min_vu, max_vu):
     try:
@@ -138,6 +143,15 @@ def get_Hitran_data(Molecule_name, isotopologue_number, min_vu, max_vu):
         qurl = 'https://hitran.org/data/Q/' + 'q' + str(G) + '.txt'
         handle = urllib.request.urlopen(qurl, context=context)
         qdata = pd.read_csv(handle, sep=' ', skipinitialspace=True, names=['temp', 'q'], header=None)
+
+        #print(f'Downloaded HITRAN data for molecule {Molecule_name} (isotopologue {isotopologue_number}) with global ID {G} and molecule ID {M}.')
+        #print(f'Htbl:\n{Htbl}')
+        #print(f'qdata:\n{qdata}')
+        #print(f'Number of lines retrieved for {Molecule_name}: {len(Htbl)}')
+        #ISO_Info = hitran.Hitran.ISO[(M, isotopologue_number)]
+        #print(f'Isotopologue info: {ISO_Info}')
+        #molar_mass = ISO_Info[-2]
+        #print(f'Molar mass (g/mol): {molar_mass}')
 
         return Htbl, qdata, M, G
         
@@ -186,6 +200,7 @@ def download_hitran_data(mols, basem, isot) -> List[Tuple]:
 
             with open(file_path, 'w') as fh:
                 fh.write("# HITRAN 2020 {:}; id:{:}; iso:{:};gid:{:}\n".format(mol, M, iso, G))
+                fh.write("# Molar Mass: {:}\n".format(get_molar_mass(bm, iso)))
                 fh.write("# Downloaded from the Hitran website\n")
                 fh.write("# {:s}\n".format(str(datetime.date.today())))
                 fh = write_partition_function(fh, qdata)

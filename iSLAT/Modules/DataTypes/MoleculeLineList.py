@@ -1,6 +1,8 @@
 import numpy as np
 from collections import namedtuple
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, NamedTuple
+
+#from .MoleculeLine import MoleculeLine
 
 # Lazy imports for performance
 _pandas_imported = False
@@ -17,6 +19,29 @@ def _get_pandas():
             _pandas_imported = True
     return pd
 
+class LineTuple(NamedTuple):
+    """Named tuple for line data"""
+    nr: int
+    '''Line number'''
+    lev_up: int
+    '''Upper energy level'''
+    lev_low: int
+    '''Lower energy level'''
+    lam: float
+    '''Wavelength in microns'''
+    freq: float
+    '''Frequency in Hz'''
+    a_stein: float
+    '''Einstein A coefficient'''
+    e_up: float
+    '''Upper state energy'''
+    e_low: float
+    '''Lower state energy'''
+    g_up: int
+    '''Upper state degeneracy'''
+    g_low: int
+    '''Lower state degeneracy'''
+
 class MoleculeLineList:
     """
     Efficient molecular line list with lazy loading and caching.
@@ -24,7 +49,7 @@ class MoleculeLineList:
     __slots__ = ('molecule_id', 'lines', 'partition_function', '_partition_type', 
                  '_lines_type', '_lines_cache', '_lines_cache_valid', '_wavelengths_cache',
                  '_frequencies_cache', '_data_loaded', '_filename', '_raw_lines_data',
-                 '_pandas_df_cache')
+                 '_pandas_df_cache', '_molar_mass')
     
     def __init__(self, molecule_id: Optional[str] = None, filename: Optional[str] = None, 
                  lines_data: Optional[List[dict]] = None):
@@ -47,11 +72,13 @@ class MoleculeLineList:
         self._filename = filename
         self._raw_lines_data = None
         self._pandas_df_cache = None
+        self._molar_mass = None
         
         # Define namedtuple types for data structure
         self._partition_type = namedtuple('partition', ['t', 'q'])
-        self._lines_type = namedtuple('lines', ['nr', 'lev_up', 'lev_low', 'lam', 'freq', 'a_stein',
-                                               'e_up', 'e_low', 'g_up', 'g_low'])
+        self._lines_type = LineTuple
+        #namedtuple('lines', ['nr', 'lev_up', 'lev_low', 'lam', 'freq', 'a_stein',
+                           #                    'e_up', 'e_low', 'g_up', 'g_low'])
         
         # Cache for performance optimization
         self._lines_cache = None
@@ -90,9 +117,12 @@ class MoleculeLineList:
         """
         from iSLAT.Modules.FileHandling.molecular_data_reader import read_molecular_data
         
-        partition_function, lines_data = read_molecular_data(self.molecule_id, filename)
+        partition_function, lines_data, other_fields = read_molecular_data(self.molecule_id, filename)
         self.partition_function = partition_function
         
+        self._molar_mass = other_fields[0][1]
+        print(f'Molar_mass: {self._molar_mass}')
+
         # Store raw data for lazy MoleculeLine creation
         self._raw_lines_data = lines_data
         self.lines = None  # Will be created on demand
@@ -475,7 +505,7 @@ class MoleculeLineList:
     def fname(self, value):
         """Set file name"""
         self._filename = value
-    
+
     def enable_parallel_line_loading(self, use_parallel=True):
         """
         Enable or disable parallel line loading for very large molecules.
