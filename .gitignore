@@ -34,3 +34,6 @@ iSLAT/DATAFILES/HITRANdata/*
 .venv/
 
 .DS_store
+
+.venv/
+.idea/

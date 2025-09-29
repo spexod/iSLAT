@@ -348,6 +348,9 @@ class GUI:
                 print("Error", f"Failed to save molecule parameters: {str(e)}")
         self.window.destroy()
 
+    def get_plot_renderer(self):
+        return self.plot.plot_renderer
+
     @staticmethod
     def file_selector(title : str = None, filetypes=None, initialdir=None, use_abspath=True, allow_multiple=False):
         window_title = title if title else "Select File"
