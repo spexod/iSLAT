@@ -1,4 +1,4 @@
-iSLAT_version = 'v4.05.01'
+iSLAT_version = 'v4.06.02'
 print (' ')
 print ('Loading iSLAT ' + iSLAT_version + ': Please Wait ...')
 
@@ -250,8 +250,10 @@ initial_values = {}
 
 # define other defaults needed below
 spanmol = "h2o"
-
-line_threshold = 0.03  # this is the percent value (where 0.01 = 1%) of the strongest line in the plot;
+specsep = .01  # default value for the separation to determine if line is single
+fwhmtolerance = 5  # default value for the tolerance in FWHM for the de-blender (in km/s)
+centrtolerance = 0.0001 # default value for the tolerance in centroid for the de-blender (in um)
+line_threshold = 0.03  # percent value (where 0.01 = 1%) of the strongest line in the plot;
 # lines below this this limit are ignored in the plot and in the single line selection
 
 
@@ -274,7 +276,7 @@ def run_slabfit():
 
         # Update the main GUI data_field
         data_field.delete ('1.0', "end")
-        data_field.insert ('1.0', 'Fitting slab for molecule' + spanmol)
+        data_field.insert ('1.0', 'Fitting slab for molecule: ' + spanmol)
 
         save_folder = 'MODELS'
         mol = spanmol
@@ -435,12 +437,176 @@ def fit_onselect():
         return
     canvas.draw ()
 
+"""
+fit_onselect() is connected to the "Fit Line" button of the tool.
+This function fits the line selected in the top graph using LMFIT"""
+
+
+def fitmulti_onselect():
+    global selectedline, onselect_lines, deblend_filename
+
+
+    if selectedline == True:  # "selectedline" variable is determined by whether or not an area was selected in the top graph or not
+        print(' ')
+        print('De-blending lines with LMFIT ...')
+        onselect(data_region_x[1], data_region_x[-1])
+        #onselect(xmin, xmax)
+
+        mnwl = np.mean([data_region_x[0], data_region_x[-1]])
+        deblend_filename = os.path.join(linesave_folder, f"{file_name}-deblended_{str (np.round (mnwl, decimals=3))}")
+        #deblend_filename = 'LINESAVES/linedeblend_'+str(np.round(mnwl, decimals=3))+'.csv'
+
+        # using one less pixel on each side here, because of how data_region_x is defined: to include 1 more pixel on each side
+        gauss_fit = fitmulti_line(data_region_x[1], data_region_x[-2], onselect_lines['lam'])
+
+        ln = [f'g{i+1}' for i in range(len(onselect_lines['lam']))]
+        output_lines = pd.DataFrame(onselect_lines).reset_index(drop=True)
+        lines = np.array(onselect_lines['lam'])
+        for i in range(len(onselect_lines['lam'])):
+            # sigma_freq = ccum / (gauss_fit.params[ln + '_center'].value ** 2) * gauss_fit.params[ln + '_sigma'].value  # sigma from wavelength to frequency
+            # gauss_area = gauss_fit.params[ln + '_height'].value * sigma_freq * np.sqrt (2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
+
+            gauss_fwhm = gauss_fit.params[ln[i] + '_fwhm'].value / gauss_fit.params[ln[i] + '_center'].value * cc  # get FWHM in km/s
+            # these if statements are made to avoid problems when the fit does not converge and stderr are returned as NoneType
+            if gauss_fit.params[ln[i] + '_fwhm'].stderr is not None:
+                gauss_fwhm_err = gauss_fit.params[ln[i] + '_fwhm'].stderr / gauss_fit.params[ln[i] + '_center'].value * cc  # get FWHM error
+            else:
+                gauss_fwhm_err = float(fwhmtolerance_entry.get())
+
+            sigma_freq = ccum / (gauss_fit.params[ln[i] + '_center'].value ** 2) * gauss_fit.params[ln[i] +
+                '_sigma'].value  # sigma from wavelength to frequency
+            if gauss_fit.params[ln[i] + '_sigma'].stderr is not None:
+                sigma_freq_err = ccum / (gauss_fit.params[ln[i] + '_center'].value ** 2) * gauss_fit.params[ln[i] +
+                    '_sigma'].stderr  # error on sigma
+            else:
+                sigma_freq_err = np.nan
+
+            gauss_area = gauss_fit.params[ln[i] + '_height'].value * sigma_freq * np.sqrt (2 * np.pi) * (
+                1.e-23)  # to get line flux in erg/s/cm2
+            if gauss_fit.params[ln[i] + '_height'].stderr is not None:
+                gauss_area_err = np.absolute (gauss_area * np.sqrt (
+                    (gauss_fit.params[ln[i] + '_height'].stderr / gauss_fit.params[ln[i] + '_height'].value) ** 2 +
+                    (sigma_freq_err / sigma_freq) ** 2))  # get area error
+            else:
+                # measure error from data over the +/- 2 sigma range for each line
+                flux_nofit, err_nofit = flux_integral(wave_data, flux_data, err_data, gauss_fit.params[ln[i] + '_center'].value
+                                        - 2*gauss_fit.params[ln[i] + '_sigma'].value, gauss_fit.params[ln[i] + '_center'].value
+                                        + 2*gauss_fit.params[ln[i] + '_sigma'].value)
+                gauss_area_err = err_nofit
+
+            output_lines.loc[i, "Flux_fit"] = np.float64 (f'{gauss_area:.{3}e}')
+            output_lines.loc[i, "Err_fit"] = np.float64 (f'{gauss_area_err:.{3}e}')
+            output_lines.loc[i, "FWHM_fit"] = np.round (gauss_fwhm, decimals=1)
+            output_lines.loc[i, "FWHM_err"] = np.round (gauss_fwhm_err, decimals=1)
+            output_lines.loc[i, "Centr_fit"] = np.round (gauss_fit.params[ln[i] + '_center'].value, decimals=5)
+            if gauss_fit.params[ln[i] + '_center'].stderr is not None:
+                output_lines.loc[i, "Centr_err"] = np.round (gauss_fit.params[ln[i] + '_center'].stderr, decimals=5)
+            else:
+                output_lines.loc[i, "Centr_err"] = float(centrtolerance_entry.get())
+            output_lines.loc[i, "Doppler"] = np.round ((gauss_fit.params[ln[i] + '_center'].value - lines[i]) / lines[i] * cc, decimals=1)
+
+        # save output file with measurements as csv file, update to use linesavepath
+        output_lines.to_csv(deblend_filename + '.csv', header=True, index=False)
+
+        fig.canvas.draw_idle ()
+
+        data_field.insert(tk.END, ('\n ' + "\nDe-blended line saved in /LINESAVES!"))
+
+    else:
+        data_field.delete('1.0', "end")
+        data_field.insert('1.0', 'No Line Selected!')
+        fig.canvas.draw_idle()
+        return
+    canvas.draw ()
+
+
+"""
+multifit_line() uses LMFIT to fit a line and provide best-fit parameters.
+"""
+def fitmulti_line(xmin, xmax, onsel_lines):
+    global deblend_filename
+
+    fit_range = np.where(np.logical_and(wave_data >= xmin, wave_data <= xmax))  # define spectral range for the fit
+    x_fit = wave_data[fit_range[::-1]]  # reverse the wavelength array to use it in the fit
+    y_fit = flux_data[fit_range[::-1]]
+    err_fit = err_data[fit_range[::-1]]
+    # re-sample data if not enough datapoints for the fit (defining number of free parameters here):
+    freeparams = 3
+    if len(x_fit) < len(onsel_lines)*freeparams:
+        x_fit_new = np.linspace(np.min(x_fit), np.max(x_fit), num=len(onsel_lines)*freeparams)
+        y_fit_new = np.interp(x_fit_new,x_fit,y_fit)
+        err_fit_new = np.interp(x_fit_new,x_fit,err_fit)
+        x_fit = x_fit_new
+        y_fit = y_fit_new
+        err_fit = err_fit_new
+        ax2.plot(x_fit, y_fit,'--', color='grey')
+
+    fwhm = float(fwhm_entry.get ())
+    fwhm_um = np.mean([xmin, xmax]) / cc * fwhm
+    sig = fwhm_um / 2.35482
+    sig_tol = (np.mean([xmin, xmax]) / cc * float(fwhmtolerance_entry.get())) / 2.35482
+
+    #lines = np.sort(onsel_lines) # sort to make sure it's in increasing order
+    lines = np.array(onsel_lines)
+    wl_tol = float(centrtolerance_entry.get())
+
+    # initial guess for amplitude, using total integrated flux divided by number of lines (and conversion factor)
+    Garea = flux_integral(x_fit, y_fit, err_fit, xmin, xmax)
+    Garea_fg = Garea[0]/len(lines)*1e11
+
+    fwhm_vary = True
+    if sig_tol == 0: fwhm_vary = False
+    centr_vary = True
+    if wl_tol == 0: centr_vary = False
+
+    gauss1 = GaussianModel (prefix='g1_')
+    pars = gauss1.guess(y_fit, x=x_fit)
+    pars.update(gauss1.make_params(center=dict(value=lines[0], vary=centr_vary, min=lines[0] - wl_tol, max=lines[0] + wl_tol),
+                                     sigma=dict(value=sig, vary=fwhm_vary, min=sig - sig_tol, max=sig + sig_tol), amplitude=dict(value=Garea_fg, min=0)))
+    mod = gauss1
+
+    for i in range(len(lines) - 1):
+        gauss_tmp = GaussianModel(prefix='g' + str(i + 2) + '_')
+        pars.update(gauss_tmp.make_params (
+            center=dict(value=lines[i + 1], vary=centr_vary, min=lines[i + 1] - wl_tol, max=lines[i + 1] + wl_tol),
+            sigma=dict(value=sig, vary=fwhm_vary, min=sig - sig_tol, max=sig + sig_tol),
+            amplitude=dict(value=Garea_fg, min=0)))
+        mod = mod + gauss_tmp
+
+    init = mod.eval(pars, x=x_fit)
+    fitmethod = 'leastsq' # 'leastsq'  'emcee'
+    gauss_fit = mod.fit(y_fit, pars, x=x_fit, weights=1 / err_fit, method=fitmethod) # , steps=5000
+
+    print(gauss_fit.fit_report())
+
+    comps = gauss_fit.eval_components (x=x_fit)
+    ax2.plot(x_fit, gauss_fit.best_fit, '--', color='red', linewidth=3, label='Total fit')
+    for i in range(len(lines)):
+        ind = i + 1
+        ax2.plot(x_fit, comps['g' + str(ind) + '_'], '--', label='Line #' + str(ind))
+        ax2.vlines(gauss_fit.params['g' + str(ind) + '_center'], 0, gauss_fit.params['g' + str(ind) + '_height'],
+                    linestyles=':', color='Grey')
+    ax2.legend()
+    plt.savefig(deblend_filename+'.pdf', bbox_inches='tight', dpi = 10)
+    #plt.savefig(deblend_filename+'.jpg', dpi = 100, optimize = True, progressive = True)
+
+    deblend_models = pd.DataFrame({'wave': x_fit,
+                   'flux': y_fit,
+                   'err': err_fit,
+                   'gTOT': gauss_fit.best_fit,
+                   })
+    for i in range (len (lines)):
+        ind = i + 1
+        deblend_models['g' + str(ind) + '_'] = comps['g' + str(ind) + '_']
+    deblend_models.to_csv(deblend_filename + '_models.csv', header=True,
+                         index=False)
+
+    return gauss_fit
+
 
 """
 fit_line() uses LMFIT to fit a line and provide best-fit parameters.
 """
-
-
 def fit_line(xmin, xmax):
     fit_range = np.where (np.logical_and (wave_data >= xmin, wave_data <= xmax))  # define spectral range for the fit
     x_fit = wave_data[fit_range[::-1]]  # reverse the wavelength array to use it in the fit
@@ -718,7 +884,6 @@ single_finder() is connected to the "Find Singles" button.
 This function is a filter that finds molecular lines in the model that are isolated then prints vertical lines in the top graph where these lines are located
 e.g. they are either a set distance away from other strong lines, or the intensity of the lines near the line are negligible.
 """
-specsep = .01  # This is the default value for the separation to determine if line is single
 
 
 def single_finder():
@@ -726,7 +891,7 @@ def single_finder():
     global fig_height
     global fig_bottom_height
     counter = 0
-    specsep = float (specsep_entry.get ())
+    specsep = float(specsep_entry.get())
 
     # Resetting the text feed box
     data_field.delete ('1.0', "end")
@@ -1141,7 +1306,7 @@ The lines are also highlighted in the population diagram graph in this function.
 
 
 def onselect(xmin, xmax):
-    global wave_data, flux_data, line2save, selectedline, spanmol, model_indmin, model_indmax, data_region_x, model_line_select, green_lines, green_scatter, default_line, current_selected_line, intensities, lamb_cnts, e_up, einstein, err_data
+    global onselect_lines, wave_data, flux_data, line2save, selectedline, spanmol, model_indmin, model_indmax, data_region_x, model_line_select, green_lines, green_scatter, default_line, current_selected_line, intensities, lamb_cnts, e_up, einstein, err_data
 
     xdif = xmax - xmin
     if xdif > 0:
@@ -1152,10 +1317,13 @@ def onselect(xmin, xmax):
         int_pars = eval (f"{spanmol}_intensity.get_table")
         int_pars.index = range (len (int_pars.index))
 
+        # Getting all the lines for the selected range
+        int_pars_line = int_pars[(int_pars['lam'] > xmin) & (int_pars['lam'] < xmax)]
+
         # Clearing the text feed box.
         data_field.delete ('1.0', "end")
 
-        # Repopulating the population diagram graph with all the lines of the water molecule (gray dots)
+        # Repopulating the population diagram graph with all the lines of the molecule (gray dots)
         pop_diagram ()
 
         # Resetting the labels of graphs after they were deleted by the clear function above
@@ -1170,211 +1338,215 @@ def onselect(xmin, xmax):
         model_line_select, = ax2.plot ([], [], color=linecolor, linewidth=3, ls='--')
         data_line_select, = ax2.plot ([], [], color=foreground, linewidth=1)
 
-        # Getting all the water lines for the selected range
-        int_pars_line = int_pars[(int_pars['lam'] > xmin) & (int_pars['lam'] < xmax)]
-        int_pars_line.index = range (len (int_pars_line.index))
+        if len (int_pars_line) != 0:
+            int_pars_line.index = range (len (int_pars_line.index))
 
-        # Parsing out the columns of the lines in int_pars_line to be used later
-        lamb_cnts = int_pars_line['lam']
-        intensities = int_pars_line['intens']
-        einstein = int_pars_line['a_stein']
-        e_up = int_pars_line['e_up']
-        up_lev = int_pars_line['lev_up']
-        low_lev = int_pars_line['lev_low']
-        g_up = int_pars_line['g_up']
-        tau = int_pars_line['tau']
+            # Parsing out the columns of the lines in int_pars_line to be used later
+            lamb_cnts = int_pars_line['lam']
+            intensities = int_pars_line['intens']
+            einstein = int_pars_line['a_stein']
+            e_up = int_pars_line['e_up']
+            up_lev = int_pars_line['lev_up']
+            low_lev = int_pars_line['lev_low']
+            g_up = int_pars_line['g_up']
+            tau = int_pars_line['tau']
 
-        # Creating zero variables to be used later
-        max_value = intensities[0]
-        max_index = 0
+            # Creating zero variables to be used later
+            max_value = intensities[0]
+            max_index = 0
 
-        # Checking to see if there are any lines in the range selected
-        if len (intensities) >= 1:
-            selectedline = True
-            for i in range (len (intensities)):
-                if intensities[i] > max_value:
-                    max_value = intensities[i]
-                    max_index = i
+            # Checking to see if there are any lines in the range selected
+            if len (intensities) >= 1:
+                selectedline = True
+                for i in range (len (intensities)):
+                    if intensities[i] > max_value:
+                        max_value = intensities[i]
+                        max_index = i
+            else:
+                return
+
+            # Defining the other parameters of the line with the strongest intensity
+            max_lamb_cnts = lamb_cnts[max_index]
+            max_up_lev = up_lev[max_index]
+            max_low_lev = low_lev[max_index]
+            max_intensity = intensities[max_index]
+            max_einstein = einstein[max_index]
+            max_e_up = e_up[max_index]
+            max_g_up = g_up[max_index]
+            max_tau = tau[max_index]
+
+            onselect_lines = int_pars_line.loc[(int_pars_line['intens'] > max_intensity / 50)]
+
+            # Finding the index of the minimum and maximum flux for both the data and model
+            model_indmin, model_indmax = np.searchsorted (lambdas_h2o, (xmin, xmax))
+            data_indmin, data_indmax = np.searchsorted (wave_data, (xmin, xmax))
+            data_indmin = data_indmin - 1
+            data_indmax = data_indmax + 1
+            model_indmax = min (len (lambdas_h2o) - 1, model_indmax)
+            data_indmax = min (len (wave_data) - 1, data_indmax)
+
+            # Dynamically set the x variable
+            model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
+            model_region_x = eval (model_region_x_str)
+
+            # Scaling the zoom graph
+            model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
+            model_region_y = eval (model_region_y_str)
+            data_region_x = wave_data[data_indmin:data_indmax]
+            data_region_y = flux_data[data_indmin:data_indmax]
+            max_data_y = np.nanmax (data_region_y)
+            max_model_y = np.nanmax (model_region_y)
+            max_y = max (max_model_y, max_data_y)
+            ax2.set_ylim (0, max_y)
+
+            # Calling the flux function to calculate the flux for the data in the range selected
+            line_flux = flux_integral (lam=wave_data, flux=flux_data, lam_min=xmin, lam_max=xmax, err=err_data)
+
+            data_field.delete ('1.0', "end")
+            data_field.insert ('1.0', (
+                    'Strongest line:' + '\nUpper level = ' + str (max_up_lev) +
+                    '\nLower level = ' + str (max_low_lev) +
+                    '\nWavelength (μm) = ' + str (max_lamb_cnts) +
+                    '\nEinstein-A coeff. (1/s) = ' + str (max_einstein) +
+                    '\nUpper level energy (K) = ' + str (f'{max_e_up:.{0}f}') +
+                    '\nOpacity = ' + str (f'{max_tau:.{3}f}') +
+                    '\nFlux in sel. range (erg/s/cm2) = ' + str (f'{line_flux[0]:.{3}e}')
+            ))
+
+            # Creating a pandas dataframe for all the info of the strongest line in the selected range
+            line2save = {
+                'species': [spanmol.upper ()],
+                'lev_up': [max_up_lev],
+                'lev_low': [max_low_lev],
+                'lam': [max_lamb_cnts],
+                'tau': [max_tau],
+                'intens': [max_intensity],
+                'a_stein': [max_einstein],
+                'e_up': [max_e_up],
+                'g_up': [max_g_up],
+                'xmin': [f'{xmin:.{4}f}'],
+                'xmax': [f'{xmax:.{4}f}']
+            }
+            line2save = pd.DataFrame (line2save)
+
+            default_line = None
+
+            green_lines = []
+            green_scatter = []
+
+            # Plot the lines in the zoom range
+            if len (model_region_x) >= 1:
+                k = 0
+                model_line_select.set_data (model_region_x, model_region_y)
+                data_line_select.set_data (data_region_x, data_region_y)
+                ax2.set_xlim (model_region_x[0], model_region_x[-1])
+
+                for j in range (len (lamb_cnts)):
+                    lineheight = (intensities[j] / max_intensity) * max_y
+                    # if intensities[j] > max_intensity / 50:
+                    line = ax2.vlines (lamb_cnts[j], 0, lineheight, linestyles='dashed', color='green',
+                                       picker=True) if j != max_index else ax2.vlines (lamb_cnts[j], 0, lineheight,
+                                                                                       linestyles='dashed', color='orange',
+                                                                                       picker=True)
+                    green_lines.append (line)
+                    text = ax2.text (lamb_cnts[j], lineheight,
+                                     (str (f'{e_up[j]:.{0}f}') + ', ' + str (f'{einstein[j]:.{3}f}')), color='green',
+                                     fontsize='small')
+                    area = eval (f"np.pi*({spanmol}_radius*au*1e2)**2")  # In cm^2
+                    Dist = dist * pc
+                    beam_s = area / Dist ** 2
+                    F = intensities[j] * beam_s
+                    freq = ccum / lamb_cnts[j]
+                    rd_yax = np.log (4 * np.pi * F / (einstein[j] * hh * freq * g_up[j]))
+                    scatter = ax3.scatter (e_up[j], rd_yax, s=30, color='green', edgecolors='black',
+                                           picker=True) if j != max_index else ax3.scatter (e_up[j], rd_yax, s=30,
+                                                                                            color='orange',
+                                                                                            edgecolors='black', picker=True)
+                    green_scatter.append (scatter)
+                    # If the intensity is below the threshold, remove the line and scatter
+                    threshold_intensity = max_intensity / 50
+                    if intensities[j] < threshold_intensity:
+                        green_lines[j].remove ()
+                        text.remove ()
+                        green_scatter[j].remove ()
+                    if j == max_index:
+                        default_line = (j, lamb_cnts[j], lineheight, e_up[j], einstein[j], scatter)
+
+                fig.canvas.flush_events ()
+
+                def onpick(event):
+                    global default_line, line2save, intensities, lamb_cnts
+
+                    # Check if the clicked artist is a line in ax2 or a scatter point in ax3
+                    if event.artist in green_lines or event.artist in green_scatter:
+                        idx = green_lines.index (event.artist) if event.artist in green_lines else green_scatter.index (
+                            event.artist)  # Get the index of the clicked line
+
+                        lineheight = (intensities[idx] / max_intensity) * max_y  # Height of the selected line
+
+                        # Reset the previous default strongest line
+                        if default_line is not None:
+                            # Reset the color and style of the previous default line
+                            prev_line = green_lines[default_line[0]]  # Get the previous line from green_lines
+                            prev_line.set_color ('green')  # Reset color to green
+                            prev_line.set_linewidth (1)  # Reset line width (if needed)
+
+                            prev_scatter = default_line[5]  # Get the previous scatter point
+                            prev_scatter.set_color ('green')  # Reset scatter point color to green
+                            prev_scatter.set_edgecolors ('black')  # Reset scatter edge color to black
+
+                        # Highlight the selected line
+                        selected_line = green_lines[idx]  # Get the existing line
+                        selected_line.set_color ('orange')  # Change the color to orange
+                        selected_line.set_linewidth (2)  # Optionally increase line width for highlight
+
+                        # Find the corresponding scatter point for this line
+                        scatter = green_scatter[idx]
+                        scatter.set_color ('orange')  # Change the color of the scatter point to orange
+                        scatter.set_edgecolors ('black')  # Optional: change the edge color
+
+                        # Update default_line
+                        default_line = (idx, lamb_cnts[idx], lineheight, e_up[idx], einstein[idx], scatter)
+
+                        # Update the line2save DataFrame
+                        try:
+                            line2save = {
+                                'species': [spanmol.upper ()],
+                                'lev_up': [up_lev[idx]],
+                                'lev_low': [low_lev[idx]],
+                                'lam': [lamb_cnts[idx]],
+                                'tau': [tau[idx]],
+                                'intens': [intensities[idx]],
+                                'a_stein': [einstein[idx]],
+                                'e_up': [e_up[idx]],
+                                'g_up': [g_up[idx]],
+                                'xmin': [f'{xmin:.{4}f}'],
+                                'xmax': [f'{xmax:.{4}f}']
+                            }
+                            line2save = pd.DataFrame (line2save)
+
+                            # Update the data field with the selected line's details
+
+                            flux_integral (lam=wave_data, flux=flux_data, lam_min=xmin, lam_max=xmax, err=err_data)
+                            data_field.delete ('1.0', "end")
+                            data_field.insert ('1.0', (
+                                    'Strongest line:' + '\nUpper level = ' + str (up_lev[idx]) +
+                                    '\nLower level = ' + str (low_lev[idx]) +
+                                    '\nWavelength (μm) = ' + str (lamb_cnts[idx]) +
+                                    '\nEinstein-A coeff. (1/s) = ' + str (einstein[idx]) +
+                                    '\nUpper level energy (K) = ' + str (f'{e_up[idx]:.{0}f}') +
+                                    '\nOpacity = ' + str (f'{tau[idx]:.{3}f}') +
+                                    '\nFlux in sel. range (erg/s/cm2) = ' + str (f'{line_flux[0]:.{3}e}')
+                            ))
+                        except KeyError as e:
+                            pass  # Silencing the KeyError, so it doesn't affect functionality
+
+                        fig.canvas.draw ()
+
+                fig.canvas.mpl_connect ('pick_event', onpick)
         else:
-            return
-
-        # Defining the other parameters of the line with the strongest intensity
-        max_lamb_cnts = lamb_cnts[max_index]
-        max_up_lev = up_lev[max_index]
-        max_low_lev = low_lev[max_index]
-        max_intensity = intensities[max_index]
-        max_einstein = einstein[max_index]
-        max_e_up = e_up[max_index]
-        max_g_up = g_up[max_index]
-        max_tau = tau[max_index]
-
-        # Finding the index of the minimum and maximum flux for both the data and model
-        model_indmin, model_indmax = np.searchsorted (lambdas_h2o, (xmin, xmax))
-        data_indmin, data_indmax = np.searchsorted (wave_data, (xmin, xmax))
-        data_indmin = data_indmin - 1
-        data_indmax = data_indmax + 1
-        model_indmax = min (len (lambdas_h2o) - 1, model_indmax)
-        data_indmax = min (len (wave_data) - 1, data_indmax)
-
-        # Dynamically set the x variable
-        model_region_x_str = f"lambdas_{spanmol}[model_indmin:model_indmax]"
-        model_region_x = eval (model_region_x_str)
-
-        # Scaling the zoom graph
-        model_region_y_str = f"fluxes_{spanmol}[model_indmin:model_indmax]"
-        model_region_y = eval (model_region_y_str)
-        data_region_x = wave_data[data_indmin:data_indmax]
-        data_region_y = flux_data[data_indmin:data_indmax]
-        max_data_y = np.nanmax (data_region_y)
-        max_model_y = np.nanmax (model_region_y)
-        max_y = max (max_model_y, max_data_y)
-        ax2.set_ylim (0, max_y)
-
-        # Calling the flux function to calculate the flux for the data in the range selected
-        line_flux = flux_integral (lam=wave_data, flux=flux_data, lam_min=xmin, lam_max=xmax, err=err_data)
-
-        data_field.delete ('1.0', "end")
-        data_field.insert ('1.0', (
-                'Strongest line:' + '\nUpper level = ' + str (max_up_lev) +
-                '\nLower level = ' + str (max_low_lev) +
-                '\nWavelength (μm) = ' + str (max_lamb_cnts) +
-                '\nEinstein-A coeff. (1/s) = ' + str (max_einstein) +
-                '\nUpper level energy (K) = ' + str (f'{max_e_up:.{0}f}') +
-                '\nOpacity = ' + str (f'{max_tau:.{3}f}') +
-                '\nFlux in sel. range (erg/s/cm2) = ' + str (f'{line_flux[0]:.{3}e}')
-        ))
-
-        # Creating a pandas dataframe for all the info of the strongest line in the selected range
-        line2save = {
-            'species': [spanmol.upper ()],
-            'lev_up': [max_up_lev],
-            'lev_low': [max_low_lev],
-            'lam': [max_lamb_cnts],
-            'tau': [max_tau],
-            'intens': [max_intensity],
-            'a_stein': [max_einstein],
-            'e_up': [max_e_up],
-            'g_up': [max_g_up],
-            'xmin': [f'{xmin:.{4}f}'],
-            'xmax': [f'{xmax:.{4}f}']
-        }
-        line2save = pd.DataFrame (line2save)
-
-        default_line = None
-
-        green_lines = []
-        green_scatter = []
-
-        # Plot the lines in the zoom range
-        if len (model_region_x) >= 1:
-            k = 0
-            model_line_select.set_data (model_region_x, model_region_y)
-            data_line_select.set_data (data_region_x, data_region_y)
-            ax2.set_xlim (model_region_x[0], model_region_x[-1])
-
-            for j in range (len (lamb_cnts)):
-                lineheight = (intensities[j] / max_intensity) * max_y
-                # if intensities[j] > max_intensity / 50:
-                line = ax2.vlines (lamb_cnts[j], 0, lineheight, linestyles='dashed', color='green',
-                                   picker=True) if j != max_index else ax2.vlines (lamb_cnts[j], 0, lineheight,
-                                                                                   linestyles='dashed', color='orange',
-                                                                                   picker=True)
-                green_lines.append (line)
-                text = ax2.text (lamb_cnts[j], lineheight,
-                                 (str (f'{e_up[j]:.{0}f}') + ', ' + str (f'{einstein[j]:.{3}f}')), color='green',
-                                 fontsize='small')
-                area = eval (f"np.pi*({spanmol}_radius*au*1e2)**2")  # In cm^2
-                Dist = dist * pc
-                beam_s = area / Dist ** 2
-                F = intensities[j] * beam_s
-                freq = ccum / lamb_cnts[j]
-                rd_yax = np.log (4 * np.pi * F / (einstein[j] * hh * freq * g_up[j]))
-                scatter = ax3.scatter (e_up[j], rd_yax, s=30, color='green', edgecolors='black',
-                                       picker=True) if j != max_index else ax3.scatter (e_up[j], rd_yax, s=30,
-                                                                                        color='orange',
-                                                                                        edgecolors='black', picker=True)
-                green_scatter.append (scatter)
-                # If the intensity is below the threshold, remove the line and scatter
-                threshold_intensity = max_intensity / 50
-                if intensities[j] < threshold_intensity:
-                    green_lines[j].remove ()
-                    text.remove ()
-                    green_scatter[j].remove ()
-                if j == max_index:
-                    default_line = (j, lamb_cnts[j], lineheight, e_up[j], einstein[j], scatter)
-
-            fig.canvas.flush_events ()
-
-            def onpick(event):
-                global default_line, line2save, intensities, lamb_cnts
-
-                # Check if the clicked artist is a line in ax2 or a scatter point in ax3
-                if event.artist in green_lines or event.artist in green_scatter:
-                    idx = green_lines.index (event.artist) if event.artist in green_lines else green_scatter.index (
-                        event.artist)  # Get the index of the clicked line
-
-                    lineheight = (intensities[idx] / max_intensity) * max_y  # Height of the selected line
-
-                    # Reset the previous default strongest line
-                    if default_line is not None:
-                        # Reset the color and style of the previous default line
-                        prev_line = green_lines[default_line[0]]  # Get the previous line from green_lines
-                        prev_line.set_color ('green')  # Reset color to green
-                        prev_line.set_linewidth (1)  # Reset line width (if needed)
-
-                        prev_scatter = default_line[5]  # Get the previous scatter point
-                        prev_scatter.set_color ('green')  # Reset scatter point color to green
-                        prev_scatter.set_edgecolors ('black')  # Reset scatter edge color to black
-
-                    # Highlight the selected line
-                    selected_line = green_lines[idx]  # Get the existing line
-                    selected_line.set_color ('orange')  # Change the color to orange
-                    selected_line.set_linewidth (2)  # Optionally increase line width for highlight
-
-                    # Find the corresponding scatter point for this line
-                    scatter = green_scatter[idx]
-                    scatter.set_color ('orange')  # Change the color of the scatter point to orange
-                    scatter.set_edgecolors ('black')  # Optional: change the edge color
-
-                    # Update default_line
-                    default_line = (idx, lamb_cnts[idx], lineheight, e_up[idx], einstein[idx], scatter)
-
-                    # Update the line2save DataFrame
-                    try:
-                        line2save = {
-                            'species': [spanmol.upper ()],
-                            'lev_up': [up_lev[idx]],
-                            'lev_low': [low_lev[idx]],
-                            'lam': [lamb_cnts[idx]],
-                            'tau': [tau[idx]],
-                            'intens': [intensities[idx]],
-                            'a_stein': [einstein[idx]],
-                            'e_up': [e_up[idx]],
-                            'g_up': [g_up[idx]],
-                            'xmin': [f'{xmin:.{4}f}'],
-                            'xmax': [f'{xmax:.{4}f}']
-                        }
-                        line2save = pd.DataFrame (line2save)
-
-                        # Update the data field with the selected line's details
-
-                        flux_integral (lam=wave_data, flux=flux_data, lam_min=xmin, lam_max=xmax, err=err_data)
-                        data_field.delete ('1.0', "end")
-                        data_field.insert ('1.0', (
-                                'Strongest line:' + '\nUpper level = ' + str (up_lev[idx]) +
-                                '\nLower level = ' + str (low_lev[idx]) +
-                                '\nWavelength (μm) = ' + str (lamb_cnts[idx]) +
-                                '\nEinstein-A coeff. (1/s) = ' + str (einstein[idx]) +
-                                '\nUpper level energy (K) = ' + str (f'{e_up[idx]:.{0}f}') +
-                                '\nOpacity = ' + str (f'{tau[idx]:.{3}f}') +
-                                '\nFlux in sel. range (erg/s/cm2) = ' + str (f'{line_flux[0]:.{3}e}')
-                        ))
-                    except KeyError as e:
-                        pass  # Silencing the KeyError, so it doesn't affect functionality
-
-                    fig.canvas.draw ()
-
-            fig.canvas.mpl_connect ('pick_event', onpick)
+            data_field.delete('1.0', "end")
+            data_field.insert('1.0', 'No lines in selected range, please select another molecule from the menu.')
     else:
         pop_diagram ()
         ax2.clear ()
@@ -1722,14 +1894,14 @@ def selectfileinit():
             print ("Selected file:", file_path)
             file_name = os.path.basename (file_path)
             # code to process each file
-            input_spectrum_data = pd.read_csv (filepath_or_buffer=file_path, sep=',')
-            wave_data = np.array (input_spectrum_data['wave'])
-            wave_original = np.array (input_spectrum_data['wave'])
-            flux_data = np.array (input_spectrum_data['flux'])
+            input_spectrum_data = pd.read_csv(filepath_or_buffer=file_path, sep=',')
+            wave_data = np.array(input_spectrum_data['wave'])
+            wave_original = np.array(input_spectrum_data['wave'])
+            flux_data = np.array(input_spectrum_data['flux'])
             if 'err' in input_spectrum_data:
-                err_data = np.array (input_spectrum_data['err'])
+                err_data = np.array(input_spectrum_data['err'])
             else:
-                err_data = np.empty_like (flux_data) + np.nanmax (flux_data) / 100  # assumed, if not present
+                err_data = np.full_like(flux_data, np.nanmedian(flux_data)/100)  # assumed, if not present
 
                 # Set initial values of xp1 and rng
             fig_max_limit = np.nanmax (wave_data)
@@ -1927,7 +2099,7 @@ int_pars = h2o_intensity.get_table
 int_pars.index = range (len (int_pars.index))
 
 # Creating the graph
-fig = plt.figure (figsize=(15, 8.5))
+fig = plt.figure(figsize=(15, 8.5))
 # fig = plt.figure()
 gs = GridSpec (nrows=2, ncols=2, width_ratios=[1, 1], height_ratios=[1, 1.5])
 ax1 = fig.add_subplot (gs[0, :])
@@ -2889,30 +3061,33 @@ def selectfile():
         for file_path in infiles:
             # Process each selected file
             print ("Selected file:", file_path)
-            file_name = os.path.basename (file_path)
+            file_name = os.path.basename(file_path)
+
             file_name_label.config (text=str (file_name))
             # filename_box_data.set_val(file_name)
             # Add your code to process each file
             # THIS IS THE OLD FILE SYSTEM (THIS WILL BE USED UNTIL THE NEW FILE SYSTEM IS DEVELOPED) USE THIS!!!!!
-            input_spectrum_data = pd.read_csv (filepath_or_buffer=(file_path), sep=',')
-            wave_data = np.array (input_spectrum_data['wave'])
-            wave_original = np.array (input_spectrum_data['wave'])
-            flux_data = np.array (input_spectrum_data['flux'])
+            input_spectrum_data = pd.read_csv(filepath_or_buffer=(file_path), sep=',')
+            wave_data = np.array(input_spectrum_data['wave'])
+            wave_original = np.array(input_spectrum_data['wave'])
+            flux_data = np.array(input_spectrum_data['flux'])
             if 'err' in input_spectrum_data:
-                err_data = np.array (input_spectrum_data['err'])
+                err_data = np.array(input_spectrum_data['err'])
             else:
-                err_data = np.empty_like (flux_data) + np.nanmax (flux_data) / 100  # assumed, if not present
+                err_data = np.full_like(flux_data, np.nanmedian(flux_data)/100)  # assumed, if not present
 
-            # Set initial values of xp1 and rng
-            fig_max_limit = np.nanmax (wave_data)
-            fig_min_limit = np.nanmin (wave_data)
-            xp1 = fig_min_limit + (fig_max_limit - fig_min_limit) / 2
-            rng = (fig_max_limit - fig_min_limit) / 10
-            xp2 = xp1 + rng
-            xp1_entry.delete (0, "end")
-            xp1_entry.insert (0, np.around (xp1, decimals=2))
-            rng_entry.delete (0, "end")
-            rng_entry.insert (0, np.around (rng, decimals=2))
+            # Set new values of xp1 and rng only if the new spectrum is in a different wave range
+            fig_max_limit = np.nanmax(wave_data)
+            fig_min_limit = np.nanmin(wave_data)
+            xp1_current = float(xp1_entry.get ())
+            if xp1_current > fig_max_limit or xp1_current < fig_min_limit:
+                xp1 = fig_min_limit + (fig_max_limit - fig_min_limit) / 2
+                rng = (fig_max_limit - fig_min_limit) / 10
+                xp2 = xp1 + rng
+                xp1_entry.delete (0, "end")
+                xp1_entry.insert (0, np.around (xp1, decimals=2))
+                rng_entry.delete (0, "end")
+                rng_entry.insert (0, np.around (rng, decimals=2))
 
             # now = dt.now()
             # dateandtime = now.strftime("%d-%m-%Y-%H-%M-%S")
@@ -3182,11 +3357,14 @@ def on_span_select(selected_item):
 
 
 # Create and place the xp1 text box in row 12, column 0
-specsep_label = tk.Label (plotparams_frame, text="Line Separ.:")
-specsep_label.grid (row=4, column=2, pady=(0, 45))
+specsep_label = tk.Label(plotparams_frame, text="Line Separ.:")
+#specsep_label.grid (row=4, column=2, pady=(0, 45))
+specsep_label.grid (row=4, column=2)
 specsep_entry = tk.Entry (plotparams_frame, bg='lightgray', width=8)
-specsep_entry.insert (0, str (specsep))
-specsep_entry.grid (row=4, column=3, pady=(0, 45))
+specsep_entry.insert (0, str(specsep))
+#specsep_entry.grid (row=4, column=3, pady=(0, 45))
+specsep_entry.grid (row=4, column=3)
+
 
 
 # Add some space below plotparams_frame
@@ -3334,12 +3512,14 @@ def export_spectrum():
 
 # Create a dropdown menu in the new window
 spanselectlab = tk.Label (plotparams_frame, text="Molecule:")
-spanselectlab.grid (row=4, column=0, pady=(0, 45))
+#spanselectlab.grid (row=4, column=0, pady=(0, 45))
+spanselectlab.grid (row=4, column=0)
 spanoptionsvar = [m[0] for m in molecules_data]  # + ["SUM"]
 spandropdowntext = tk.StringVar ()
 spandropd = ttk.Combobox (plotparams_frame, textvariable=spandropdowntext, values=spanoptionsvar, width=6)
 spandropd.set (spanoptionsvar[0])
-spandropd.grid (row=4, column=1, pady=(0, 45))
+#spandropd.grid (row=4, column=1, pady=(0, 45))
+spandropd.grid (row=4, column=1)
 
 spandropd.bind ("<<ComboboxSelected>>", lambda event: on_span_select ((spanoptionsvar[spandropd.current ()]).lower ()))
 
@@ -3349,6 +3529,20 @@ spandropd.bind ("<<ComboboxSelected>>", lambda event: on_span_select ((spanoptio
 
 
 spanmol = (spanoptionsvar[spandropd.current ()]).lower ()
+
+
+# Create the buttons for line de-blender
+fwhmtolerance_label = tk.Label(plotparams_frame, text="FWHM tol.:")
+fwhmtolerance_label.grid(row=5, column=0, pady=(0, 2))
+fwhmtolerance_entry = tk.Entry(plotparams_frame, bg='lightgray', width=8)
+fwhmtolerance_entry.insert(0, str(fwhmtolerance))
+fwhmtolerance_entry.grid(row=5, column=1, pady=(0, 2))
+centrtolerance_label = tk.Label(plotparams_frame, text="Centr. tol.:")
+centrtolerance_label.grid(row=5, column=2, pady=(0, 2))
+centrtolerance_entry = tk.Entry(plotparams_frame, bg='lightgray', width=8)
+centrtolerance_entry.insert(0, str(centrtolerance))
+centrtolerance_entry.grid(row=5, column=3, pady=(0, 2))
+
 
 
 def toggle_fullscreen():
@@ -3411,7 +3605,7 @@ toggle_button.grid (row=0, column=6)
 # Create and place the buttons for other functions
 functions_frame = tk.Frame (window, borderwidth=2, relief="groove")
 functions_frame.grid (row=plotparams_frame.grid_info ()['row'] + plotparams_frame.grid_info ()['rowspan'], column=0,
-                      rowspan=5, columnspan=5, sticky='nsew')
+                      rowspan=6, columnspan=5, sticky='nsew')
 
 save_button = tk.Button (functions_frame, text="Save Line", bg='lightgray', activebackground='gray', command=Save,
                          width=13, height=1)
@@ -3440,8 +3634,14 @@ atomlines_button.grid (row=2, column=1)
 
 # Create the 'Slabfit' button
 slabfit_button = tk.Button (functions_frame, text='Single Slab Fit', bg='lightgray', activebackground='gray',
-                            command=lambda: run_slabfit (), width=13, height=1)
+                            command=lambda: run_slabfit(), width=13, height=1)
 slabfit_button.grid (row=3, column=0)
+
+# Create the 'De-blender' button
+deblender_button = tk.Button(functions_frame, text='Line De-blender', bg='lightgray', activebackground='gray',
+                            command=lambda: fitmulti_onselect(), width=13, height=1)
+deblender_button.grid (row=3, column=1)
+
 
 """
 # Create a label (thin horizontal line) to fill the rest of row 0 with gray
@@ -4018,32 +4218,44 @@ CreateToolTip (specsep_entry, text='Separation threshold\n'
                                    'units: μm')
 
 CreateToolTip (spandropd, text='Select molecule for line inspection,\n'
-                               'the population diagram, the "Save Line"\n'
-                               '"Slab fit", and "Find Single Lines"')
+                               'the population diagram, and all the\n'
+                               'molecule-specific functions')
+
+CreateToolTip (fwhmtolerance_entry, text='Line broadening tolerance\n'
+                                         'in de-blender\n'
+                                         'units: km/s')
+
+CreateToolTip (centrtolerance_entry, text='Line centroid tolerance\n'
+                                   'in de-blender\n'
+                                   'units: μm')
 
 # ------------------------------------------------------------------------
-CreateToolTip (save_button, text='Save strongest line\n'
+CreateToolTip(save_button, text='Save strongest line\n'
                                  'from the current line inspection\n'
                                  'into the "Output Line Measurements"')
 
-CreateToolTip (fit_button, text='Fit line currently\n'
+CreateToolTip(fit_button, text='Fit line currently\n'
                                 'selected for line inspection')
 
-CreateToolTip (slabfit_button, text='Fit single slab model for molecule\n'
+CreateToolTip(slabfit_button, text='Fit single slab model for molecule\n'
                                     'selected in the drop-down menu\n'
                                     'using flux measurements from input')
 
-CreateToolTip (savedline_button, text='Show saved lines\n'
+CreateToolTip(deblender_button, text='De-blend selected feature\n'
+                                    'using a multi-gaussian fit\n'
+                                    'with tolerance values above')
+
+CreateToolTip(savedline_button, text='Show saved lines\n'
                                       'from the "Input Line List"')
 
-CreateToolTip (fitsavedline_button, text='Fit all lines from the "Input Line List"\n'
+CreateToolTip(fitsavedline_button, text='Fit all lines from the "Input Line List"\n'
                                          'and save into the "Output Line Measurements"')
 
-CreateToolTip (autofind_button, text='Find single lines\n'
+CreateToolTip(autofind_button, text='Find single lines\n'
                                      'using separation threshold\n'
                                      'set in the "Line Separ."')
 
-CreateToolTip (atomlines_button, text='Show atomic lines\n'
+CreateToolTip(atomlines_button, text='Show atomic lines\n'
                                       'from the available line list')
 
 for row, (mol_name, _, _) in enumerate (molecules_data, start=1):
