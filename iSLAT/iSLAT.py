@@ -1829,10 +1829,10 @@ This function is used in onselect().
 
 def flux_integral(lam, flux, err, lam_min, lam_max):
     # calculate flux integral
-    integral_range = np.where (np.logical_and (lam > lam_min, lam < lam_max))
-    line_flux_meas = np.trapz (flux[integral_range[::-1]], x=ccum / lam[integral_range[::-1]])
+    integral_range = np.where(np.logical_and (lam > lam_min, lam < lam_max))
+    line_flux_meas = np.trapezoid(flux[integral_range[::-1]], x=ccum / lam[integral_range[::-1]])
     line_flux_meas = -line_flux_meas * 1e-23  # to get (erg s-1 cm-2); it's using frequency array, so need the - in front of it
-    line_err_meas = np.trapz (err[integral_range[::-1]], x=ccum / lam[integral_range[::-1]])
+    line_err_meas = np.trapezoid(err[integral_range[::-1]], x=ccum / lam[integral_range[::-1]])
     line_err_meas = -line_err_meas * 1e-23  # to get (erg s-1 cm-2); it's using frequency array, so need the - in front of it
     return line_flux_meas, line_err_meas
 
