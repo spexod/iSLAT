@@ -115,7 +115,7 @@ class iSLATPlot:
         if self.ax1.legend_ is None:
             handles, labels = self.ax1.get_legend_handles_labels()
             if handles:
-                ncols = 2 if len(handles) > 8 else 1
+                ncols = 2 if len(handles) > 8 else 1 # maybe make this some global variable (MAX_LEGEND_LEN)
             self.ax1.legend(ncols = ncols)
         else:
             self.ax1.legend_.remove()
