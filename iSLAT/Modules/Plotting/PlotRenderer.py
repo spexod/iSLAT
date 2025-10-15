@@ -168,7 +168,10 @@ class PlotRenderer:
             if line in self.model_lines:
                 self.model_lines.remove(line)
         
-        self.ax1.legend()
+        handles, labels = self.ax1.get_legend_handles_labels()
+        if handles:
+            ncols = 2 if len(handles) > 8 else 1
+            self.ax1.legend(ncols = ncols)
         
     def render_main_spectrum_plot(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                  molecules: Union[List['Molecule'], 'MoleculeDict'], 
@@ -325,7 +328,9 @@ class PlotRenderer:
         # Only show legend if there are labeled items
         handles, labels = self.ax1.get_legend_handles_labels()
         if handles:
-            self.ax1.legend()
+            ncols = 2 if len(handles) > 8 else 1
+            self.ax1.legend(ncols = ncols)
+
         
     def render_line_inspection_plot(self, line_wave: Optional[np.ndarray], 
                                    line_flux: Optional[np.ndarray], 
@@ -1335,9 +1340,12 @@ class PlotRenderer:
                 zorder=self._get_theme_value("zorder_model", 3)
             )
 
-            if not subplot: # If normal rendering (not output full spectrum)
-                self.ax1.legend()
-            
+            if not subplot: # Normal rendering (not output full spectrum)
+                handles, labels = self.ax1.get_legend_handles_labels()
+                if handles:
+                    ncols = 2 if len(handles) > 8 else 1
+                    self.ax1.legend(ncols = ncols)
+        
                 # Store molecule name in line metadata for selective removal
                 line._molecule_name = getattr(molecule, 'name', molecule_name)
             
