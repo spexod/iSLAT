@@ -55,8 +55,8 @@ SPEED_OF_LIGHT_MICRONS = 2.99792458e14
 PLANCK_CONSTANT = 6.62606896e-27
 """Planck constant in erg·s."""
 
-FGAUSS_PREFACTOR: float = np.sqrt(np.pi) / (2.0 * np.sqrt(np.log(2.0)))
-#FGAUSS_PREFACTOR = np.sqrt(np.log(2.0)/np.pi)
+#FGAUSS_PREFACTOR: float = np.sqrt(np.pi) / (2.0 * np.sqrt(np.log(2.0)))
+FGAUSS_PREFACTOR = np.sqrt(np.log(2.0)/np.pi)
 """Prefactor for opacity and intensity calculations."""
 
 ASTRONOMICAL_UNIT_CM = 1.496e13
