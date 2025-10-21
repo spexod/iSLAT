@@ -44,7 +44,7 @@ class Spectrum:
     
     __slots__ = (
         '_lam_min', '_lam_max', '_dlambda', '_R', '_distance',
-        '_lamgrid', '_flux', '_flux_jy', '_I_list', '_lam_list',
+        '_lamgrid', '_flux', '_flux_jy', '_I_list', '_lam_list', '_tau_list',
         '_components', '_flux_valid', '_convolution_cache',
         '_kernel_cache', '_cache_stats'
     )
@@ -89,6 +89,7 @@ class Spectrum:
         # Use lists for more efficient appending
         self._I_list = []
         self._lam_list = []
+        self._tau_list = []
 
         # list with the different intensity components building up the spectrum
         self._components = []
@@ -141,10 +142,11 @@ class Spectrum:
         # 4. append to lists efficiently
         self._I_list.extend(selected_intensities)
         self._lam_list.extend(selected_wavelengths)
+        self._tau_list.extend(intensity.tau[mask])
 
         # 5. append to components
         self._components.append({'name': intensity.molecule.name, 'fname': getattr(intensity.molecule, 'fname', ''),
-                                't_kin': intensity.t_kin, 'n_mol': intensity.n_mol, 'dv': intensity.dv,
+                                't_kin': intensity.t_kin, 'n_mol': intensity.n_mol, 'dv': intensity.dv, 'tau': intensity.tau,
                                  'area': dA})
     
     def _invalidate_flux_cache(self):
@@ -171,6 +173,7 @@ class Spectrum:
         # Convert to numpy arrays for vectorized operations
         I_array = np.array(self._I_list, dtype=np.float32)  # Use float32 for memory efficiency
         lam_array = np.array(self._lam_list, dtype=np.float32)
+        tau_array = np.array(self._tau_list, dtype=np.float32)
 
         # 1. summarize intensities at the (exactly) same wavelength, this improves performance, as only
         #    one convolution kernel needs to be evaluated per line of a molecule (independent of intensity components)
@@ -211,7 +214,13 @@ class Spectrum:
 
         # 6. scale for distance and correct units for the area
         #    note that area scaling is already performed in add_intensity
-        return flux * (c.ASTRONOMICAL_UNIT_CM / c.PARSEC_CM) ** 2 * (1.0 / self._distance ** 2)
+        scaled_flux = flux * (c.ASTRONOMICAL_UNIT_CM / c.PARSEC_CM) ** 2 * (1.0 / self._distance ** 2)
+        
+        # 7. account for saturation effects using the tau values from the intensity components
+        #tau_array = tau_array.reshape(-1)
+        #scaled_flux = scaled_flux * (1 - np.exp(-tau_array))
+
+        return scaled_flux
 
     @property
     def flux(self) -> np.ndarray:
