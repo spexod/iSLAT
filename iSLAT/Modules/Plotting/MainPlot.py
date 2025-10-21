@@ -13,6 +13,7 @@ from .PlotRenderer import PlotRenderer
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
+from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
 
 # Import debug configuration with fallback
 try:
@@ -57,6 +58,8 @@ class iSLATPlot:
         self.islat = islat_class_ref
 
         self.active_lines = []  # List of (line, text, scatter, values) tuples for active molecular lines
+        self.atomic_lines = []
+        self.atomic_toggle: bool = False
 
         self.fig = plt.Figure(figsize=(10, 7))
         # Adjust subplot parameters to minimize margins and maximize plot area
@@ -110,7 +113,10 @@ class iSLATPlot:
     
     def toggle_legend(self):
         if self.ax1.legend_ is None:
-            self.ax1.legend()
+            handles, labels = self.ax1.get_legend_handles_labels()
+            if handles:
+                ncols = 2 if len(handles) > 8 else 1 # maybe make this some global variable (MAX_LEGEND_LEN)
+            self.ax1.legend(ncols = ncols)
         else:
             self.ax1.legend_.remove()
         self.canvas.draw_idle()
@@ -255,6 +261,8 @@ class iSLATPlot:
         wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
         self.islat.wave_data = wave_data # Update islat wave_data to match adjusted grid
 
+        self.atomic_lines.clear()
+
         self.plot_renderer.render_main_spectrum_plot(
             wave_data=wave_data,
             flux_data=self.islat.flux_data,
@@ -264,7 +272,10 @@ class iSLATPlot:
             error_data=getattr(self.islat, 'err_data', None),
             #observed_wave_data=self.islat.wave_data  # Pass observed data separately
         )
-        
+
+        if self.islat.GUI.top_bar.atomic_toggle:
+            self.plot_atomic_lines(self.atomic_lines)
+
         # Recreate span selector and redraw
         self.make_span_selector()
         self.canvas.draw_idle()
@@ -406,8 +417,8 @@ class iSLATPlot:
             f"Einstein-A coeff. (1/s) = {einstein_str}\n"
             f"Upper level energy (K) = {energy_str}\n"
             f"Opacity = {tau_str}\n"
-            f"Data flux in sel. range (erg/s/cm2) = {flux_str}\n"
-            f"Model flux in sel. range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
+            f"Data flux in range (erg/s/cm2) = {flux_str}\n"
+            f"Model flux in range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
         )
         
         # Add the information without clearing the data field, with error protection
@@ -576,7 +587,32 @@ class iSLATPlot:
         """
         self.plot_renderer.highlight_line_selection(xmin, xmax)
         self.canvas.draw_idle()
+
     
+    def remove_atomic_lines(self):
+        self.plot_renderer.remove_atomic_lines(self.atomic_lines)
+        self.canvas.draw()
+
+    def plot_atomic_lines(self, data_field = None, atomic_lines = load_atomic_lines()):
+
+        if atomic_lines.empty:
+                if data_field: 
+                    self.data_field.insert_text("No atomic lines data found.\n")
+                return
+        
+        
+        # Get wavelength and other data from the atomic lines DataFrame
+        wavelengths = atomic_lines['wave'].values
+        species = atomic_lines['species'].values
+        line_ids = atomic_lines['line'].values
+                
+        self.plot_renderer.render_atomic_lines(self.atomic_lines, self.ax1, 
+        wavelengths, species, line_ids)
+
+        self.canvas.draw()
+        return wavelengths
+
+
     def plot_vertical_lines(self, wavelengths, heights=None, colors=None, labels=None):
         """
         Plot vertical lines at specified wavelengths.

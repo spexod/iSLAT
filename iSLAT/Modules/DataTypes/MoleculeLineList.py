@@ -21,25 +21,25 @@ def _get_pandas():
 
 class LineTuple(NamedTuple):
     """Named tuple for line data"""
-    nr: np.ndarray[int]
+    nr: int
     '''Line number'''
-    lev_up: np.ndarray[int]
+    lev_up: int
     '''Upper energy level'''
-    lev_low: np.ndarray[int]
+    lev_low: int
     '''Lower energy level'''
-    lam: np.ndarray[float]
+    lam: float
     '''Wavelength in microns'''
-    freq: np.ndarray[float]
+    freq: float
     '''Frequency in Hz'''
-    a_stein: np.ndarray[float]
+    a_stein: float
     '''Einstein A coefficient'''
-    e_up: np.ndarray[float]
+    e_up: float
     '''Upper state energy'''
-    e_low: np.ndarray[float]
+    e_low: float
     '''Lower state energy'''
-    g_up: np.ndarray[int]
+    g_up: int
     '''Upper state degeneracy'''
-    g_low: np.ndarray[int]
+    g_low: int
     '''Lower state degeneracy'''
 
 class MoleculeLineList:
