@@ -871,7 +871,8 @@ class iSLATPlot:
                 data_field.insert_text("No saved lines found.\n")
             return
         
-        self.plot_renderer.plot_saved_lines(loaded_lines, self.saved_lines, data_field)
+        self.plot_renderer.plot_saved_lines(loaded_lines, self.saved_lines)
+        # data_field.insert_text(f"Displayed {len(self.saved_lines)} saved lines on plot.\n")
     
     def remove_saved_lines(self):
         self.plot_renderer.remove_saved_lines(self.saved_lines)

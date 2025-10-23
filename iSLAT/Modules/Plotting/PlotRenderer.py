@@ -622,7 +622,7 @@ class PlotRenderer:
             mol_label = self._get_molecule_display_name(molecule)
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
 
-    def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines, data_field = None) -> None:
+    def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines) -> None:
         """Plot saved lines on the main spectrum"""
 
         for index, line in loaded_lines.iterrows():
@@ -650,8 +650,7 @@ class PlotRenderer:
                 ))
         # make sure that a refresh of the plot is triggered
         self.canvas.draw_idle()
-        if data_field:
-            data_field.insert_text(f"Displayed {len(saved_lines)} saved lines on plot.\n")
+   
 
     def remove_saved_lines(self, saved_lines) -> None:
         for line in saved_lines:

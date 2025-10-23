@@ -266,7 +266,7 @@ class GUI:
         self.control_panel = ControlPanel(parent, self.islat_class, self.plot, self.data_field, self.default_font)
         
         # Spectrum file selector
-        self.file_interaction_pane = FileInteractionPane(parent, self.islat_class, self.theme)
+        self.file_interaction_pane = FileInteractionPane(parent, self.islat_class, self.theme, self.data_field)
         
         self.file_interaction_pane.grid(padx=(1,0), sticky="nsew",  pady=0)
         self.control_panel.grid(padx=(1,0), sticky="nsew", pady=0)

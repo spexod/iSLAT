@@ -203,7 +203,7 @@ class TopBar(ResizableFrame):
             
             else:
                 self.main_plot.remove_saved_lines()
-                self.data_field.insert_text("Removed lines")
+                # self.data_field.insert_text("Removed lines")
             
         except Exception as e:
             self.data_field.insert_text(f"Error loading saved lines: {e}\n")
