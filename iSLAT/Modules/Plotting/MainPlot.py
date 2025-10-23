@@ -14,6 +14,7 @@ from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
+import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 
 # Import debug configuration with fallback
 try:
@@ -59,6 +60,7 @@ class iSLATPlot:
 
         self.active_lines = []  # List of (line, text, scatter, values) tuples for active molecular lines
         self.atomic_lines = []
+        self.saved_lines = []
         self.atomic_toggle: bool = False
 
         self.fig = plt.Figure(figsize=(10, 7))
@@ -262,6 +264,7 @@ class iSLATPlot:
         self.islat.wave_data = wave_data # Update islat wave_data to match adjusted grid
 
         self.atomic_lines.clear()
+        self.saved_lines.clear()
 
         self.plot_renderer.render_main_spectrum_plot(
             wave_data=wave_data,
@@ -274,8 +277,10 @@ class iSLATPlot:
         )
 
         if self.islat.GUI.top_bar.atomic_toggle:
-            self.plot_atomic_lines(self.atomic_lines)
+            self.plot_atomic_lines()
 
+        if self.islat.GUI.top_bar.line_toggle:
+            self.plot_saved_lines()
         # Recreate span selector and redraw
         self.make_span_selector()
         self.canvas.draw_idle()
@@ -857,9 +862,19 @@ class iSLATPlot:
         # Delegate to PlotRenderer for plotting
         self.plot_renderer.plot_single_lines(wavelengths)
     
-    def plot_saved_lines(self, saved_lines):
+    def plot_saved_lines(self, data_field = None):
         """Plot saved lines using PlotRenderer with delegation."""
-        self.plot_renderer.plot_saved_lines(saved_lines)
+        # Load saved lines from file
+        loaded_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
+        if loaded_lines.empty:    
+            if data_field:
+                data_field.insert_text("No saved lines found.\n")
+            return
+        
+        self.plot_renderer.plot_saved_lines(loaded_lines, self.saved_lines, data_field)
+    
+    def remove_saved_lines(self):
+        self.plot_renderer.remove_saved_lines(self.saved_lines)
 
     def apply_theme(self, theme=None):
         """Apply theme to the plot and update colors"""
