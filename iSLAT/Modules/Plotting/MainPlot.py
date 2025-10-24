@@ -600,7 +600,6 @@ class iSLATPlot:
                     self.data_field.insert_text("No atomic lines data found.\n")
                 return
         
-        
         # Get wavelength and other data from the atomic lines DataFrame
         wavelengths = atomic_lines['wave'].values
         species = atomic_lines['species'].values
@@ -611,7 +610,6 @@ class iSLATPlot:
 
         self.canvas.draw()
         return wavelengths
-
 
     def plot_vertical_lines(self, wavelengths, heights=None, colors=None, labels=None):
         """

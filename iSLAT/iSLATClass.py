@@ -18,6 +18,10 @@ from .Modules.DataTypes.Molecule import Molecule
 from .Modules.DataTypes.MoleculeDict import MoleculeDict
 from .Modules.Debug.DebugConfig import debug_config
 
+from typing import Optional, Union, Literal, TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from os import PathLike
+
 class iSLAT:
     """
     iSLAT class to handle the iSLAT functionalities.
@@ -57,7 +61,7 @@ class iSLAT:
         # === DATA CONTAINERS ===
         self.hitran_data = {}
         #self._hitran_file_cache = {}  # Cache for HITRAN file data to avoid re-reading
-        self.input_line_list = None
+        self.input_line_list: Optional[Union[str, PathLike]] = None
         self.output_line_measurements = None
         
         # === PERFORMANCE FLAGS ===
