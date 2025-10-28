@@ -89,7 +89,7 @@ class PlotRenderer:
         
         self.model_lines: List[Line2D] = []
         self.active_lines: List[Line2D] = []
-        self.saved_lines: List[Line2D] = []
+        
 
         self.render_out = False
         
@@ -622,19 +622,13 @@ class PlotRenderer:
             mol_label = self._get_molecule_display_name(molecule)
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
 
-    def plot_saved_lines(self, saved_lines: pd.DataFrame) -> None:
+    def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines) -> None:
         """Plot saved lines on the main spectrum"""
-        if self.saved_lines:
-            self.remove_saved_lines()
-            return
 
-        if saved_lines.empty:
-            return
-
-        for index, line in saved_lines.iterrows():
+        for index, line in loaded_lines.iterrows():
             # Plot vertical lines at saved positions
             if 'lam' in line:
-                self.saved_lines.append(self.ax1.axvline(
+                saved_lines.append(self.ax1.axvline(
                     line['lam'], 
                     color=self._get_theme_value("saved_line_color", self._get_theme_value("saved_line_color_one", "red")),
                     alpha=0.7, 
@@ -644,27 +638,27 @@ class PlotRenderer:
             
             if 'xmin' in line and 'xmax' in line:
                 # Plot wavelength range
-                self.saved_lines.append(self.ax1.axvline(
+                saved_lines.append(self.ax1.axvline(
                     line['xmin'],
                     color=self._get_theme_value("saved_line_color_two", "orange"),
                     alpha=0.7,
                 ))
-                self.saved_lines.append(self.ax1.axvline(
+                saved_lines.append(self.ax1.axvline(
                     line['xmax'],
                     color=self._get_theme_value("saved_line_color_two", "orange"),
                     alpha=0.7,
                 ))
         # make sure that a refresh of the plot is triggered
         self.canvas.draw_idle()
+   
 
-    def remove_saved_lines(self) -> None:
-        for line in self.saved_lines:
+    def remove_saved_lines(self, saved_lines) -> None:
+        for line in saved_lines:
             try:
                 line.remove()
             except ValueError:
                 pass
         
-        self.saved_lines.clear()
         self.canvas.draw_idle()
     
     def highlight_line_selection(self, xmin: float, xmax: float) -> None:

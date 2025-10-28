@@ -58,6 +58,7 @@ class TopBar(ResizableFrame):
         self.toolbar = self.main_plot.create_toolbar(toolbar_frame)
 
         self.atomic_toggle: bool = False
+        self.line_toggle: bool = False
         
         # Apply initial theme
         # self.apply_theme(theme)
@@ -106,7 +107,7 @@ class TopBar(ResizableFrame):
         atomic_lines_tip = "Show atomic lines\nusing seperation threshold\nset in the 'Line Separ."
         export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off"
-        create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
+        create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.toggle_saved_lines, 0, 3, tip_text=saved_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 5, tip_text=toggle_legend_tip)
 
@@ -191,19 +192,18 @@ class TopBar(ResizableFrame):
         except Exception as e:
             self.data_field.insert_text(f"Error saving line: {e}\n")
 
-    def show_saved_lines(self):
+    def toggle_saved_lines(self):
         """Show saved lines as vertical dashed lines on the plot."""
         try:
-            # Load saved lines from file
-            saved_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
-            if saved_lines.empty:       
-                self.data_field.insert_text("No saved lines found.\n")
-                return
-                
-            # Plot the saved lines on the main plot
-            self.main_plot.plot_saved_lines(saved_lines)
+            self.line_toggle = not self.line_toggle
+
+            if self.line_toggle:
+                # Plot the saved lines on the main plot
+                self.main_plot.plot_saved_lines(data_field=self.data_field)
             
-            self.data_field.insert_text(f"Displayed {len(saved_lines)} saved lines on plot.\n")
+            else:
+                self.main_plot.remove_saved_lines()
+                # self.data_field.insert_text("Removed lines")
             
         except Exception as e:
             self.data_field.insert_text(f"Error loading saved lines: {e}\n")
@@ -602,21 +602,6 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
             traceback.print_exc()
 
-    # def remove_atomic_lines(self, lines):
-    #     if not self.main_plot.active_lines:
-    #         lines.clear()
-    #         return
-
-        
-    #     for (line, text) in lines:
-    #         try:
-    #             line.remove()
-    #             text.remove()
-    #         except ValueError:
-    #             pass
-        
-    #     lines.clear()
-    #     self.main_plot.canvas.draw()
 
 
     def hitran_query(self):
