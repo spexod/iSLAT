@@ -15,6 +15,7 @@ from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.GUI.PlotGridWindow import PlotGridWindow
+from iSLAT.Modules.GUI.FullSpectrumWindow import FullSpectrumWindow
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name, example_data_folder_path
 from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
@@ -86,6 +87,7 @@ class TopBar(ResizableFrame):
         spectrum_menu.add_command(label="Save Parameters", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters", command=self.load_parameters)
         spectrum_menu.add_command(label="Output Full Spectrum", command=lambda: output_full_spectrum(self.islat))
+        spectrum_menu.add_command(label="Display Full Spectrum", command=lambda: FullSpectrumWindow(self.master, self.islat))
         spectrum_drpdwn.config(menu=spectrum_menu)
 
         if os_name == "Darwin":
