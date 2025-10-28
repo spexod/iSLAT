@@ -14,9 +14,6 @@ The class Intensity calculates the intensities
 import numpy as np
 from typing import Optional, Union, Literal, TYPE_CHECKING, Any
 import iSLAT.Constants as c
-import sys
-import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 # Lazy imports for performance
 _scipy_imported = False
