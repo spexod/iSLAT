@@ -363,11 +363,10 @@ class Intensity:
         wavelength_microns = c.SPEED_OF_LIGHT_MICRONS / lines.freq[np.newaxis, :]
         tau_amp = ((np.log(2) / np.pi)**0.5 * lines.a_stein[np.newaxis, :] * 
                   n_mol_flat[:, np.newaxis] * (wavelength_microns * 1e-4)**3 / 
-                  (8.0 * np.pi * dv_flat[:, np.newaxis] * 1e5))
+                  (4.0 * np.pi * dv_flat[:, np.newaxis] * 1e5))
 
         population_factor = (x_low * lines.g_up[np.newaxis, :] / lines.g_low[np.newaxis, :] - x_up)
         center_tau = tau_amp * population_factor
-        # This grid will contain the tau values at the center of the line profile 
 
         # Handle line opacity overlap
         c_light_ratio = c.SPEED_OF_LIGHT_CGS / 1e5  # km/s
