@@ -171,11 +171,11 @@ class Intensity:
         # The exp(-x^2) factor is NOT included here as it's part of the Gaussian quadrature weights
         #integrand = (1.0 - np.exp(-tau_broadcast * exp_neg_x_squared)) * exp_neg_x_squared
         #integrand = (1.0 - np.exp(-tau_broadcast * exp_neg_x_squared))
-        integrand = (1 - np.exp(-tau_broadcast * exp_neg_x_squared))
+        #integrand = (1 - np.exp(-tau_broadcast * exp_neg_x_squared))
 
         # Apply weights and integrate
         # The Gaussian quadrature already includes the exp(-x^2) weighting
-        weights = cls._GAUSS_QUAD_W #* exp_neg_x_squared[0, :]  # Shape: (20,)
+        weights = cls._GAUSS_QUAD_W * exp_neg_x_squared[0, :]  # Shape: (20,)
         integrand = 1.0 - np.exp(-tau_flat[:, None] * exp_neg_x_squared)  # (n_tau, n_quad)
         #integral_values = np.dot(integrand, weights)  # Shape: (n_tau_values,)
         
@@ -363,14 +363,12 @@ class Intensity:
         wavelength_microns = c.SPEED_OF_LIGHT_MICRONS / lines.freq[np.newaxis, :]
         tau_amp = ((np.log(2) / np.pi)**0.5 * lines.a_stein[np.newaxis, :] * 
                   n_mol_flat[:, np.newaxis] * (wavelength_microns * 1e-4)**3 / 
-                  (4.0 * np.pi * dv_flat[:, np.newaxis] * 1e5))
+                  (8.0 * np.pi * dv_flat[:, np.newaxis] * 1e5))
 
         population_factor = (x_low * lines.g_up[np.newaxis, :] / lines.g_low[np.newaxis, :] - x_up)
         center_tau = tau_amp * population_factor
         # This grid will contain the tau values at the center of the line profile 
 
-        n_lines = len(lines.freq)
-        
         # Handle line opacity overlap
         c_light_ratio = c.SPEED_OF_LIGHT_CGS / 1e5  # km/s
         
