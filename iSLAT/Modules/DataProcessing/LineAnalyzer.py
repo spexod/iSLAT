@@ -320,6 +320,9 @@ class LineAnalyzer:
                 #'tau': float(line_row.get('tau', 0.0)) if not pd.isna(line_row.get('tau', 0.0)) else 0.0
             }
 
+            # Add any other rows that were present in the saved file
+            line_info.update({key: line_row[key] for key in line_row.index if key not in line_info})
+
             fit_mask = (calc_wave_data >= xmin) & (calc_wave_data <= xmax)
             x_fit = calc_wave_data[fit_mask]
             y_fit = calc_flux_data[fit_mask]
