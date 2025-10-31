@@ -120,7 +120,7 @@ class ControlPanel(ttk.Frame):
         entry = tk.Entry(
             parent, 
             textvariable=var, 
-            width=width, 
+            #width=width, # Turn back on to use the width from the json config
             justify="left", 
         )
         
@@ -196,20 +196,20 @@ class ControlPanel(ttk.Frame):
         
         return self._create_simple_entry(self, label_text, current_value, row, col, update_parameter, width, param_name=param_name)
 
-    def _create_display_controls(self,parent, start_row, start_col):
+    def _create_display_controls(self, parent, start_row, start_col):
         """Create plot start and range controls for display view"""
         plot_start_tip = "Start wavelength\nfor the upper plot\nunits: μm"
         plot_range_tip = "Wavelength range\nfor the upper plot\nunits: μm"
 
         # Plot start
         initial_start = getattr(self.islat, 'display_range', [4.5, 5.5])[0]
-        self.plot_start_entry, self.plot_start_var = self._create_simple_entry( parent,
+        self.plot_start_entry, self.plot_start_var = self._create_simple_entry(parent,
             "Plot start:", initial_start, start_row, start_col, lambda _: self._update_display_range(), param_name="display_range_start", tip_text=plot_start_tip)
         
         # Plot range  
         display_range = getattr(self.islat, 'display_range', [4.5, 5.5])
         initial_range = round(display_range[1] - display_range[0], 2) # round to 2 decimal places
-        self.plot_range_entry, self.plot_range_var = self._create_simple_entry( parent,
+        self.plot_range_entry, self.plot_range_var = self._create_simple_entry(parent,
             "Plot range:", initial_range, start_row, start_col + 2, lambda _: self._update_display_range(), param_name="display_range_range", tip_text=plot_range_tip)
 
     def _create_wavelength_controls(self, parent, start_row, start_col):
