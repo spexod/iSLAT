@@ -520,7 +520,9 @@ class FittingEngine:
             'Flux_islat': np.float64(f'{flux_data_integral:.{3}e}'),  # Default to data values
             'Err_islat': np.float64(f'{err_data_integral:.{3}e}')     # Will be overwritten if fit succeeds
         }
-        
+
+        result_entry.update({key: line_info[key] for key in line_info if key not in result_entry})  # Include all line info fields
+
         # Process fit results if successful
         if fit_result and fit_result.success:
             # Extract fit parameters using the helper method
