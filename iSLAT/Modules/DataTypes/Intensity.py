@@ -175,7 +175,7 @@ class Intensity:
 
         # Apply weights and integrate
         # The Gaussian quadrature already includes the exp(-x^2) weighting
-        weights = cls._GAUSS_QUAD_W * exp_neg_x_squared[0, :]  # Shape: (20,)
+        weights = cls._GAUSS_QUAD_W #* exp_neg_x_squared[0, :]  # Shape: (20,)
         integrand = 1.0 - np.exp(-tau_flat[:, None] * exp_neg_x_squared)  # (n_tau, n_quad)
         #integral_values = np.dot(integrand, weights)  # Shape: (n_tau_values,)
         
@@ -233,7 +233,7 @@ class Intensity:
 
         return F
 
-    def _find_overlapping_line_groups(self, frequencies: np.ndarray, dv_vals: np.ndarray, c_light_ratio: float) -> list:
+    def _find_overlapping_line_groups(self, frequencies: np.ndarray, dv_vals: np.ndarray) -> list:
         """
         Find groups of lines that overlap within the broadening parameter.
         
@@ -243,8 +243,6 @@ class Intensity:
             Line frequencies in Hz
         dv_vals : np.ndarray
             Broadening velocities in km/s for each condition
-        c_light_ratio : float
-            Speed of light ratio (c_cgs / 1e5)
             
         Returns
         -------
@@ -280,8 +278,8 @@ class Intensity:
                     continue
                     
                 freq2 = frequencies[idx2]
-                # Calculate velocity separation
-                delta_v = abs(freq_center - freq2) / freq_center * c_light_ratio
+                # Calculate velocity separation in km/s
+                delta_v = abs(freq_center - freq2) / freq_center * c.SPEED_OF_LIGHT_KMS
                 
                 if delta_v <= max_dv:  # Within broadening parameter
                     group.append(idx2)
@@ -360,67 +358,65 @@ class Intensity:
         x_low = (exp_factor_low * lines.g_low[np.newaxis, :]) * q_sum_inv
         x_up = (exp_factor_up * lines.g_up[np.newaxis, :]) * q_sum_inv
         
-        wavelength_microns = c.SPEED_OF_LIGHT_MICRONS / lines.freq[np.newaxis, :]
-        tau_amp = ((np.log(2) / np.pi)**0.5 * lines.a_stein[np.newaxis, :] * 
-                  n_mol_flat[:, np.newaxis] * (wavelength_microns * 1e-4)**3 / 
-                  (4.0 * np.pi * dv_flat[:, np.newaxis] * 1e5))
-
-        population_factor = (x_low * lines.g_up[np.newaxis, :] / lines.g_low[np.newaxis, :] - x_up)
-        center_tau = tau_amp * population_factor
-
-        # Handle line opacity overlap
-        c_light_ratio = c.SPEED_OF_LIGHT_CGS / 1e5  # km/s
+        freq_factor = (c.SPEED_OF_LIGHT_CGS ** 3 / 
+                      (8.0 * np.pi * lines.freq[np.newaxis, :] ** 3 * 
+                       (1e5 * dv_flat[:, np.newaxis] * c.FGAUSS_PREFACTOR)))
         
-        # Group overlapping lines (within broadening parameter)
-        line_groups = self._find_overlapping_line_groups(lines.freq, dv_flat, c_light_ratio)
+        population_factor = (x_low * lines.g_up[np.newaxis, :] / lines.g_low[np.newaxis, :] - x_up)
+        center_tau = (lines.a_stein[np.newaxis, :] * freq_factor * 
+                     n_mol_flat[:, np.newaxis] * population_factor)
+
+        # Group overlapping lines (within broadening parameter) 
+        line_groups = self._find_overlapping_line_groups(lines.freq, dv_flat)
         
         # Blackbody calculation - vectorized for all temperatures at once
         bb_vals = self._bb(lines.freq[np.newaxis, :], t_kin_flat[:, np.newaxis])
         
-        # Pre-compute common factors for efficiency
-        dv_factor = 1e5 * dv_flat[:, np.newaxis]
+        # Blackbody and frequency ratio calculations
         freq_ratio = lines.freq[np.newaxis, :] / c.SPEED_OF_LIGHT_CGS
         
-        # Calculate intensity accounting for line opacity overlap
+        # Calculate intensity with proper normalization factors from original code
         intensity = np.zeros_like(center_tau)
+        
+        # Pre-compute constants for efficiency
+        sqrt_ln2_inv = 1.0 / (2.0 * np.sqrt(np.log(2.0)))  # For curve_growth method
         
         for group in line_groups:
             if len(group) == 1:
-                # Single line - calculate normally
+                # Single line - use original normalization factors
                 j = group[0]
                 if method == "radex":
-                    exp_neg_tau = np.exp(-center_tau[:, j])
-                    intensity[:, j] = (c.FGAUSS_PREFACTOR * dv_factor[:, 0] * freq_ratio[:, j] * 
-                                     bb_vals[:, j] * (1.0 - exp_neg_tau))
+                    intensity[:, j] = (c.FGAUSS_PREFACTOR * 1e5 * dv_flat * 
+                                     freq_ratio[:, j] * bb_vals[:, j] * (1.0 - np.exp(-center_tau[:, j])))
                 elif method == "curve_growth":
                     fint_val = self._fint(center_tau[:, j])
-                    intensity[:, j] = (c.FGAUSS_PREFACTOR * dv_factor[:, 0] * freq_ratio[:, j] * 
-                                     bb_vals[:, j] * fint_val)
+                    intensity[:, j] = (sqrt_ln2_inv * 1e5 * dv_flat * 
+                                     freq_ratio[:, j] * bb_vals[:, j] * fint_val)
             else:
-                # Overlapping lines - combine opacities first, then calculate intensity
-                combined_tau = np.sum(center_tau[:, group], axis=1)  # Sum opacities
-                
-                # Use representative values (frequency-weighted averages)
-                group_freqs = lines.freq[group]
-                group_weights = group_freqs / np.sum(group_freqs)
-                
-                avg_bb = np.sum(bb_vals[:, group] * group_weights[np.newaxis, :], axis=1)
-                avg_dv_factor = dv_factor[:, 0]  # Same for all lines
-                avg_freq_ratio = np.sum(freq_ratio[:, group] * group_weights[np.newaxis, :], axis=1)
+                # Overlapping lines - combine opacities, then calculate with combined tau
+                combined_tau = np.sum(center_tau[:, group], axis=1)  # Sum opacities for overlap
                 
                 if method == "radex":
-                    exp_neg_combined_tau = np.exp(-combined_tau)
-                    combined_intensity = (c.FGAUSS_PREFACTOR * avg_dv_factor * avg_freq_ratio * 
-                                        avg_bb * (1.0 - exp_neg_combined_tau))
+                    combined_factor = (1.0 - np.exp(-combined_tau))
                 elif method == "curve_growth":
-                    fint_combined = self._fint(combined_tau)
-                    combined_intensity = (c.FGAUSS_PREFACTOR * avg_dv_factor * avg_freq_ratio * 
-                                        avg_bb * fint_combined)
+                    combined_factor = self._fint(combined_tau)
                 
-                # Distribute the combined intensity among group members weighted by their individual tau
+                # Calculate combined intensity using weighted average blackbody and frequency
+                group_weights = center_tau[:, group] / np.maximum(np.sum(center_tau[:, group], axis=1, keepdims=True), 1e-10)
+                avg_bb = np.sum(bb_vals[:, group] * group_weights, axis=1)
+                avg_freq_ratio = np.sum(freq_ratio[:, group] * group_weights, axis=1)
+                
+                if method == "radex":
+                    combined_intensity = (c.FGAUSS_PREFACTOR * 1e5 * dv_flat * 
+                                        avg_freq_ratio * avg_bb * combined_factor)
+                elif method == "curve_growth":
+                    combined_intensity = (sqrt_ln2_inv * 1e5 * dv_flat * 
+                                        avg_freq_ratio * avg_bb * combined_factor)
+                
+                # Distribute combined intensity among group members weighted by individual tau
                 for j in group:
-                    weight = center_tau[:, j] / np.maximum(combined_tau, 1e-10)
-                    intensity[:, j] = combined_intensity * weight
+                    tau_weight = center_tau[:, j] / np.maximum(combined_tau, 1e-10)
+                    intensity[:, j] = combined_intensity * tau_weight
         
         if not was_scalar:
             intensity = intensity.reshape(output_shape + (len(lines.freq),))

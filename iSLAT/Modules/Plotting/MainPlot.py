@@ -63,10 +63,10 @@ class iSLATPlot:
         self.saved_lines = []
         self.atomic_toggle: bool = False
 
-        self.fig = plt.Figure(figsize=(10, 7))
+        self.fig = plt.Figure(figsize=(15, 8.5))
         # Adjust subplot parameters to minimize margins and maximize plot area
-        self.fig.subplots_adjust(left=0.08, bottom=0.08, right=0.98, top=0.95, wspace=0.15, hspace=0.25)
-        gs = GridSpec(2, 2, height_ratios=[2, 3], figure=self.fig)
+        self.fig.subplots_adjust(left=0.08, bottom=0.08, right=0.98, top=0.95, hspace=0.25)
+        gs = GridSpec(2, 2, width_ratios=[1, 1], height_ratios=[1, 1.5], figure=self.fig)
         self.ax1 = self.full_spectrum = self.fig.add_subplot(gs[0, :])
         self.ax2 = self.line_inspection = self.fig.add_subplot(gs[1, 0])
         self.ax3 = self.population_diagram = self.fig.add_subplot(gs[1, 1])
@@ -79,7 +79,7 @@ class iSLATPlot:
         self.canvas = FigureCanvasTkAgg(self.fig, master=parent_frame)
         
         # Apply theme to matplotlib figure and toolbar
-        self._apply_plot_theming()
+        #self._apply_plot_theming()
 
         # Initialize the modular classes
         self.plot_renderer = PlotRenderer(self)
