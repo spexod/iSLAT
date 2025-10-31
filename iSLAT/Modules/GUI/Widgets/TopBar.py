@@ -604,8 +604,6 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
             traceback.print_exc()
 
-
-
     def hitran_query(self):
         """
         Open the HITRAN molecule selector window.
