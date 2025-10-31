@@ -263,8 +263,6 @@ class PlotRenderer:
             self._plot_summed_spectrum(summed_wavelengths, summed_flux, subplot=subplot)
 
         self.render_out = False
-
-                                 
         
     def _plot_observed_spectrum(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                error_data: Optional[np.ndarray] = None, subplot: Optional[Axes] = None) -> None:
@@ -330,7 +328,6 @@ class PlotRenderer:
         if handles:
             ncols = 2 if len(handles) > 8 else 1
             self.ax1.legend(ncols = ncols)
-
         
     def render_line_inspection_plot(self, line_wave: Optional[np.ndarray], 
                                    line_flux: Optional[np.ndarray], 
@@ -650,7 +647,6 @@ class PlotRenderer:
                 ))
         # make sure that a refresh of the plot is triggered
         self.canvas.draw_idle()
-   
 
     def remove_saved_lines(self, saved_lines) -> None:
         for line in saved_lines:

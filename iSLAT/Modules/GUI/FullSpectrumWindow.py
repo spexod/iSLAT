@@ -179,11 +179,17 @@ class FullSpectrumWindow(tk.Toplevel):
     
     def update_step(self):
         """Update the wavelength step from spinbox."""
-        pass  # Real-time update disabled for performance
-    
+        self.spectrum_plot.step = self.step_var.get()
+        self.spectrum_plot.xlim1 = np.arange(
+            self.spectrum_plot.xlim_start,
+            self.spectrum_plot.xlim_end,
+            self.spectrum_plot.step
+        )
+
     def update_ymax_factor(self):
         """Update the Y-axis margin factor from spinbox.""" 
-        pass  # Real-time update disabled for performance
+        self.spectrum_plot.ymax_factor = self.ymax_var.get()
+        self.spectrum_plot.ylim1 = np.array([0, self.spectrum_plot.ymax_factor])
     
     def apply_settings(self):
         """Apply the current settings and regenerate the plot."""
