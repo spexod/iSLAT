@@ -161,10 +161,10 @@ class Intensity:
         # We approximate with Gaussian quadrature from -6 to +6
         
         # Broadcasting: (n_tau_values, 1) * (1, n_quad_points) -> (n_tau_values, n_quad_points)
-        x_quad = cls._GAUSS_QUAD_X[np.newaxis, :]  # Shape: (1, n_quad_points)
-        tau_broadcast = tau_flat[:, np.newaxis]    # Shape: (n_tau_values, 1)
+        ###tau_broadcast = tau_flat[:, np.newaxis]    # Shape: (n_tau_values, 1)
         
         # Compute exp(-x^2) for each quadrature point
+        x_quad = cls._GAUSS_QUAD_X[np.newaxis, :]  # Shape: (1, n_quad_points)
         exp_neg_x_squared = np.exp(-(x_quad ** 2))
         
         # Compute the integrand: (1 - exp(-tau * exp(-x^2)))
@@ -175,14 +175,11 @@ class Intensity:
 
         # Apply weights and integrate
         # The Gaussian quadrature already includes the exp(-x^2) weighting
-        weights = cls._GAUSS_QUAD_W #* exp_neg_x_squared[0, :]  # Shape: (20,)
+        weights = cls._GAUSS_QUAD_W 
         integrand = 1.0 - np.exp(-tau_flat[:, None] * exp_neg_x_squared)  # (n_tau, n_quad)
         #integral_values = np.dot(integrand, weights)  # Shape: (n_tau_values,)
         
-        integral_values = integrand @ weights  # no extra exp(-x^2) in weights
-        
-        # Apply the normalization factor (2/sqrt(pi))
-        integral_values *= (2.0 / np.sqrt(np.pi))
+        integral_values = integrand @ weights
         
         return integral_values.reshape(original_shape)
 
