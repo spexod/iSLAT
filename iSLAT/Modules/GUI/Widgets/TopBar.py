@@ -45,8 +45,6 @@ class TopBar(ResizableFrame):
         self.config = config
         self.control_panel = control_panel
 
-
-
         self.button_frame = tk.Frame(self)
         self.button_frame.grid(row=0, column=1)
 

@@ -63,9 +63,10 @@ class iSLATPlot:
         self.saved_lines = []
         self.atomic_toggle: bool = False
 
-        self.fig = plt.Figure(figsize=(15, 8.5))
+        #self.fig = plt.Figure(figsize=(15, 8.5))
+        self.fig = plt.Figure(constrained_layout=True)
         # Adjust subplot parameters to minimize margins and maximize plot area
-        self.fig.subplots_adjust(left=0.08, bottom=0.08, right=0.98, top=0.95, hspace=0.25)
+        #self.fig.subplots_adjust(left=0.06, bottom=0.06, right=0.98, top=0.96, hspace=0.15, wspace=0.15)
         gs = GridSpec(2, 2, width_ratios=[1, 1], height_ratios=[1, 1.5], figure=self.fig)
         self.ax1 = self.full_spectrum = self.fig.add_subplot(gs[0, :])
         self.ax2 = self.line_inspection = self.fig.add_subplot(gs[1, 0])

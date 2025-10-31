@@ -1,8 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 
-
-
 class ResizableFrame(tk.Frame):
     """A frame that can be resized by dragging its borders and provides consolidated theming."""
     

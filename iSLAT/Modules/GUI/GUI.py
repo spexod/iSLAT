@@ -40,197 +40,6 @@ class GUI:
 
     def _style_config(self):
         self.style.configure("Small.TButton", padding=(0, 5))
-
-    def _apply_theme_to_widget(self, widget):
-        """Apply theme colors to a tkinter widget and its children."""
-        try:
-            # Apply theme to the widget itself
-            widget_class = widget.winfo_class()
-            
-            if widget_class in ['Frame', 'Toplevel', 'Tk']:
-                widget.configure(bg=self.theme["background"])
-            elif widget_class == 'LabelFrame':
-                widget.configure(
-                    bg=self.theme["background"], 
-                    fg=self.theme["foreground"]
-                )
-            elif widget_class == 'Label':
-                widget.configure(bg=self.theme["background"], fg=self.theme["foreground"])
-            elif widget_class == 'Button':
-                # Check if this is a marked color selection button
-                if hasattr(widget, '_is_color_button') and widget._is_color_button:
-                    # This is a color selection button - never theme it
-                    pass
-                else:
-                    # Check other characteristics to preserve color buttons
-                    current_bg = widget.cget('bg')
-                    current_text = widget.cget('text')
-                    
-                    # Don't theme color selection buttons (preserve molecule colors)
-                    # Color selection buttons typically have hex color backgrounds
-                    if (current_bg and current_bg.startswith('#') and len(current_bg) == 7 and 
-                        current_text == "" and widget.cget('width') <= 4):
-                        # This is likely a color selection button - preserve its color
-                        pass
-                    # Don't theme delete buttons - they have their own special theme
-                    elif current_text == "X":
-                        # This is a delete button - it should be themed by its own component
-                        pass
-                    # Only apply theme if the button has default styling
-                    elif widget.cget('bg') in ['SystemButtonFace', '#d9d9d9', '#ececec', 'lightgray']:
-                        btn_theme = self.theme["buttons"].get("DefaultBotton", self.theme["buttons"]["DefaultBotton"])
-                        widget.configure(
-                            bg=btn_theme["background"],
-                            fg=self.theme["foreground"],
-                            activebackground=btn_theme["active_background"],
-                            activeforeground=self.theme["foreground"]
-                        )
-            elif widget_class == 'Entry':
-                widget.configure(
-                    bg=self.theme["background_accent_color"], 
-                    fg=self.theme["foreground"],
-                    insertbackground=self.theme["foreground"],
-                    selectbackground=self.theme["selection_color"],
-                    selectforeground=self.theme["background"]
-                )
-            elif widget_class == 'Text':
-                widget.configure(
-                    bg=self.theme["background_accent_color"], 
-                    fg=self.theme["foreground"],
-                    insertbackground=self.theme["foreground"],
-                    selectbackground=self.theme["selection_color"],
-                    selectforeground=self.theme["background"]
-                )
-            elif widget_class == 'Listbox':
-                widget.configure(
-                    bg=self.theme["background_accent_color"], 
-                    fg=self.theme["foreground"],
-                    selectbackground=self.theme["selection_color"],
-                    selectforeground=self.theme["background"]
-                )
-            elif widget_class == 'Checkbutton':
-                widget.configure(
-                    bg=self.theme["background"], 
-                    fg=self.theme["foreground"],
-                    activebackground=self.theme["background"],
-                    activeforeground=self.theme["foreground"],
-                    selectcolor=self.theme["background_accent_color"]
-                )
-            elif widget_class == 'Radiobutton':
-                widget.configure(
-                    bg=self.theme["background"], 
-                    fg=self.theme["foreground"],
-                    activebackground=self.theme["background"],
-                    activeforeground=self.theme["foreground"],
-                    selectcolor=self.theme["background_accent_color"]
-                )
-            elif widget_class == 'Scale':
-                widget.configure(
-                    bg=self.theme["background"], 
-                    fg=self.theme["foreground"],
-                    activebackground=self.theme["selection_color"],
-                    troughcolor=self.theme["background_accent_color"]
-                )
-            elif widget_class == 'Scrollbar':
-                widget.configure(
-                    bg=self.theme["background_accent_color"],
-                    troughcolor=self.theme["background"],
-                    activebackground=self.theme["selection_color"]
-                )
-            elif widget_class == 'LabelFrame':
-                widget.configure(
-                    bg=self.theme["background"], 
-                    fg=self.theme["foreground"]
-                )
-            elif widget_class == 'Canvas':
-                widget.configure(bg=self.theme["background"])
-            elif widget_class == 'Menu':
-                widget.configure(
-                    bg=self.theme["background_accent_color"], 
-                    fg=self.theme["foreground"],
-                    activebackground=self.theme["selection_color"],
-                    activeforeground=self.theme["background"]
-                )
-            elif widget_class == 'Spinbox':
-                widget.configure(
-                    bg=self.theme["background_accent_color"], 
-                    fg=self.theme["foreground"],
-                    buttonbackground=self.theme["background_accent_color"],
-                    insertbackground=self.theme["foreground"],
-                    selectbackground=self.theme["selection_color"],
-                    selectforeground=self.theme["background"]
-                )
-            elif widget_class == 'Combobox' or widget_class in ['TCombobox']:
-                # For ttk widgets, we need to use ttk styles
-                try:
-                    style = ttk.Style()
-                    style.configure("Themed.TCombobox",
-                                  fieldbackground=self.theme["background_accent_color"],
-                                  background=self.theme["background_accent_color"],
-                                  foreground=self.theme["foreground"],
-                                  bordercolor=self.theme["background_accent_color"])
-                    widget.configure(style="Themed.TCombobox")
-                except:
-                    pass
-            elif widget_class == 'Treeview' or widget_class in ['TTreeview']:
-                try:
-                    style = ttk.Style()
-                    style.configure("Themed.Treeview",
-                                  background=self.theme["background_accent_color"],
-                                  foreground=self.theme["foreground"],
-                                  fieldbackground=self.theme["background_accent_color"],
-                                  selectbackground=self.theme["selection_color"],
-                                  selectforeground=self.theme["background"])
-                    widget.configure(style="Themed.Treeview")
-                except:
-                    pass
-            elif widget_class in ['TScrollbar']:
-                try:
-                    style = ttk.Style()
-                    style.configure("Themed.Vertical.TScrollbar",
-                                  background=self.theme["background_accent_color"],
-                                  troughcolor=self.theme["background"],
-                                  bordercolor=self.theme["background_accent_color"],
-                                  arrowcolor=self.theme["foreground"],
-                                  darkcolor=self.theme["background_accent_color"],
-                                  lightcolor=self.theme["background_accent_color"])
-                    style.map("Themed.Vertical.TScrollbar",
-                             background=[('active', self.theme["selection_color"]),
-                                       ('pressed', self.theme["selection_color"])])
-                    widget.configure(style="Themed.Vertical.TScrollbar")
-                except:
-                    pass
-            elif widget_class in ['TFrame']:
-                try:
-                    style = ttk.Style()
-                    style.configure("Themed.TFrame",
-                                  background=self.theme["background"])
-                    widget.configure(style="Themed.TFrame")
-                except:
-                    pass
-            elif widget_class in ['TLabel']:
-                try:
-                    style = ttk.Style()
-                    style.configure("Themed.TLabel",
-                                  background=self.theme["background"],
-                                  foreground=self.theme["foreground"])
-                    widget.configure(style="Themed.TLabel")
-                except:
-                    pass
-            elif widget_class == 'PanedWindow':
-                widget.configure(
-                    bg=self.theme["background"],
-                    sashrelief='raised'
-                )
-            
-            # Recursively apply theme to children
-            for child in widget.winfo_children():
-                pass
-                # self._apply_theme_to_widget(child)
-                
-        except tk.TclError:
-            # Some widgets might not support certain options
-            pass
     
     def _force_theme_update(self):
         """Force theme update on all widgets in the window."""
@@ -283,26 +92,15 @@ class GUI:
         self.window = self.master
         self.window.title("iSLAT Version 5.00.00")
         
-        # Configure main window for resizable layout
-        self.window.grid_rowconfigure(0, weight=0)
-        self.window.grid_rowconfigure(1, weight=1)
-        self.window.grid_columnconfigure(0, weight=1)
-        
         # Create a main container frame
         main_container = ttk.Frame(self.window)
-        main_container.grid(row=1, column=0, sticky="nsew")
 
         # Create frames for left panel and right panel (plot)
         left_main_frame = tk.Frame(main_container)
-        left_main_frame.grid(row= 0, column= 0, sticky="nsew")
+        left_main_frame.pack(side="left", fill="y", expand=False, padx=0, pady=0)
 
         right_main_frame = tk.Frame(main_container)
-        right_main_frame.grid(row= 0, column= 1, sticky="nsew")
-        
-        # Configure right frame for responsive plot
-        main_container.grid_rowconfigure(0, weight=1)
-        main_container.grid_columnconfigure(0, weight=0)
-        main_container.grid_columnconfigure(1, weight=1)
+        right_main_frame.pack(side="right", fill="both", expand=True, padx=0, pady=0)
         
         # Create the plot directly in right_frame without extra container
         self.plot = iSLATPlot(right_main_frame, self.wave_data, self.flux_data, self.theme, self.islat_class)
@@ -312,12 +110,11 @@ class GUI:
 
         # Bottom function buttons
         self.top_bar = TopBar(self.window, self.islat_class, self.theme, self.plot, self.data_field, self.control_panel, self.config)
-        self.top_bar.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.top_bar.pack(side="top", fill="x", padx=0, pady=0)
 
-        # Force theme updates to catch any missed widgets
-        self.window.after(100, self._force_theme_update)
-        # Additional delayed update to catch any widgets created asynchronously
-        self.window.after(500, self._force_theme_update)
+        main_container.pack(fill="both", expand=True, padx=0, pady=0)
+
+        self._force_theme_update()
 
     def start(self):
         self.create_window()
