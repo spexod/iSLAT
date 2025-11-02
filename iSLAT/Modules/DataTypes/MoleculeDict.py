@@ -886,7 +886,7 @@ class MoleculeDict(dict):
     @global_model_pixel_res.setter
     def global_model_pixel_res(self, value: Optional[float]) -> None:
         old_value = self._global_model_pixel_res
-        value = f'{value:.2e}'
+        #value = f'{value:.2e}'
         value = float(value)
         self._global_model_pixel_res = value
         self.bulk_update_parameters({'model_pixel_res': value})
