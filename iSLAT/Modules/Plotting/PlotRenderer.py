@@ -635,7 +635,7 @@ class PlotRenderer:
                     color=self._get_theme_value("saved_line_color", self._get_theme_value("saved_line_color_one", "red")),
                     alpha=0.7, 
                     linestyle=':', 
-                    label=f"Saved: {line.get('label', 'Line')}"
+                    # label=f"Saved: {line.get('label', 'Line')}"
                 ))
             
             if 'xmin' in line and 'xmax' in line:
