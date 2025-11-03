@@ -171,7 +171,8 @@ class FullSpectrumPlot:
                 summed_wavelengths=summed_wavelengths,
                 summed_flux=summed_flux
             )
-            plot_renderer.plot_saved_lines(self.line_data, self.saved_lines, fig = self.subplots[n])
+            if self.islat_ref.GUI.top_bar.line_toggle:
+                plot_renderer.plot_saved_lines(self.line_data, self.saved_lines, fig = self.subplots[n])
             
             plt.draw()
             
