@@ -51,6 +51,7 @@ class FullSpectrumPlot:
         self.line_data: Optional[pd.DataFrame] = None
         self.wave: Optional[np.ndarray] = None
         self.flux: Optional[np.ndarray] = None
+        self.saved_lines: List[np.ndarray] = []
         
         # Plot attributes
         self.fig: Optional["Figure"] = None
@@ -70,6 +71,8 @@ class FullSpectrumPlot:
             
             self.line_data = pd.read_csv(self.saved_lines_path, sep=',')
             self.spectrum_data = pd.read_csv(self.spectrum_path, sep=',')
+
+            self.saved_lines = []
             
             # Apply radial velocity correction
             rv = self.islat_ref.molecules_dict.global_stellar_rv
@@ -168,6 +171,7 @@ class FullSpectrumPlot:
                 summed_wavelengths=summed_wavelengths,
                 summed_flux=summed_flux
             )
+            plot_renderer.plot_saved_lines(self.line_data, self.saved_lines, fig = self.subplots[n])
             
             plt.draw()
             
