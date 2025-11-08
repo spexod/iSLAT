@@ -57,7 +57,7 @@ else:
 __all__ = ["Intensity"]
 
 class Intensity:
-    __slots__ = ('_molecule', '_intensity', '_tau', '_t_kin', '_n_mol', '_dv', '_cache_valid')
+    __slots__ = ('_molecule', '_intensity', '_tau', '_t_kin', '_n_mol', '_dv', '_cache_valid', '_sorted_idx', '_sorted_freq')
     
     def __init__(self, molecule_line_list: 'MoleculeLineList') -> None:
         """Initialize an intensity class which calculates the intensities for a given molecule and provided
@@ -80,6 +80,8 @@ class Intensity:
         self._n_mol: Optional[float] = None
         self._dv: Optional[float] = None
         self._cache_valid: bool = False
+        self._sorted_idx: Optional[np.ndarray] = None
+        self._sorted_freq: Optional[np.ndarray] = None
 
     @staticmethod
     def _bb(nu: np.ndarray, T: float) -> np.ndarray:
@@ -140,10 +142,9 @@ class Intensity:
                 cls._GAUSS_QUAD_X = np.linspace(-6, 6, 20)  # Store actual x values
                 cls._GAUSS_QUAD_W = np.ones(20) * (12.0 / 20.0)  # Simple uniform weighting
                 cls._GAUSS_QUAD_INITIALIZED = True
-    
-    @classmethod 
-    def _fint_multi(cls, center_tau: np.ndarray, dv_cond: np.ndarray,
-                   bb_vals: np.ndarray, freq_ratio: np.ndarray, sqrt_ln2_inv: float, 
+
+    def _fint_multi(self, center_tau: np.ndarray, dv_cond: np.ndarray,
+                   bb_vals: np.ndarray, freq_ratio: np.ndarray, sqrt_ln2_inv: float,
                    frequencies: np.ndarray) -> np.ndarray:
         """
         Calculate spectral line intensities with proper treatment of overlapping lines.
@@ -192,6 +193,7 @@ class Intensity:
         - Uses Gaussian quadrature for numerical integration of curve-of-growth
         - Velocity overlap criterion: lines within 10 km/s are considered overlapping
         """
+        cls = self.__class__
         # Initialize quadrature points and weights
         if not cls._GAUSS_QUAD_INITIALIZED:
             cls._initialize_gauss_quad()
@@ -215,9 +217,13 @@ class Intensity:
         # Convert velocity cutoff to frequency tolerance
         freq_tolerance = np.max(dv_cond) * frequencies / c.SPEED_OF_LIGHT_KMS
 
-        # Sort indices by frequency for efficient range queries
-        sort_indices = np.argsort(frequencies)
-        sorted_frequencies = frequencies[sort_indices]
+        # Cache sorted order per instance (frequencies are from the molecule and stable)
+        if self._sorted_idx is None:
+            self._sorted_idx = np.argsort(frequencies)
+            self._sorted_freq = frequencies[self._sorted_idx]
+
+        sort_indices = self._sorted_idx
+        sorted_frequencies = self._sorted_freq
         tol_sorted = freq_tolerance[sort_indices]
 
         # If every adjacent pair is separated by more than the stricter of the two tolerances,
@@ -385,13 +391,14 @@ class Intensity:
         # Vectorized partition function
         q_sum_vals: np.ndarray = np.interp(t_kin_flat, partition.t, partition.q)
         
-        invT = 1.0 / t_kin_flat
-        # multiply.outer avoids a Python-level temporary from broadcasting:
+        invT = (1.0 / t_kin_flat).astype(np.float64, copy=False)
         exp_low = np.exp(-np.multiply.outer(invT, lines.e_low))
         exp_up  = np.exp(-np.multiply.outer(invT, lines.e_up))
         q_sum_inv = (1.0 / q_sum_vals)[:, None]
-        x_low = exp_low * (lines.g_low[None, :] * q_sum_inv)
-        x_up  = exp_up  * (lines.g_up[None, :]  * q_sum_inv)
+        g_low = lines.g_low[None, :]
+        g_up  = lines.g_up[None, :]
+        x_low = exp_low * (g_low * q_sum_inv)
+        x_up  = exp_up  * (g_up  * q_sum_inv)
         
         freq_factor = (c.SPEED_OF_LIGHT_CGS ** 3 / 
                       (8.0 * np.pi * lines.freq[np.newaxis, :] ** 3 * 
