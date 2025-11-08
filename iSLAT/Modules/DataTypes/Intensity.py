@@ -126,6 +126,7 @@ class Intensity:
                 # Transform from [-1,1] to [-6,6] and pre-compute exp(-x^2)
                 #cls._GAUSS_QUAD_X = np.exp(-(6.0 * x_quad) ** 2)  # Pre-compute exp(-x^2)
                 cls._GAUSS_QUAD_X = 6.0 * x_quad  # Store actual quadrature points
+                cls._GAUSS_QUAD_EXP = np.exp(-(cls._GAUSS_QUAD_X ** 2))
                 cls._GAUSS_QUAD_W = 6.0 * w_quad
                 cls._GAUSS_QUAD_INITIALIZED = True
             except ImportError:
@@ -137,7 +138,7 @@ class Intensity:
                 cls._GAUSS_QUAD_INITIALIZED = True
     
     @classmethod 
-    def _fint_multi(cls, line_groups: list, center_tau: np.ndarray, dv_cond: np.ndarray,
+    def _fint_multi(cls, center_tau: np.ndarray, dv_cond: np.ndarray,
                    bb_vals: np.ndarray, freq_ratio: np.ndarray, sqrt_ln2_inv: float, 
                    frequencies: np.ndarray) -> np.ndarray:
         """
@@ -164,8 +165,6 @@ class Intensity:
         
         Parameters
         ----------
-        line_groups : list
-            Legacy parameter for compatibility (not used in current implementation)
         center_tau : np.ndarray, shape (n_conditions, n_lines)
             Line center optical depths for all physical conditions and lines
         dv_cond : np.ndarray, shape (n_conditions,)
@@ -195,95 +194,66 @@ class Intensity:
         
         # Setup arrays and extract dimensions
         dv_cond = np.atleast_1d(dv_cond)
-        n_cond, n_lines = center_tau.shape
         intensity = np.zeros_like(center_tau)
         
-        # Early return for empty line list
-        if n_lines == 0:
-            return intensity
-        
         # Quadrature setup for curve-of-growth integration
-        x = cls._GAUSS_QUAD_X[np.newaxis, :]  # shape: (1, n_quad)
-        exp_neg_x_squared = np.exp(-x ** 2)   # Gaussian weighting
+        exp_neg_x_squared = cls._GAUSS_QUAD_EXP[np.newaxis, :]  # (1, n_quad)
         weights = cls._GAUSS_QUAD_W
         
         # ═══════════════════════════════════════════════════════════════
         # STEP 1: Identify isolated vs. overlapping lines
         # ═══════════════════════════════════════════════════════════════
         
-        # Physical overlap criterion: lines within 10 km/s velocity separation  
-        # Prevents spurious overlap detection for large datasets
+        # Physical overlap criterion: lines within 10 km/s velocity separation. prevents spurious overlap detection for large datasets
         #cutoff_velocity = min(10.0, 3 * np.max(dv_cond))  # km/s
-        cutoff_velocity = np.max(dv_cond)  # km/s
+        #cutoff_velocity = np.max(dv_cond)  # km/s
         
-        """
-        Efficient spectral line overlap detection and grouping algorithm.
-        Uses Union-Find with vectorized NumPy operations for O(n log n) performance.
-        """
         # Convert velocity cutoff to frequency tolerance
-        freq_tolerance = cutoff_velocity * frequencies / c.SPEED_OF_LIGHT_KMS
-        
+        freq_tolerance = np.max(dv_cond) * frequencies / c.SPEED_OF_LIGHT_KMS
+
         # Sort indices by frequency for efficient range queries
         sort_indices = np.argsort(frequencies)
         sorted_frequencies = frequencies[sort_indices]
+        tol_sorted = freq_tolerance[sort_indices]
+
+        # If every adjacent pair is separated by more than the stricter of the two tolerances,
+        # then there are no overlaps anywhere; do the isolated batch and return.
+        gaps = np.diff(sorted_frequencies)
+        if gaps.size == 0 or np.all(gaps > np.maximum(tol_sorted[:-1], tol_sorted[1:])):
+            # Pre-compute physical factors (same as in STEP 2)
+            physical_factors = sqrt_ln2_inv * 1e5 * dv_cond[:, np.newaxis] * freq_ratio * bb_vals
+
+            # Vectorized curve-of-growth for all lines at once
+            integrand = 1.0 - np.exp(-center_tau[:, :, np.newaxis] * exp_neg_x_squared)  # (n_cond, n_lines, n_quad)
+            fint_vals = integrand @ weights                                             # (n_cond, n_lines)
+            return physical_factors * fint_vals
         
-        # Initialize Union-Find structure with path compression
-        parent = np.arange(n_lines, dtype=np.int32)
-        
-        # Vectorized Union-Find operations
-        def find_root(indices):
-            """Find root with vectorized path compression."""
-            roots = indices.copy()
-            while True:
-                new_roots = parent[roots]
-                mask = new_roots != roots
-                if not np.any(mask):
-                    break
-                parent[roots[mask]] = new_roots[mask]
-                roots = new_roots
-            return roots
-        
-        # Process overlaps using vectorized operations where possible
-        for i in range(n_lines):
-            current_freq = sorted_frequencies[i]
-            current_idx = sort_indices[i]
-            current_tol = freq_tolerance[current_idx]
-            
-            # Binary search for potential overlap candidates
-            left_idx = np.searchsorted(sorted_frequencies, current_freq - current_tol, side='left')
-            right_idx = np.searchsorted(sorted_frequencies, current_freq + current_tol, side='right')
-            
-            if right_idx > left_idx + 1:  # More than just current line
-                # Vectorized overlap detection within range
-                candidate_indices = sort_indices[left_idx:right_idx]
-                candidate_freqs = sorted_frequencies[left_idx:right_idx]
-                candidate_tols = freq_tolerance[candidate_indices]
-                
-                # Vectorized mutual overlap check
-                freq_diffs = np.abs(candidate_freqs - current_freq)
-                overlap_mask = (freq_diffs <= current_tol) | (freq_diffs <= candidate_tols)
-                overlapping_indices = candidate_indices[overlap_mask]
-                
-                # Union overlapping lines
-                if len(overlapping_indices) > 1:
-                    root_current = find_root(np.array([current_idx]))[0]
-                    roots_others = find_root(overlapping_indices[overlapping_indices != current_idx])
-                    parent[roots_others] = root_current
-        
-        # Group lines by final root assignment
-        final_roots = find_root(np.arange(n_lines))
-        unique_roots, inverse_indices = np.unique(final_roots, return_inverse=True)
-        
+        # Lines are already sorted by frequency; expand contiguous windows while
+        # adjacent pairs are within either neighbor's tolerance (max of the pair).
         isolated_lines = []
         blended_groups = {}
-        
-        for i, root in enumerate(unique_roots):
-            group_members = np.where(inverse_indices == i)[0]
-            if len(group_members) == 1:
-                isolated_lines.append(group_members[0])
+
+        i = 0
+        n_sorted = sorted_frequencies.size
+        while i < n_sorted:
+            j = i + 1
+            # Grow the group while neighbors mutually overlap
+            while j < n_sorted:
+                gap = sorted_frequencies[j] - sorted_frequencies[j - 1]
+                if gap <= max(tol_sorted[j], tol_sorted[j - 1]):
+                    j += 1
+                else:
+                    break
+
+            # Map back to original indices
+            group_orig_idx = sort_indices[i:j]
+            if group_orig_idx.size == 1:
+                isolated_lines.append(int(group_orig_idx[0]))
             else:
-                group_key = tuple(sorted(group_members))
-                blended_groups[group_key] = group_members
+                key = tuple(np.sort(group_orig_idx))
+                blended_groups[key] = group_orig_idx
+
+            i = j
         
         # ═══════════════════════════════════════════════════════════════
         # STEP 2: Process isolated lines (optimized vectorization)
@@ -344,67 +314,6 @@ class Intensity:
             )
 
         return intensity
-
-    def _find_overlapping_line_groups(self, frequencies: np.ndarray, dv_vals: np.ndarray) -> list:
-        """
-        Find groups of lines that overlap within the broadening parameter.
-        
-        Parameters
-        ----------
-        frequencies : np.ndarray
-            Line frequencies in Hz
-        dv_vals : np.ndarray
-            Broadening velocities in km/s for each condition
-            
-        Returns
-        -------
-        list
-            List of lists, each containing indices of overlapping lines and their velocity separations
-        """
-        n_lines = len(frequencies)
-        if n_lines <= 1:
-            return [[i] for i in range(n_lines)]
-        
-        # Use maximum broadening to be conservative
-        max_dv = np.max(dv_vals)  # km/s
-        
-        # Sort lines by frequency for efficient grouping
-        sorted_indices = np.argsort(frequencies)
-        sorted_freqs = frequencies[sorted_indices]
-        
-        groups = []
-        used = set()
-        
-        for i, idx in enumerate(sorted_indices):
-            if idx in used:
-                continue
-                
-            # Start a new group with this line
-            group = np.array([(idx, 0.0)])  # (line index, delta_v)
-            used.add(idx)
-            freq_center = frequencies[idx]
-            
-            # Find all lines within broadening distance
-            for j, idx2 in enumerate(sorted_indices[i+1:], i+1):
-                if idx2 in used:
-                    continue
-                    
-                freq2 = frequencies[idx2]
-                # Calculate velocity separation in km/s
-                delta_v = (freq_center - freq2) / freq_center * c.SPEED_OF_LIGHT_KMS
-
-                if abs(delta_v) <= max_dv:  # Within broadening parameter
-                    #group = np.append(group, np.array([(idx2, delta_v)]), axis=0)
-                    group = np.vstack([group, (idx2, delta_v)])
-                    used.add(idx2)
-                else:
-                    # Lines are sorted, so we can break here
-                    break
-            
-            #print("Formed group:\n", group)
-            groups.append(group)
-        
-        return groups
 
     def _calc_intensity_core(self, t_kin_vals: np.ndarray, n_mol_vals: np.ndarray, 
                             dv_vals: np.ndarray, method: str = "curve_growth") -> tuple:
@@ -481,7 +390,7 @@ class Intensity:
                      n_mol_flat[:, np.newaxis] * population_factor)
 
         # Group overlapping lines (within broadening parameter) 
-        line_groups = self._find_overlapping_line_groups(lines.freq, dv_flat)
+        #line_groups = self._find_overlapping_line_groups(lines.freq, dv_flat)
         
         # Blackbody calculation - vectorized for all temperatures at once
         bb_vals = self._bb(lines.freq[np.newaxis, :], t_kin_flat[:, np.newaxis])
@@ -499,7 +408,7 @@ class Intensity:
             intensity = (c.FGAUSS_PREFACTOR * 1e5 * dv_flat[:, np.newaxis] * 
                                 freq_ratio * bb_vals * (1.0 - np.exp(-center_tau)))
         elif method == "curve_growth":
-            fint_val = self._fint_multi(line_groups, center_tau, dv_flat, 
+            fint_val = self._fint_multi(center_tau, dv_flat, 
                                       bb_vals, freq_ratio, sqrt_ln2_inv, lines.freq)
             intensity = fint_val
         
