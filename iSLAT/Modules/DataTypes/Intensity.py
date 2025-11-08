@@ -213,7 +213,8 @@ class Intensity:
         
         # Physical overlap criterion: lines within 10 km/s velocity separation  
         # Prevents spurious overlap detection for large datasets
-        cutoff_velocity = min(10.0, 3 * np.max(dv_cond))  # km/s
+        #cutoff_velocity = min(10.0, 3 * np.max(dv_cond))  # km/s
+        cutoff_velocity = np.max(dv_cond)  # km/s
         
         """
         Efficient spectral line overlap detection and grouping algorithm.
@@ -331,8 +332,8 @@ class Intensity:
             fint_total = integrand_total @ weights
             
             # VECTORIZED: Calculate all fractional contributions at once
-            tau_fractions = tau_group / (tau_total[:, np.newaxis] + 1e-20)  # (n_cond, n_overlap)
-            tau_fractions = np.clip(tau_fractions, 0.0, 1.0)
+            tau_fractions = tau_group / (tau_total[:, np.newaxis])  # (n_cond, n_overlap)
+            #tau_fractions = np.clip(tau_fractions, 0.0, 1.0)
             
             # VECTORIZED: Calculate all line shares at once
             fint_lines = fint_total[:, np.newaxis] * tau_fractions  # (n_cond, n_overlap)
@@ -390,9 +391,9 @@ class Intensity:
                     
                 freq2 = frequencies[idx2]
                 # Calculate velocity separation in km/s
-                delta_v = abs(freq_center - freq2) / freq_center * c.SPEED_OF_LIGHT_KMS
-                
-                if delta_v <= max_dv:  # Within broadening parameter
+                delta_v = (freq_center - freq2) / freq_center * c.SPEED_OF_LIGHT_KMS
+
+                if abs(delta_v) <= max_dv:  # Within broadening parameter
                     #group = np.append(group, np.array([(idx2, delta_v)]), axis=0)
                     group = np.vstack([group, (idx2, delta_v)])
                     used.add(idx2)
