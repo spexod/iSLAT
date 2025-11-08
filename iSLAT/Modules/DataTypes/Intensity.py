@@ -402,21 +402,25 @@ class Intensity:
         q_sum_vals: np.ndarray = np.interp(t_kin_flat, partition.t, partition.q)
         
         invT = (1.0 / t_kin_flat).astype(np.float64, copy=False)
-        exp_low = np.exp(-np.multiply.outer(invT, lines.e_low))
-        exp_up  = np.exp(-np.multiply.outer(invT, lines.e_up))
-        q_sum_inv = (1.0 / q_sum_vals)[:, None]
-        g_low = lines.g_low[None, :]
-        g_up  = lines.g_up[None, :]
-        x_low = exp_low * (g_low * q_sum_inv)
-        x_up  = exp_up  * (g_up  * q_sum_inv)
-        
-        freq_factor = (c.SPEED_OF_LIGHT_CGS ** 3 / 
-                      (8.0 * np.pi * lines.freq[np.newaxis, :] ** 3 * 
-                       (1e5 * dv_flat[:, np.newaxis] * c.FGAUSS_PREFACTOR)))
-        
-        population_factor = (x_low * lines.g_up[np.newaxis, :] / lines.g_low[np.newaxis, :] - x_up)
-        center_tau = (lines.a_stein[np.newaxis, :] * freq_factor * 
-                     n_mol_flat[:, np.newaxis] * population_factor)
+
+        # 1D condition terms
+        cond_term = 1.0 / (1e5 * dv_flat * c.FGAUSS_PREFACTOR)           # (n_cond,)
+        q_sum_inv = (1.0 / q_sum_vals)                                    # (n_cond,)
+        # 1D line terms
+        line_term = (c.SPEED_OF_LIGHT_CGS ** 3) / (8.0 * np.pi * lines.freq ** 3)  # (n_lines,)
+        g_up   = lines.g_up
+        a_stein= lines.a_stein
+
+        # --- Fewer exponentials for Boltzmann difference ---
+        E_low   = np.einsum('i,l->il', invT, lines.e_low,                 optimize=True)
+        E_delta = np.einsum('i,l->il', invT, (lines.e_up - lines.e_low),  optimize=True)
+        exp_low = np.exp(-E_low)
+        boltz_diff = exp_low * (-(np.expm1(-E_delta)))   # = exp_low - exp_up
+
+        # --- Compact center_tau contraction ---
+        cond_scalar = n_mol_flat * cond_term * q_sum_inv
+        line_scalar = line_term * g_up * a_stein
+        center_tau  = np.einsum('i,il,l->il', cond_scalar, boltz_diff, line_scalar, optimize=True)
         
         # Blackbody calculation - vectorized for all temperatures at once
         bb_vals = self._bb(lines.freq[:], t_kin_flat[:])
