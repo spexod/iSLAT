@@ -42,7 +42,7 @@ class FullSpectrumPlot:
         self.xlim1 = np.arange(self.xlim_start, self.xlim_end, self.step)
         self.offset_label = kwargs.get('offset_label', 0.003)
         self.ymax_factor = kwargs.get('ymax_factor', 0.2)
-        self.figsize = kwargs.get('figsize', (12, 16))
+        #self.figsize = kwargs.get('figsize', (12, 16))
         
         # Data attributes
         self.spectrum_path: Optional[Path] = None
@@ -66,9 +66,6 @@ class FullSpectrumPlot:
         """Load spectrum and line data from files."""
         try:
             self.spectrum_path = Path(self.islat_ref.loaded_spectrum_file)
-            self.saved_lines_path = Path(self.islat_ref.input_line_list)
-            
-            self.line_data = pd.read_csv(self.saved_lines_path, sep=',')
             self.spectrum_data = pd.read_csv(self.spectrum_path, sep=',')
             
             # Apply radial velocity correction
@@ -76,10 +73,15 @@ class FullSpectrumPlot:
             self.wave = self.spectrum_data['wave'].values
             self.wave = self.wave - (self.wave / SPEED_OF_LIGHT_KMS * rv)
             self.flux = self.spectrum_data['flux'].values
-            
         except Exception as e:
             print(f"Error loading data: {e}")
             raise
+        try:
+            self.saved_lines_path = Path(self.islat_ref.input_line_list)
+            self.line_data = pd.read_csv(self.saved_lines_path, sep=',')
+        except Exception as e:
+            #print(f"Error loading line data: {e}")
+            self.line_data = None
     
     def _prepare_molecule_info(self):
         """Prepare molecule labels and colors for legend."""
@@ -106,34 +108,47 @@ class FullSpectrumPlot:
         ymin, ymax : float
             Y-axis limits for line annotations
         """
-        # Get wavelength column (flexible column naming)
-        svd_lamb = np.array(self.line_data['wave'] if 'wave' in self.line_data.columns else self.line_data['lam'])
-        svd_species = self.line_data['species']
-        
-        # Handle missing line ID column
-        if 'line' not in self.line_data.columns:
-            self.line_data['line'] = [''] * len(self.line_data)
-        svd_lineID = np.array(self.line_data['line'])
-        
-        # Plot lines in the current wavelength range
-        for i in range(len(svd_lamb)):
-            if xr[0] < svd_lamb[i] < xr[1]:
-                ax.vlines(svd_lamb[i], ymin, ymax, linestyles='dotted', 
-                         color='grey', linewidth=0.7)
-                
-                # Position label
-                label_y = ymax
-                label_x = svd_lamb[i] + self.offset_label
-                
-                ax.text(label_x, label_y, f"{svd_species[i]} {svd_lineID[i]}", 
-                       fontsize=6, rotation=90, va='top', ha='left', color='grey')
+        if hasattr(self, 'line_data') and self.line_data is not None:
+            # Get wavelength column (flexible column naming)
+            svd_lamb = np.array(self.line_data['wave'] if 'wave' in self.line_data.columns else self.line_data['lam'])
+            svd_species = self.line_data['species']
+            
+            # Handle missing line ID column
+            if 'line' not in self.line_data.columns:
+                self.line_data['line'] = [''] * len(self.line_data)
+            svd_lineID = np.array(self.line_data['line'])
+            
+            # Plot lines in the current wavelength range
+            for i in range(len(svd_lamb)):
+                if xr[0] < svd_lamb[i] < xr[1]:
+                    ax.vlines(svd_lamb[i], ymin, ymax, linestyles='dotted', 
+                            color='grey', linewidth=0.7)
+                    
+                    # Position label
+                    label_y = ymax
+                    label_x = svd_lamb[i] + self.offset_label
+                    
+                    ax.text(label_x, label_y, f"{svd_species[i]} {svd_lineID[i]}", 
+                        fontsize=6, rotation=90, va='top', ha='left', color='grey')
+        else:
+            pass
+            #print("No line data available for annotations.")
     
     def generate_plot(self):
         """Generate the full spectrum plot with multiple panels."""
-        self.fig = plt.figure(figsize=self.figsize)
-        
+        if not hasattr(self, 'fig') or self.fig is None:
+            if hasattr(self, 'figsize'):
+                self.fig = plt.figure(figsize=self.figsize)
+            else:
+                self.fig = plt.figure()
+
         plot_renderer = self.islat_ref.GUI.get_plot_renderer()
         
+        # Get summed flux for molecules
+        summed_wavelengths, summed_flux = self.islat_ref.molecules_dict.get_summed_flux(
+            self.islat_ref.wave_data_original, visible_only=True
+        )
+
         for n, xlim in enumerate(self.xlim1):
             # Create subplot for current wavelength range
             xr = [self.xlim1[n], self.xlim1[n] + self.step]
@@ -154,11 +169,6 @@ class FullSpectrumPlot:
             # Plot line annotations
             self._plot_line_list(self.subplots[n], xr, ymin, ymax)
             
-            # Get summed flux for molecules
-            summed_wavelengths, summed_flux = self.islat_ref.molecules_dict.get_summed_flux(
-                self.islat_ref.wave_data_original, visible_only=True
-            )
-            
             # Render the spectrum and molecules
             plot_renderer.render_main_spectrum_output(
                 subplot=self.subplots[n],
@@ -169,26 +179,23 @@ class FullSpectrumPlot:
                 summed_flux=summed_flux
             )
             
-            plt.draw()
+            #plt.draw()
             
-            # Add legend to first panel
-            if n == 0:
-                plt.legend()
-                plt.legend(
-                    self.mol_labels,
-                    labelcolor=self.mol_colors,
-                    loc='upper center',
-                    ncols=9,
-                    handletextpad=0.2,
-                    bbox_to_anchor=(0.5, 1.4),
-                    handlelength=0,
-                    fontsize=10,
-                    prop={'weight': 'bold'},
-                )
-            
-            # Add x-axis label to last panel
-            if n == len(self.xlim1) - 1:
-                plt.xlabel("Wavelength (μm)")
+        # Add legend to first panel
+        self.subplots[0].legend(
+            self.mol_labels,
+            labelcolor=self.mol_colors,
+            loc='upper center',
+            ncols=9,
+            handletextpad=0.2,
+            bbox_to_anchor=(0.5, 1.4),
+            handlelength=0,
+            fontsize=10,
+            prop={'weight': 'bold'},
+        )
+        
+        # Add x-axis label to last panel
+        self.subplots[len(self.xlim1) - 1].set_xlabel("Wavelength (μm)")
     
     def show(self):
         """Display the plot."""

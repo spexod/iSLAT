@@ -267,7 +267,7 @@ class PlotRenderer:
     def _plot_observed_spectrum(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                error_data: Optional[np.ndarray] = None, subplot: Optional[Axes] = None) -> None:
         """Plot the observed spectrum data"""
-        print("plotting spectrum")
+        #print("plotting spectrum")
         
         plot = subplot if subplot else self.ax1 # Use subplot for output if given.
         alpha = 0.8 if self.render_out else 1

@@ -89,8 +89,9 @@ class GUI:
             self.main_resizable.update_dynamic_sizes()
 
     def create_window(self):
+        from iSLAT import __version__ as iSLAT_version
         self.window = self.master
-        self.window.title("iSLAT Version 5.00.00")
+        self.window.title(f"iSLAT Version {iSLAT_version}")
         
         # Create a main container frame
         main_container = ttk.Frame(self.window)

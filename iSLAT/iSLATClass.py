@@ -1,8 +1,5 @@
-iSLAT_version = 'v5.00.00'
-
 # Import necessary modules
 import numpy as np
-import pandas as pd
 import os
 import time
 import sys
@@ -17,6 +14,8 @@ from .Modules.GUI import *
 from .Modules.DataTypes.Molecule import Molecule
 from .Modules.DataTypes.MoleculeDict import MoleculeDict
 from .Modules.Debug.DebugConfig import debug_config
+
+from iSLAT import __version__ as iSLAT_version
 
 from typing import Optional, Union, Literal, TYPE_CHECKING, Any
 if TYPE_CHECKING:

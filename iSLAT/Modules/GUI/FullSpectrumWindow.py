@@ -57,7 +57,7 @@ class FullSpectrumWindow(tk.Toplevel):
         # Generate plot and create canvas
         self.spectrum_plot.generate_plot()
         self.canvas = FigureCanvasTkAgg(self.spectrum_plot.fig, master=self.canvas_frame)
-        self.canvas.draw()
+        #self.canvas.draw()
         
         # Pack canvas
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
@@ -159,7 +159,7 @@ class FullSpectrumWindow(tk.Toplevel):
         """Refresh the plot with current data."""
         try:
             # Clear the current plot
-            self.spectrum_plot.close()
+            #self.spectrum_plot.close()
             
             # Create new plot with current settings
             self.spectrum_plot = FullSpectrumPlot(self.islat_ref, **self.kwargs)
@@ -167,7 +167,8 @@ class FullSpectrumWindow(tk.Toplevel):
             
             # Update canvas
             self.canvas.figure = self.spectrum_plot.fig
-            self.canvas.draw()
+            #self.canvas.draw_idle()
+            self.canvas.draw_idle()
             
             # Update navigation toolbar
             self.nav_toolbar.update()

@@ -9,7 +9,7 @@ import sys
 import warnings
 
 # Package metadata
-__version__ = "5.0.0"
+from iSLAT import __version__
 __author__ = "iSLAT Development Team"
 __description__ = "interactive Spectral Line Analysis Tool (iSLAT) Components"
 
