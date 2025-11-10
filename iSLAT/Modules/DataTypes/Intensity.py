@@ -239,18 +239,18 @@ class Intensity:
             # Pre-compute physical factors (same as in STEP 2)
             physical_factors = sqrt_ln2_inv * 1e5 * dv_cond[:, np.newaxis] * freq_ratio * bb_vals
 
-            '''# Vectorized curve-of-growth for all lines at once
+            # Vectorized curve-of-growth for all lines at once
             integrand = -np.expm1(-center_tau[:, :, np.newaxis] * exp_neg_x_squared)  # (n_cond, n_lines, n_quad)
-            fint_vals = integrand @ weights                                             # (n_cond, n_lines)'''
+            fint_vals = integrand @ weights                                             # (n_cond, n_lines)
             '''fint_vals = -(np.einsum('q,ijq->ij',
                         weights,
                         np.expm1(-center_tau[:, :, np.newaxis] * exp_neg_x_squared),
                         optimize=True))'''
-            #return physical_factors * fint_vals
-            return physical_factors * -(np.einsum('q,ijq->ij',
+            return physical_factors * fint_vals
+            '''return physical_factors * -(np.einsum('q,ijq->ij',
                                         weights,
                                         np.expm1(-center_tau[:, :, np.newaxis] * exp_neg_x_squared),
-                                        optimize=True))
+                                        optimize=True))'''
         
         # Lines are already sorted by frequency; expand contiguous windows while
         # adjacent pairs are within either neighbor's tolerance (max of the pair).
@@ -296,13 +296,13 @@ class Intensity:
                 
                 tau_batch = center_tau[:, batch_indices]
                 
-                '''# Vectorized curve-of-growth: (n_cond, n_batch, n_quad)
+                # Vectorized curve-of-growth: (n_cond, n_batch, n_quad)
                 integrand = -np.expm1(-tau_batch[:, :, np.newaxis] * exp_neg_x_squared)
-                fint_vals = integrand @ weights'''
-                fint_vals = -(np.einsum('q,ikq->ik',
+                fint_vals = integrand @ weights
+                '''fint_vals = -(np.einsum('q,ikq->ik',
                         weights,
                         np.expm1(-tau_batch[:, :, np.newaxis] * exp_neg_x_squared),
-                        optimize=True))
+                        optimize=True))'''
                 
                 # Apply pre-computed physical factors
                 intensity[:, batch_indices] = physical_factors[:, batch_indices] * fint_vals
@@ -324,13 +324,13 @@ class Intensity:
             # Sum optical depths (vectorized)
             tau_total = np.sum(tau_group, axis=1)  # (n_cond,)
             
-            '''# Apply curve-of-growth to total blended optical depth
+            # Apply curve-of-growth to total blended optical depth
             integrand_total = -np.expm1(-tau_total[:, np.newaxis] * exp_neg_x_squared)
-            fint_total = integrand_total @ weights'''
-            fint_total = -(np.einsum('q,iq->i',
+            fint_total = integrand_total @ weights
+            '''fint_total = -(np.einsum('q,iq->i',
                          weights,
                          np.expm1(-tau_total[:, np.newaxis] * exp_neg_x_squared),
-                         optimize=True))
+                         optimize=True))'''
             
             # VECTORIZED: Calculate all fractional contributions at once
             tau_fractions = tau_group / (tau_total[:, np.newaxis])  # (n_cond, n_overlap)
