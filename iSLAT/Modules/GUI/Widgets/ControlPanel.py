@@ -1,15 +1,14 @@
-import traceback
+#import traceback
 import tkinter as tk
 from tkinter import ttk, colorchooser
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
 from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorButton
-from .RegularFrame import RegularFrame
+#from .RegularFrame import RegularFrame
 from ..Tooltips import CreateToolTip
 
 class ControlPanel(ttk.Frame):
     def __init__(self, master, islat, plot, data_field, font):
-
         super().__init__(master)
         
         self.master = master
@@ -32,7 +31,6 @@ class ControlPanel(ttk.Frame):
         self.label_frame = tk.LabelFrame(self, text="Spectrum and Models Control Panel", relief="solid", borderwidth=1)
         self.label_frame.grid(row=0, column=0, sticky="nsew", pady=0)
         self.label_frame.grid_rowconfigure(0,weight=1)
-
 
         temp_label = tk.Label(self)
         self.bg_color = temp_label.cget('bg')
@@ -120,7 +118,7 @@ class ControlPanel(ttk.Frame):
         entry = tk.Entry(
             parent, 
             textvariable=var, 
-            #width=width, # Turn back on to use the width from the json config
+            width=width, # Turn back on to use the width from the json config
             justify="left", 
         )
         
@@ -401,8 +399,7 @@ class ControlPanel(ttk.Frame):
         col = 0
         row = start_row 
         for field_key, field_config in self.MOLECULE_FIELDS.items():
-            
-            
+             
             entry, var = self._create_molecule_parameter_entry(
                 parameters_frame,
                 field_config['label'], 
@@ -430,7 +427,6 @@ class ControlPanel(ttk.Frame):
         mol_name = mol_name
         active_mol = self._get_active_molecule_object().name
         default_mol = self.islat.user_settings.get("default_active_molecule", "H2O")
- 
 
         if mol_name == default_mol:
             # print(f"Cannot delete {mol_name}!")
