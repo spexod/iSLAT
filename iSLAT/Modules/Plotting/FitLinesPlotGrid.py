@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+#import pandas as pd
 
 from typing import Dict, List, Optional, Tuple, Callable, Any, Union, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -43,7 +43,8 @@ class FitLinesPlotGrid:
         self.fig: Figure
         self.axs: np.ndarray[Axes]
         #self.fig, self.axs = plt.subplots(rows, cols, figsize=self.figsize, layout='constrained')
-        self.fig, self.axs = plt.subplots(rows, cols, layout='constrained')
+        self.fig = plt.figure(figsize=self.figsize, layout='constrained')
+        self.axs = self.fig.subplots(self.rows, self.cols)
         #self.fig.tight_layout(pad=2.0)
         self.plt_extra_range = kwargs.get('plt_extra_range', 0.015)  # extra range to plot for each line
         self.wave_data = kwargs.get('wave_data', None)
