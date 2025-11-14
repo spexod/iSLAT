@@ -138,9 +138,9 @@ class FullSpectrumPlot:
         """Generate the full spectrum plot with multiple panels."""
         if not hasattr(self, 'fig') or self.fig is None:
             if hasattr(self, 'figsize'):
-                self.fig = plt.figure(figsize=self.figsize)
+                self.fig = plt.figure(figsize=self.figsize, layout='constrained')
             else:
-                self.fig = plt.figure()
+                self.fig = plt.figure(layout='constrained')
 
         plot_renderer = self.islat_ref.GUI.get_plot_renderer()
         

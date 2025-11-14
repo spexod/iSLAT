@@ -77,7 +77,9 @@ class iSLATPlot:
         self.ax2.set_title("Line inspection plot")
         self.ax3.set_title(f"{self.islat.active_molecule.displaylabel} Population diagram")
 
-        self.canvas = FigureCanvasTkAgg(self.fig, master=parent_frame)
+        self.parent_frame = parent_frame
+
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.parent_frame)
         
         # Apply theme to matplotlib figure and toolbar
         #self._apply_plot_theming()
@@ -887,3 +889,45 @@ class iSLATPlot:
         # Also update any existing plots to use colors
         if hasattr(self, 'update_all_plots'):
                 self.update_all_plots()
+    
+    def toggle_full_spectrum(self):
+        """Toggle between the regular three plots and a full spectrum view."""
+        if not hasattr(self, 'is_full_spectrum'):
+            self.is_full_spectrum = False
+        
+        self.is_full_spectrum = not self.is_full_spectrum
+
+        if self.is_full_spectrum:
+            # Switch to full spectrum view
+            # Hide the original canvas
+            self.canvas.get_tk_widget().pack_forget()
+            
+            # Import the full spectrum plot class
+            from iSLAT.Modules.FileHandling.OutputFullSpectrum import FullSpectrumPlot
+
+            # Create a new full spectrum plot
+            self.full_spectrum_plot = FullSpectrumPlot(self.islat)
+            self.full_spectrum_plot.generate_plot()
+
+            # Create and pack the full spectrum canvas
+            self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
+                self.full_spectrum_plot.fig, 
+                master=self.parent_frame
+            )
+            self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
+            self.full_spectrum_plot_canvas.draw()
+        else:
+            # Switch back to regular three-plot view
+            # Destroy the full spectrum plot
+            if hasattr(self, 'full_spectrum_plot_canvas'):
+                self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
+                self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+                
+            if hasattr(self, 'full_spectrum_plot'):
+                self.full_spectrum_plot.close()
+                del self.full_spectrum_plot
+                del self.full_spectrum_plot_canvas
+
+            # Restore the original canvas
+            self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
+            self.canvas.draw_idle()

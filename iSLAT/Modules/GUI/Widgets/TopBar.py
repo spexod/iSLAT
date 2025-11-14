@@ -1,10 +1,10 @@
 import numpy as np
 import platform
 import os 
-import csv
+#import csv
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter import messagebox, font
+from tkinter import messagebox #, font
 import traceback
 from typing import TYPE_CHECKING, Any, Dict, Optional
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
@@ -105,11 +105,13 @@ class TopBar(ResizableFrame):
 
         saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
         atomic_lines_tip = "Show atomic lines\nusing seperation threshold\nset in the 'Line Separ."
-        export_model_tip = "Export current\nmodels into csv files"
+        #export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off"
+        toggle_full_spectrum_tip = "Turn full spectrum on/off"
         create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.toggle_saved_lines, 0, 3, tip_text=saved_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
-        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 5, tip_text=toggle_legend_tip)
+        create_button(self.button_frame, self.theme, "Toggle Full Spectrum", self.toggle_full_spectrum, 0, 5, tip_text=toggle_full_spectrum_tip)
+        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6, tip_text=toggle_legend_tip)
 
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file using the new MoleculeLine approach."""
@@ -600,6 +602,16 @@ class TopBar(ResizableFrame):
 
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
+            traceback.print_exc()
+
+    def toggle_full_spectrum(self):
+        """
+        Toggle the display of the full spectrum on the plot.
+        """
+        try:
+            self.main_plot.toggle_full_spectrum()
+        except Exception as e:
+            self.data_field.insert_text(f"Error toggling full spectrum: {e}\n")
             traceback.print_exc()
 
     def hitran_query(self):
