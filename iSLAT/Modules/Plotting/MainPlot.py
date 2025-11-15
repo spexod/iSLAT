@@ -256,12 +256,6 @@ class iSLATPlot:
         wave_data = self.islat.wave_data_original
         
         try:
-            if hasattr(self, "is_full_spectrum") and self.is_full_spectrum and self.full_spectrum_plot is not None:
-                self.full_spectrum_plot.reload_data()
-        except Exception as e:
-            debug_config.warning("main_plot", f"Could not reload full spectrum plot data: {e}")
-
-        try:
             if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
                 debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
                 summed_wavelengths, summed_flux = self.islat.molecules_dict.get_summed_flux(wave_data, visible_only=True)
@@ -677,7 +671,7 @@ class iSLATPlot:
             
             molecule = self.islat.molecules_dict[molecule_name]
         
-        # Check if this molecule is visible - if so, we need to update the main spectrum plot
+        # Check if this molecule is visible - if so, we need to update plots
         if (hasattr(self.islat, 'molecules_dict') and 
             molecule_name in self.islat.molecules_dict):
             
@@ -685,8 +679,17 @@ class iSLATPlot:
             
             # Only update plots if the molecule is visible
             if molecule.is_visible:
-                self.update_model_plot()
-
+                # Check if full spectrum plot is currently visible
+                if (hasattr(self, 'full_spectrum_plot') and 
+                    hasattr(self, 'full_spectrum_plot_canvas') and
+                    self.full_spectrum_plot_canvas.get_tk_widget().winfo_viewable()):
+                    # Update full spectrum plot
+                    self.full_spectrum_plot.reload_data()
+                    self.full_spectrum_plot_canvas.draw_idle()
+                else:
+                    # Update main spectrum plot
+                    self.update_model_plot()
+        
         # Check if the changed molecule is the active one for additional updates
         if (hasattr(self.islat, 'active_molecule') and 
             self.islat.active_molecule and 
@@ -905,8 +908,7 @@ class iSLATPlot:
         from iSLAT.Modules.FileHandling.OutputFullSpectrum import FullSpectrumPlot
 
         if hasattr(self, 'full_spectrum_plot_canvas'):
-                pass
-                #self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
+                self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
                 #self.full_spectrum_plot_canvas.get_tk_widget().destroy()
 
         if hasattr(self, 'full_spectrum_plot'):
@@ -941,13 +943,12 @@ class iSLATPlot:
             # Destroy the full spectrum plot
             if hasattr(self, 'full_spectrum_plot_canvas'):
                 self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
-                #self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+                self.full_spectrum_plot_canvas.get_tk_widget().destroy()
                 
             if hasattr(self, 'full_spectrum_plot'):
-                pass
-                #self.full_spectrum_plot.close()
-                #del self.full_spectrum_plot
-                #del self.full_spectrum_plot_canvas
+                self.full_spectrum_plot.close()
+                del self.full_spectrum_plot
+                del self.full_spectrum_plot_canvas
 
             # Restore the original canvas
             self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)

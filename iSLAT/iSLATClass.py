@@ -483,8 +483,8 @@ class iSLAT:
                 self.continuum_data = np.array(df['cont'].values)
             else:
                 # Create default continuum array (zeros or ones)
-                self.continuum_data = np.ones_like(self.flux_data)
-                print("Warning: No 'cont' column found. Using ones as default continuum.")
+                self.continuum_data = np.zeros_like(self.flux_data)
+                print("Warning: No 'cont' column found. Using zeros as default continuum.")
             
             print(f"Successfully loaded spectrum from {file_path}")
             print(f"  Wavelength range: {self.wave_data.min():.3f} - {self.wave_data.max():.3f}")
