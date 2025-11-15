@@ -275,8 +275,7 @@ class iSLATPlot:
             molecules=self.islat.molecules_dict,
             summed_wavelengths=summed_wavelengths,
             summed_flux=summed_flux,
-            error_data=getattr(self.islat, 'err_data', None),
-            #observed_wave_data=self.islat.wave_data  # Pass observed data separately
+            error_data=getattr(self.islat, 'err_data', None)
         )
 
         if self.islat.GUI.top_bar.atomic_toggle:
@@ -745,7 +744,8 @@ class iSLATPlot:
             molecules_dict=self.islat.molecules_dict,
             wave_data=self.islat.wave_data,
             active_molecule=active_molecule,
-            current_selection=current_selection
+            current_selection=current_selection,
+            is_full_spectrum=getattr(self, 'is_full_spectrum', False)
         )
         
         # Only canvas update needed in MainPlot
@@ -890,6 +890,36 @@ class iSLATPlot:
         if hasattr(self, 'update_all_plots'):
                 self.update_all_plots()
     
+    def load_full_spectrum(self):
+        # Switch to full spectrum view
+        # Hide the original canvas
+        self.canvas.get_tk_widget().pack_forget()
+        
+        # Import the full spectrum plot class
+        from iSLAT.Modules.FileHandling.OutputFullSpectrum import FullSpectrumPlot
+
+        if hasattr(self, 'full_spectrum_plot_canvas'):
+                self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
+                #self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+
+        if hasattr(self, 'full_spectrum_plot'):
+            self.full_spectrum_plot.reload_data()
+        else:
+            # Create a new full spectrum plot
+            self.full_spectrum_plot = FullSpectrumPlot(self.islat)
+            self.full_spectrum_plot.generate_plot()
+
+        if hasattr(self, 'full_spectrum_plot_canvas'):
+            pass
+        else:
+            # Create and pack the full spectrum canvas
+            self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
+                self.full_spectrum_plot.fig, 
+                master=self.parent_frame
+            )
+        self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
+        self.full_spectrum_plot_canvas.draw_idle()
+
     def toggle_full_spectrum(self):
         """Toggle between the regular three plots and a full spectrum view."""
         if not hasattr(self, 'is_full_spectrum'):
@@ -898,24 +928,7 @@ class iSLATPlot:
         self.is_full_spectrum = not self.is_full_spectrum
 
         if self.is_full_spectrum:
-            # Switch to full spectrum view
-            # Hide the original canvas
-            self.canvas.get_tk_widget().pack_forget()
-            
-            # Import the full spectrum plot class
-            from iSLAT.Modules.FileHandling.OutputFullSpectrum import FullSpectrumPlot
-
-            # Create a new full spectrum plot
-            self.full_spectrum_plot = FullSpectrumPlot(self.islat)
-            self.full_spectrum_plot.generate_plot()
-
-            # Create and pack the full spectrum canvas
-            self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
-                self.full_spectrum_plot.fig, 
-                master=self.parent_frame
-            )
-            self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
-            self.full_spectrum_plot_canvas.draw()
+            self.load_full_spectrum()
         else:
             # Switch back to regular three-plot view
             # Destroy the full spectrum plot

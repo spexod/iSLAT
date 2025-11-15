@@ -57,7 +57,11 @@ class FullSpectrumPlot:
         self.subplots: Dict[int, "Axes"] = {}
         self.mol_labels: List[str] = []
         self.mol_colors: List[str] = []
+        if "figsize" in kwargs:
+            self.figsize = kwargs["figsize"]
         
+        self.plot_renderer = self.islat_ref.GUI.get_plot_renderer()
+
         # Initialize data
         self._load_data()
         self._prepare_molecule_info()
@@ -86,15 +90,19 @@ class FullSpectrumPlot:
     def _prepare_molecule_info(self):
         """Prepare molecule labels and colors for legend."""
         mol_dict = self.islat_ref.molecules_dict
-        self.mol_labels = []
-        self.mol_colors = []
+        #self.mol_labels = []
+        #self.mol_colors = []
         
-        for key, mol in mol_dict.items():
-            if mol._is_visible == "True":
-                print(f"Adding {key} to plot legend")
-                self.mol_labels.append(mol.displaylabel)
-                self.mol_colors.append(mol.color)
-    
+        self.visible_molecules = mol_dict.get_visible_molecules(return_objects=True)
+
+        '''for mol in visible_molecules:
+            #print(f"Adding {key} to plot legend")
+            self.mol_labels.append(mol.displaylabel)
+            self.mol_colors.append(mol.color)'''
+        
+        self.mol_labels = [mol.displaylabel for mol in self.visible_molecules]
+        self.mol_colors = [mol.color for mol in self.visible_molecules]
+
     def _plot_line_list(self, ax: "Axes", xr: List[float], ymin: float, ymax: float):
         """
         Plot line annotations for a given wavelength range.
@@ -141,8 +149,6 @@ class FullSpectrumPlot:
                 self.fig = plt.figure(figsize=self.figsize, layout='constrained')
             else:
                 self.fig = plt.figure(layout='constrained')
-
-        plot_renderer = self.islat_ref.GUI.get_plot_renderer()
         
         # Get summed flux for molecules
         summed_wavelengths, summed_flux = self.islat_ref.molecules_dict.get_summed_flux(
@@ -164,39 +170,71 @@ class FullSpectrumPlot:
             plt.xlim(xr)
             plt.xticks(np.arange(xr[0], xr[1], 0.25))
             plt.ylim([ymin, ymax])
-            plt.ylabel("Flux dens. (Jy)")
+            #plt.ylabel("Flux dens. (Jy)")
             
+            #self.plot_renderer.clear_model_lines(ax=self.subplots[n], lines=self.plot_renderer.model_lines, do_clear_self=False)
+
             # Plot line annotations
             self._plot_line_list(self.subplots[n], xr, ymin, ymax)
-            
+
             # Render the spectrum and molecules
-            plot_renderer.render_main_spectrum_output(
-                subplot=self.subplots[n],
+            self.plot_renderer.render_main_spectrum_plot(
+                #subplot=self.subplots[n],
                 wave_data=self.wave,
                 flux_data=self.flux,
                 molecules=self.islat_ref.molecules_dict,
                 summed_wavelengths=summed_wavelengths,
-                summed_flux=summed_flux
+                summed_flux=summed_flux,
+                axes=self.subplots[n]
             )
-            
-            #plt.draw()
-            
-        # Add legend to first panel
-        self.subplots[0].legend(
-            self.mol_labels,
-            labelcolor=self.mol_colors,
-            loc='upper center',
-            ncols=9,
-            handletextpad=0.2,
-            bbox_to_anchor=(0.5, 1.4),
-            handlelength=0,
-            fontsize=10,
-            prop={'weight': 'bold'},
-        )
+
+        if hasattr(self, 'legend_subplot') and self.legend_subplot is not None:
+            #self.legend.update()
+            pass
+            '''handles, labels = self.legend_subplot.get_legend_handles_labels()
+            if handles:
+                self.legend_subplot.legend()'''
+        else:
+            # Add legend to first panel
+            self.legend_subplot = self.subplots[0]
+            '''self.legend_subplot.legend(
+                self.mol_labels,
+                labelcolor=self.mol_colors,
+                loc='upper center',
+                ncols=9,
+                handletextpad=0.2,
+                bbox_to_anchor=(0.5, 1.4),
+                handlelength=0,
+                fontsize=10,
+                prop={'weight': 'bold'},
+            )'''
         
+        handles, labels = self.legend_subplot.get_legend_handles_labels()
+        if handles:
+            self.legend_subplot.legend(
+                self.mol_labels,
+                labelcolor=self.mol_colors,
+                loc='upper center',
+                ncols=9,
+                handletextpad=0.2,
+                bbox_to_anchor=(0.5, 1.4),
+                handlelength=0,
+                fontsize=10,
+                prop={'weight': 'bold'},
+            )
+
         # Add x-axis label to last panel
         self.subplots[len(self.xlim1) - 1].set_xlabel("Wavelength (μm)")
+        # Add y-axis label to the side of the pannels
+        self.fig.supylabel("Flux Density (Jy)", fontsize=10)
+        self.fig.canvas.draw_idle()
     
+    def reload_data(self):
+        """Refresh the plot data with any updates from the molecules dictionary."""
+        self._load_data()
+        self._prepare_molecule_info()
+        self.generate_plot()
+
     def show(self):
         """Display the plot."""
         if self.fig is None:

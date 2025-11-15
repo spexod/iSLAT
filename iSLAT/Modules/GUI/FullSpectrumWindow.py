@@ -162,7 +162,8 @@ class FullSpectrumWindow(tk.Toplevel):
             #self.spectrum_plot.close()
             
             # Create new plot with current settings
-            self.spectrum_plot = FullSpectrumPlot(self.islat_ref, **self.kwargs)
+            figsize = self.spectrum_plot.fig.get_size_inches()
+            self.spectrum_plot = FullSpectrumPlot(self.islat_ref, figsize=figsize, **self.kwargs)
             self.spectrum_plot.generate_plot()
             
             # Update canvas
