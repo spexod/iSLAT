@@ -336,12 +336,35 @@ def read_spectral_data(file_path : str):
     if os.path.exists(file_path):
         try:
             if (file_path.endswith('.csv') or file_path.endswith('.txt')) and os.path.isfile(file_path):
-                df = pd.read_csv(file_path)
-                return df
+                # check if it is a txt file and if it is check if the first line is % Object Names and Observation Date
+                # if this is the first line, assume spexodisks format and skip to the line % Primary Spectrum
+                if file_path.endswith('.txt'):
+                    with open(file_path, 'r') as f:
+                        first_line = f.readline().strip()
+                    if first_line.startswith('% Object Names'):
+                        # now find the line number of % Primary Spectrum and read from there
+                        with open(file_path, 'r') as f:
+                            lines = f.readlines()
+                        for i, line in enumerate(lines):
+                            if line.strip().startswith('% Primary Spectrum'):
+                                skiprows = i + 1
+                                break
+                        df = pd.read_csv(file_path, skiprows=skiprows)
+                        # change the name of the wavelength column to wave
+                        # change the name of the flux_error column to err
+                        df.rename(columns=lambda x: x.strip().lower(), inplace=True)
+                        if 'wavelength' in df.columns:
+                            df.rename(columns={'wavelength': 'wave'}, inplace=True)
+                        if 'flux_error' in df.columns:
+                            df.rename(columns={'flux_error': 'err'}, inplace=True)
+                        return df
+                    else:
+                        return pd.read_csv(file_path, delim_whitespace=True)
+                else:
+                    return pd.read_csv(file_path)
             elif file_path.endswith('.dat') and os.path.isfile(file_path):
                 columns_to_load = ['wave', 'flux']
-                df = pd.DataFrame(np.loadtxt(file_path), columns=columns_to_load)
-                return df
+                return pd.DataFrame(np.loadtxt(file_path), columns=columns_to_load)
         except Exception as e:
             print(f"Error reading spectral data: {e}")
             return pd.DataFrame()
