@@ -144,6 +144,7 @@ class FullSpectrumPlot:
     
     def generate_plot(self):
         """Generate the full spectrum plot with multiple panels."""
+        # Create figure if it doesn't exist
         if not hasattr(self, 'fig') or self.fig is None:
             if hasattr(self, 'figsize'):
                 self.fig = plt.figure(figsize=self.figsize, layout='constrained')
@@ -158,7 +159,11 @@ class FullSpectrumPlot:
         for n, xlim in enumerate(self.xlim1):
             # Create subplot for current wavelength range
             xr = [self.xlim1[n], self.xlim1[n] + self.step]
-            self.subplots[n] = plt.subplot(len(self.xlim1), 1, n + 1)
+            
+            # Reuse existing subplot if available, otherwise create new one
+            # This allows update-in-place optimization to work
+            if n not in self.subplots or self.subplots[n] not in self.fig.axes:
+                self.subplots[n] = plt.subplot(len(self.xlim1), 1, n + 1)
             
             # Calculate y-axis limits
             flux_mask = (self.wave > xr[0] - 0.02) & (self.wave < xr[1])
@@ -177,16 +182,28 @@ class FullSpectrumPlot:
             # Plot line annotations
             self._plot_line_list(self.subplots[n], xr, ymin, ymax)
 
-            # Render the spectrum and molecules
+            # Temporarily set render_out to use thinner lines for output
+            original_render_out = self.plot_renderer.render_out
+            self.plot_renderer.render_out = True
+            
+            # Determine if this is an update (subplots already exist) or initial render
+            # For updates, don't clear axes to enable update-in-place optimization
+            is_update = (n in self.subplots and self.subplots[n] in self.fig.axes)
+            
+            # Render the spectrum and molecules without automatic legend. We'll add a custom legend at the end
             self.plot_renderer.render_main_spectrum_plot(
-                #subplot=self.subplots[n],
                 wave_data=self.wave,
                 flux_data=self.flux,
                 molecules=self.islat_ref.molecules_dict,
                 summed_wavelengths=summed_wavelengths,
                 summed_flux=summed_flux,
-                axes=self.subplots[n]
+                axes=self.subplots[n],
+                update_legend=False,  # Disable automatic legend - we'll add custom one
+                clear_axes=not is_update  # Don't clear on updates for faster rendering
             )
+            
+            # Restore original setting
+            self.plot_renderer.render_out = original_render_out
 
         if hasattr(self, 'legend_subplot') and self.legend_subplot is not None:
             #self.legend.update()

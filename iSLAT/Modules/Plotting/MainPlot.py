@@ -671,7 +671,7 @@ class iSLATPlot:
             
             molecule = self.islat.molecules_dict[molecule_name]
         
-        # Check if this molecule is visible - if so, we need to update the main spectrum plot
+        # Check if this molecule is visible - if so, we need to update plots
         if (hasattr(self.islat, 'molecules_dict') and 
             molecule_name in self.islat.molecules_dict):
             
@@ -679,7 +679,16 @@ class iSLATPlot:
             
             # Only update plots if the molecule is visible
             if molecule.is_visible:
-                self.update_model_plot()
+                # Check if full spectrum plot is currently visible
+                if (hasattr(self, 'full_spectrum_plot') and 
+                    hasattr(self, 'full_spectrum_plot_canvas') and
+                    self.full_spectrum_plot_canvas.get_tk_widget().winfo_viewable()):
+                    # Update full spectrum plot
+                    self.full_spectrum_plot.reload_data()
+                    self.full_spectrum_plot_canvas.draw_idle()
+                else:
+                    # Update main spectrum plot
+                    self.update_model_plot()
         
         # Check if the changed molecule is the active one for additional updates
         if (hasattr(self.islat, 'active_molecule') and 
