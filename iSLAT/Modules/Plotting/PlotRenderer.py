@@ -684,28 +684,30 @@ class PlotRenderer:
             mol_label = self._get_molecule_display_name(molecule)
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
 
-    def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines) -> None:
+    def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines, fig = None) -> None:
         """Plot saved lines on the main spectrum"""
+        if not fig:
+            fig = self.ax1
 
         for index, line in loaded_lines.iterrows():
             # Plot vertical lines at saved positions
             if 'lam' in line:
-                saved_lines.append(self.ax1.axvline(
+                saved_lines.append(fig.axvline(
                     line['lam'], 
                     color=self._get_theme_value("saved_line_color", self._get_theme_value("saved_line_color_one", "red")),
                     alpha=0.7, 
                     linestyle=':', 
-                    label=f"Saved: {line.get('label', 'Line')}"
+                    # label=f"Saved: {line.get('label', 'Line')}"
                 ))
             
             if 'xmin' in line and 'xmax' in line:
                 # Plot wavelength range
-                saved_lines.append(self.ax1.axvline(
+                saved_lines.append(fig.axvline(
                     line['xmin'],
                     color=self._get_theme_value("saved_line_color_two", "orange"),
                     alpha=0.7,
                 ))
-                saved_lines.append(self.ax1.axvline(
+                saved_lines.append(fig.axvline(
                     line['xmax'],
                     color=self._get_theme_value("saved_line_color_two", "orange"),
                     alpha=0.7,
