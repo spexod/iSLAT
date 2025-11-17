@@ -205,7 +205,7 @@ class FullSpectrumPlot:
                 clear_axes=not is_update  # Don't clear on updates for faster rendering
             )
             if self.islat_ref.GUI.top_bar.line_toggle:
-                plot_renderer.plot_saved_lines(self.line_data, self.saved_lines, fig = self.subplots[n])
+                self.plot_renderer.plot_saved_lines(self.line_data, self.saved_lines, fig = self.subplots[n])
             
             # Restore original setting
             self.plot_renderer.render_out = original_render_out
