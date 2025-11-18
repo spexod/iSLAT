@@ -1,18 +1,13 @@
-# iSLAT v5.00.01 - beta release
+# iSLAT v5.01.00 - beta release
 
 ### Key updates from v5.00.00:
 - Further improvements in speed and computational efficiency.
-- The IR model now accounts for Line opacity overlap/mutually saturation. 
-    - Enabled by a rewrite of the IR model used by the code.
-    - Importantly, this feature does not slow the code and in some cases is faster. 
-- New full spectrum output and display features
-    - Output full spectrum function under the spectrum functions tab, save the full spectral range as a PDF.
-    - Display full spectrum function under the spectrum functions tab, open a new window to view the full spectrum at the same time as the regular set of plots.
-    - Toggle full spectrum function button at the of the window, toggles an interactive and live view of the full spectra in the main window.
-- Display thermal broading for each molecule
-
-### *Important note*
-*In version 5.00.01 of the beta release of iSLAT version five, most of the new functions are optimized for JWST data. We are working to improve the use for other data sets as well, and many of the new features might still work with other data sets.*
+- The slab model now accounts for line opacity overlap and mutual saturation, which is particularly important in the case of water ortho-para lines that overlap (see Figure 5 in Banzatti et al. 2025).
+- New functionality to display and save the full spectrum to obtain something similar to Figures 1-4 in Banzatti et al. 2025 (warning: this is for now optimized for JWST MIRI spectra only!)
+    - "Output full spectrum" in the spectrum parameters menu saves the full spectral range as a single-page PDF file that can be directly included in a paper.
+    - "Display full spectrum" in the spectrum parameters menu opens a new interactive window to view the full spectrum at the same time as the set of plots in the GUI, to display for instance on a second large screen.
+    - "Toggle full spectrum" in the main GUI toggles an interactive view of the full spectrum in the main window, by replacing the default zoomed-in plots.
+- The thermal broadening is calculated and displayed for reference for each molecule at the temperature set by the user.
 
 ## **RECOMMENDED**
 If updating from version 4: clone the new iSLAT in a new folder on your machine, and copy over any save files you may have made with version 4 into the respective folders (e.g. SAVES/ or LINESAVES/ or LINELISTS/). 
