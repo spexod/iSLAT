@@ -1,8 +1,5 @@
-iSLAT_version = 'v5.00.00'
-
 # Import necessary modules
 import numpy as np
-import pandas as pd
 import os
 import time
 import sys
@@ -10,11 +7,19 @@ import sys
 from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
 from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path, hitran_data_folder_path, hitran_data_folder_name
 
+from .Modules.Hitran_data import download_hitran_data
+
 import iSLAT.Constants as c
 from .Modules.GUI import *
 from .Modules.DataTypes.Molecule import Molecule
 from .Modules.DataTypes.MoleculeDict import MoleculeDict
 from .Modules.Debug.DebugConfig import debug_config
+
+from iSLAT import __version__ as iSLAT_version
+
+from typing import Optional, Union, Literal, TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from os import PathLike
 
 class iSLAT:
     """
@@ -55,7 +60,7 @@ class iSLAT:
         # === DATA CONTAINERS ===
         self.hitran_data = {}
         #self._hitran_file_cache = {}  # Cache for HITRAN file data to avoid re-reading
-        self.input_line_list = None
+        self.input_line_list: Optional[Union[str, PathLike]] = None
         self.output_line_measurements = None
         
         # === PERFORMANCE FLAGS ===
@@ -263,31 +268,28 @@ class iSLAT:
         Checks that all expected HITRAN files are present and loads them efficiently.
         Only loads when specifically requested to avoid startup delays.
         """
-        if not self.user_settings.get("auto_load_hitran", False):
+        '''if not self.user_settings.get("auto_load_hitran", False):
             print("HITRAN auto-loading disabled. Files will be loaded on demand.")
-            return
+            return'''
             
         print("Checking HITRAN files:")
 
-        if self.user_settings.get("first_startup", False) or self.user_settings.get("reload_default_files", False):
+        #if self.user_settings.get("first_startup", False) or self.user_settings.get("reload_default_files", False):
+        if True:
             print('First startup or reload_default_files is True. Loading default HITRAN files ...')
             
             for mol, bm, iso in zip(self.mols, self.basem, self.isot):
-                hitran_file = f"HITRANdata/data_Hitran_2020_{mol}.par"
+                hitran_file = f"DATAFILES/HITRANdata/data_Hitran_2020_{mol}.par"
                 if not os.path.exists(hitran_file):
                     print(f"WARNING: HITRAN file for {mol} not found at {hitran_file}")
-                    self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
+                    #self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
+                    #continue
+                    try:
+                        missed_mols=download_hitran_data([bm], [mol], [iso])
+                    except Exception as e:
+                        print(f"ERROR: Failed to load HITRAN file for {mol}: {e}")
+                        #self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
                     continue
-
-                try:
-                    lines = read_HITRAN_data(hitran_file)
-                    if lines:
-                        self.hitran_data[mol] = {"lines": lines, "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
-                    else:
-                        self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
-                except Exception as e:
-                    print(f"ERROR: Failed to load HITRAN file for {mol}: {e}")
-                    self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}
         else:
             print('Not the first startup and reload_default_files is False. Skipping HITRAN files loading.')
 
@@ -481,8 +483,8 @@ class iSLAT:
                 self.continuum_data = np.array(df['cont'].values)
             else:
                 # Create default continuum array (zeros or ones)
-                self.continuum_data = np.ones_like(self.flux_data)
-                print("Warning: No 'cont' column found. Using ones as default continuum.")
+                self.continuum_data = np.zeros_like(self.flux_data)
+                print("Warning: No 'cont' column found. Using zeros as default continuum.")
             
             print(f"Successfully loaded spectrum from {file_path}")
             print(f"  Wavelength range: {self.wave_data.min():.3f} - {self.wave_data.max():.3f}")
@@ -705,6 +707,7 @@ class iSLAT:
             print("\n" + "="*60)
             print("Please select a spectrum file to load.")
             print("="*60)
+            self.check_HITRAN()
             continue_init = self.load_spectrum()
             if not continue_init:
                 print("No spectrum selected. Exiting...")

@@ -47,7 +47,8 @@ class Molecule:
         't_kin', 'scale_exponent', 'scale_number', 'radius_init', 'n_mol_init',
         '_wavelength_range', '_model_pixel_res', '_model_line_width',
         '_intensity_cache', '_spectrum_cache', '_flux_cache',
-        '_param_hash_cache', '_dirty_flags', '_cache_stats'
+        '_param_hash_cache', '_dirty_flags', '_cache_stats',
+        '_molar_mass', '_thermal_broad'
     )
     
     _molecule_parameter_change_callbacks = []
@@ -315,7 +316,7 @@ class Molecule:
         # Use consistent wavelength range for all molecules to ensure identical grids
         if hasattr(self, '_wavelength_range') and self._wavelength_range is not None:
             global_min, global_max = self._wavelength_range
-            print(f"getting wavelength range: {self._wavelength_range}")
+            #print(f"getting wavelength range: {self._wavelength_range}")
             # Use the exact global range
             spectrum_lam_min = global_min
             spectrum_lam_max = global_max
@@ -532,7 +533,7 @@ class Molecule:
         self._notify_my_parameter_change('wavelength_range', old_value, self._wavelength_range)
     
     @property
-    def is_visible(self):
+    def is_visible(self) -> bool:
         if isinstance(self._is_visible, str):
             # Convert string representations to proper boolean
             return self._is_visible.lower() in ('true', '1', 'yes', 'on')
@@ -546,6 +547,24 @@ class Molecule:
         else:
             self._is_visible = bool(value)
         self._notify_my_parameter_change('is_visible', old_value, self._is_visible)
+
+    @property
+    def molar_mass(self) -> float:
+        '''Molar mass in g/mol'''
+        if not hasattr(self, '_molar_mass') or self._molar_mass is None:
+            self._ensure_lines_loaded()
+            if self.lines is not None and hasattr(self.lines, '_molar_mass'):
+                self._molar_mass = self.lines._molar_mass
+        return self._molar_mass
+
+    @property
+    def thermal_broad(self) -> float:
+        try:
+            return np.sqrt((c.BOLTZMANN_CONSTANT_JOULE * self._temp) / ((self.molar_mass / 1000) / c.AVAGADRO_NUMBER)) / 1000
+        except Exception as e:
+            print("Warning: Unable to compute thermal broadening due to missing or invalid molar mass.")
+            print(f"Error details: {e}")
+            return 0.0
 
     def bulk_update_parameters(self, parameter_dict: Dict[str, Any], skip_notification: bool = False):
         if not parameter_dict:

@@ -4,7 +4,7 @@
             "label": "Distance:",
             "property": "global_distance",
             "datatype": "float",
-            "format": "{:.1f}",
+            "format": "{:.4g}",
             "default": 140.0,
             "width": 7,
             "tip": "Distance to the\nobserved target\nunits: pc"
@@ -13,7 +13,7 @@
             "label": "Stellar RV:",
             "property": "global_stellar_rv",
             "datatype": "float",
-            "format": "{:.1f}",
+            "format": "{:.4g}",
             "default": 0.0,
             "width": 7,
             "tip": "Radial velocity (helioc.)\nof the observed target\nunits: km/s"
@@ -22,7 +22,7 @@
             "label": "Pixel res.",
             "property": "global_model_pixel_res",
             "datatype": "float",
-            "format": "{:.2e}",
+            "format": "{:.4g}",
             "default": 0.02,
             "width": 7,
             "tip": "Model Pixel Resolution\nunits: µm"
@@ -33,7 +33,7 @@
             "label": "Temperature:",
             "attribute": "temp",
             "datatype": "float",
-            "format": "{:.1f}",
+            "format": "{:.4g}",
             "default": 300.0,
             "width": 4,
             "tip": "Excitation temperature\nunits: K"
@@ -42,8 +42,8 @@
             "label": "Radius:",
             "attribute": "radius",
             "datatype": "float",
-            "format": "{:.2f}",
-            "default": 1.0,
+            "format": "{:.4g}",
+            "default": 0.5,
             "width": 4,
             "tip": "Equivalent radius\nunits: au"
         },
@@ -51,7 +51,7 @@
             "label": "Col. Density:",
             "attribute": "n_mol",
             "datatype": "float",
-            "format": "{:.2e}",
+            "format": "{:.4g}",
             "default": 1e15,
             "width": 7,
             "tip": "Column density\nunits: cm^(-2)"
@@ -60,7 +60,7 @@
             "label": "FWHM:",
             "attribute": "fwhm",
             "datatype": "float",
-            "format": "{:.2f}",
+            "format": "{:.4g}",
             "default": 160.0,
             "width": 7,
             "tip": "FWHM for convolution\nof the model spectra\nunits: km/s"
@@ -69,7 +69,7 @@
             "label": "Broadening:",
             "attribute": "broad",
             "datatype": "float",
-            "format": "{:.2f}",
+            "format": "{:.4g}",
             "default": 0.1,
             "width": 7,
             "tip": "Line broadening (FWHM)\n(thermal/turbulence)\nunits: km/s"
@@ -78,7 +78,7 @@
             "label": "RV Shift:",
             "attribute": "rv_shift",
             "datatype": "float",
-            "format": "{:.2f}",
+            "format": "{:.4g}",
             "default": 0.0,
             "width": 7,
             "tip": "Radial velocity (helioc.)\nof the molecule data\nunits: km/s"

@@ -1,10 +1,10 @@
 import numpy as np
 import platform
 import os 
-import csv
+#import csv
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter import messagebox, font
+from tkinter import messagebox #, font
 import traceback
 from typing import TYPE_CHECKING, Any, Dict, Optional
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
@@ -15,8 +15,10 @@ from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.GUI.PlotGridWindow import PlotGridWindow
+from iSLAT.Modules.GUI.FullSpectrumWindow import FullSpectrumWindow
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
 from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name, example_data_folder_path
+from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
 import iSLAT.Constants as c
 
 if TYPE_CHECKING:
@@ -43,8 +45,6 @@ class TopBar(ResizableFrame):
         self.config = config
         self.control_panel = control_panel
 
-        self.atomic_lines = []
-
         self.button_frame = tk.Frame(self)
         self.button_frame.grid(row=0, column=1)
 
@@ -55,6 +55,9 @@ class TopBar(ResizableFrame):
         toolbar_frame = tk.Frame(self)
         toolbar_frame.grid(row=0, column=2, sticky="nsew")
         self.toolbar = self.main_plot.create_toolbar(toolbar_frame)
+
+        self.atomic_toggle: bool = False
+        self.line_toggle: bool = False
         
         # Apply initial theme
         # self.apply_theme(theme)
@@ -81,6 +84,8 @@ class TopBar(ResizableFrame):
         spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
         spectrum_menu.add_command(label="Save Parameters", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters", command=self.load_parameters)
+        spectrum_menu.add_command(label="Output Full Spectrum", command=lambda: output_full_spectrum(self.islat))
+        spectrum_menu.add_command(label="Display Full Spectrum", command=lambda: FullSpectrumWindow(self.master, self.islat))
         spectrum_drpdwn.config(menu=spectrum_menu)
 
         if os_name == "Darwin":
@@ -95,16 +100,18 @@ class TopBar(ResizableFrame):
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
+        
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
         saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
         atomic_lines_tip = "Show atomic lines\nusing seperation threshold\nset in the 'Line Separ."
-        export_model_tip = "Export current\nmodels into csv files"
+        #export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off"
-        create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.show_saved_lines, 0, 3, tip_text=saved_lines_tip)
-        create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.show_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
-        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 5, tip_text=toggle_legend_tip)
-
+        toggle_full_spectrum_tip = "Turn full spectrum on/off"
+        create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.toggle_saved_lines, 0, 3, tip_text=saved_lines_tip)
+        create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
+        create_button(self.button_frame, self.theme, "Toggle Full Spectrum", self.toggle_full_spectrum, 0, 5, tip_text=toggle_full_spectrum_tip)
+        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6, tip_text=toggle_legend_tip)
 
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file using the new MoleculeLine approach."""
@@ -187,19 +194,18 @@ class TopBar(ResizableFrame):
         except Exception as e:
             self.data_field.insert_text(f"Error saving line: {e}\n")
 
-    def show_saved_lines(self):
+    def toggle_saved_lines(self):
         """Show saved lines as vertical dashed lines on the plot."""
         try:
-            # Load saved lines from file
-            saved_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
-            if saved_lines.empty:       
-                self.data_field.insert_text("No saved lines found.\n")
-                return
-                
-            # Plot the saved lines on the main plot
-            self.main_plot.plot_saved_lines(saved_lines)
+            self.line_toggle = not self.line_toggle
+
+            if self.line_toggle:
+                # Plot the saved lines on the main plot
+                self.main_plot.plot_saved_lines(data_field=self.data_field)
             
-            self.data_field.insert_text(f"Displayed {len(saved_lines)} saved lines on plot.\n")
+            else:
+                self.main_plot.remove_saved_lines()
+                # self.data_field.insert_text("Removed lines")
             
         except Exception as e:
             self.data_field.insert_text(f"Error loading saved lines: {e}\n")
@@ -208,7 +214,7 @@ class TopBar(ResizableFrame):
         """Fit the currently selected line using LMFIT"""
 
         if not hasattr(self.main_plot, 'current_selection') or self.main_plot.current_selection is None:
-            self.data_field.insert_text("No region selected for fitting.\n", clear_after=False)
+            self.data_field.insert_text("No region selected for fitting.\n")
             return
 
         try:
@@ -582,71 +588,30 @@ class TopBar(ResizableFrame):
         button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(),data_field=self.data_field, wave_data=self.islat.wave_data))
         button.grid(row=1, column=1)
 
-    def show_atomic_lines(self):
+    def toggle_atomic_lines(self):
         """
         Show atomic lines as vertical dashed lines on the plot.
         """
-        if self.atomic_lines:
-            for (line, text) in self.atomic_lines:
-                try:
-                    line.remove()
-                    text.remove()
-                except ValueError:
-                    pass
-            
-            self.atomic_lines.clear()
-            self.main_plot.canvas.draw()
-            return
-
         try:
-            # Load atomic lines from file using the file handling module
-            atomic_lines = ifh.load_atomic_lines()
-            
-            if atomic_lines.empty:
-                self.data_field.insert_text("No atomic lines data found.\n")
-                return
-            
-            # Get the main plot axes
-            if hasattr(self.main_plot, 'ax1'):
-                ax1 = self.main_plot.ax1
-                
-                # Get wavelength and other data from the atomic lines DataFrame
-                wavelengths = atomic_lines['wave'].values
-                species = atomic_lines['species'].values
-                line_ids = atomic_lines['line'].values
-                
-                # Plot vertical lines for each atomic line
-                
-                for i in range(len(wavelengths)):
-                    line = ax1.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
-                    
-                    # Adjust the y-coordinate to place labels within the plot borders
-                    ylim = ax1.get_ylim()
-                    label_y = ylim[1]
-                    
-                    # Adjust the x-coordinate to place labels just to the right of the line
-                    xlim = ax1.get_xlim()
-                    label_x = wavelengths[i] + 0.006 * (xlim[1] - xlim[0])
-                    
-                    # Add text label for the line
-                    label_text = f"{species[i]} {line_ids[i]}"
-                    label = ax1.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
-                                                        va='top', ha='left', color='tomato')
-                    
-                    self.atomic_lines.append((line, label))
-                
-                # Update the plot
-                self.main_plot.canvas.draw()
-                
-                # Update data field
-                self.data_field.insert_text(f"Displayed {len(wavelengths)} atomic lines on plot.\n")
-                self.data_field.insert_text("Atomic lines retrieved from file.\n")
-                
+            self.atomic_toggle = not self.atomic_toggle
+
+            if self.atomic_toggle:
+                self.main_plot.plot_atomic_lines(data_field=self.data_field)
             else:
-                self.data_field.insert_text("Main plot not available for atomic lines display.\n")
-                
+                self.main_plot.remove_atomic_lines()
+
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
+            traceback.print_exc()
+
+    def toggle_full_spectrum(self):
+        """
+        Toggle the display of the full spectrum on the plot.
+        """
+        try:
+            self.main_plot.toggle_full_spectrum()
+        except Exception as e:
+            self.data_field.insert_text(f"Error toggling full spectrum: {e}\n")
             traceback.print_exc()
 
     def hitran_query(self):
@@ -767,7 +732,7 @@ class TopBar(ResizableFrame):
             # Update GUI components
             if hasattr(self.islat, 'GUI'):
                 if hasattr(self.islat.GUI, 'plot'):
-                    self.islat.GUI.plot.update_all_plots()
+                    self.main_plot.update_all_plots()
                 if hasattr(self.islat.GUI, 'control_panel'):
                     self.islat.GUI.control_panel.refresh_from_molecules_dict()
                 if hasattr(self.islat.GUI, 'data_field'):
@@ -788,4 +753,4 @@ class TopBar(ResizableFrame):
 
     def toggle_legend(self):
         #print("Toggled legend on plot")
-        self.islat.GUI.plot.toggle_legend()
+        self.main_plot.toggle_legend()

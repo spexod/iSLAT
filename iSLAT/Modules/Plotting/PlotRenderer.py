@@ -1,11 +1,13 @@
 from typing import Optional, List, Dict, Any, Tuple, Union, TYPE_CHECKING
-from matplotlib import lines
+#from matplotlib import lines
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
-from matplotlib.collections import PolyCollection
+#from matplotlib.collections import PolyCollection
 import iSLAT.Constants as c
+
+from matplotlib.axes import Axes
 
 # Import debug configuration
 try:
@@ -49,10 +51,10 @@ except ImportError:
 if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.Molecule import Molecule
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
-    from iSLAT.Modules.DataTypes.MoleculeLineList import MoleculeLineList
+    #from iSLAT.Modules.DataTypes.MoleculeLineList import MoleculeLineList
     from iSLAT.Modules.DataTypes.MoleculeLine import MoleculeLine
-    from iSLAT.Modules.DataTypes.Intensity import Intensity
-    from iSLAT.Modules.DataTypes.Spectrum import Spectrum
+    #from iSLAT.Modules.DataTypes.Intensity import Intensity
+    #from iSLAT.Modules.DataTypes.Spectrum import Spectrum
 
 class PlotRenderer:
     """
@@ -79,15 +81,16 @@ class PlotRenderer:
         self.islat = plot_manager.islat
         self.theme: Dict[str, Any] = plot_manager.theme
         
-        self.fig = plot_manager.fig
-        self.ax1 = plot_manager.ax1
-        self.ax2 = plot_manager.ax2
-        self.ax3 = plot_manager.ax3
+        self.fig: plt.Figure = plot_manager.fig
+        self.ax1: Axes = plot_manager.ax1
+        self.ax2: Axes = plot_manager.ax2
+        self.ax3: Axes = plot_manager.ax3
         self.canvas = plot_manager.canvas
         
         self.model_lines: List[Line2D] = []
         self.active_lines: List[Line2D] = []
-        self.saved_lines: List[Line2D] = []
+        
+        self.render_out = False
         
         # Simplified stats - only for performance monitoring, no data caching
         self._plot_stats = {
@@ -139,19 +142,44 @@ class PlotRenderer:
             'molecules_rendered': 0
         }
         
-    def clear_model_lines(self) -> None:
+    def clear_model_lines(self, ax: "Axes" = None, lines: List["Line2D"] = None, do_clear_self: bool = True) -> None:
         """Clear only the model spectrum lines from the main plot"""
-        for line in self.model_lines:
-            if line in self.ax1.lines:
+        if ax is None:
+            ax = self.ax1
+        if lines is None:
+            lines = self.model_lines
+        
+        for line in lines:
+            if line in ax.lines:
                 line.remove()
-        self.model_lines.clear()
+        
+        if do_clear_self:
+            self.model_lines.clear()
 
-    def remove_molecule_lines(self, molecule_name: str) -> None:
-        """Remove lines associated with a specific molecule"""
+    def remove_molecule_lines(self, molecule_name: str, ax: "Axes" = None, lines: List["Line2D"] = None, update_legend: bool = True) -> None:
+        """
+        Remove lines associated with a specific molecule
+        
+        Parameters
+        ----------
+        molecule_name : str
+            Name of molecule whose lines should be removed
+        ax : Axes, optional
+            Axes to remove from (default: ax1)
+        lines : List[Line2D], optional
+            List of lines to search in (default: self.model_lines)
+        update_legend : bool, optional
+            Whether to update legend after removal (default: True)
+        """
         print(f"removing lines from {molecule_name}")
 
+        if ax is None:
+            ax = self.ax1
+        if lines is None:
+            lines = self.model_lines
+
         lines_to_remove = []
-        for line in self.model_lines:
+        for line in lines:
             # Check if line belongs to this molecule (by stored metadata first)
             if hasattr(line, '_molecule_name') and line._molecule_name == molecule_name:
                 print(f"found lines matching with {line._molecule_name} (metadata)")
@@ -159,19 +187,61 @@ class PlotRenderer:
 
         # Remove lines from plot and list
         for line in lines_to_remove:
-            if line in self.ax1.lines:
+            if line in ax.lines:
                 line.remove()
-            if line in self.model_lines:
-                self.model_lines.remove(line)
+            if line in lines:
+                lines.remove(line)
         
-        self.ax1.legend()
+        # Only update legend if requested
+        if update_legend and lines_to_remove:
+            handles, labels = ax.get_legend_handles_labels()
+            if handles:
+                ncols = 2 if len(handles) > 8 else 1
+                ax.legend(ncols = ncols)
+    
+    def set_molecule_visibility(self, molecule_name: str, visible: bool, ax: "Axes" = None, lines: List["Line2D"] = None) -> bool:
+        """
+        Toggle molecule line visibility without removing/recreating (fastest method).
+        
+        This is much faster than remove/recreate as it just changes visibility state.
+        
+        Parameters
+        ----------
+        molecule_name : str
+            Name of molecule to show/hide
+        visible : bool
+            True to show, False to hide
+        ax : Axes, optional
+            Axes containing the lines (default: ax1)
+        lines : List[Line2D], optional
+            List of lines to search in (default: self.model_lines)
+            
+        Returns
+        -------
+        bool
+            True if lines were found and updated, False otherwise
+        """
+        if ax is None:
+            ax = self.ax1
+        if lines is None:
+            lines = self.model_lines
+        
+        found_lines = False
+        for line in lines:
+            if hasattr(line, '_molecule_name') and line._molecule_name == molecule_name:
+                line.set_visible(visible)
+                found_lines = True
+        
+        return found_lines
         
     def render_main_spectrum_plot(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                  molecules: Union[List['Molecule'], 'MoleculeDict'], 
                                  summed_flux: Optional[np.ndarray] = None, 
                                  summed_wavelengths: Optional[np.ndarray] = None,
                                  error_data: Optional[np.ndarray] = None,
-                                 observed_wave_data: Optional[np.ndarray] = None) -> None:
+                                 axes: Optional["Axes"] = None,
+                                 update_legend: bool = True,
+                                 clear_axes: bool = True) -> None:
         """Render the main spectrum plot with observed data, model spectra, and sum
         
         Parameters
@@ -186,54 +256,76 @@ class PlotRenderer:
             Summed model flux (same size as wave_data)
         error_data : Optional[np.ndarray]
             Error data for observed spectrum
-        observed_wave_data : Optional[np.ndarray]
-            Observed wavelength data (same size as flux_data). If None, uses wave_data.
+        axes : Optional["Axes"]
+            Axes to render on; if None, uses self.ax1
+        update_legend : bool
+            Whether to create/update legend (default: True)
+            Set to False when you want to add custom legend later
+        clear_axes : bool
+            Whether to clear axes before rendering (default: True)
+            Set to False to update existing plot in place (faster for parameter updates)
         """
+        # Define the axes to use
+        if axes is None:
+            axes = self.ax1
+
         # Store current view limits
-        current_xlim = self.ax1.get_xlim() if hasattr(self.ax1, 'get_xlim') else None
-        current_ylim = self.ax1.get_ylim() if hasattr(self.ax1, 'get_ylim') else None
+        current_xlim = axes.get_xlim() if hasattr(axes, 'get_xlim') else None
+        current_ylim = axes.get_ylim() if hasattr(axes, 'get_ylim') else None
         
-        # Clear the plot
-        self.ax1.clear()
+        # Clear the plot only if requested
+        # When clear_axes=False, existing molecule lines will be updated in place
+        if clear_axes:
+            axes.clear()
         
         # Early return if no data
         if wave_data is None or len(wave_data) == 0:
-            self.ax1.set_title("No spectrum data loaded", color=self._get_theme_value("foreground", "black"))
+            axes.set_title("No spectrum data loaded", color=self._get_theme_value("foreground", "black"))
             return
         
-        # Use observed wavelength data if provided, otherwise use model wavelength data
-        #obs_wave_for_plotting = observed_wave_data if observed_wave_data is not None else wave_data
+        # Use observed wavelength data if provided
         obs_wave_for_plotting = wave_data
         
         # Plot observed spectrum using appropriate wavelength grid
-        #observed_wave = obs_wave_for_plotting - (obs_wave_for_plotting / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
-        self._plot_observed_spectrum(obs_wave_for_plotting, flux_data, error_data)
+        self._plot_observed_spectrum(obs_wave_for_plotting, flux_data, error_data, subplot=axes)
 
         # Plot individual molecule spectra
         if molecules:
-            self.render_visible_molecules(wave_data, molecules)
+            self.render_visible_molecules(wave_data, molecules, subplot=axes, update_legend=update_legend)
             
         # Plot summed spectrum
         if summed_flux is not None and len(summed_flux) > 0:
-            self._plot_summed_spectrum(summed_wavelengths, summed_flux)
-
+            self._plot_summed_spectrum(summed_wavelengths, summed_flux, subplot=axes)
+        
         # Configure plot appearance
         self._configure_main_plot_appearance()
         
         # Restore view limits if they existed
         if current_xlim and current_ylim:
             if current_xlim != (0.0, 1.0) and current_ylim != (0.0, 1.0):
-                self.ax1.set_xlim(current_xlim)
-                self.ax1.set_ylim(current_ylim)
+                axes.set_xlim(current_xlim)
+                axes.set_ylim(current_ylim)
         
     def _plot_observed_spectrum(self, wave_data: np.ndarray, flux_data: np.ndarray, 
-                               error_data: Optional[np.ndarray] = None) -> None:
+                               error_data: Optional[np.ndarray] = None, subplot: Optional[Axes] = None) -> None:
         """Plot the observed spectrum data"""
-        print("plotting spectrum")
+        #print("plotting spectrum")
+        
+        plot = subplot if subplot else self.ax1 # Use subplot for output if given.
+        #alpha = 0.8 if self.render_out else 1
+        
+        # Remove existing observed spectrum lines to avoid duplicates
+        for line in plot.lines[:]:  # Use slice to avoid modification during iteration
+            if hasattr(line, '_islat_observed'):
+                line.remove()
+        for collection in plot.collections[:]:
+            if hasattr(collection, '_islat_observed'):
+                collection.remove()
+        
         if flux_data is not None and len(flux_data) > 0:
             if error_data is not None and len(error_data) == len(flux_data):
                 # Plot with error bars
-                self.ax1.errorbar(
+                errorbar_container = plot.errorbar(
                     wave_data, 
                     flux_data,
                     yerr=error_data,
@@ -243,11 +335,21 @@ class PlotRenderer:
                     label='Data',
                     zorder=self._get_theme_value("zorder_observed", 2),
                     elinewidth=0.5,
-                    capsize=0
+                    capsize=0,
                 )
+                # Mark all parts of errorbar for identification
+                # errorbar_container is a tuple: (data_line, caplines, barlinecols)
+                # Mark the data line
+                errorbar_container[0]._islat_observed = True
+                # Mark caplines (list of lines for caps)
+                for line in errorbar_container[1]:
+                    line._islat_observed = True
+                # Mark the error bar line collection
+                for collection in errorbar_container[2]:
+                    collection._islat_observed = True
             else:
                 # Plot without error bars
-                self.ax1.plot(
+                line, = plot.plot(
                     wave_data, 
                     flux_data,
                     color=self._get_theme_value("foreground", "black"),
@@ -255,11 +357,20 @@ class PlotRenderer:
                     label='Data',
                     zorder=self._get_theme_value("zorder_observed", 2)
                 )
+                line._islat_observed = True
     
-    def _plot_summed_spectrum(self, wave_data: np.ndarray, summed_flux: np.ndarray) -> None:
+    def _plot_summed_spectrum(self, wave_data: np.ndarray, summed_flux: np.ndarray, subplot: Optional[Axes] = None) -> None:
         """Plot the summed model spectrum"""
+        if subplot is None:
+            subplot = self.ax1
+        
+        # Remove existing summed spectrum to avoid duplicates
+        for collection in subplot.collections[:]:
+            if hasattr(collection, '_islat_summed'):
+                collection.remove()
+        
         if len(summed_flux) > 0 and np.any(summed_flux > 0):
-            fill = self.ax1.fill_between(
+            fill = subplot.fill_between(
                 wave_data,
                 0,
                 summed_flux,
@@ -268,7 +379,7 @@ class PlotRenderer:
                 label='Sum',
                 zorder=self._get_theme_value("zorder_summed", 1)
             )
-            # Mark as summed spectrum for future removal
+            # Mark for identification
             fill._islat_summed = True
     
     def _configure_main_plot_appearance(self) -> None:
@@ -277,11 +388,11 @@ class PlotRenderer:
         self.ax1.set_ylabel('Flux density (Jy)', color=self._get_theme_value("foreground", "black"))
         self.ax1.set_title("Full Spectrum with Line Inspection", color=self._get_theme_value("foreground", "black"))
         
-
         # Only show legend if there are labeled items
         handles, labels = self.ax1.get_legend_handles_labels()
         if handles:
-            self.ax1.legend()
+            ncols = 2 if len(handles) > 8 else 1
+            self.ax1.legend(ncols = ncols)
         
     def render_line_inspection_plot(self, line_wave: Optional[np.ndarray], 
                                    line_flux: Optional[np.ndarray], 
@@ -573,34 +684,30 @@ class PlotRenderer:
             mol_label = self._get_molecule_display_name(molecule)
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
 
-    def plot_saved_lines(self, saved_lines: pd.DataFrame) -> None:
+    def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines, fig = None) -> None:
         """Plot saved lines on the main spectrum"""
-        if self.saved_lines:
-            self.remove_saved_lines()
-            return
+        if not fig:
+            fig = self.ax1
 
-        if saved_lines.empty:
-            return
-
-        for index, line in saved_lines.iterrows():
+        for index, line in loaded_lines.iterrows():
             # Plot vertical lines at saved positions
             if 'lam' in line:
-                self.saved_lines.append(self.ax1.axvline(
+                saved_lines.append(fig.axvline(
                     line['lam'], 
                     color=self._get_theme_value("saved_line_color", self._get_theme_value("saved_line_color_one", "red")),
                     alpha=0.7, 
                     linestyle=':', 
-                    label=f"Saved: {line.get('label', 'Line')}"
+                    # label=f"Saved: {line.get('label', 'Line')}"
                 ))
             
             if 'xmin' in line and 'xmax' in line:
                 # Plot wavelength range
-                self.saved_lines.append(self.ax1.axvline(
+                saved_lines.append(fig.axvline(
                     line['xmin'],
                     color=self._get_theme_value("saved_line_color_two", "orange"),
                     alpha=0.7,
                 ))
-                self.saved_lines.append(self.ax1.axvline(
+                saved_lines.append(fig.axvline(
                     line['xmax'],
                     color=self._get_theme_value("saved_line_color_two", "orange"),
                     alpha=0.7,
@@ -608,14 +715,13 @@ class PlotRenderer:
         # make sure that a refresh of the plot is triggered
         self.canvas.draw_idle()
 
-    def remove_saved_lines(self) -> None:
-        for line in self.saved_lines:
+    def remove_saved_lines(self, saved_lines) -> None:
+        for line in saved_lines:
             try:
                 line.remove()
             except ValueError:
                 pass
         
-        self.saved_lines.clear()
         self.canvas.draw_idle()
     
     def highlight_line_selection(self, xmin: float, xmax: float) -> None:
@@ -673,47 +779,87 @@ class PlotRenderer:
             self.ax1.axvline(wave, color=color, alpha=0.7, linewidth=1, 
                            linestyle='-', picker=True, label=label)
     
-    def get_visible_molecules(self, molecules: Union['MoleculeDict', List['Molecule']]) -> List['Molecule']:
-        """Get visible molecules using the MoleculeDict's optimized method"""
-        
-        debug_config.trace("plot_renderer", f"molecules type = {type(molecules)}")
-        
-        visible_names = molecules.get_visible_molecules()
-        visible_molecules = [molecules[name] for name in visible_names if name in molecules]
-        debug_config.trace("plot_renderer", f"get_visible_molecules(): {len(visible_molecules)}/{len(molecules)} molecules visible: {visible_names}")
-        return visible_molecules
-    
-    def render_visible_molecules(self, wave_data: np.ndarray, molecules: Union['MoleculeDict', List['Molecule']]) -> None:
+    def render_visible_molecules(self, wave_data: np.ndarray, molecules: 'MoleculeDict', 
+                                subplot: Optional[Axes] = None, update_legend: bool = True) -> None:
         """
         Render molecules using their built-in caching for optimal performance.
         
         Each molecule's caching system is leveraged to avoid redundant calculations
         based on parameter hashes and cache validity.
+        
+        Optimized to batch render all molecules and update legend only once at the end.
+        Also removes lines for molecules that are no longer visible.
+        
+        Parameters
+        ----------
+        wave_data : np.ndarray
+            Wavelength data for plotting
+        molecules : MoleculeDict
+            Dictionary of molecules to render
+        subplot : Optional[Axes]
+            Axes to render on (default: ax1)
+        update_legend : bool
+            Whether to create/update legend (default: True)
         """
         if not molecules:
             return
         
         # Get visible molecules
-        visible_molecules = self.get_visible_molecules(molecules)
+        visible_molecules = molecules.get_visible_molecules(return_objects=True)
+        visible_molecule_names = set(getattr(mol, 'name', None) for mol in visible_molecules)
+        
+        plot = subplot if subplot else self.ax1
+        
+        # Remove lines for molecules that are no longer visible
+        lines_to_remove = []
+        for line in plot.lines[:]:
+            if hasattr(line, '_molecule_name'):
+                if line._molecule_name not in visible_molecule_names:
+                    lines_to_remove.append(line)
+        
+        for line in lines_to_remove:
+            line.remove()
+            # Also remove from self.model_lines if it's there
+            if line in self.model_lines:
+                self.model_lines.remove(line)
+        
         if not visible_molecules:
+            # If no molecules are visible, just update legend and return
+            if update_legend:
+                handles, labels = plot.get_legend_handles_labels()
+                if handles:
+                    ncols = 2 if len(handles) > 8 else 1
+                    plot.legend(ncols=ncols)
             return
         
-        # Use each molecule's internal caching for rendering
+        # Batch render all visible molecules without updating legend each time
+        rendered_count = 0
         for mol in visible_molecules:
             mol_name = getattr(mol, 'name', 'unknown')
             try:
-                success = self.render_individual_molecule_spectrum(mol, wave_data)
-                if not success:
+                # Render without updating legend (update_legend=False)
+                success = self.render_individual_molecule_spectrum(mol, wave_data, subplot=subplot, update_legend=False)
+                if success:
+                    rendered_count += 1
+                else:
                     debug_config.warning("plot_renderer", f"Could not render molecule {mol_name}")
             except Exception as e:
                 print(f"Error rendering molecule {mol_name}: {e}")
                 continue
+        
+        # Update legend only once after all molecules are rendered (if requested)
+        if update_legend:
+            handles, labels = plot.get_legend_handles_labels()
+            if handles:
+                ncols = 2 if len(handles) > 8 else 1
+                plot.legend(ncols=ncols)
     
     def handle_molecule_visibility_change(self, molecule_name: str, is_visible: bool, 
-                                        molecules_dict: Union['MoleculeDict', Dict], 
+                                        molecules_dict: 'MoleculeDict', 
                                         wave_data: np.ndarray,
                                         active_molecule: Optional['Molecule'] = None,
-                                        current_selection: Optional[Tuple[float, float]] = None) -> None:
+                                        current_selection: Optional[Tuple[float, float]] = None,
+                                        is_full_spectrum: bool = False) -> None:
         """
         Handle molecule visibility changes with comprehensive PlotRenderer logic.
         Leverages MoleculeDict's advanced caching and visibility management.
@@ -737,9 +883,12 @@ class PlotRenderer:
             debug_config.warning("plot_renderer", f"Molecule {molecule_name} not found in molecules_dict")
             return
         
-        molecule = molecules_dict[molecule_name]
-        print(f"changing plotting of: {molecule}")
+        #molecule = molecules_dict[molecule_name]
+        #print(f"changing plotting of: {molecule}")
         
+        if is_full_spectrum:
+            # For full spectrum output, simply re-render everything
+            self.plot_manager.load_full_spectrum()
         # Handle visibility change using PlotRenderer methods
         if is_visible:
             pass
@@ -751,18 +900,18 @@ class PlotRenderer:
             # Remove molecule spectrum using PlotRenderer
             self.remove_molecule_lines(molecule_name)
         
-        # Update summed spectrum using MoleculeDict's optimized caching system
-        self._update_summed_spectrum_with_molecules(molecules_dict, wave_data)
-        
-        # Optional: Clear MoleculeDict's flux caches if needed after visibility change
+        '''# Optional: Clear MoleculeDict's flux caches if needed after visibility change
         if hasattr(molecules_dict, '_clear_flux_caches'):
             try:
                 # This ensures that the next summed flux calculation uses fresh visibility state
                 molecules_dict._clear_flux_caches()
                 debug_config.trace("plot_renderer", f"Cleared MoleculeDict flux caches after visibility change for {molecule_name}")
             except Exception as e:
-                debug_config.trace("plot_renderer", f"Could not clear MoleculeDict flux caches: {e}")
+                debug_config.trace("plot_renderer", f"Could not clear MoleculeDict flux caches: {e}")'''
         
+        # Update summed spectrum using MoleculeDict's optimized caching system
+        self._update_summed_spectrum_with_molecules(molecules_dict, wave_data)
+
         # Handle active molecule line inspection update if needed
         if (active_molecule and 
             hasattr(active_molecule, 'name') and 
@@ -806,7 +955,6 @@ class PlotRenderer:
             # Clear summed spectrum if no molecules
             self.update_summed_spectrum_only(wave_data, np.zeros_like(wave_data))
             return
-        
         try:
             debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux() with caching")
             summed_wavelengths, summed_flux = molecules_dict.get_summed_flux(wave_data, visible_only=True)
@@ -817,6 +965,34 @@ class PlotRenderer:
         # Update summed spectrum using PlotRenderer
         self.update_summed_spectrum_only(wave_data, summed_flux)
     
+    def render_atomic_lines(self, atomic_lines, axis: Axes, wavelengths, species, line_ids):
+        for i in range(len(wavelengths)):
+            line = axis.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
+            
+            # Adjust the y-coordinate to place labels within the plot borders
+            ylim = axis.get_ylim()
+            label_y = ylim[1]
+            
+            # Adjust the x-coordinate to place labels just to the right of the line
+            xlim = axis.get_xlim()
+            label_x = wavelengths[i] + 0.006 * (xlim[1] - xlim[0])
+            
+            # Add text label for the line
+            label_text = f"{species[i]} {line_ids[i]}"
+            label = axis.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
+                                                va='top', ha='left', color='tomato')
+            
+            atomic_lines.append((line, label))
+
+    def remove_atomic_lines(self, lines):
+        for (line, text) in lines:
+            try:
+                line.remove()
+                text.remove()
+            except ValueError:
+                pass
+        lines.clear()
+
     def clear_active_lines(self, active_lines_list: List[Any]) -> None:
         """
         Properly clear active lines by removing matplotlib artists first.
@@ -1206,11 +1382,13 @@ class PlotRenderer:
             return []
     
     def render_individual_molecule_spectrum(self, molecule: 'Molecule', wave_data: np.ndarray, 
-                                         plot_name: Optional[str] = None) -> bool:
+                                         plot_name: Optional[str] = None, subplot: Optional[Axes] = None,
+                                         update_legend: bool = True) -> bool:
         """
         Render a single molecule spectrum using the molecule's cached data.
         
-        No additional caching layers - complete reliance on molecule's caching system.
+        Works with any axes - searches for existing lines on the target axes and updates
+        them in place, or creates new ones. Does not depend on self.model_lines.
         
         Parameters
         ----------
@@ -1220,6 +1398,11 @@ class PlotRenderer:
             Wavelength array
         plot_name : Optional[str]
             Custom name for plotting
+        subplot : Optional[Axes]
+            Subplot to render on (default: ax1)
+        update_legend : bool
+            Whether to update the legend after rendering (default: True)
+            Set to False when rendering multiple molecules to update legend once at the end
             
         Returns
         -------
@@ -1227,10 +1410,21 @@ class PlotRenderer:
             True if successfully plotted, False otherwise
         """
         try:
+            plot = subplot if subplot else self.ax1
             # Increment render stats
             self._plot_stats['renders_count'] += 1
             
-            molecule_name = plot_name or self._get_molecule_display_name(molecule)            
+            molecule_name = plot_name or self._get_molecule_display_name(molecule)
+            mol_identifier = getattr(molecule, 'name', molecule_name)
+            
+            # Search for existing line with this molecule name directly on the target axes
+            existing_line = None
+            for line in plot.lines:
+                if (hasattr(line, '_molecule_name') and 
+                    line._molecule_name == mol_identifier):
+                    existing_line = line
+                    break
+            
             # Get spectrum data directly from molecule's caching system
             plot_lam, plot_flux = self.get_molecule_spectrum_data(molecule, wave_data)
             
@@ -1247,24 +1441,45 @@ class PlotRenderer:
             color = self._get_molecule_color(molecule)
             label = getattr(molecule, 'displaylabel', molecule_name)
             
-            # Plot the spectrum
-            line, = self.ax1.plot(
-                plot_lam,
-                plot_flux,
-                linestyle='--',
-                color=color,
-                alpha=0.8,
-                linewidth=2,
-                label=label,
-                zorder=self._get_theme_value("zorder_model", 3)
-            )
-
-            self.ax1.legend()
+            lw = 1 if self.render_out else 2
+            alpha = 1 if self.render_out else 0.8
             
-            # Store molecule name in line metadata for selective removal
-            line._molecule_name = getattr(molecule, 'name', molecule_name)
+            # Update existing line if found, otherwise create new
+            if existing_line is not None:
+                # Update existing line data - much faster than remove/recreate
+                existing_line.set_data(plot_lam, plot_flux)
+                existing_line.set_color(color)
+                existing_line.set_alpha(alpha)
+                existing_line.set_linewidth(lw)
+                existing_line.set_label(label)
+                line = existing_line
+            else:
+                # Create new line only if it doesn't exist on this axes
+                line, = plot.plot(
+                    plot_lam,
+                    plot_flux,
+                    linestyle='--',
+                    color=color,
+                    alpha=alpha,
+                    linewidth=lw,
+                    label=label,
+                    zorder=self._get_theme_value("zorder_model", 3)
+                )
+                
+                # Store molecule name in line metadata for selective removal
+                line._molecule_name = mol_identifier
+                
+                # Only track in self.model_lines if this is the main plot (ax1)
+                if plot == self.ax1:
+                    self.model_lines.append(line)
+    
+            # Only update legend if requested (batch operations can skip this)
+            if update_legend:
+                handles, labels = plot.get_legend_handles_labels()
+                if handles:
+                    ncols = 2 if len(handles) > 8 else 1
+                    plot.legend(ncols = ncols)
             
-            self.model_lines.append(line)
             self._plot_stats['molecules_rendered'] += 1
             
             return True

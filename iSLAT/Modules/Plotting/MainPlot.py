@@ -13,6 +13,8 @@ from .PlotRenderer import PlotRenderer
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
+from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
+import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 
 # Import debug configuration with fallback
 try:
@@ -57,11 +59,15 @@ class iSLATPlot:
         self.islat = islat_class_ref
 
         self.active_lines = []  # List of (line, text, scatter, values) tuples for active molecular lines
+        self.atomic_lines = []
+        self.saved_lines = []
+        self.atomic_toggle: bool = False
 
-        self.fig = plt.Figure(figsize=(10, 7))
+        #self.fig = plt.Figure(figsize=(15, 8.5))
+        self.fig = plt.Figure(constrained_layout=True)
         # Adjust subplot parameters to minimize margins and maximize plot area
-        self.fig.subplots_adjust(left=0.08, bottom=0.08, right=0.98, top=0.95, wspace=0.15, hspace=0.25)
-        gs = GridSpec(2, 2, height_ratios=[2, 3], figure=self.fig)
+        #self.fig.subplots_adjust(left=0.06, bottom=0.06, right=0.98, top=0.96, hspace=0.15, wspace=0.15)
+        gs = GridSpec(2, 2, width_ratios=[1, 1], height_ratios=[1, 1.5], figure=self.fig)
         self.ax1 = self.full_spectrum = self.fig.add_subplot(gs[0, :])
         self.ax2 = self.line_inspection = self.fig.add_subplot(gs[1, 0])
         self.ax3 = self.population_diagram = self.fig.add_subplot(gs[1, 1])
@@ -71,10 +77,12 @@ class iSLATPlot:
         self.ax2.set_title("Line inspection plot")
         self.ax3.set_title(f"{self.islat.active_molecule.displaylabel} Population diagram")
 
-        self.canvas = FigureCanvasTkAgg(self.fig, master=parent_frame)
+        self.parent_frame = parent_frame
+
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.parent_frame)
         
         # Apply theme to matplotlib figure and toolbar
-        self._apply_plot_theming()
+        #self._apply_plot_theming()
 
         # Initialize the modular classes
         self.plot_renderer = PlotRenderer(self)
@@ -110,7 +118,10 @@ class iSLATPlot:
     
     def toggle_legend(self):
         if self.ax1.legend_ is None:
-            self.ax1.legend()
+            handles, labels = self.ax1.get_legend_handles_labels()
+            if handles:
+                ncols = 2 if len(handles) > 8 else 1 # maybe make this some global variable (MAX_LEGEND_LEN)
+            self.ax1.legend(ncols = ncols)
         else:
             self.ax1.legend_.remove()
         self.canvas.draw_idle()
@@ -255,16 +266,23 @@ class iSLATPlot:
         wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
         self.islat.wave_data = wave_data # Update islat wave_data to match adjusted grid
 
+        self.atomic_lines.clear()
+        self.saved_lines.clear()
+
         self.plot_renderer.render_main_spectrum_plot(
             wave_data=wave_data,
             flux_data=self.islat.flux_data,
             molecules=self.islat.molecules_dict,
             summed_wavelengths=summed_wavelengths,
             summed_flux=summed_flux,
-            error_data=getattr(self.islat, 'err_data', None),
-            #observed_wave_data=self.islat.wave_data  # Pass observed data separately
+            error_data=getattr(self.islat, 'err_data', None)
         )
-        
+
+        if self.islat.GUI.top_bar.atomic_toggle:
+            self.plot_atomic_lines()
+
+        if self.islat.GUI.top_bar.line_toggle:
+            self.plot_saved_lines()
         # Recreate span selector and redraw
         self.make_span_selector()
         self.canvas.draw_idle()
@@ -406,8 +424,8 @@ class iSLATPlot:
             f"Einstein-A coeff. (1/s) = {einstein_str}\n"
             f"Upper level energy (K) = {energy_str}\n"
             f"Opacity = {tau_str}\n"
-            f"Data flux in sel. range (erg/s/cm2) = {flux_str}\n"
-            f"Model flux in sel. range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
+            f"Data flux in range (erg/s/cm2) = {flux_str}\n"
+            f"Model flux in range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
         )
         
         # Add the information without clearing the data field, with error protection
@@ -576,7 +594,30 @@ class iSLATPlot:
         """
         self.plot_renderer.highlight_line_selection(xmin, xmax)
         self.canvas.draw_idle()
+
     
+    def remove_atomic_lines(self):
+        self.plot_renderer.remove_atomic_lines(self.atomic_lines)
+        self.canvas.draw()
+
+    def plot_atomic_lines(self, data_field = None, atomic_lines = load_atomic_lines()):
+
+        if atomic_lines.empty:
+                if data_field: 
+                    self.data_field.insert_text("No atomic lines data found.\n")
+                return
+        
+        # Get wavelength and other data from the atomic lines DataFrame
+        wavelengths = atomic_lines['wave'].values
+        species = atomic_lines['species'].values
+        line_ids = atomic_lines['line'].values
+                
+        self.plot_renderer.render_atomic_lines(self.atomic_lines, self.ax1, 
+        wavelengths, species, line_ids)
+
+        self.canvas.draw()
+        return wavelengths
+
     def plot_vertical_lines(self, wavelengths, heights=None, colors=None, labels=None):
         """
         Plot vertical lines at specified wavelengths.
@@ -630,7 +671,7 @@ class iSLATPlot:
             
             molecule = self.islat.molecules_dict[molecule_name]
         
-        # Check if this molecule is visible - if so, we need to update the main spectrum plot
+        # Check if this molecule is visible - if so, we need to update plots
         if (hasattr(self.islat, 'molecules_dict') and 
             molecule_name in self.islat.molecules_dict):
             
@@ -638,7 +679,16 @@ class iSLATPlot:
             
             # Only update plots if the molecule is visible
             if molecule.is_visible:
-                self.update_model_plot()
+                # Check if full spectrum plot is currently visible
+                if (hasattr(self, 'full_spectrum_plot') and 
+                    hasattr(self, 'full_spectrum_plot_canvas') and
+                    self.full_spectrum_plot_canvas.get_tk_widget().winfo_viewable()):
+                    # Update full spectrum plot
+                    self.full_spectrum_plot.reload_data()
+                    self.full_spectrum_plot_canvas.draw_idle()
+                else:
+                    # Update main spectrum plot
+                    self.update_model_plot()
         
         # Check if the changed molecule is the active one for additional updates
         if (hasattr(self.islat, 'active_molecule') and 
@@ -703,7 +753,8 @@ class iSLATPlot:
             molecules_dict=self.islat.molecules_dict,
             wave_data=self.islat.wave_data,
             active_molecule=active_molecule,
-            current_selection=current_selection
+            current_selection=current_selection,
+            is_full_spectrum=getattr(self, 'is_full_spectrum', False)
         )
         
         # Only canvas update needed in MainPlot
@@ -821,9 +872,20 @@ class iSLATPlot:
         # Delegate to PlotRenderer for plotting
         self.plot_renderer.plot_single_lines(wavelengths)
     
-    def plot_saved_lines(self, saved_lines):
+    def plot_saved_lines(self, data_field = None):
         """Plot saved lines using PlotRenderer with delegation."""
-        self.plot_renderer.plot_saved_lines(saved_lines)
+        # Load saved lines from file
+        loaded_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
+        if loaded_lines.empty:    
+            if data_field:
+                data_field.insert_text("No saved lines found.\n")
+            return
+        
+        self.plot_renderer.plot_saved_lines(loaded_lines, self.saved_lines)
+        # data_field.insert_text(f"Displayed {len(self.saved_lines)} saved lines on plot.\n")
+    
+    def remove_saved_lines(self):
+        self.plot_renderer.remove_saved_lines(self.saved_lines)
 
     def apply_theme(self, theme=None):
         """Apply theme to the plot and update colors"""
@@ -836,3 +898,58 @@ class iSLATPlot:
         # Also update any existing plots to use colors
         if hasattr(self, 'update_all_plots'):
                 self.update_all_plots()
+    
+    def load_full_spectrum(self):
+        # Switch to full spectrum view
+        # Hide the original canvas
+        self.canvas.get_tk_widget().pack_forget()
+        
+        # Import the full spectrum plot class
+        from iSLAT.Modules.FileHandling.OutputFullSpectrum import FullSpectrumPlot
+
+        if hasattr(self, 'full_spectrum_plot_canvas'):
+                self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
+                #self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+
+        if hasattr(self, 'full_spectrum_plot'):
+            self.full_spectrum_plot.reload_data()
+        else:
+            # Create a new full spectrum plot
+            self.full_spectrum_plot = FullSpectrumPlot(self.islat)
+            self.full_spectrum_plot.generate_plot()
+
+        if hasattr(self, 'full_spectrum_plot_canvas'):
+            pass
+        else:
+            # Create and pack the full spectrum canvas
+            self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
+                self.full_spectrum_plot.fig, 
+                master=self.parent_frame
+            )
+        self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
+        self.full_spectrum_plot_canvas.draw_idle()
+
+    def toggle_full_spectrum(self):
+        """Toggle between the regular three plots and a full spectrum view."""
+        if not hasattr(self, 'is_full_spectrum'):
+            self.is_full_spectrum = False
+        
+        self.is_full_spectrum = not self.is_full_spectrum
+
+        if self.is_full_spectrum:
+            self.load_full_spectrum()
+        else:
+            # Switch back to regular three-plot view
+            # Destroy the full spectrum plot
+            if hasattr(self, 'full_spectrum_plot_canvas'):
+                self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
+                self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+                
+            if hasattr(self, 'full_spectrum_plot'):
+                self.full_spectrum_plot.close()
+                del self.full_spectrum_plot
+                del self.full_spectrum_plot_canvas
+
+            # Restore the original canvas
+            self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
+            self.canvas.draw_idle()

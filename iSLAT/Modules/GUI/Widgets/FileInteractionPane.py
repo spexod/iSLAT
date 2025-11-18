@@ -24,7 +24,7 @@ class trim_label(tk.Label):
             self.trimmed = False
     
 class FileInteractionPane(ttk.Frame):
-    def __init__(self, parent, islat_class, theme):
+    def __init__(self, parent, islat_class, theme, data_field):
         """
         Initialize the File Interaction Pane widget.
         Now inherits from ResizableFrame for consolidated theming.
@@ -41,6 +41,7 @@ class FileInteractionPane(ttk.Frame):
 
         self.parent = parent
         self.islat_class = islat_class
+        self.data_field = data_field
         
         # Create the label frame for grouping
         self.label_frame = tk.LabelFrame(self, text="Input/Output Files", relief="solid", borderwidth=1)
@@ -215,7 +216,8 @@ class FileInteractionPane(ttk.Frame):
         self.islat_class.input_line_list = filepath
 
         self.update_label(self.input_line_list_label, filename)
-        self.islat_class.GUI.plot.plot_renderer.remove_saved_lines()
+        self.islat_class.GUI.plot.remove_saved_lines()
+        self.data_field.insert_text(f"Loaded lines from: {filepath}")
     
     def _load_output_line_measurements(self):
         """Calls the ifh class to save output line measurements."""

@@ -1,6 +1,5 @@
 from typing import Dict, List, Optional, Tuple, Callable, Any, Union
 import numpy as np
-import threading
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 import time
@@ -887,7 +886,7 @@ class MoleculeDict(dict):
     @global_model_pixel_res.setter
     def global_model_pixel_res(self, value: Optional[float]) -> None:
         old_value = self._global_model_pixel_res
-        value = f'{value:.2e}'
+        #value = f'{value:.2e}'
         value = float(value)
         self._global_model_pixel_res = value
         self.bulk_update_parameters({'model_pixel_res': value})

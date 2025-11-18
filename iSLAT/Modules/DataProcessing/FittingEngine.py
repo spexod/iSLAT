@@ -7,6 +7,7 @@ from lmfit.models import GaussianModel
 from lmfit import Parameters
 from iSLAT.Modules.DataProcessing.Slabfit import SlabFit
 import iSLAT.Constants as c
+import sys
 
 class FittingEngine:
     """
@@ -108,7 +109,8 @@ class FittingEngine:
             else:
                 result = model.fit(flux_fit, params, x=x_fit, nan_policy='omit')
             
-            print(result.fit_report())
+            #print(result.fit_report())
+            sys.stdout.write(result.fit_report() + '\n')
 
             # Generate fitted curve on original wavelength grid
             fitted_wave = wave_data
@@ -220,7 +222,8 @@ class FittingEngine:
         result = model.fit(flux_data, params, x=wave_data, weights=weights, 
                           method='leastsq', nan_policy='omit')
         
-        print(result.fit_report())
+        #print(result.fit_report())
+        sys.stdout.write(result.fit_report() + '\n')
         self.fit_results_summary = result.summary()
         
         # Generate fitted curve from x min and x max and wave data
@@ -517,7 +520,9 @@ class FittingEngine:
             'Flux_islat': np.float64(f'{flux_data_integral:.{3}e}'),  # Default to data values
             'Err_islat': np.float64(f'{err_data_integral:.{3}e}')     # Will be overwritten if fit succeeds
         }
-        
+
+        result_entry.update({key: line_info[key] for key in line_info if key not in result_entry})  # Include all line info fields
+
         # Process fit results if successful
         if fit_result and fit_result.success:
             # Extract fit parameters using the helper method

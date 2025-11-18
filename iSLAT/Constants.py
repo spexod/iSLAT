@@ -40,6 +40,9 @@ from collections import namedtuple
 BOLTZMANN_CONSTANT = 1.3806504e-16
 """Boltzmann constant in erg/K."""
 
+BOLTZMANN_CONSTANT_JOULE = 1.380649e-23
+"""Boltzmann constant in J/K."""
+
 SPEED_OF_LIGHT_CGS = 2.99792458e10
 """Speed of light in cm/s."""
 
@@ -52,7 +55,8 @@ SPEED_OF_LIGHT_MICRONS = 2.99792458e14
 PLANCK_CONSTANT = 6.62606896e-27
 """Planck constant in erg·s."""
 
-FGAUSS_PREFACTOR = np.sqrt(np.pi) / (2.0 * np.sqrt(np.log(2.0)))
+FGAUSS_PREFACTOR: float = np.sqrt(np.pi) / (2.0 * np.sqrt(np.log(2.0)))
+#FGAUSS_PREFACTOR = np.sqrt(np.log(2.0)/np.pi)
 """Prefactor for opacity and intensity calculations."""
 
 ASTRONOMICAL_UNIT_CM = 1.496e13

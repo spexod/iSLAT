@@ -1,15 +1,14 @@
-import traceback
+#import traceback
 import tkinter as tk
 from tkinter import ttk, colorchooser
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
 from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorButton
-from .RegularFrame import RegularFrame
+#from .RegularFrame import RegularFrame
 from ..Tooltips import CreateToolTip
 
 class ControlPanel(ttk.Frame):
     def __init__(self, master, islat, plot, data_field, font):
-
         super().__init__(master)
         
         self.master = master
@@ -33,10 +32,11 @@ class ControlPanel(ttk.Frame):
         self.label_frame.grid(row=0, column=0, sticky="nsew", pady=0)
         self.label_frame.grid_rowconfigure(0,weight=1)
 
-
-        bg_frame = tk.Frame(self)
-        self.bg_color = bg_frame.cget('bg')
-        bg_frame.destroy()
+        temp_label = tk.Label(self)
+        self.bg_color = temp_label.cget('bg')
+        self.fg_color = temp_label.cget('fg')
+        temp_label.destroy()
+        fg_text = tk.Text()
         self.selected_color = "#007BFF"
         
         self.max_name_len = 4
@@ -118,7 +118,7 @@ class ControlPanel(ttk.Frame):
         entry = tk.Entry(
             parent, 
             textvariable=var, 
-            width=width, 
+            width=width, # Turn back on to use the width from the json config
             justify="left", 
         )
         
@@ -146,7 +146,7 @@ class ControlPanel(ttk.Frame):
                 on_change_callback(value)
                 value_str = self._format_value(value, param_name)
                 var.set(value_str)
-                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+                entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
             except ValueError as e:
                 print(f"Error with new value: {e}")
                 self.data_field.insert_text(f"Error with new value: {e}")
@@ -155,7 +155,7 @@ class ControlPanel(ttk.Frame):
         
         def on_write(*args):
             if self.updating: # Updating means that the entry variable is being updated from iSLAT and should not turn grey
-                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+                entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
                 return
             try:
                 new_entry = float(entry.get())
@@ -165,7 +165,7 @@ class ControlPanel(ttk.Frame):
                 return
             
             if new_entry == old_entry:
-                entry.configure(fg="black", font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+                entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
             else:
                 entry.configure(fg="grey", font=(self.font.cget("family"), self.font.cget("size"), "italic"))
 
@@ -194,20 +194,20 @@ class ControlPanel(ttk.Frame):
         
         return self._create_simple_entry(self, label_text, current_value, row, col, update_parameter, width, param_name=param_name)
 
-    def _create_display_controls(self,parent, start_row, start_col):
+    def _create_display_controls(self, parent, start_row, start_col):
         """Create plot start and range controls for display view"""
         plot_start_tip = "Start wavelength\nfor the upper plot\nunits: μm"
         plot_range_tip = "Wavelength range\nfor the upper plot\nunits: μm"
 
         # Plot start
         initial_start = getattr(self.islat, 'display_range', [4.5, 5.5])[0]
-        self.plot_start_entry, self.plot_start_var = self._create_simple_entry( parent,
+        self.plot_start_entry, self.plot_start_var = self._create_simple_entry(parent,
             "Plot start:", initial_start, start_row, start_col, lambda _: self._update_display_range(), param_name="display_range_start", tip_text=plot_start_tip)
         
         # Plot range  
         display_range = getattr(self.islat, 'display_range', [4.5, 5.5])
         initial_range = round(display_range[1] - display_range[0], 2) # round to 2 decimal places
-        self.plot_range_entry, self.plot_range_var = self._create_simple_entry( parent,
+        self.plot_range_entry, self.plot_range_var = self._create_simple_entry(parent,
             "Plot range:", initial_range, start_row, start_col + 2, lambda _: self._update_display_range(), param_name="display_range_range", tip_text=plot_range_tip)
 
     def _create_wavelength_controls(self, parent, start_row, start_col):
@@ -257,8 +257,6 @@ class ControlPanel(ttk.Frame):
                 self._global_parameter_entries[field_config['property']] = (entry, var)
             
             col_offset += 1
-
-        
 
     def _build_color_and_vis_controls(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -401,8 +399,7 @@ class ControlPanel(ttk.Frame):
         col = 0
         row = start_row 
         for field_key, field_config in self.MOLECULE_FIELDS.items():
-            
-            
+             
             entry, var = self._create_molecule_parameter_entry(
                 parameters_frame,
                 field_config['label'], 
@@ -430,7 +427,6 @@ class ControlPanel(ttk.Frame):
         mol_name = mol_name
         active_mol = self._get_active_molecule_object().name
         default_mol = self.islat.user_settings.get("default_active_molecule", "H2O")
- 
 
         if mol_name == default_mol:
             # print(f"Cannot delete {mol_name}!")
@@ -700,7 +696,7 @@ class ControlPanel(ttk.Frame):
             if hasattr(selected_mol, '_notify_my_parameter_change'):
                 selected_mol._notify_my_parameter_change('color', old_color, color_code)
 
-    def _get_active_molecule_object(self):
+    def _get_active_molecule_object(self) -> Molecule:
         """Get the active molecule object, similar to MoleculeWindow logic"""
         if not hasattr(self.islat, 'active_molecule') or not self.islat.active_molecule:
             return None
@@ -716,13 +712,13 @@ class ControlPanel(ttk.Frame):
     def _update_active_molecule_changes(self):
         """Update color button and visibility checkbox based on active molecule"""
         active_mol = self._get_active_molecule_object()
-        selected_name = active_mol.name
+        self.selected_name = active_mol.name
         self.mol_frames[active_mol.name].config(bg=self.selected_color)
         if len(active_mol.name) > self.max_name_len + 4:
-            selected_name = active_mol.name[:self.max_name_len] + "..."
+            self.selected_name = active_mol.name[:self.max_name_len] + "..."
             CreateToolTip(self.selected_label, active_mol.name, bg = self.bg_color)
-            
-        self.selected_label.config(text=f"Selected Molecule: {selected_name}")
+
+        self.selected_label.config(text=f"Selected Molecule: {self.selected_name}\nThermal Broadening: {active_mol.thermal_broad:.2g} km/s")
 
     def _update_display_range(self, value_str=None):
         """Update display range bidirectionally between GUI and iSLAT class"""
@@ -752,6 +748,7 @@ class ControlPanel(ttk.Frame):
                     # Only update if the values are actually different to avoid unnecessary callbacks
                     if not hasattr(self.islat, '_display_range') or self.islat._display_range != new_display_range:
                         self.islat.display_range = new_display_range
+                        self.islat.GUI.plot.match_display_range(match_y = True)
             except (ValueError, AttributeError):
                 pass
 

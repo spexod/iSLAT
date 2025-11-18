@@ -7,7 +7,6 @@ def create_button(frame, theme, text, command, row, column, tip_text = None):
             text.replace(" ", ""), theme["buttons"]["DefaultBotton"]
         )
 
-        
         btn = tk.Button(
             frame, text=text,
             command=command,
@@ -46,7 +45,6 @@ def create_scrollable_frame(parent, height = 150, width = 300, vertical = False,
                 hscrollbar.grid(row=1, column=0, columnspan= 2, sticky="ew")
                 canvasscroll.configure(xscrollcommand=hscrollbar.set)
         
-
         # Allow resizing of the canvasscroll and outer_frame
         canvas_frame.grid_rowconfigure(0, weight=1)
         canvas_frame.grid_columnconfigure(0, weight=1)
