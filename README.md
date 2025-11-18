@@ -1,5 +1,6 @@
 # iSLAT v5.01.00 - beta release
 
+
 ### Key updates from v5.00.00:
 - Further improvements in speed and computational efficiency.
 - The slab model now accounts for line opacity overlap and mutual saturation, which is particularly important in the case of water ortho-para lines that overlap (see Figure 5 in Banzatti et al. 2025).
