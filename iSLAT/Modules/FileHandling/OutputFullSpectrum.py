@@ -304,6 +304,7 @@ def output_full_spectrum(islat_ref: "iSLAT"):
     Maintains the same interface for existing code.
     """
     spectrum_plotter = FullSpectrumPlot(islat_ref)
+    spectrum_plotter.figsize = (12, 16)
     spectrum_plotter.generate_plot()
     save_path = spectrum_plotter.save_figure()
     spectrum_plotter.close()
