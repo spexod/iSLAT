@@ -237,7 +237,7 @@ class FullSpectrumPlot:
                 self.mol_labels,
                 labelcolor=self.mol_colors,
                 loc='upper center',
-                ncols=9,
+                ncols=12,
                 handletextpad=0.2,
                 bbox_to_anchor=(0.5, 1.4),
                 handlelength=0,
@@ -263,7 +263,7 @@ class FullSpectrumPlot:
             self.generate_plot()
         plt.show(block=False)
     
-    def save_figure(self, save_path: Optional[str] = None):
+    def save_figure(self, save_path: Optional[str] = None, rasterized: bool = False):
         """
         Save the figure to a file.
         
@@ -284,9 +284,13 @@ class FullSpectrumPlot:
                 initialdir=absolute_data_files_path,
                 filetypes=[("PDF files", "*.pdf")]
             )
-        
+        if rasterized:
+            for ax in self.subplots.values():
+                ax.set_rasterized(True)
+            dpi=300
+
         if save_path:
-            plt.savefig(save_path, bbox_inches='tight', format='pdf')
+            plt.savefig(save_path, bbox_inches='tight', format='pdf', dpi=dpi if rasterized else None)
             self.islat_ref.GUI.data_field.insert_text(f"Spectrum output saved to: {save_path}")
             return save_path
         return None
@@ -298,7 +302,7 @@ class FullSpectrumPlot:
             self.fig = None
 
 # Backward compatibility function
-def output_full_spectrum(islat_ref: "iSLAT"):
+def output_full_spectrum(islat_ref: "iSLAT", rasterized: bool = False):
     """
     Backward-compatible function that uses the new FullSpectrumPlot class.
     Maintains the same interface for existing code.
@@ -306,7 +310,8 @@ def output_full_spectrum(islat_ref: "iSLAT"):
     spectrum_plotter = FullSpectrumPlot(islat_ref)
     spectrum_plotter.figsize = (12, 16)
     spectrum_plotter.generate_plot()
-    save_path = spectrum_plotter.save_figure()
+    save_path = spectrum_plotter.save_figure(rasterized=rasterized)
+    spectrum_plotter.figsize = None
     spectrum_plotter.close()
     return save_path
 
