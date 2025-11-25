@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from iSLAT.iSLATClass import iSLAT
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
+    from matplotlib.legend import Legend
 
 class FullSpectrumPlot:
     """
@@ -300,6 +301,10 @@ class FullSpectrumPlot:
         if self.fig is not None:
             plt.close(self.fig)
             self.fig = None
+    
+    def get_legend(self) -> Optional["Legend"]:
+        """Return the legend object if it exists."""
+        return self.legend_subplot.legend_ if hasattr(self, 'legend_subplot') and self.legend_subplot is not None else None
 
 # Backward compatibility function
 def output_full_spectrum(islat_ref: "iSLAT", rasterized: bool = False):

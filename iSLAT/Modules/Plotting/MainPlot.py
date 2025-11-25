@@ -116,7 +116,7 @@ class iSLATPlot:
         self.toolbar = NavigationToolbar2Tk(self.canvas, window = frame)
         return self.toolbar
     
-    def toggle_legend(self):
+    '''def toggle_legend(self):
         if self.ax1.legend_ is None:
             handles, labels = self.ax1.get_legend_handles_labels()
             if handles:
@@ -124,7 +124,7 @@ class iSLATPlot:
             self.ax1.legend(ncols = ncols)
         else:
             self.ax1.legend_.remove()
-        self.canvas.draw_idle()
+        self.canvas.draw_idle()'''
 
     def _apply_plot_theming(self):
         """Apply theme colors to matplotlib figure and toolbar"""
@@ -532,15 +532,22 @@ class iSLATPlot:
         self.canvas.draw_idle()
 
     def toggle_legend(self):
-        ax1_leg = self.ax1.get_legend()
-        ax2_leg = self.ax2.get_legend()
-        if ax1_leg is not None:
-            vis = not ax1_leg.get_visible()
-            ax1_leg.set_visible(vis)
-        if ax2_leg is not None:
-            vis = not ax2_leg.get_visible()
-            ax2_leg.set_visible(vis)
-        self.canvas.draw_idle()
+        if hasattr(self, 'is_full_spectrum') and self.is_full_spectrum:
+            full_spectrum_leg = self.full_spectrum_plot.get_legend()
+            if full_spectrum_leg is not None:
+                vis = not full_spectrum_leg.get_visible()
+                full_spectrum_leg.set_visible(vis)
+            self.full_spectrum_plot_canvas.draw_idle()
+        else:
+            ax1_leg = self.ax1.get_legend()
+            ax2_leg = self.ax2.get_legend()
+            if ax1_leg is not None:
+                vis = not ax1_leg.get_visible()
+                ax1_leg.set_visible(vis)
+            if ax2_leg is not None:
+                vis = not ax2_leg.get_visible()
+                ax2_leg.set_visible(vis)
+            self.canvas.draw_idle()
 
     def flux_integral(self, lam, flux, err, lam_min, lam_max):
         """
