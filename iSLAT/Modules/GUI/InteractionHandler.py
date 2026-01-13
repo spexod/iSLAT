@@ -201,8 +201,10 @@ class InteractionHandler:
                         'wavelength': line_data['lam'],
                         'intensity': line_data['intens'],
                         'e_up': line_data['e_up'],
+                        'e_low': line_data['e_low'],
                         'a_stein': line_data['a_stein'],
                         'g_up': line_data['g_up'],
+                        'g_low': line_data['g_low'],
                         'up_lev': line_data.get('lev_up', 'N/A'),
                         'low_lev': line_data.get('lev_low', 'N/A'),
                         'tau': line_data.get('tau', 'N/A')

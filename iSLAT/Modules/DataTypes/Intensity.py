@@ -676,7 +676,9 @@ class Intensity:
                 'intens': intens_list,
                 'a_stein': [line.a_stein for line in self.molecule.lines],
                 'e_up': [line.e_up for line in self.molecule.lines],
-                'g_up': [line.g_up for line in self.molecule.lines]
+                'e_low': [line.e_low for line in self.molecule.lines],
+                'g_up': [line.g_up for line in self.molecule.lines],
+                'g_low': [line.g_low for line in self.molecule.lines]
             }
             return pd.DataFrame(data_dict)
 
@@ -690,7 +692,9 @@ class Intensity:
             'intens': self.intensity,
             'a_stein': lines.a_stein,
             'e_up': lines.e_up,
-            'g_up': lines.g_up
+            'e_low': lines.e_low,
+            'g_up': lines.g_up,
+            'g_low': lines.g_low
         })
 
     def _repr_html_(self) -> Optional[str]:
