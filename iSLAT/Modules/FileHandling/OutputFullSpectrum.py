@@ -212,6 +212,11 @@ class FullSpectrumPlot:
             if self.islat_ref.GUI.top_bar.atomic_toggle:
                 atomic_lines = load_atomic_lines()
 
+                atomic_lines = atomic_lines[
+                    (atomic_lines['wave'] >= xr[0]) &
+                    (atomic_lines['wave'] <= xr[1])
+                ]
+
                 wavelengths = atomic_lines['wave'].values
                 species = atomic_lines['species'].values
                 line_ids = atomic_lines['line'].values

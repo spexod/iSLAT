@@ -985,7 +985,6 @@ class PlotRenderer:
             label = axis.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
                                                 va='top', ha='left', color='tomato')
             if using_subplot is False:
-                print("appending atomic lines\n")
                 atomic_lines.append((line, label))
 
     def remove_atomic_lines(self, lines):
