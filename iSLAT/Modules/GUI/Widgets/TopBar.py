@@ -645,13 +645,12 @@ class TopBar(ResizableFrame):
         Save current molecule parameters to CSV file.
         """
         # Display confirmation dialog
-        if auto is False:
-            confirmed = messagebox.askquestion(
-                "Confirmation",
-                "Sure you want to save? This will overwrite any previous save for this spectrum file."
-            )
-            if confirmed == "no":
-                return
+        confirmed = messagebox.askquestion(
+            "Confirmation",
+            "Sure you want to save? This will overwrite any previous save for this spectrum file."
+        )
+        if confirmed == "no":
+            return
         
         # Get the loaded spectrum name for filename
         spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
@@ -660,19 +659,11 @@ class TopBar(ResizableFrame):
 
         try:
             # Save the current molecule parameters
-            if auto is True:
-                saved_file = write_molecules_to_csv(
+            saved_file = write_molecules_to_csv(
                 self.islat.molecules_dict, 
-                file_path=file_path,
                 loaded_spectrum_name=spectrum_name,
-                file_name=molsave_file_name + "_parameters"
-                )
-            else:
-                saved_file = write_molecules_to_csv(
-                    self.islat.molecules_dict, 
-                    loaded_spectrum_name=spectrum_name,
-                    file_name=molsave_file_name
-                )
+                file_name=molsave_file_name
+            )
                 
             # Also save to the general molecules list for session persistence
             #write_molecules_list_csv(self.islat.molecules_dict, loaded_spectrum_name=spectrum_name)
