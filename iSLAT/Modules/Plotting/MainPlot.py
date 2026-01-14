@@ -614,7 +614,7 @@ class iSLATPlot:
                     self.data_field.insert_text("No atomic lines data found.\n")
                 return
         
-        # Get wavelength and other data from the atomic lines DataFrame
+        # Get wavelength and other data from the atomic lines DataFrame 
         wavelengths = atomic_lines['wave'].values
         species = atomic_lines['species'].values
         line_ids = atomic_lines['line'].values

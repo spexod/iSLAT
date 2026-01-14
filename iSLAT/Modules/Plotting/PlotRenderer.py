@@ -685,8 +685,8 @@ class PlotRenderer:
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
 
     def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines, fig = None) -> None:
-        """Plot saved lines on the main spectrum"""
-        if not fig:
+        """Plot saved lines on given plot (defaults main plot)"""
+        if not fig: 
             fig = self.ax1
 
         for index, line in loaded_lines.iterrows():
@@ -965,7 +965,10 @@ class PlotRenderer:
         # Update summed spectrum using PlotRenderer
         self.update_summed_spectrum_only(wave_data, summed_flux)
     
-    def render_atomic_lines(self, atomic_lines, axis: Axes, wavelengths, species, line_ids):
+    def render_atomic_lines(self, atomic_lines, axis: Axes, wavelengths, species, line_ids, using_subplot = False):
+        if using_subplot:
+            pass
+
         for i in range(len(wavelengths)):
             line = axis.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
             
@@ -976,13 +979,14 @@ class PlotRenderer:
             # Adjust the x-coordinate to place labels just to the right of the line
             xlim = axis.get_xlim()
             label_x = wavelengths[i] + 0.006 * (xlim[1] - xlim[0])
-            
+
             # Add text label for the line
             label_text = f"{species[i]} {line_ids[i]}"
             label = axis.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
                                                 va='top', ha='left', color='tomato')
-            
-            atomic_lines.append((line, label))
+            if using_subplot is False:
+                print("appending atomic lines\n")
+                atomic_lines.append((line, label))
 
     def remove_atomic_lines(self, lines):
         for (line, text) in lines:
