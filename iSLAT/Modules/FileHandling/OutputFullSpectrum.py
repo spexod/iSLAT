@@ -1,3 +1,4 @@
+from os.path import dirname
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -333,6 +334,9 @@ def output_full_spectrum(islat_ref: "iSLAT", rasterized: bool = False):
     spectrum_plotter.figsize = (12, 16)
     spectrum_plotter.generate_plot()
     save_path = spectrum_plotter.save_figure(rasterized=rasterized)
+    file_name = save_path + "_parameters.csv"
+    print(f"file name is: {file_name}\n")
+    ifh.write_molecules_to_csv(islat_ref.molecules_dict, file_path=dirname(save_path), file_name=file_name)
     spectrum_plotter.figsize = None
     spectrum_plotter.close()
     return save_path

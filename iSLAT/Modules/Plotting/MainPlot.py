@@ -879,14 +879,15 @@ class iSLATPlot:
         # Delegate to PlotRenderer for plotting
         self.plot_renderer.plot_single_lines(wavelengths)
     
-    def plot_saved_lines(self, data_field = None):
+    def plot_saved_lines(self, loaded_lines = None, data_field = None):
         """Plot saved lines using PlotRenderer with delegation."""
         # Load saved lines from file
-        loaded_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
-        if loaded_lines.empty:    
-            if data_field:
-                data_field.insert_text("No saved lines found.\n")
-            return
+        if loaded_lines is None:
+            loaded_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
+            if loaded_lines.empty:    
+                if data_field:
+                    data_field.insert_text("No saved lines found.\n")
+                return
         
         self.plot_renderer.plot_saved_lines(loaded_lines, self.saved_lines)
         # data_field.insert_text(f"Displayed {len(self.saved_lines)} saved lines on plot.\n")
