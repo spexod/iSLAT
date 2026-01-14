@@ -1132,10 +1132,8 @@ class PlotRenderer:
         max_y : float
             Maximum y value for scaling line heights
         """
-        print("in render lines")
         if not line_data:
             return
-        print(f"max_y: {max_y}")
         
         # Get threshold and filter lines
         threshold_percent = self.get_line_intensity_threshold()
