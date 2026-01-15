@@ -196,12 +196,16 @@ class TopBar(ResizableFrame):
 
     def toggle_saved_lines(self):
         """Show saved lines as vertical dashed lines on the plot."""
+        loaded_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
+        if loaded_lines.empty:   
+            self.data_field.insert_text("No saved lines found.\n")
+            return
         try:
             self.line_toggle = not self.line_toggle
 
             if self.line_toggle:
                 # Plot the saved lines on the main plot
-                self.main_plot.plot_saved_lines(data_field=self.data_field)
+                self.main_plot.plot_saved_lines(loaded_lines=loaded_lines, data_field=self.data_field)
             
             else:
                 self.main_plot.remove_saved_lines()
@@ -638,7 +642,7 @@ class TopBar(ResizableFrame):
     def add_molecule(self):
         self.islat.add_molecule_from_hitran()
 
-    def save_parameters(self):
+    def save_parameters(self, file_path = None, auto = False):
         """
         Save current molecule parameters to CSV file.
         """
@@ -662,7 +666,7 @@ class TopBar(ResizableFrame):
                 loaded_spectrum_name=spectrum_name,
                 file_name=molsave_file_name
             )
-            
+                
             # Also save to the general molecules list for session persistence
             #write_molecules_list_csv(self.islat.molecules_dict, loaded_spectrum_name=spectrum_name)
             

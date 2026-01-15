@@ -1,3 +1,4 @@
+from os.path import dirname
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -9,6 +10,7 @@ from tkinter import filedialog
 from iSLAT.Modules.FileHandling import *
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 from iSLAT.Constants import SPEED_OF_LIGHT_KMS
+from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
 
 from typing import Optional, Union, Literal, TYPE_CHECKING, Any, List, Dict, Tuple
 if TYPE_CHECKING:
@@ -207,6 +209,22 @@ class FullSpectrumPlot:
             )
             if self.islat_ref.GUI.top_bar.line_toggle:
                 self.plot_renderer.plot_saved_lines(self.line_data, self.saved_lines, fig = self.subplots[n])
+
+            if self.islat_ref.GUI.top_bar.atomic_toggle:
+                atomic_lines = load_atomic_lines()
+
+                atomic_lines = atomic_lines[
+                    (atomic_lines['wave'] >= xr[0]) &
+                    (atomic_lines['wave'] <= xr[1])
+                ]
+
+                wavelengths = atomic_lines['wave'].values
+                species = atomic_lines['species'].values
+                line_ids = atomic_lines['line'].values
+
+                self.plot_renderer.render_atomic_lines(atomic_lines, self.subplots[n], 
+                wavelengths, species, line_ids, using_subplot=True)
+
             
             # Restore original setting
             self.plot_renderer.render_out = original_render_out
@@ -316,6 +334,9 @@ def output_full_spectrum(islat_ref: "iSLAT", rasterized: bool = False):
     spectrum_plotter.figsize = (12, 16)
     spectrum_plotter.generate_plot()
     save_path = spectrum_plotter.save_figure(rasterized=rasterized)
+    file_name = str(Path(save_path).with_suffix("")) + "_parameters.csv"
+    print(f"file name is: {file_name}\n")
+    ifh.write_molecules_to_csv(islat_ref.molecules_dict, file_path=dirname(save_path), file_name=file_name)
     spectrum_plotter.figsize = None
     spectrum_plotter.close()
     return save_path

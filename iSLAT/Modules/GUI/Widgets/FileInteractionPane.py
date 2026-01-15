@@ -36,7 +36,21 @@ class FileInteractionPane(ttk.Frame):
         """
         # Initialize ResizableFrame with theme
         super().__init__(parent)
-        
+
+        # CALCULATE IF DARK/LIGHT MODE TO DETERMINE BG COLOR
+        #16 bit rgb values
+        r16, g16, b16 = parent.winfo_rgb(parent.cget("bg"))
+        #convert to 8bit
+        r8 = r16 // 256
+        g8 = g16 // 256
+        b8 = b16 // 256
+        #luminance calculation 
+        lum = 0.2126 * r8 + 0.7152 * g8 + 0.0722 * b8
+        if lum < 128:
+            self.bg = "grey"
+        else:
+            self.bg = "white"
+
         self.max_len = 25
 
         self.parent = parent
@@ -61,7 +75,7 @@ class FileInteractionPane(ttk.Frame):
             self.label_frame, 
             text=default_text,
             anchor="w", 
-            bg="white"
+            bg =self.bg
         )
         self.file_label.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=2)
 
@@ -80,7 +94,7 @@ class FileInteractionPane(ttk.Frame):
             self.label_frame, 
             text="None", 
             anchor="w",
-            bg="white"
+            bg=self.bg
         )
         self.input_line_list_label.grid(row=1, column=0, sticky="ew", padx=(5, 5), pady=2)
         
@@ -96,7 +110,7 @@ class FileInteractionPane(ttk.Frame):
             self.label_frame, 
             text="None", 
             anchor="w",
-            bg="white"
+            bg=self.bg
         )
         self.output_measurements_label.grid(row=2, column=0, sticky="ew", padx=(5, 5), pady=2)
         
