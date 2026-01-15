@@ -29,6 +29,12 @@ iSLAT/DATAFILES/HITRANdata/*
 !iSLAT/DATAFILES/HITRANdata/data_Arabhavi_*.par
 !iSLAT/DATAFILES/HITRANdata/data_HITEMP_*.par
 
+iSLAT/DATAFILES/EXAMPLE-data/
+!iSLAT/DATAFILES/EXAMPLE-data/CITau_IRS_Pontoppidan+2010.csv
+!iSLAT/DATAFILES/EXAMPLE-data/CITau_MIRI_Banzatti+2023b.csv
+!iSLAT/DATAFILES/EXAMPLE-data/FZTau_ISHELL_Banzatti+2023a.csv
+!iSLAT/DATAFILES/EXAMPLE-data/FZTau_MIRI_Pontoppidan+2024.csv
+
 .idea/
 .venv/
 
