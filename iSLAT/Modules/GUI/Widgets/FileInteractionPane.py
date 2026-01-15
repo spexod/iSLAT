@@ -50,7 +50,6 @@ class FileInteractionPane(ttk.Frame):
         # Let row 0 and column 0 expand inside FileInteractionPane
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
-                
         
         # Initialize with default text or show loaded file name if available
         default_text = "No file loaded"
@@ -67,7 +66,7 @@ class FileInteractionPane(ttk.Frame):
         self.file_label.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=2)
 
         if self.file_label.trimmed:
-            self.file_label.tooltip =  CreateToolTip(self.file_label, self.islat_class.loaded_spectrum_name)
+            self.file_label.tooltip = CreateToolTip(self.file_label, self.islat_class.loaded_spectrum_name)
         
         self.load_spectrum_btn = ttk.Button(
             self.label_frame, 
