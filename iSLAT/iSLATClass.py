@@ -409,8 +409,66 @@ class iSLAT:
             print(f"Error initializing molecules for spectrum: {e}")
             self._molecules_loaded = False
 
+    def _load_spectrum_parameters(self):
+        """
+        Load saved molecule parameters for the current spectrum.
+        Looks for a save file matching the spectrum name and loads parameters if found.
+        Falls back to default initialization if no save file exists.
+        """
+        if not hasattr(self, 'loaded_spectrum_name'):
+            print("Warning: No spectrum loaded, cannot load parameters")
+            self._initialize_molecules_for_spectrum()
+            return
+        
+        # Build the expected save file path
+        spectrum_name = getattr(self, 'loaded_spectrum_name', 'unknown')
+        spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
+        save_file = os.path.join(save_folder_path, f"{spectrum_base_name}-{molsave_file_name}")
+        
+        # Try alternative naming convention
+        if not os.path.exists(save_file):
+            save_file = os.path.join(save_folder_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
+        
+        if not os.path.exists(save_file):
+            print(f"No save file found at: {save_file}")
+            print("Loading default molecule parameters instead.")
+            self._initialize_molecules_for_spectrum()
+            return
+        
+        try:
+            print(f"Loading saved parameters from: {save_file}")
+            
+            # Clear existing molecules
+            self.molecules_dict.clear()
+            
+            # Get molecule save data for this spectrum
+            mole_save_data = self.get_mole_save_data()
+            
+            # Initialize molecules from loaded data
+            start_time = time.time()
+            self.init_molecules(mole_save_data)
+            elapsed_time = time.time() - start_time
+            
+            self._molecules_loaded = True
+            
+            print(f"Successfully loaded {len(mole_save_data)} molecules from: {save_file}")
+            print(f"Parameter loading completed in {elapsed_time:.3f}s")
+            
+            # Notify GUI if available
+            if hasattr(self, 'GUI') and self.GUI is not None:
+                if hasattr(self.GUI, 'data_field') and self.GUI.data_field is not None:
+                    self.GUI.data_field.insert_text(
+                        f'Loaded parameters from: {os.path.basename(save_file)}',
+                        clear_after=False
+                    )
+            
+        except Exception as e:
+            print(f"Error loading parameters: {e}")
+            print("Falling back to default molecule initialization.")
+            self._initialize_molecules_for_spectrum()
+
     # === SPECTRUM METHODS ===
-    def load_spectrum(self, file_path=None):
+    def load_spectrum(self, file_path=None, load_parameters=False):
         """
         Load a spectrum from file or show file dialog.
         
@@ -498,12 +556,18 @@ class iSLAT:
 
             # Initialize molecules after spectrum is loaded (most efficient approach)
             if not self._molecules_loaded:
-                self._initialize_molecules_for_spectrum()
+                # Check if we should load saved parameters for this spectrum
+                if load_parameters:
+                    self._load_spectrum_parameters()
+                else:
+                    self._initialize_molecules_for_spectrum()
                 spectrum_range = (self.wave_data.min(), self.wave_data.max())
                 self.molecules_dict.global_wavelength_range = spectrum_range
                 self.molecules_dict.global_model_pixel_res = np.median(self.wave_data[1:-1] - self.wave_data[0:-2])
             else:
                 # Update existing molecules with new wavelength range if needed
+                if load_parameters:
+                    self._load_spectrum_parameters()
                 spectrum_range = (self.wave_data.min(), self.wave_data.max())
                 self.molecules_dict.global_wavelength_range = spectrum_range
                 self.molecules_dict.global_model_pixel_res = np.median(self.wave_data[1:-1] - self.wave_data[0:-2])

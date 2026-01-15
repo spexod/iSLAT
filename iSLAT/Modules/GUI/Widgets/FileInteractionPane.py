@@ -84,10 +84,10 @@ class FileInteractionPane(ttk.Frame):
         
         self.load_spectrum_btn = ttk.Button(
             self.label_frame, 
-            text="Load Spectrum", 
-            command=self.islat_class.load_spectrum
+            text="Load Spectrum"
         )
         self.load_spectrum_btn.grid(row=0, column=1, sticky="e", padx=(5, 5), pady=2)
+        self.load_spectrum_btn.bind('<Button-1>', self._handle_load_spectrum_click)
         
         # Row 1: Input line list
         self.input_line_list_label = trim_label(
@@ -121,6 +121,32 @@ class FileInteractionPane(ttk.Frame):
         )
         self.output_line_measurements_btn.grid(row=2, column=1, sticky="e", padx=(5, 5), pady=2)
 
+    def _handle_load_spectrum_click(self, event):
+        """
+        Handle load spectrum button clicks with modifier key support.
+        Normal click: calls load_spectrum()
+        Ctrl/Command click: calls load_spectrum(load_parameters=True) to also load saved parameters
+        """
+        # Check if Ctrl (Windows/Linux) or Command (Mac) key is pressed
+        # On Windows/Linux: Control is state bit 2 (0x4)
+        # On Mac: Command is state bit 3 (0x8), but we also check Control
+        import platform
+        ctrl_pressed = False
+        
+        if platform.system() == "Darwin":
+            # Mac: Check for Command (0x8) or Control (0x4)
+            ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
+        else:
+            # Windows/Linux: Check for Control (0x4)
+            ctrl_pressed = bool(event.state & 0x4)
+        
+        if ctrl_pressed:
+            # Ctrl/Command click - load spectrum with saved parameters
+            self.islat_class.load_spectrum(load_parameters=True)
+        else:
+            # Normal click
+            self.islat_class.load_spectrum()
+    
     def update_label(self, widget, text = None):
         widget.configure(text=text)
         widget.trim_text()

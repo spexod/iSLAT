@@ -691,7 +691,8 @@ class TopBar(ResizableFrame):
     
     def load_parameters(self):
         """
-        Load molecule parameters from CSV file.
+        Load molecule parameters from CSV file for the current spectrum.
+        Uses the iSLAT class's _load_spectrum_parameters method.
         """
         # Display confirmation dialog
         confirmed = messagebox.askquestion(
@@ -701,61 +702,22 @@ class TopBar(ResizableFrame):
         if confirmed == "no":
             return
         
-        # Get the loaded spectrum name for filename
-        spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+        # Show loading message
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
+            self.islat.GUI.data_field.insert_text(
+                'Loading saved parameters, this may take a moment...',
+                clear_after=True
+            )
         
-        spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
-        save_file = os.path.join(save_folder_path, f"{spectrum_base_name}-{molsave_file_name}")
-
-        if not os.path.exists(save_file):
-            save_file = os.path.join(save_folder_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
+        # Use the iSLAT class method to load parameters
+        self.islat._load_spectrum_parameters()
         
-        if not os.path.exists(save_file):
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
-                self.islat.GUI.data_field.insert_text(
-                    'No save file found for this spectrum.',
-                    clear_after=True
-                )
-            print(f"No save file found at: {save_file}")
-            return
-        
-        try:
-            # Show loading message
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
-                self.islat.GUI.data_field.insert_text(
-                    'Loading saved parameters, this may take a moment...',
-                    clear_after=True
-                )
-                
-            # Clear existing molecules
-            self.islat.molecules_dict.clear()
-            
-            mole_save_data = self.islat.get_mole_save_data()
-            
-            # Initialize molecules from loaded data
-            self.islat.init_molecules(mole_save_data)
-
-            # Update GUI components
-            if hasattr(self.islat, 'GUI'):
-                if hasattr(self.islat.GUI, 'plot'):
-                    self.main_plot.update_all_plots()
-                if hasattr(self.islat.GUI, 'control_panel'):
-                    self.islat.GUI.control_panel.refresh_from_molecules_dict()
-                if hasattr(self.islat.GUI, 'data_field'):
-                    self.islat.GUI.data_field.insert_text(
-                        f'Successfully loaded parameters from: {save_file}',
-                        clear_after=True
-                    )
-            
-            print(f"Successfully loaded {len(mole_save_data)} molecules from: {save_file}")
-            
-        except Exception as e:
-            print(f"Error loading parameters: {e}")
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
-                self.islat.GUI.data_field.insert_text(
-                    f'Error loading parameters: {str(e)}',
-                    clear_after=True
-                )
+        # Update GUI components
+        if hasattr(self.islat, 'GUI'):
+            if hasattr(self.islat.GUI, 'plot'):
+                self.main_plot.update_all_plots()
+            if hasattr(self.islat.GUI, 'control_panel'):
+                self.islat.GUI.control_panel.refresh_from_molecules_dict()
 
     def toggle_legend(self):
         #print("Toggled legend on plot")
