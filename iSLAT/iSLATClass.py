@@ -113,6 +113,12 @@ class iSLAT:
             print("No new molecules to load.")
             return False
 
+        self.molecules_dict.global_intensity_calculation_method = self.user_settings.get("intensity_calculation_method", "curve_growth")
+
+        if hasattr(self, "wavedata"):
+                spectrum_range = (self.wave_data.min(), self.wave_data.max())
+                self.molecules_dict.global_wavelength_range = spectrum_range
+
         try:
             start_time = time.time()
             results = self.molecules_dict.load_molecules(
@@ -132,10 +138,6 @@ class iSLAT:
                     print(f"  - {error}")
 
             self._set_initial_active_molecule()
-
-            if hasattr(self, "wavedata"):
-                spectrum_range = (self.wave_data.min(), self.wave_data.max())
-                self.molecules_dict.global_wavelength_range = spectrum_range
 
             return True
                     

@@ -437,6 +437,21 @@ class Intensity:
         elif method == "curve_growth":
             intensity = self._fint_multi(center_tau, dv_flat, 
                                       bb_vals, freq_ratio, sqrt_ln2_inv, lines.freq)
+        elif method == "curve_growth_no_overlap":
+            # Replicate the old curve_growth method without overlap treatment
+            # Initialize quadrature if needed
+            cls = self.__class__
+            if not cls._GAUSS_QUAD_INITIALIZED:
+                cls._initialize_gauss_quad()
+            
+            # Calculate fint using the old method (pre-computed exp(-x^2) values)
+            original_shape = center_tau.shape
+            tau_flat = center_tau.ravel()
+            integrand = 1.0 - np.exp(-tau_flat[:, np.newaxis] * cls._GAUSS_QUAD_EXP[np.newaxis, :])
+            fint_vals = np.dot(integrand, cls._GAUSS_QUAD_W).reshape(original_shape)
+            
+            # Calculate intensity using the old formula
+            intensity = sqrt_ln2_inv * 1e5 * dv_flat[:, np.newaxis] * freq_ratio * bb_vals * fint_vals
         
         if not was_scalar:
             intensity = intensity.reshape(output_shape + (len(lines.freq),))
@@ -448,7 +463,7 @@ class Intensity:
         return intensity, center_tau
 
     def calc_intensity(self, t_kin: Optional[float] = None, n_mol: Optional[float] = None, 
-                      dv: Optional[float] = None, method: Literal["curve_growth", "radex"] = "curve_growth") -> None:
+                      dv: Optional[float] = None, method: Literal["curve_growth", "radex", "curve_growth_no_overlap"] = "curve_growth") -> None:
         """Calculate the intensity for a given set of physical parameters. This implements Eq. A1 and A2 in
         Banzatti et al. 2012.
 
@@ -465,7 +480,7 @@ class Intensity:
             Column density in cm**-2
         dv: float, optional
             Intrinsic (turbulent) line width in km/s
-        method: Literal["curve_growth", "radex"], default "curve_growth"
+        method: Literal["curve_growth", "radex", "curve_growth_no_overlap"], default "curve_growth"
             Calculation method, either "curve_growth" for Eq. A1 or "radex" for less accurate approximation
         """
         # Check if we can use cached result
@@ -494,7 +509,7 @@ class Intensity:
         self._cache_valid = True
 
     def calc_intensity_batch(self, t_kin_array: np.ndarray, n_mol_array: np.ndarray, 
-                           dv_array: np.ndarray, method: Literal["curve_growth", "radex"] = "curve_growth") -> np.ndarray:
+                           dv_array: np.ndarray, method: Literal["curve_growth", "radex", "curve_growth_no_overlap"] = "curve_growth") -> np.ndarray:
         """Calculate intensities for multiple parameter combinations using vectorized operations.
         
         This method is optimized for processing many parameter sets simultaneously using the
@@ -508,7 +523,7 @@ class Intensity:
             Array of column densities in cm**-2
         dv_array: np.ndarray
             Array of intrinsic line widths in km/s
-        method: Literal["curve_growth", "radex"], default "curve_growth"
+        method: Literal["curve_growth", "radex", "curve_growth_no_overlap"], default "curve_growth"
             Calculation method
 
         Returns
@@ -530,14 +545,14 @@ class Intensity:
         """Invalidate the calculation cache, forcing recalculation on next call."""
         self._cache_valid = False
 
-    def bulk_parameter_update_vectorized(self, parameter_combinations: list, method: Literal["curve_growth", "radex"] = "curve_growth") -> np.ndarray:
+    def bulk_parameter_update_vectorized(self, parameter_combinations: list, method: Literal["curve_growth", "radex", "curve_growth_no_overlap"] = "curve_growth") -> np.ndarray:
         """Update multiple parameter combinations and calculate intensities in a vectorized manner.
         
         Parameters
         ----------
         parameter_combinations: list
             List of dictionaries, each containing 't_kin', 'n_mol', and 'dv' keys
-        method: Literal["curve_growth", "radex"], default "curve_growth"
+        method: Literal["curve_growth", "radex", "curve_growth_no_overlap"], default "curve_growth"
             Calculation method
             
         Returns

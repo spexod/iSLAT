@@ -27,6 +27,7 @@ class MoleculeDict(dict):
             'model_line_width': kwargs.pop('global_model_line_width', default_parms.MODEL_LINE_WIDTH),
             'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
             #'model_pixel_res': f"{kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION):.2e}",
+            'intensity_calculation_method': kwargs.pop('global_intensity_calculation_method', "curve_growth")
         }
         
         super().__init__(*args, **kwargs)
@@ -371,7 +372,7 @@ class MoleculeDict(dict):
             
         elif operation == 'batch_intensity':
             parameter_combinations = kwargs.get('parameter_combinations', [])
-            method = kwargs.get('method', 'curve_growth')
+            method = kwargs.get('method', self.global_intensity_calculation_method if hasattr(self, 'global_intensity_calculation_method') else "curve_growth")
             
             if not parameter_combinations:
                 return False
@@ -594,6 +595,7 @@ class MoleculeDict(dict):
                 is_visible=mol_data.get("Vis", True),
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
+                intensity_calculation_method=self._global_intensity_calculation_method,
                 fwhm=safe_float("FWHM"),
                 rv_shift=safe_float("RV Shift"),
                 broad=mol_data.get("Broad"),
@@ -891,3 +893,19 @@ class MoleculeDict(dict):
         self._global_model_pixel_res = value
         self.bulk_update_parameters({'model_pixel_res': value})
         self._notify_global_parameter_change('model_pixel_res', old_value, value)
+
+    @property
+    def global_intensity_calculation_method(self) -> Optional[str]:
+        return self._global_intensity_calculation_method
+    
+    @global_intensity_calculation_method.setter
+    def global_intensity_calculation_method(self, value: Optional[str]) -> None:
+        old_value = self._global_intensity_calculation_method
+        try:
+            value = str(value)
+        except Exception as e:
+            print(f"Error setting intensity_calculation_method: {e}\ndefaulting to 'curve_growth'")
+            value = "curve_growth"
+        self._global_intensity_calculation_method = value
+        self.bulk_update_parameters({'intensity_calculation_method': value})
+        self._notify_global_parameter_change('intensity_calculation_method', old_value, value)

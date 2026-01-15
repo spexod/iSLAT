@@ -38,6 +38,17 @@ def load_user_settings(file_path=user_configuration_file_path, file_name=user_co
         with open(theme_file, 'r') as f:
             theme_settings = json.load(f)
         user_settings["theme"] = theme_settings
+
+    # convert intensity_opacity_overlap_setting to method to be used in intensity calculations
+    if user_settings.get("intensity_opacity_overlap_setting", True) == True or user_settings.get("intensity_opacity_overlap_setting", "curve_growth") == "curve_growth":
+        user_settings["intensity_calculation_method"] = "curve_growth"
+    elif user_settings.get("intensity_opacity_overlap_setting", False) == False or user_settings.get("intensity_opacity_overlap_setting", "curve_growth_no_overlap") == "curve_growth_no_overlap":
+        user_settings["intensity_calculation_method"] = "curve_growth_no_overlap"
+    elif user_settings.get("intensity_opacity_overlap_setting", "radex") == "radex":
+        user_settings["intensity_calculation_method"] = "radex"
+    else:
+        user_settings["intensity_calculation_method"] = "curve_growth" # default fallback 
+    
     return user_settings
 
 def read_from_csv(file_path=save_folder_path, file_name=molsave_file_name):

@@ -31,8 +31,6 @@ def _get_intensity_module():
 import iSLAT.Constants as c
 from .MoleculeLineList import MoleculeLineList
 
-from iSLAT.Modules.FileHandling import absolute_data_files_path
-
 class Molecule:
     """
     Optimized Molecule class with enhanced caching and performance improvements.
@@ -48,14 +46,15 @@ class Molecule:
         '_wavelength_range', '_model_pixel_res', '_model_line_width',
         '_intensity_cache', '_spectrum_cache', '_flux_cache',
         '_param_hash_cache', '_dirty_flags', '_cache_stats',
-        '_molar_mass', '_thermal_broad'
+        '_molar_mass', '_thermal_broad',
+        '_intensity_calculation_method'
     )
     
     _molecule_parameter_change_callbacks = []
     _shared_calculation_cache = {}
     _cache_lock = threading.Lock()
     
-    INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad', 'rv_shift', 'wavelength_range'}
+    INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad', 'rv_shift', 'wavelength_range', 'intensity_calculation_method'}
     SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'rv_shift', 'wavelength_range', 'model_pixel_res'}
     FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS
     
@@ -138,6 +137,7 @@ class Molecule:
         self._broad = float(getattr(self, '_broad_val', 1.0) or c.INTRINSIC_LINE_WIDTH)
         self._rv_shift = float(getattr(self, '_rv_shift', 0.0) or c.DEFAULT_STELLAR_RV)
 
+        self._intensity_calculation_method = str(kwargs.get('intensity_calculation_method', 'curve_growth'))
         self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
         self._model_pixel_res = kwargs.get('model_pixel_res', c.MODEL_PIXEL_RESOLUTION)
         self._model_line_width = kwargs.get('model_line_width', c.MODEL_LINE_WIDTH)
@@ -271,10 +271,16 @@ class Molecule:
         
         print(f"Calculating intensity for {self.name}: T={self._temp}K, N_mol={self._n_mol:.2e}, dv={self._broad}")
         
+        try:
+            method = self.intensity_calculation_method
+        except AttributeError:
+            method = "curve_growth"
+
         self.intensity.calc_intensity(
             t_kin=self._temp,
             n_mol=self._n_mol,
-            dv=self._broad
+            dv=self._broad,
+            method=method
         )
 
         intensity_data = {
@@ -565,6 +571,29 @@ class Molecule:
             print("Warning: Unable to compute thermal broadening due to missing or invalid molar mass.")
             print(f"Error details: {e}")
             return 0.0
+
+    @property
+    def intensity_calculation_method(self) -> str:
+        try:
+            if self._intensity_calculation_method is None:
+                self._intensity_calculation_method = "curve_growth"
+            return self._intensity_calculation_method
+        except Exception as e:
+            print("Warning: Unable to get intensity calculation method, defaulting to 'curve_growth'.")
+            print(f"Error details: {e}")
+            return "curve_growth"
+
+    @intensity_calculation_method.setter
+    def intensity_calculation_method(self, value: str):
+        old_value = getattr(self, '_intensity_calculation_method', None)
+        try:
+            value = str(value)
+        except Exception as e:
+            print("Warning: Unable to set intensity calculation method, defaulting to 'curve_growth'.")
+            print(f"Error details: {e}")
+            value = "curve_growth"
+        self._intensity_calculation_method = value
+        self._notify_my_parameter_change('intensity_calculation_method', old_value, self._intensity_calculation_method)
 
     def bulk_update_parameters(self, parameter_dict: Dict[str, Any], skip_notification: bool = False):
         if not parameter_dict:
