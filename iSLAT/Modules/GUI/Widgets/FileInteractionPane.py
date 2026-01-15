@@ -88,6 +88,10 @@ class FileInteractionPane(ttk.Frame):
         )
         self.load_spectrum_btn.grid(row=0, column=1, sticky="e", padx=(5, 5), pady=2)
         self.load_spectrum_btn.bind('<Button-1>', self._handle_load_spectrum_click)
+        CreateToolTip(
+            self.load_spectrum_btn, 
+            "Click to load spectrum.\nCtrl/Cmd Click to load saved parameters."
+        )
         
         # Row 1: Input line list
         self.input_line_list_label = trim_label(
