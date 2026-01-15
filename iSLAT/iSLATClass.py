@@ -281,7 +281,7 @@ class iSLAT:
             print('First startup or reload_default_files is True. Loading default HITRAN files ...')
             
             for mol, bm, iso in zip(self.mols, self.basem, self.isot):
-                hitran_file = f"DATAFILES/HITRANdata/data_Hitran_2020_{mol}.par"
+                hitran_file = f"DATAFILES/HITRANdata/data_Hitran_2024_{mol}.par"
                 if not os.path.exists(hitran_file):
                     print(f"WARNING: HITRAN file for {mol} not found at {hitran_file}")
                     #self.hitran_data[mol] = {"lines": [], "base_molecule": bm, "isotope": iso, "file_path": hitran_file}

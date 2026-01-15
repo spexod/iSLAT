@@ -9,7 +9,6 @@ Constants.py and IRconstants.py files.
 import numpy as np
 from collections import namedtuple
 
-
 '''__all__ = [
     # Physical constants
     "BOLTZMANN_CONSTANT", "SPEED_OF_LIGHT_CGS", "SPEED_OF_LIGHT_KMS", 
@@ -31,7 +30,6 @@ from collections import namedtuple
     "DEFAULT_SPAN_MOLECULE", "SPECTRAL_SEPARATION", "FWHM_TOLERANCE", 
     "CENTROID_TOLERANCE"
 ]'''
-
 
 # =============================================================================
 # PHYSICAL CONSTANTS
@@ -93,31 +91,29 @@ CONSTANTS = _Constants(
 )
 """Namedtuple containing physical constants for backward compatibility."""
 
-
 # =============================================================================
 # MOLECULAR DATA DEFINITIONS
 # =============================================================================
 
 MOLECULES_DATA = [
-    {"name": "H2O", "file": "HITRANdata/data_Hitran_2020_H2O.par", "label": "H$_2$O"},
-    {"name": "OH",  "file": "HITRANdata/data_Hitran_2020_OH.par",  "label": "OH"},
-    {"name": "HCN", "file": "HITRANdata/data_Hitran_2020_HCN.par", "label": "HCN"},
-    {"name": "C2H2", "file": "HITRANdata/data_Hitran_2020_C2H2.par", "label": "C$_2$H$_2$"},
-    {"name": "CO2", "file": "HITRANdata/data_Hitran_2020_CO2.par", "label": "CO$_2$"},
-    {"name": "CO",  "file": "HITRANdata/data_Hitran_2020_CO.par",  "label": "CO"}
+    {"name": "H2O", "file": "HITRANdata/data_Hitran_2024_H2O.par", "label": "H$_2$O"},
+    {"name": "OH",  "file": "HITRANdata/data_Hitran_2024_OH.par",  "label": "OH"},
+    {"name": "HCN", "file": "HITRANdata/data_Hitran_2024_HCN.par", "label": "HCN"},
+    {"name": "C2H2", "file": "HITRANdata/data_Hitran_2024_C2H2.par", "label": "C$_2$H$_2$"},
+    {"name": "CO2", "file": "HITRANdata/data_Hitran_2024_CO2.par", "label": "CO$_2$"},
+    {"name": "CO",  "file": "HITRANdata/data_Hitran_2024_CO.par",  "label": "CO"}
 ]
 """List of dictionaries containing molecular data with names, file paths, and labels."""
 
 DEFAULT_MOLECULES_DATA = [
-    ("H2O", "HITRANdata/data_Hitran_2020_H2O.par", "H$_2$O"),
-    ("OH", "HITRANdata/data_Hitran_2020_OH.par", "OH"),
-    ("HCN", "HITRANdata/data_Hitran_2020_HCN.par", "HCN"),
-    ("C2H2", "HITRANdata/data_Hitran_2020_C2H2.par", "C$_2$H$_2$"),
-    ("CO2", "HITRANdata/data_Hitran_2020_CO2.par", "CO$_2$"),
-    ("CO", "HITRANdata/data_Hitran_2020_CO.par", "CO")
+    ("H2O", "HITRANdata/data_Hitran_2024_H2O.par", "H$_2$O"),
+    ("OH", "HITRANdata/data_Hitran_2024_OH.par", "OH"),
+    ("HCN", "HITRANdata/data_Hitran_2024_HCN.par", "HCN"),
+    ("C2H2", "HITRANdata/data_Hitran_2024_C2H2.par", "C$_2$H$_2$"),
+    ("CO2", "HITRANdata/data_Hitran_2024_CO2.par", "CO$_2$"),
+    ("CO", "HITRANdata/data_Hitran_2024_CO.par", "CO")
 ]
 """Default molecular data as tuples for backward compatibility."""
-
 
 # =============================================================================
 # DEFAULT MODEL PARAMETERS
