@@ -133,7 +133,7 @@ class Chi2Spectrum:
 
             # integrate the model flux of the range of the measurement range
             integral_range = np.where(np.logical_and(lam > d.lam_min, lam < d.lam_max))
-            flux_model = np.trapz(flux[integral_range], x=lam[integral_range])
+            flux_model = np.trapezoid(flux[integral_range], x=lam[integral_range])
 
             # calculate the chi2 statistics
             chi2 = (d.flux - flux_model) ** 2 / d.flux_error ** 2

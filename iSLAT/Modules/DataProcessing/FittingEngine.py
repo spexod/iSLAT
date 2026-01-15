@@ -172,8 +172,8 @@ class FittingEngine:
         
         # Calculate initial amplitude estimate
         # Total integrated flux divided by number of lines
-        total_flux = np.trapz(flux_data, wave_data)
-        #total_flux = np.trapz(flux_data, wave_data)
+        total_flux = np.trapezoid(flux_data, wave_data)
+        #total_flux = np.trapezoid(flux_data, wave_data)
         garea_fg = total_flux / len(line_centers) * 1e11  # Scaling factor
         
         # Set up parameter bounds based on tolerances

@@ -249,13 +249,13 @@ class LineAnalyzer:
         freq_range = c.SPEED_OF_LIGHT_MICRONS / lam_range[::-1]
 
         # Integrate in frequency space (reverse order for proper frequency ordering)
-        line_flux_meas = np.trapz(flux_range[::-1], x=freq_range[::-1])
+        line_flux_meas = np.trapezoid(flux_range[::-1], x=freq_range[::-1])
         line_flux_meas = -line_flux_meas * 1e-23  # Convert Jy*Hz to erg/s/cm^2
 
         # Calculate error propagation if error data provided
         if err is not None:
             err_range = err[wavelength_mask]
-            line_err_meas = np.trapz(err_range[::-1], x=freq_range[::-1])
+            line_err_meas = np.trapezoid(err_range[::-1], x=freq_range[::-1])
             line_err_meas = -line_err_meas * 1e-23
         else:
             line_err_meas = 0.0
