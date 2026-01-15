@@ -515,15 +515,18 @@ class FittingEngine:
             'g_low': line_info.get('g_low', 1.0),
             'xmin': xmin,
             'xmax': xmax,
+        }
+
+        result_entry.update({key: line_info[key] for key in line_info if key not in result_entry})  # Include all line info fields
+
+        result_entry.update({
             'Flux_data': np.float64(f'{flux_data_integral:.{3}e}'),
             'Err_data': np.float64(f'{err_data_integral:.{3}e}'),
             'Line_SN': np.round(line_sn, decimals=1),
             'Line_det': bool(line_det),
             'Flux_islat': np.float64(f'{flux_data_integral:.{3}e}'),  # Default to data values
             'Err_islat': np.float64(f'{err_data_integral:.{3}e}')     # Will be overwritten if fit succeeds
-        }
-
-        result_entry.update({key: line_info[key] for key in line_info if key not in result_entry})  # Include all line info fields
+        })
 
         # Process fit results if successful
         if fit_result and fit_result.success:
