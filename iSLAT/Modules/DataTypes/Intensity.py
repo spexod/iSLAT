@@ -83,39 +83,95 @@ class Intensity:
         self._sorted_idx: Optional[np.ndarray] = None
         self._sorted_freq: Optional[np.ndarray] = None
 
+    # Pre-computed constants for blackbody calculation (class-level for efficiency)
+    _BB_COEFF_RJ = 2.0 * c.BOLTZMANN_CONSTANT / (c.SPEED_OF_LIGHT_CGS ** 2)
+    _BB_COEFF_PLANCK = 2.0 * c.PLANCK_CONSTANT / (c.SPEED_OF_LIGHT_CGS ** 2)
+    _BB_X_FACTOR = c.PLANCK_CONSTANT / c.BOLTZMANN_CONSTANT
+    
+    # Pre-computed constants for intensity calculation (avoid recomputing every call)
+    _SQRT_LN2_INV = 1.0 / (2.0 * np.sqrt(np.log(2.0)))  # ≈ 0.6005
+    _C3_OVER_8PI = (c.SPEED_OF_LIGHT_CGS ** 3) / (8.0 * np.pi)  # c³/(8π)
+    _INV_FGAUSS_1E5 = 1.0 / (1e5 * c.FGAUSS_PREFACTOR)  # 1/(10⁵ × FGAUSS_PREFACTOR)
+    
     @staticmethod
-    def _bb(nu: np.ndarray, T: float) -> np.ndarray:
-        """Blackbody function for one temperature and an array of frequencies. 
+    def _bb(nu: np.ndarray, T: np.ndarray) -> np.ndarray:
+        """Blackbody function for temperatures and frequencies.
+        Handles both scalar T and array T for batch operations.
         Uses optimized approximations for accuracy and performance.
 
         Parameters
         ----------
         nu: np.ndarray
-            Frequency in Hz to calculate the blackbody values
-        T: float
-            Temperature in K
+            Frequency in Hz to calculate the blackbody values, shape (n_lines,)
+        T: np.ndarray or float
+            Temperature(s) in K. Can be scalar or array shape (n_conditions,)
 
         Returns
         -------
         np.ndarray:
             Blackbody intensity in erg/s/cm**2/sr/Hz
+            Shape (n_lines,) if T is scalar, (n_conditions, n_lines) if T is array
         """
-        x = c.PLANCK_CONSTANT * nu / (c.BOLTZMANN_CONSTANT * T)
-
-        out = np.empty_like(nu, dtype=np.float64)
-        # Masks
-        m_rj   = x < 1.0e-5
-        m_wien = x > 20.0
-        m_mid  = ~(m_rj | m_wien)
-
-        # RJ
-        out[m_rj] = 2.0 * nu[m_rj]**2 * c.BOLTZMANN_CONSTANT * T / (c.SPEED_OF_LIGHT_CGS**2)
-        # Wien
-        out[m_wien] = (2.0 * c.PLANCK_CONSTANT * nu[m_wien]**3 / c.SPEED_OF_LIGHT_CGS**2) * np.exp(-x[m_wien])
-        # Full Planck (clip only where needed)
-        x_mid = np.clip(x[m_mid], None, 20.0)
-        out[m_mid] = (2.0 * c.PLANCK_CONSTANT * nu[m_mid]**3 / c.SPEED_OF_LIGHT_CGS**2) / (np.exp(x_mid) - 1.0)
-        return out
+        cls = Intensity
+        T = np.atleast_1d(T)
+        
+        # Check if we have multiple temperatures (batch mode)
+        if T.size == 1:
+            # Single temperature - optimized scalar path
+            T_val = T.item()
+            inv_T = 1.0 / T_val
+            x = cls._BB_X_FACTOR * inv_T * nu
+            
+            nu_sq = nu * nu
+            nu_cu = nu_sq * nu
+            
+            out = np.empty_like(nu, dtype=np.float64)
+            
+            m_rj = x < 1.0e-5
+            m_wien = x > 20.0
+            m_mid = ~(m_rj | m_wien)
+            
+            out[m_rj] = cls._BB_COEFF_RJ * T_val * nu_sq[m_rj]
+            out[m_wien] = cls._BB_COEFF_PLANCK * nu_cu[m_wien] * np.exp(-x[m_wien])
+            
+            if np.any(m_mid):
+                out[m_mid] = cls._BB_COEFF_PLANCK * nu_cu[m_mid] / np.expm1(x[m_mid])
+            
+            return out
+        else:
+            # Multiple temperatures - vectorized batch path
+            # Shape: T is (n_cond,), nu is (n_lines,)
+            # Result should be (n_cond, n_lines)
+            inv_T = 1.0 / T  # (n_cond,)
+            
+            # Broadcast: (n_cond, 1) * (n_lines,) -> (n_cond, n_lines)
+            x = cls._BB_X_FACTOR * inv_T[:, np.newaxis] * nu[np.newaxis, :]
+            
+            nu_sq = nu * nu  # (n_lines,)
+            nu_cu = nu_sq * nu  # (n_lines,)
+            
+            out = np.empty(x.shape, dtype=np.float64)
+            
+            m_rj = x < 1.0e-5
+            m_wien = x > 20.0
+            m_mid = ~(m_rj | m_wien)
+            
+            # Rayleigh-Jeans: broadcast T (n_cond,1) * nu_sq (n_lines,)
+            T_broadcast = T[:, np.newaxis]  # (n_cond, 1)
+            nu_sq_broadcast = nu_sq[np.newaxis, :]  # (1, n_lines)
+            nu_cu_broadcast = nu_cu[np.newaxis, :]  # (1, n_lines)
+            
+            rj_vals = cls._BB_COEFF_RJ * T_broadcast * nu_sq_broadcast
+            out[m_rj] = rj_vals[m_rj]
+            
+            wien_vals = cls._BB_COEFF_PLANCK * nu_cu_broadcast * np.exp(-x)
+            out[m_wien] = wien_vals[m_wien]
+            
+            if np.any(m_mid):
+                planck_vals = cls._BB_COEFF_PLANCK * nu_cu_broadcast / np.expm1(x)
+                out[m_mid] = planck_vals[m_mid]
+            
+            return out
 
     # Pre-computed Gaussian quadrature points and weights for maximum efficiency
     _GAUSS_QUAD_X = None
@@ -403,11 +459,15 @@ class Intensity:
         
         invT = (1.0 / t_kin_flat).astype(np.float64, copy=False)
 
-        # 1D condition terms
-        cond_term = 1.0 / (1e5 * dv_flat * c.FGAUSS_PREFACTOR)           # (n_cond,)
+        # Use pre-computed class constants for speed
+        cls = self.__class__
+        
+        # 1D condition terms - use pre-computed constant
+        cond_term = cls._INV_FGAUSS_1E5 / dv_flat                         # (n_cond,)
         q_sum_inv = (1.0 / q_sum_vals)                                    # (n_cond,)
-        # 1D line terms
-        line_term = (c.SPEED_OF_LIGHT_CGS ** 3) / (8.0 * np.pi * lines.freq ** 3)  # (n_lines,)
+        # 1D line terms - use pre-computed c³/(8π)
+        freq_cubed = lines.freq ** 3
+        line_term = cls._C3_OVER_8PI / freq_cubed                         # (n_lines,)
         g_up   = lines.g_up
         a_stein= lines.a_stein
 
@@ -428,8 +488,8 @@ class Intensity:
         # Blackbody and frequency ratio calculations
         freq_ratio = lines.freq[np.newaxis, :] / c.SPEED_OF_LIGHT_CGS
         
-        # Pre-compute constants for efficiency
-        sqrt_ln2_inv = 1.0 / (2.0 * np.sqrt(np.log(2.0)))  # For curve_growth method
+        # Use pre-computed constant
+        sqrt_ln2_inv = cls._SQRT_LN2_INV
         
         if method == "radex":
             intensity = (c.FGAUSS_PREFACTOR * 1e5 * dv_flat[:, np.newaxis] * 
@@ -610,29 +670,32 @@ class Intensity:
         list
             List of tuples (MoleculeLine, intensity, tau) within the range
         """
-        # Get lines in range from the molecule line list
-        lines_in_range = self.molecule.get_lines_in_range(lam_min, lam_max)
-        
         # If no intensity calculated yet, return empty list
         if self._intensity is None or self._tau is None:
             return []
         
-        # Create list of tuples with line, intensity, and tau
-        result = []
+        # Get line data arrays once
         lines_array = self.molecule.lines_as_namedtuple
         
-        for line in lines_in_range:
-            # Find the index of this line in the full array
-            line_idx = None
-            for i, (lam, lev_up, lev_low) in enumerate(zip(lines_array.lam, lines_array.lev_up, lines_array.lev_low)):
-                if (line.lam == lam and line.lev_up == lev_up and line.lev_low == lev_low):
-                    line_idx = i
-                    break
-            
-            if line_idx is not None:
-                intensity = self._intensity[line_idx]
-                tau = self._tau[line_idx]
-                result.append((line, intensity, tau))
+        # Use vectorized mask to find indices in range - O(n) instead of O(n*m)
+        lam_arr = lines_array.lam
+        mask = (lam_arr >= lam_min) & (lam_arr <= lam_max)
+        indices_in_range = np.nonzero(mask)[0]
+        
+        if len(indices_in_range) == 0:
+            return []
+        
+        # Get lines in range from the molecule line list
+        lines_in_range = self.molecule.get_lines_in_range(lam_min, lam_max)
+        
+        # Build result list - lines_in_range and indices_in_range should correspond
+        # since both use the same wavelength filtering
+        result = []
+        intensity_arr = self._intensity
+        tau_arr = self._tau
+        
+        for line, idx in zip(lines_in_range, indices_in_range):
+            result.append((line, intensity_arr[idx], tau_arr[idx]))
         
         return result
 

@@ -174,18 +174,16 @@ class Molecule:
         return hash((self._temp, self._n_mol, self._broad))
     
     def _compute_spectrum_hash(self):
-        # Get all spectrum-affecting parameters and create hash tuple
-        param_values = []
-        for param in self.SPECTRUM_AFFECTING_PARAMS:
-            if param == 'wavelength_range':
-                param_values.append(tuple(self._wavelength_range))
-            else:
-                param_values.append(getattr(self, f'_{param}'))
-        
-        # Include intensity hash for dependencies
-        param_values.append(self._compute_intensity_hash())
-        
-        return hash(tuple(param_values))
+        wavelength_tuple = tuple(self._wavelength_range) if self._wavelength_range else ()
+        return hash((
+            self._radius,
+            self._distance,
+            self._fwhm,
+            self._rv_shift,
+            wavelength_tuple,
+            self._model_pixel_res,
+            self._compute_intensity_hash()  # Include intensity hash for dependencies
+        ))
 
     def _compute_full_parameter_hash(self):
         return hash((self._compute_spectrum_hash()))

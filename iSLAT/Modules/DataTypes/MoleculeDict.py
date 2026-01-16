@@ -45,12 +45,20 @@ class MoleculeDict(dict):
         """Clear the dictionary of all molecules."""
         super().clear()
         self._clear_all_caches()
+        self._visible_molecules = set()  # Clear visibility cache
         print("MoleculeDict cleared.")
     
     def get_visible_molecules(self, return_objects: bool = False) -> Union[set, List['Molecule']]:
-        """Get visible molecule names or objects."""
-        current_visible = {name for name, mol in self.items() if bool(mol.is_visible)}
-        self._visible_molecules = current_visible
+        """Get visible molecule names or objects.
+        
+        Optimized to avoid creating new sets when visibility hasn't changed.
+        """
+        # Build visible set - use direct attribute access
+        current_visible = {name for name, mol in self.items() if mol._is_visible}
+        
+        # Only update cache if changed
+        if current_visible != self._visible_molecules:
+            self._visible_molecules = current_visible
         
         if return_objects:
             return [self[name] for name in current_visible]
