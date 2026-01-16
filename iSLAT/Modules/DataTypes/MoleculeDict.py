@@ -8,6 +8,16 @@ import os
 from .Molecule import Molecule
 import iSLAT.Constants as default_parms
 
+
+def _safe_float(data: dict, key: str, default=None):
+    """Safely convert a dictionary value to float."""
+    value = data.get(key, default)
+    try:
+        return float(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+
+
 class MoleculeDict(dict):
     """
     A dictionary to store Molecule objects with their names as keys.
@@ -49,10 +59,7 @@ class MoleculeDict(dict):
         print("MoleculeDict cleared.")
     
     def get_visible_molecules(self, return_objects: bool = False) -> Union[set, List['Molecule']]:
-        """Get visible molecule names or objects.
-        
-        Optimized to avoid creating new sets when visibility hasn't changed.
-        """
+        """Get visible molecule names or objects."""
         # Build visible set - use direct attribute access
         current_visible = {name for name, mol in self.items() if mol._is_visible}
         
@@ -582,30 +589,23 @@ class MoleculeDict(dict):
             # Extract parameters efficiently
             use_user_save_data = "Molecule Name" in mol_data
             
-            def safe_float(key, default=None):
-                value = mol_data.get(key, default)
-                try:
-                    return float(value) if value is not None else default
-                except (ValueError, TypeError):
-                    return default
-            
-            # Create molecule
+            # Create molecule using module-level _safe_float for performance
             molecule = Molecule(
                 user_save_data=mol_data if use_user_save_data else None,
                 hitran_data=mol_data.get("hitran_data"),
                 name=mol_name,
                 filepath=mol_data.get("file") or mol_data.get("File Path"),
                 displaylabel=mol_data.get("label") or mol_data.get("Molecule Label", mol_name),
-                temp=safe_float("Temp"),
-                radius=safe_float("Rad"),
-                n_mol=safe_float("N_Mol"),
+                temp=_safe_float(mol_data, "Temp"),
+                radius=_safe_float(mol_data, "Rad"),
+                n_mol=_safe_float(mol_data, "N_Mol"),
                 color=mol_data.get("Color"),
                 is_visible=mol_data.get("Vis", True),
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
                 intensity_calculation_method=self._global_intensity_calculation_method,
-                fwhm=safe_float("FWHM"),
-                rv_shift=safe_float("RV Shift"),
+                fwhm=_safe_float(mol_data, "FWHM"),
+                rv_shift=_safe_float(mol_data, "RV Shift"),
                 broad=mol_data.get("Broad"),
                 model_pixel_res=self._global_model_pixel_res,
                 model_line_width=self._global_model_line_width,
