@@ -1,5 +1,5 @@
 {
-    "first_startup": false,
+    "first_startup": true,
     "reload_default_files": false,
     "fit_line_uncertainty": 3,
     "line_threshold": 0.03,
