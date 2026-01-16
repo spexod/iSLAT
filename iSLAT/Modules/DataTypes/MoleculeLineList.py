@@ -553,13 +553,24 @@ class MoleculeLineList:
     
     def _get_pandas_dataframe(self):
         """Get or create cached pandas DataFrame from raw data."""
-        if not hasattr(self, '_pandas_df_cache') or self._pandas_df_cache is None:
-            if hasattr(self, '_raw_lines_data') and self._raw_lines_data:
-                pd = _get_pandas()
-                if pd is not None:
-                    self._pandas_df_cache = pd.DataFrame(self._raw_lines_data)
-                else:
-                    self._pandas_df_cache = None
-            else:
-                self._pandas_df_cache = None
+        # Fast path: return cached DataFrame if available
+        if self._pandas_df_cache is not None:
+            return self._pandas_df_cache
+        
+        # Check if we have raw data to convert
+        if not self._raw_lines_data:
+            return None
+        
+        pd = _get_pandas()
+        if pd is None:
+            return None
+        
+        # Create DataFrame using from_records which is faster for list of dicts
+        # with consistent keys (which molecular line data has)
+        try:
+            self._pandas_df_cache = pd.DataFrame.from_records(self._raw_lines_data)
+        except (ValueError, TypeError):
+            # Fallback to standard constructor if from_records fails
+            self._pandas_df_cache = pd.DataFrame(self._raw_lines_data)
+        
         return self._pandas_df_cache
