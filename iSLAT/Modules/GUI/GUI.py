@@ -4,6 +4,7 @@ import os
 import threading
 import queue
 
+from iSLAT.Modules.Debug.PerformanceLogger import get_performance_summary
 from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv
 
@@ -243,6 +244,12 @@ class GUI:
                     if hasattr(self.plot, 'canvas'):
                         self.plot.canvas.draw()
                     print("Spectrum displayed successfully (async)")
+                    
+                    # Print final performance summary including all async operations
+                    print("\n" + "="*80)
+                    print("FINAL PERFORMANCE SUMMARY (including async operations)")
+                    print("="*80)
+                    print(get_performance_summary())
                 else:
                     print(f"Warning: Async spectrum calculation failed: {error}")
             
