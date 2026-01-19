@@ -306,7 +306,7 @@ class iSLAT:
             print('First startup or reload_default_files is True. Loading default HITRAN files ...')
             
             for mol, bm, iso in zip(self.mols, self.basem, self.isot):
-                hitran_file = f"DATAFILES/HITRANdata/data_Hitran_2024_{mol}.par"
+                hitran_file = f"DATAFILES/HITRANdata/data_Hitran_{mol}.par"
                 if not os.path.exists(hitran_file):
                     print(f"WARNING: HITRAN file for {mol} not found at {hitran_file}")
                     try:
@@ -386,14 +386,14 @@ class iSLAT:
         alternative_path = os.path.join(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
         if os.path.exists(full_path):
             print(f"Loading molecules from saved file: {full_path}")
-            mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name)
+            mole_save_data = read_from_user_csv(molsave_path, formatted_mol_save_file_name, update_save_file_names=self.user_settings.get("update_save_file_names_in_save_csv", False))
         elif os.path.exists(alternative_path):
             print(f"Loading molecules from old format saved file: {alternative_path}")
-            mole_save_data = read_from_user_csv(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
+            mole_save_data = read_from_user_csv(molsave_path, f"{spectrum_base_name}.csv-{molsave_file_name}", update_save_file_names=self.user_settings.get("update_save_file_names_in_save_csv", False))
         else:
             print(f"Warning: Mole save path does not exist: {molsave_path}")
             mole_save_data = None
-        
+
         return mole_save_data
 
     def _initialize_molecules_for_spectrum(self):
@@ -860,7 +860,8 @@ class iSLAT:
     @property
     def user_saved_molecules(self):
         """Lazy load user saved molecules data with safe error handling."""
-        return self._safe_load_data(read_from_user_csv, '_user_saved_molecules', "Failed to load user molecules")
+        # use a lambda to , update_save_file_names=self.user_settings.get("update_save_file_names_in_save_csv", False)
+        return self._safe_load_data(lambda: read_from_user_csv(update_save_file_names=self.user_settings.get("update_save_file_names_in_save_csv", False)), '_user_saved_molecules', "Failed to load user molecules")
         
     @user_saved_molecules.setter 
     def user_saved_molecules(self, value):

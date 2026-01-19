@@ -73,14 +73,30 @@ def read_default_csv(file_path=defaults_file_path, file_name=defaults_file_name)
             pass
     return MOLECULES_DATA
 
-def read_from_user_csv(file_path: str = save_folder_path, file_name: str = molecule_list_file_name) -> Dict[str, Dict[str, Any]]:
+def read_from_user_csv(file_path: str = save_folder_path, file_name: str = molecule_list_file_name, update_save_file_names: bool = False) -> Dict[str, Dict[str, Any]]:
     file = os.path.join(file_path, file_name)
     defaults_file = os.path.join(defaults_file_path, defaults_file_name)
     if os.path.exists(file):
         try:
             with open(file, 'r') as csvfile:
                 reader = csv.DictReader(csvfile)
-                return {row['Molecule Name']: row for row in reader if 'Molecule Name' in row}
+                rows = list(reader)  # Read all rows into memory first
+                
+                if update_save_file_names:
+                    # replace any occurance of "HITRANdata/data_Hitran_2020_" with "HITRANdata/data_Hitran_"
+                    for row in rows:
+                        if "File Path" in row and row["File Path"]:
+                            row["File Path"] = row["File Path"].replace("data_Hitran_2020_", "data_Hitran_")
+                    
+                    # save the updated file back to disk
+                    with open(file, 'w', newline='') as csvfile_write:
+                        fieldnames = reader.fieldnames
+                        writer = csv.DictWriter(csvfile_write, fieldnames=fieldnames)
+                        writer.writeheader()
+                        for row in rows:
+                            writer.writerow(row)
+
+                return {row['Molecule Name']: row for row in rows if 'Molecule Name' in row}
         except FileNotFoundError:
             pass
     #return MOLECULES_DATA
