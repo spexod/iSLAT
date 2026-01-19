@@ -256,7 +256,7 @@ class MoleculeLineList:
             
             # Use memory mapping for very large files, direct load for smaller ones
             file_size = os.path.getsize(lines_file)
-            if file_size > 25_000_000:  # > 50MB: use memory mapping
+            if file_size > 25_000_000:  # > 25MB: use memory mapping
                 self._raw_lines_data = np.load(lines_file, mmap_mode='r', allow_pickle=False)
             else:
                 self._raw_lines_data = np.load(lines_file, allow_pickle=False)
@@ -895,3 +895,9 @@ class MoleculeLineList:
         self._pandas_df_cache = pd.DataFrame(self._raw_lines_data)
         
         return self._pandas_df_cache
+    
+    @property
+    def molar_mass(self):
+        """Get the molar mass of the molecule."""
+        self._ensure_data_loaded()
+        return self._molar_mass

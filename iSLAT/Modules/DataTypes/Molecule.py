@@ -575,8 +575,8 @@ class Molecule:
         '''Molar mass in g/mol'''
         if not hasattr(self, '_molar_mass') or self._molar_mass is None:
             self._ensure_lines_loaded()
-            if self.lines is not None and hasattr(self.lines, '_molar_mass'):
-                self._molar_mass = self.lines._molar_mass
+            if self.lines is not None:
+                self._molar_mass = self.lines.molar_mass
         return self._molar_mass
 
     @property
