@@ -514,14 +514,18 @@ class iSLAT:
         section = PerformanceSection("iSLAT.load_spectrum")
         section.start()
         
+        if file_path is None:
+            if self.user_settings.get("default_spectra_file_to_load", None) is not None:
+                file_path = self.user_settings.get("default_spectra_file_to_load", None)
+
         #filetypes = [('CSV Files', '*.csv'), ('TXT Files', '*.txt'), ('DAT Files', '*.dat')]
-        spectra_directory = example_data_folder_path
+        #spectra_directory = example_data_folder_path
         if file_path is None:
             section.mark("file_selector")
             from .Modules.GUI import GUI
             file_path = GUI.file_selector(
                 title='Choose Spectrum Data File',
-                initialdir=spectra_directory
+                initialdir=example_data_folder_path
             )
 
         if file_path:
