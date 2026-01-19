@@ -18,7 +18,7 @@ Usage:
         load_molecules()
 
     # Get summary
-    print(get_performance_summary())
+    get_performance_summary()
 """
 
 import time
@@ -143,7 +143,7 @@ def timed(operation: str = None, verbose: bool = True):
         return wrapper
     return decorator
 
-def get_performance_summary(sort_by: str = "total", top_n: int = 20) -> str:
+def get_performance_summary(sort_by: str = "total", top_n: int = 20, print_output: bool = True) -> str | None:
     """
     Get a formatted summary of all recorded performance data.
     
@@ -160,7 +160,7 @@ def get_performance_summary(sort_by: str = "total", top_n: int = 20) -> str:
         Formatted performance summary
     """
     if not _perf_data:
-        return "No performance data collected."
+        return #"No performance data collected."
     
     with _perf_lock:
         summary_data = []
@@ -213,7 +213,10 @@ def get_performance_summary(sort_by: str = "total", top_n: int = 20) -> str:
     lines.append(f"Total tracked time: {_format_time(grand_total)}")
     lines.append("=" * 80)
     
-    return "\n".join(lines)
+    if print_output:
+        print("\n".join(lines))
+    else:
+        return "\n".join(lines)
 
 def log_timing(operation: str, duration_s: float, verbose: bool = True) -> None:
     """
@@ -250,7 +253,7 @@ class PerformanceSection:
     # ... convert data ...
     
     section.end()
-    print(section.get_breakdown())
+    section.get_breakdown(print_output=True)
     """
     
     def __init__(self, name: str):
@@ -278,10 +281,17 @@ class PerformanceSection:
         _record_timing(self.name, total)
         return total
     
-    def get_breakdown(self) -> str:
+    def get_breakdown(self, print_output: bool = False) -> str | None:
         """Get a breakdown of time spent between marks."""
+        if not _enabled:
+            #return f"{self.name}: Performance logging disabled"
+            return
+
         if len(self._marks) < 2:
-            return f"{self.name}: No timing data"
+            if print_output:
+                print(f"{self.name}: No timing data")
+            else:
+                return f"{self.name}: No timing data"
         
         lines = [f"\n[PERF BREAKDOWN] {self.name}:"]
         for i in range(1, len(self._marks)):
@@ -293,5 +303,8 @@ class PerformanceSection:
         if self._start_time and self._end_time:
             total = self._end_time - self._start_time
             lines.append(f"  TOTAL: {_format_time(total)}")
-        
-        return "\n".join(lines)
+                
+        if print_output:
+            print("\n".join(lines))
+        else:
+            return "\n".join(lines)

@@ -128,7 +128,8 @@ class iSLATPlot:
         if self._data_initialized:
             return
         
-        print("Initializing plot data...")
+        # debug print
+        #print("Initializing plot data...")
         
         # Update population diagram title with actual molecule name
         if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
@@ -669,7 +670,6 @@ class iSLATPlot:
         self.canvas.draw()
 
     def plot_atomic_lines(self, data_field = None, atomic_lines = load_atomic_lines()):
-
         if atomic_lines.empty:
                 if data_field: 
                     self.data_field.insert_text("No atomic lines data found.\n")

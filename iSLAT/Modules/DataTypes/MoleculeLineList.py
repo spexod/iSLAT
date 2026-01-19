@@ -345,7 +345,7 @@ class MoleculeLineList:
                 print(f"[CACHE HIT] Loaded {self.molecule_id} from binary cache")
                 section.mark("cache_load_complete")
                 section.end()
-                print(section.get_breakdown())
+                section.get_breakdown(print_output=True)
                 return
         
         # Cache miss or invalid - parse the original file
@@ -395,7 +395,7 @@ class MoleculeLineList:
             print(f"[CACHE SAVED] {self.molecule_id} cached for faster loading")
         
         section.end()
-        print(section.get_breakdown())
+        section.get_breakdown(print_output=True)
         
     def _ensure_lines_created(self):
         """Ensure MoleculeLine objects are created from raw data."""

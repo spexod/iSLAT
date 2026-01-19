@@ -46,9 +46,8 @@ class GUI:
     
     def _force_theme_update(self):
         """Force theme update on all widgets in the window."""
-            
         if hasattr(self, 'plot') and hasattr(self.plot, 'apply_theme'):
-            print("applying theme to plot")
+            #print("applying theme to plot")
             self.plot.apply_theme(self.theme)
 
     def _configure_initial_size(self):
@@ -152,7 +151,7 @@ class GUI:
         """Called after GUI is shown - starts async spectrum calculation."""
         if (hasattr(self, 'plot') and self.plot is not None and
             hasattr(self.islat_class, 'wave_data') and hasattr(self.islat_class, 'flux_data')):
-            print("Starting async spectrum display...")
+            #print("Starting async spectrum display...")
             self.display_spectrum_async(callback=self._on_async_display_complete)
     
     def _on_async_display_complete(self, success):
@@ -165,14 +164,11 @@ class GUI:
 
     def on_closing(self):
         #if messagebox.askokcancel("Quit", "Do you want to save your work?"):
-        if True:
-            spectrum_name = getattr(self.islat_class, 'loaded_spectrum_name', 'unknown')
-            
+        if True:            
             try:
                 # Save the current molecule parameters
                 write_molecules_to_csv(
                     self.islat_class.molecules_dict, 
-                    #loaded_spectrum_name=spectrum_name
                 )
             except Exception as e:
                 print("Error", f"Failed to save molecule parameters: {str(e)}")
@@ -249,7 +245,7 @@ class GUI:
                     #print("\n" + "="*80)
                     #print("FINAL PERFORMANCE SUMMARY (including async operations)")
                     #print("="*80)
-                    #print(get_performance_summary())
+                    get_performance_summary()
                 else:
                     print(f"Warning: Async spectrum calculation failed: {error}")
             

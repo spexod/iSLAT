@@ -139,15 +139,15 @@ class iSLAT:
 
         try:
             section.mark("load_molecules")
-            start_time = time.time()
+            #start_time = time.time()
             results = self.molecules_dict.load_molecules(
                 molecules_list, 
                 parms,
             )
             section.mark("load_complete")
             
-            elapsed_time = time.time() - start_time
-            print(f"Loaded {len(results)} molecules in {elapsed_time:.3f}s")
+            #elapsed_time = time.time() - start_time
+            #print(f"Loaded {len(results)} molecules in {elapsed_time:.3f}s")
             
             if results["success"] > 0:
                 print(f"Loaded {results['success']} molecules")
@@ -160,7 +160,7 @@ class iSLAT:
             self._set_initial_active_molecule()
             
             section.end()
-            print(section.get_breakdown())
+            section.get_breakdown(print_output=True)
 
             return True
                     
@@ -413,19 +413,19 @@ class iSLAT:
         
         try:
             # Initialize molecules with spectrum-optimized settings
-            start_time = time.time()
+            #start_time = time.time()
             
             # Use the most efficient initialization method with spectrum optimization
             self.init_molecules(mole_save_data=mole_save_data)
 
-            elapsed_time = time.time() - start_time
+            #elapsed_time = time.time() - start_time
             self._molecules_loaded = True
             
-            print(f"Molecule initialization completed in {elapsed_time:.3f}s")
-            print(f"Loaded {len(self.molecules_dict)} molecules optimized for spectrum")
+            #print(f"Molecule initialization completed in {elapsed_time:.3f}s")
+            #print(f"Loaded {len(self.molecules_dict)} molecules optimized for spectrum")
             
             # Print performance summary
-            self._print_performance_summary(elapsed_time)
+            #self._print_performance_summary(elapsed_time)
                 
         except Exception as e:
             print(f"Error initializing molecules for spectrum: {e}")
@@ -556,9 +556,9 @@ class iSLAT:
                 return False
             
             # Load required data
-            self.wave_data = np.array(df['wave'].values) * self.user_settings.get("wave_data_scalar", 1.0)
+            self.wave_data: np.ndarray = np.array(df['wave'].values) * self.user_settings.get("wave_data_scalar", 1.0)
             self.wave_data_original = self.wave_data.copy()
-            self.flux_data = np.array(df['flux'].values) * self.user_settings.get("flux_data_scalar", 1.0)
+            self.flux_data: np.ndarray = np.array(df['flux'].values) * self.user_settings.get("flux_data_scalar", 1.0)
             
             # Load optional data with defaults if not present
             if 'err' in df.columns:
@@ -641,7 +641,7 @@ class iSLAT:
                 self.update_model_spectrum()
             
             section.end()
-            print(section.get_breakdown())
+            section.get_breakdown(print_output=True)
             
             print("Spectrum loaded successfully")
             return True
@@ -771,13 +771,13 @@ class iSLAT:
                 # Start GUI with async spectrum display (GUI shows immediately,
                 # spectrum calculations run in background thread)
                 section.mark("display_spectrum_async")
-                print("Starting GUI with async spectrum display...")
+                #print("Starting GUI with async spectrum display...")
                 
                 section.end()
-                print(section.get_breakdown())
+                section.get_breakdown(print_output=True)
                 
                 # Print overall performance summary before mainloop blocks
-                print(get_performance_summary())
+                get_performance_summary()
                 
                 # This enters mainloop - async display scheduled via after()
                 self.GUI.start(display_spectrum_async=True)
@@ -930,7 +930,7 @@ class iSLAT:
         else:
             raise ValueError("Display range must be a tuple of two floats (start, end).")
     
-    def _print_performance_summary(self, molecule_load_time):
+    '''def _print_performance_summary(self, molecule_load_time):
         """Print a summary of performance optimizations and timings"""
         print(f"\n--- Performance Summary ---")
         print(f"Molecule loading time: {molecule_load_time:.3f}s")
@@ -940,4 +940,4 @@ class iSLAT:
             print(f"HITRAN file caching active ({len(self._hitran_file_cache)} files cached)")
         if hasattr(self, 'molecules_dict') and hasattr(self.molecules_dict, 'global_wavelength_range'):
             print(f"Optimized for spectrum range: {self.molecules_dict.global_wavelength_range[0]:.1f} - {self.molecules_dict.global_wavelength_range[1]:.1f} µm")
-        print("--- Ready for Analysis ---\n")
+        print("--- Ready for Analysis ---\n")'''
