@@ -31,22 +31,19 @@ import threading
 # Global state for performance tracking
 _perf_data: Dict[str, List[float]] = defaultdict(list)
 _perf_lock = threading.Lock()
-_enabled = True
+_enabled = False
 _start_time: Optional[float] = None
 _log_threshold_ms = 1.0  # Only log operations taking longer than this (ms)
-
 
 def enable_performance_logging(enabled: bool = True) -> None:
     """Enable or disable performance logging globally."""
     global _enabled
     _enabled = enabled
 
-
 def set_log_threshold(threshold_ms: float) -> None:
     """Set minimum threshold (in ms) for logging operations."""
     global _log_threshold_ms
     _log_threshold_ms = threshold_ms
-
 
 def reset_performance_data() -> None:
     """Clear all collected performance data."""
@@ -55,12 +52,10 @@ def reset_performance_data() -> None:
         _perf_data.clear()
         _start_time = time.perf_counter()
 
-
 def mark_startup_begin() -> None:
     """Mark the beginning of startup for total time calculation."""
     global _start_time
     _start_time = time.perf_counter()
-
 
 def _record_timing(operation: str, duration_s: float) -> None:
     """Record a timing measurement."""
@@ -68,7 +63,6 @@ def _record_timing(operation: str, duration_s: float) -> None:
         return
     with _perf_lock:
         _perf_data[operation].append(duration_s)
-
 
 def _format_time(seconds: float) -> str:
     """Format time in appropriate units."""
@@ -78,7 +72,6 @@ def _format_time(seconds: float) -> str:
         return f"{seconds * 1000:.2f}ms"
     else:
         return f"{seconds * 1000000:.1f}µs"
-
 
 @contextmanager
 def perf_log(operation: str, verbose: bool = True):
@@ -110,7 +103,6 @@ def perf_log(operation: str, verbose: bool = True):
         duration_ms = duration * 1000
         if verbose and duration_ms >= _log_threshold_ms:
             print(f"[PERF] {operation}: {_format_time(duration)}")
-
 
 def timed(operation: str = None, verbose: bool = True):
     """
@@ -150,7 +142,6 @@ def timed(operation: str = None, verbose: bool = True):
         
         return wrapper
     return decorator
-
 
 def get_performance_summary(sort_by: str = "total", top_n: int = 20) -> str:
     """
@@ -224,7 +215,6 @@ def get_performance_summary(sort_by: str = "total", top_n: int = 20) -> str:
     
     return "\n".join(lines)
 
-
 def log_timing(operation: str, duration_s: float, verbose: bool = True) -> None:
     """
     Manually log a timing measurement.
@@ -243,7 +233,6 @@ def log_timing(operation: str, duration_s: float, verbose: bool = True) -> None:
         duration_ms = duration_s * 1000
         if duration_ms >= _log_threshold_ms:
             print(f"[PERF] {operation}: {_format_time(duration_s)}")
-
 
 class PerformanceSection:
     """

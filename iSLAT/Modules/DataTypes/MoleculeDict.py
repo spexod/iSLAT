@@ -275,21 +275,21 @@ class MoleculeDict(dict):
         dict
             Dictionary with 'success' count, 'failed' count, 'times' dict, and 'errors' list.
         """
-        section = PerformanceSection("MoleculeDict.calculate_intensities_parallel")
-        section.start()
+        #section = PerformanceSection("MoleculeDict.calculate_intensities_parallel")
+        #section.start()
         
         if molecule_names is None:
             molecule_names = list(self.get_visible_molecules())
         
         if not molecule_names:
-            section.end()
+            #section.end()
             return {'success': 0, 'failed': 0, 'times': {}, 'errors': []}
         
         # Filter to existing molecules
         valid_molecules = [name for name in molecule_names if name in self]
         
         if not valid_molecules:
-            section.end()
+            #section.end()
             return {'success': 0, 'failed': 0, 'times': {}, 'errors': []}
         
         if show_progress:
@@ -306,7 +306,7 @@ class MoleculeDict(dict):
             'errors': []
         }
         
-        section.mark("submit_jobs")
+        #section.mark("submit_jobs")
         
         def calculate_single_molecule(mol_name: str) -> Tuple[str, bool, float, Optional[str]]:
             """Calculate intensity for a single molecule (runs in thread)."""
@@ -342,8 +342,8 @@ class MoleculeDict(dict):
                     if show_progress:
                         print(f"  [FAIL] {mol_name}: {error}")
         
-        section.mark("all_complete")
-        elapsed = section.end()
+        #section.mark("all_complete")
+        #elapsed = section.end()
         
         total_time = sum(results['times'].values())
         if show_progress:
@@ -399,12 +399,12 @@ class MoleculeDict(dict):
                 section.end()
                 return cached_wavelengths.copy(), cached_flux.copy()
         
-        section.mark("parallel_intensity_calc")
+        #section.mark("parallel_intensity_calc")
         
         # Pre-calculate all intensities in parallel
         self.calculate_intensities_parallel(molecules, max_workers=max_workers, show_progress=True)
         
-        section.mark("sum_fluxes")
+        #section.mark("sum_fluxes")
         
         # Parallelize get_flux calls since spectrum convolution is CPU-intensive
         # NumPy releases the GIL, so threads provide real parallelism here
@@ -446,11 +446,11 @@ class MoleculeDict(dict):
                     flux_results[mol_name] = (mol_wavelengths, mol_flux)
         
         # Print timing info
-        for mol_name, elapsed in sorted(flux_times.items(), key=lambda x: x[1]):
-            print(f"  [SUM] get_flux({mol_name}): {elapsed*1000:.1f}ms")
+        #for mol_name, elapsed in sorted(flux_times.items(), key=lambda x: x[1]):
+            #print(f"  [SUM] get_flux({mol_name}): {elapsed*1000:.1f}ms")
         
-        total_flux_time = sum(flux_times.values())
-        print(f"[SUM] Total get_flux time: {total_flux_time:.2f}s (parallel)")
+        #total_flux_time = sum(flux_times.values())
+        #print(f"[SUM] Total get_flux time: {total_flux_time:.2f}s (parallel)")
         
         # Now combine the results (fast array operations)
         combined_wavelengths = None
@@ -475,14 +475,14 @@ class MoleculeDict(dict):
                     combined_flux += mol_flux
         
         if combined_wavelengths is None:
-            section.end()
+            #section.end()
             return np.array([]), np.array([])
         
         # Cache result
         self._cache_summed_flux_result(cache_key, combined_wavelengths, combined_flux, current_param_hash)
         
-        section.end()
-        print(section.get_breakdown())
+        #section.end()
+        #print(section.get_breakdown())
         
         return combined_wavelengths, combined_flux
 
@@ -724,8 +724,8 @@ class MoleculeDict(dict):
             If True, defer intensity calculations until needed (faster startup).
             If False, calculate intensities immediately after loading.
         """
-        section = PerformanceSection("MoleculeDict.load_molecules")
-        section.start()
+        #section = PerformanceSection("MoleculeDict.load_molecules")
+        #section.start()
         
         if not molecules_data:
             return {"success": 0, "failed": 0, "errors": [], "molecules": []}
@@ -733,7 +733,7 @@ class MoleculeDict(dict):
         print(f"Loading {len(molecules_data)} molecules...")
         
         # Filter valid molecules
-        section.mark("filter_valid")
+        #section.mark("filter_valid")
         valid_molecules_data = [
             mol_data for mol_data in molecules_data 
             if (mol_data.get("Molecule Name") or mol_data.get("name")) 
@@ -758,30 +758,30 @@ class MoleculeDict(dict):
             self._global_stellar_rv = float(valid_molecules_data[0].get("StellarRV", default_parms.DEFAULT_STELLAR_RV))
 
         # Execute loading
-        section.mark("execute_loading")
+        #section.mark("execute_loading")
         start_time = time.time()
         if strategy == "parallel":
             results = self._load_molecules_parallel(valid_molecules_data, initial_molecule_parameters, max_workers)
         else:
             results = self._load_molecules_sequential(valid_molecules_data, initial_molecule_parameters)
-        section.mark("loading_complete")
+        #section.mark("loading_complete")
 
         # Calculate intensities for loaded molecules (unless deferred for faster startup)
-        section.mark("calculate_intensities")
+        #section.mark("calculate_intensities")
         if results['success'] > 0 and not defer_calculations:
             print("Calculating intensities immediately (defer_calculations=False)...")
             intensity_results = self.bulk_calculate_intensities(results['molecules'])
             results['intensity_calculation'] = intensity_results
         elif results['success'] > 0:
-            print(f"Deferring intensity calculations for {results['success']} molecules (faster startup)")
+            print(f"Deferring intensity calculations for {results['success']} molecules")
             results['intensity_calculation'] = {'deferred': True, 'molecules': results['molecules']}
-        section.mark("intensities_complete")
+        #section.mark("intensities_complete")
         
         elapsed_time = time.time() - start_time
         print(f"Loading completed in {elapsed_time:.2f}s - Success: {results['success']}, Failed: {results['failed']}")
         
-        section.end()
-        print(section.get_breakdown())
+        #section.end()
+        #print(section.get_breakdown())
         
         return results
     

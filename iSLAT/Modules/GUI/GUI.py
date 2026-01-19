@@ -237,19 +237,19 @@ class GUI:
                 self.plot.hide_loading_indicator()
                 
                 if status == 'success':
-                    print("Async spectrum calculation complete - updating display...")
+                    #print("Async spectrum calculation complete - updating display...")
                     # Initialize data-dependent plot elements now that calculations are done
                     self.plot.initialize_data()
                     self.plot.update_model_plot()
                     if hasattr(self.plot, 'canvas'):
                         self.plot.canvas.draw()
-                    print("Spectrum displayed successfully (async)")
+                    #print("Spectrum displayed successfully (async)")
                     
                     # Print final performance summary including all async operations
-                    print("\n" + "="*80)
-                    print("FINAL PERFORMANCE SUMMARY (including async operations)")
-                    print("="*80)
-                    print(get_performance_summary())
+                    #print("\n" + "="*80)
+                    #print("FINAL PERFORMANCE SUMMARY (including async operations)")
+                    #print("="*80)
+                    #print(get_performance_summary())
                 else:
                     print(f"Warning: Async spectrum calculation failed: {error}")
             

@@ -61,7 +61,8 @@ else:
 __all__ = ["Intensity"]
 
 class Intensity:
-    __slots__ = ('_molecule', '_intensity', '_tau', '_t_kin', '_n_mol', '_dv', '_cache_valid', '_sorted_idx', '_sorted_freq')
+    __slots__ = ('_molecule', '_intensity', '_tau', '_t_kin', '_n_mol', '_dv', '_cache_valid', '_sorted_idx', '_sorted_freq',
+                 '_cached_freq_cubed', '_cached_line_scalar', '_cached_e_delta')
     
     def __init__(self, molecule_line_list: 'MoleculeLineList') -> None:
         """Initialize an intensity class which calculates the intensities for a given molecule and provided
@@ -86,6 +87,10 @@ class Intensity:
         self._cache_valid: bool = False
         self._sorted_idx: Optional[np.ndarray] = None
         self._sorted_freq: Optional[np.ndarray] = None
+        # Pre-computed line constants (molecule-dependent, not parameter-dependent)
+        self._cached_freq_cubed: Optional[np.ndarray] = None
+        self._cached_line_scalar: Optional[np.ndarray] = None
+        self._cached_e_delta: Optional[np.ndarray] = None
 
     # Pre-computed constants for blackbody calculation (class-level for efficiency)
     _BB_COEFF_RJ = 2.0 * c.BOLTZMANN_CONSTANT / (c.SPEED_OF_LIGHT_CGS ** 2)
@@ -260,17 +265,22 @@ class Intensity:
         
         # Setup arrays and extract dimensions
         dv_cond = np.atleast_1d(dv_cond)
-        intensity = np.zeros_like(center_tau)
+        n_cond, n_lines = center_tau.shape
+        intensity = np.zeros((n_cond, n_lines), dtype=np.float64)
         
         # Quadrature setup for curve-of-growth integration
-        exp_neg_x_squared = cls._GAUSS_QUAD_EXP[np.newaxis, :]  # (1, n_quad)
+        exp_neg_x_squared = cls._GAUSS_QUAD_EXP  # (n_quad,) - don't add dimension yet
         weights = cls._GAUSS_QUAD_W
         
-        # Make the hot arrays contiguous
-        center_tau  = np.ascontiguousarray(center_tau, dtype=np.float64)
-        bb_vals     = np.ascontiguousarray(bb_vals,    dtype=np.float64)
-        freq_ratio  = np.ascontiguousarray(freq_ratio, dtype=np.float64)
-        frequencies = np.ascontiguousarray(frequencies, dtype=np.float64)
+        # Only copy if not already contiguous (avoid unnecessary memory allocation)
+        if not center_tau.flags['C_CONTIGUOUS']:
+            center_tau = np.ascontiguousarray(center_tau, dtype=np.float64)
+        if not bb_vals.flags['C_CONTIGUOUS']:
+            bb_vals = np.ascontiguousarray(bb_vals, dtype=np.float64)
+        if not freq_ratio.flags['C_CONTIGUOUS']:
+            freq_ratio = np.ascontiguousarray(freq_ratio, dtype=np.float64)
+        if not frequencies.flags['C_CONTIGUOUS']:
+            frequencies = np.ascontiguousarray(frequencies, dtype=np.float64)
         
         # ═══════════════════════════════════════════════════════════════
         # STEP 1: Identify isolated vs. overlapping lines
@@ -296,21 +306,26 @@ class Intensity:
         # then there are no overlaps anywhere; do the isolated batch and return.
         gaps = np.diff(sorted_frequencies)
         if gaps.size == 0 or np.all(gaps > np.maximum(tol_sorted[:-1], tol_sorted[1:])):
-            # Pre-compute physical factors (same as in STEP 2)
-            physical_factors = sqrt_ln2_inv * 1e5 * dv_cond[:, np.newaxis] * freq_ratio * bb_vals
+            # Pre-compute physical factors using in-place multiplication chain
+            # physical_factors = sqrt_ln2_inv * 1e5 * dv_cond[:, np.newaxis] * freq_ratio * bb_vals
+            physical_factors = np.empty((n_cond, n_lines), dtype=np.float64)
+            np.multiply(freq_ratio, bb_vals, out=physical_factors)
+            physical_factors *= (sqrt_ln2_inv * 1e5)
+            physical_factors *= dv_cond[:, np.newaxis]
 
             # Vectorized curve-of-growth for all lines at once
-            integrand = -np.expm1(-center_tau[:, :, np.newaxis] * exp_neg_x_squared)  # (n_cond, n_lines, n_quad)
-            fint_vals = integrand @ weights                                             # (n_cond, n_lines)
-            '''fint_vals = -(np.einsum('q,ijq->ij',
-                        weights,
-                        np.expm1(-center_tau[:, :, np.newaxis] * exp_neg_x_squared),
-                        optimize=True))'''
-            return physical_factors * fint_vals
-            '''return physical_factors * -(np.einsum('q,ijq->ij',
-                                        weights,
-                                        np.expm1(-center_tau[:, :, np.newaxis] * exp_neg_x_squared),
-                                        optimize=True))'''
+            # Use tensordot instead of explicit 3D array + matmul for memory efficiency
+            # integrand shape would be (n_cond, n_lines, n_quad) - can be large
+            # Instead: compute in chunks or use broadcasting more carefully
+            tau_exp = center_tau[:, :, np.newaxis] * exp_neg_x_squared  # (n_cond, n_lines, n_quad)
+            np.negative(tau_exp, out=tau_exp)
+            np.expm1(tau_exp, out=tau_exp)  # in-place expm1
+            np.negative(tau_exp, out=tau_exp)  # -expm1(-x) = 1 - exp(-x)
+            fint_vals = tau_exp @ weights  # (n_cond, n_lines)
+            
+            # Final multiplication in-place
+            np.multiply(physical_factors, fint_vals, out=physical_factors)
+            return physical_factors
         
         # Lines are already sorted by frequency; expand contiguous windows while
         # adjacent pairs are within either neighbor's tolerance (max of the pair).
@@ -342,66 +357,78 @@ class Intensity:
         # STEP 2: Process isolated lines (optimized vectorization)
         # ═══════════════════════════════════════════════════════════════
         
-        # Pre-compute physical factors for all lines (more efficient)
-        physical_factors = sqrt_ln2_inv * 1e5 * dv_cond[:, np.newaxis] * freq_ratio * bb_vals
+        # Pre-compute physical factors using in-place operations
+        physical_factors = np.empty((n_cond, n_lines), dtype=np.float64)
+        np.multiply(freq_ratio, bb_vals, out=physical_factors)
+        physical_factors *= (sqrt_ln2_inv * 1e5)
+        physical_factors *= dv_cond[:, np.newaxis]
         
         if isolated_lines:
-            isolated_indices = np.array(isolated_lines)
+            isolated_indices = np.asarray(isolated_lines, dtype=np.intp)
+            n_isolated = len(isolated_indices)
             
-            # Process in batches to manage memory for very large line lists
+            # Process all isolated lines at once if memory allows, else batch
             batch_size = 20000
-            for batch_start in range(0, len(isolated_indices), batch_size):
-                batch_end = min(batch_start + batch_size, len(isolated_indices))
-                batch_indices = isolated_indices[batch_start:batch_end]
+            if n_isolated <= batch_size:
+                # Single batch - most common case
+                tau_batch = center_tau[:, isolated_indices]
                 
-                tau_batch = center_tau[:, batch_indices]
+                # In-place curve-of-growth computation
+                tau_exp = tau_batch[:, :, np.newaxis] * exp_neg_x_squared
+                np.negative(tau_exp, out=tau_exp)
+                np.expm1(tau_exp, out=tau_exp)
+                np.negative(tau_exp, out=tau_exp)
+                fint_vals = tau_exp @ weights
                 
-                # Vectorized curve-of-growth: (n_cond, n_batch, n_quad)
-                integrand = -np.expm1(-tau_batch[:, :, np.newaxis] * exp_neg_x_squared)
-                fint_vals = integrand @ weights
-                '''fint_vals = -(np.einsum('q,ikq->ik',
-                        weights,
-                        np.expm1(-tau_batch[:, :, np.newaxis] * exp_neg_x_squared),
-                        optimize=True))'''
-                
-                # Apply pre-computed physical factors
-                intensity[:, batch_indices] = physical_factors[:, batch_indices] * fint_vals
+                # In-place final multiplication
+                intensity[:, isolated_indices] = physical_factors[:, isolated_indices] * fint_vals
+            else:
+                # Multiple batches for very large line lists
+                for batch_start in range(0, n_isolated, batch_size):
+                    batch_end = min(batch_start + batch_size, n_isolated)
+                    batch_indices = isolated_indices[batch_start:batch_end]
+                    
+                    tau_batch = center_tau[:, batch_indices]
+                    tau_exp = tau_batch[:, :, np.newaxis] * exp_neg_x_squared
+                    np.negative(tau_exp, out=tau_exp)
+                    np.expm1(tau_exp, out=tau_exp)
+                    np.negative(tau_exp, out=tau_exp)
+                    fint_vals = tau_exp @ weights
+                    
+                    intensity[:, batch_indices] = physical_factors[:, batch_indices] * fint_vals
         
         # ═══════════════════════════════════════════════════════════════  
         # STEP 3: Process overlapping lines
         # ═══════════════════════════════════════════════════════════════
         
-        for overlapping_indices in blended_groups:
-            overlapping_indices = np.asarray(overlapping_indices)
-            n_overlap = len(overlapping_indices)
-            
-            if n_overlap <= 1:
-                continue
-            
-            # Extract optical depths for this blended group
-            tau_group = center_tau[:, overlapping_indices]  # (n_cond, n_overlap)
-            
-            # Sum optical depths (vectorized)
-            tau_total = np.sum(tau_group, axis=1)  # (n_cond,)
-            
-            # Apply curve-of-growth to total blended optical depth
-            integrand_total = -np.expm1(-tau_total[:, np.newaxis] * exp_neg_x_squared)
-            fint_total = integrand_total @ weights
-            '''fint_total = -(np.einsum('q,iq->i',
-                         weights,
-                         np.expm1(-tau_total[:, np.newaxis] * exp_neg_x_squared),
-                         optimize=True))'''
-            
-            # VECTORIZED: Calculate all fractional contributions at once
-            tau_fractions = tau_group / (tau_total[:, np.newaxis])  # (n_cond, n_overlap)
-            
-            # VECTORIZED: Calculate all line shares at once
-            fint_lines = fint_total[:, np.newaxis] * tau_fractions  # (n_cond, n_overlap)
-            
-            # VECTORIZED: Apply physical factors to all overlapping lines at once
-            intensity[:, overlapping_indices] = (
-                physical_factors[:, overlapping_indices] * fint_lines
-            )
+        if blended_groups:
+            # Process all blended groups - typically small and few
+            for overlapping_indices in blended_groups:
+                n_overlap = len(overlapping_indices)
+                
+                if n_overlap <= 1:
+                    continue
+                
+                # Extract optical depths for this blended group
+                tau_group = center_tau[:, overlapping_indices]  # (n_cond, n_overlap)
+                
+                # Sum optical depths (use method call for speed)
+                tau_total = tau_group.sum(axis=1)  # (n_cond,)
+                
+                # Apply curve-of-growth to total blended optical depth (in-place)
+                tau_exp = tau_total[:, np.newaxis] * exp_neg_x_squared
+                np.negative(tau_exp, out=tau_exp)
+                np.expm1(tau_exp, out=tau_exp)
+                np.negative(tau_exp, out=tau_exp)
+                fint_total = tau_exp @ weights  # (n_cond,)
+                
+                # Calculate fractional contributions and apply in one step
+                # Combine: (fint_total / tau_total)[:, np.newaxis] * tau_group
+                scale = fint_total / tau_total  # (n_cond,)
+                fint_lines = scale[:, np.newaxis] * tau_group  # (n_cond, n_overlap)
+                
+                # Apply physical factors
+                intensity[:, overlapping_indices] = physical_factors[:, overlapping_indices] * fint_lines
 
         return intensity
 
@@ -468,23 +495,44 @@ class Intensity:
         
         # 1D condition terms - use pre-computed constant
         cond_term = cls._INV_FGAUSS_1E5 / dv_flat                         # (n_cond,)
-        q_sum_inv = (1.0 / q_sum_vals)                                    # (n_cond,)
-        # 1D line terms - use pre-computed c³/(8π)
-        freq_cubed = lines.freq ** 3
-        line_term = cls._C3_OVER_8PI / freq_cubed                         # (n_lines,)
-        g_up   = lines.g_up
-        a_stein= lines.a_stein
+        q_sum_inv = 1.0 / q_sum_vals                                       # (n_cond,)
+        
+        # Cache line-level constants (molecule-dependent only, computed once per Intensity instance)
+        if self._cached_line_scalar is None:
+            freq_cubed = lines.freq ** 3
+            line_term = cls._C3_OVER_8PI / freq_cubed                     # (n_lines,)
+            self._cached_line_scalar = line_term * lines.g_up * lines.a_stein
+            self._cached_e_delta = lines.e_up - lines.e_low
+            self._cached_freq_cubed = freq_cubed
+        
+        line_scalar = self._cached_line_scalar
+        e_delta = self._cached_e_delta
 
         # --- Fewer exponentials for Boltzmann difference ---
-        E_low   = np.einsum('i,l->il', invT, lines.e_low,                 optimize=True)
-        E_delta = np.einsum('i,l->il', invT, (lines.e_up - lines.e_low),  optimize=True)
-        exp_low = np.exp(-E_low)
-        boltz_diff = exp_low * (-(np.expm1(-E_delta)))   # = exp_low - exp_up
-
-        # --- Compact center_tau contraction ---
-        cond_scalar = n_mol_flat * cond_term * q_sum_inv
-        line_scalar = line_term * g_up * a_stein
-        center_tau  = np.einsum('i,il,l->il', cond_scalar, boltz_diff, line_scalar, optimize=True)
+        # Replace einsum with direct outer product broadcasting (faster for 2D)
+        n_cond = len(invT)
+        n_lines = len(lines.freq)
+        
+        # E_low = invT[:, np.newaxis] * lines.e_low[np.newaxis, :]
+        # Use np.outer for single condition, broadcasting for multiple
+        if n_cond == 1:
+            # Single condition: use direct multiplication (avoids 2D overhead)
+            E_low = invT[0] * lines.e_low
+            E_delta_scaled = invT[0] * e_delta
+            exp_low = np.exp(-E_low)
+            boltz_diff = exp_low * (-np.expm1(-E_delta_scaled))
+            cond_scalar = n_mol_flat[0] * cond_term[0] * q_sum_inv[0]
+            center_tau = (cond_scalar * boltz_diff * line_scalar)[np.newaxis, :]
+        else:
+            # Multiple conditions: use broadcasting
+            E_low = np.multiply.outer(invT, lines.e_low)                  # (n_cond, n_lines)
+            E_delta_scaled = np.multiply.outer(invT, e_delta)             # (n_cond, n_lines)
+            exp_low = np.exp(-E_low)
+            boltz_diff = exp_low * (-np.expm1(-E_delta_scaled))
+            
+            # Compute center_tau: cond_scalar[:, None] * boltz_diff * line_scalar[None, :]
+            cond_scalar = n_mol_flat * cond_term * q_sum_inv              # (n_cond,)
+            center_tau = (cond_scalar[:, np.newaxis] * boltz_diff) * line_scalar
         
         # Blackbody calculation - vectorized for all temperatures at once
         bb_vals = self._bb(lines.freq[:], t_kin_flat[:])
