@@ -63,8 +63,8 @@ class MoleculeDict(dict):
     
     def get_visible_molecules(self, return_objects: bool = False) -> Union[set, List['Molecule']]:
         """Get visible molecule names or objects."""
-        # Build visible set - use direct attribute access
-        current_visible = {name for name, mol in self.items() if mol._is_visible}
+        # Build visible set - use property accessor for proper string-to-bool conversion
+        current_visible = {name for name, mol in self.items() if mol.is_visible}
         
         # Only update cache if changed
         if current_visible != self._visible_molecules:

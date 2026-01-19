@@ -835,16 +835,16 @@ class PlotRenderer:
         # Batch render all visible molecules without updating legend each time
         rendered_count = 0
         for mol in visible_molecules:
-            mol_name = getattr(mol, 'name', 'unknown')
+            #mol_name = getattr(mol, 'name', 'unknown')
             try:
                 # Render without updating legend (update_legend=False)
                 success = self.render_individual_molecule_spectrum(mol, wave_data, subplot=subplot, update_legend=False)
                 if success:
                     rendered_count += 1
                 else:
-                    debug_config.warning("plot_renderer", f"Could not render molecule {mol_name}")
+                    debug_config.warning("plot_renderer", f"Could not render molecule {getattr(mol, 'name', 'unknown')}")
             except Exception as e:
-                print(f"Error rendering molecule {mol_name}: {e}")
+                print(f"Error rendering molecule {getattr(mol, 'name', 'unknown')}: {e}")
                 continue
         
         # Update legend only once after all molecules are rendered (if requested)
