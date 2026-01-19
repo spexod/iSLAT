@@ -26,6 +26,7 @@ def _get_pandas():
     return pd
 
 # Cache version - increment when cache format changes
+# v2: Switched from compressed npz to separate uncompressed npy files for faster loading
 _CACHE_VERSION = 1
 
 class LineTuple(NamedTuple):
@@ -171,17 +172,18 @@ class MoleculeLineList:
         Returns
         -------
         str
-            Path to the corresponding .npz cache file
+            Path to the cache directory for this molecule/file
         """
         from iSLAT.Modules.FileHandling import hitran_cache_folder_path
         
         # Create cache folder if it doesn't exist
         os.makedirs(hitran_cache_folder_path, exist_ok=True)
         
-        # Generate cache filename based on source file name and molecule_id
+        # Generate cache directory name based on source file name and molecule_id
         source_basename = os.path.basename(source_filepath)
-        cache_name = f"{self.molecule_id}_{source_basename}.npz"
-        return os.path.join(hitran_cache_folder_path, cache_name)
+        # Use a directory for v2 cache (multiple .npy files)
+        cache_dir = os.path.join(hitran_cache_folder_path, f"{self.molecule_id}_{source_basename}")
+        return cache_dir
     
     def _is_cache_valid(self, source_filepath: str, cache_filepath: str) -> bool:
         """
@@ -192,33 +194,39 @@ class MoleculeLineList:
         source_filepath : str
             Path to the original .par file
         cache_filepath : str
-            Path to the cache file
+            Path to the cache directory
             
         Returns
         -------
         bool
             True if cache is valid and can be used
         """
-        if not os.path.exists(cache_filepath):
+        # For v2 cache, check if the directory and metadata file exist
+        metadata_file = os.path.join(cache_filepath, "metadata.npy")
+        lines_file = os.path.join(cache_filepath, "lines.npy")
+        
+        if not os.path.exists(metadata_file) or not os.path.exists(lines_file):
             return False
         
         if not os.path.exists(source_filepath):
             return False
         
         # Check if cache is newer than source file
-        cache_mtime = os.path.getmtime(cache_filepath)
+        cache_mtime = os.path.getmtime(metadata_file)
         source_mtime = os.path.getmtime(source_filepath)
         
         return cache_mtime > source_mtime
     
     def _load_from_cache(self, cache_filepath: str) -> bool:
         """
-        Load molecular data from a binary cache file.
+        Load molecular data from fast binary cache files.
+        
+        Uses separate .npy files without compression.
         
         Parameters
         ----------
         cache_filepath : str
-            Path to the .npz cache file
+            Path to the cache directory
             
         Returns
         -------
@@ -226,42 +234,53 @@ class MoleculeLineList:
             True if cache was loaded successfully, False otherwise
         """
         try:
-            with np.load(cache_filepath, allow_pickle=True) as data:
-                # Verify cache version
-                cache_version = int(data.get('cache_version', 0))
-                if cache_version != _CACHE_VERSION:
-                    print(f"Cache version mismatch (got {cache_version}, expected {_CACHE_VERSION}), rebuilding...")
-                    return False
-                
-                # Load partition function
-                partition_t = data['partition_t']
-                partition_q = data['partition_q']
-                self.partition_function = self._partition_type(t=partition_t, q=partition_q)
-                
-                # Load molar mass
-                self._molar_mass = float(data['molar_mass'])
-                
-                # Load lines data
-                self._raw_lines_data = data['lines_data']
-                
-                self.lines = None  # Will be created on demand
-                self._data_loaded = True
-                self._invalidate_caches()
-                
-                return True
-                
+            metadata_file = os.path.join(cache_filepath, "metadata.npy")
+            lines_file = os.path.join(cache_filepath, "lines.npy")
+            partition_t_file = os.path.join(cache_filepath, "partition_t.npy")
+            partition_q_file = os.path.join(cache_filepath, "partition_q.npy")
+            
+            # Load metadata (small, fast)
+            metadata = np.load(metadata_file, allow_pickle=False)
+            cache_version = int(metadata[0])
+            
+            if cache_version != _CACHE_VERSION:
+                print(f"Cache version mismatch (got {cache_version}, expected {_CACHE_VERSION}), rebuilding...")
+                return False
+            
+            self._molar_mass = float(metadata[1])
+            
+            # Load partition function (small arrays, fast)
+            partition_t = np.load(partition_t_file, allow_pickle=False)
+            partition_q = np.load(partition_q_file, allow_pickle=False)
+            self.partition_function = self._partition_type(t=partition_t, q=partition_q)
+            
+            # Use memory mapping for very large files, direct load for smaller ones
+            file_size = os.path.getsize(lines_file)
+            if file_size > 25_000_000:  # > 50MB: use memory mapping
+                self._raw_lines_data = np.load(lines_file, mmap_mode='r', allow_pickle=False)
+            else:
+                self._raw_lines_data = np.load(lines_file, allow_pickle=False)
+            
+            self.lines = None  # Will be created on demand
+            self._data_loaded = True
+            self._invalidate_caches()
+            
+            return True
+            
         except Exception as e:
             print(f"Failed to load cache: {e}")
             return False
     
     def _save_to_cache(self, cache_filepath: str) -> bool:
         """
-        Save molecular data to a binary cache file.
+        Save molecular data to fast binary cache files.
+        
+        Uses separate uncompressed .npy files for maximum load speed.
         
         Parameters
         ----------
         cache_filepath : str
-            Path to the .npz cache file
+            Path to the cache directory
             
         Returns
         -------
@@ -269,19 +288,23 @@ class MoleculeLineList:
             True if cache was saved successfully, False otherwise
         """
         try:
-            # Prepare partition function arrays
-            partition_t = np.array(self.partition_function.t) if self.partition_function else np.array([])
-            partition_q = np.array(self.partition_function.q) if self.partition_function else np.array([])
+            # Create cache directory
+            os.makedirs(cache_filepath, exist_ok=True)
             
-            # Save all data to compressed npz file
-            np.savez_compressed(
-                cache_filepath,
-                cache_version=np.array(_CACHE_VERSION),
-                partition_t=partition_t,
-                partition_q=partition_q,
-                molar_mass=np.array(self._molar_mass if self._molar_mass else 0.0),
-                lines_data=self._raw_lines_data
-            )
+            # Prepare partition function arrays
+            partition_t = np.array(self.partition_function.t, dtype=np.float64) if self.partition_function else np.array([], dtype=np.float64)
+            partition_q = np.array(self.partition_function.q, dtype=np.float64) if self.partition_function else np.array([], dtype=np.float64)
+            
+            # Save metadata (version + molar mass)
+            metadata = np.array([_CACHE_VERSION, self._molar_mass if self._molar_mass else 0.0], dtype=np.float64)
+            np.save(os.path.join(cache_filepath, "metadata.npy"), metadata)
+            
+            # Save partition function arrays
+            np.save(os.path.join(cache_filepath, "partition_t.npy"), partition_t)
+            np.save(os.path.join(cache_filepath, "partition_q.npy"), partition_q)
+            
+            # Save lines data - the main payload
+            np.save(os.path.join(cache_filepath, "lines.npy"), self._raw_lines_data)
             
             return True
             
