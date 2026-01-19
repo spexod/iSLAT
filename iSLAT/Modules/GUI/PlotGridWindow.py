@@ -18,7 +18,8 @@ if TYPE_CHECKING:
     from lmfit.model import ModelResult
 
 # Minimum size for each subplot cell (in pixels) to ensure visibility
-SUBPLOT_MIN_SIZE = 500
+SUBPLOT_MIN_SIZE = 200  # Reduced for better fit
+SUBPLOT_ASPECT_RATIO = 1.2  # Width:Height ratio (slightly wider than tall for axis labels)
 
 class PlotGridWindow(tk.Toplevel):
     def __init__(self, parent, 
@@ -77,9 +78,10 @@ class PlotGridWindow(tk.Toplevel):
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
         
-        # Bind mouse wheel scrolling
+        # Bind mouse wheel scrolling with faster scroll speed
         def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            # Increase scroll speed by using larger multiplier
+            canvas.yview_scroll(int(-1 * (event.delta / 40)), "units")
         
         def _bind_mousewheel(event):
             canvas.bind_all("<MouseWheel>", _on_mousewheel)
@@ -115,22 +117,37 @@ class PlotGridWindow(tk.Toplevel):
             scrollable_frame, scroll_canvas = self._create_scrollable_frame(scroll_container)
             
             # Calculate required figure size based on subplot count
-            # Each subplot should be at least SUBPLOT_MIN_SIZE pixels and square
-            fig_width_inches = (SUBPLOT_MIN_SIZE * plot_grid.cols) / plot_grid.fig.dpi
-            fig_height_inches = (SUBPLOT_MIN_SIZE * plot_grid.rows) / plot_grid.fig.dpi
+            # Use reasonable sizes that fit well on screen
+            subplot_width_inches = SUBPLOT_MIN_SIZE / plot_grid.fig.dpi
+            subplot_height_inches = subplot_width_inches / SUBPLOT_ASPECT_RATIO
             
-            # Update the figure size to ensure adequate visibility
+            fig_width_inches = subplot_width_inches * plot_grid.cols
+            fig_height_inches = subplot_height_inches * plot_grid.rows
+            
+            # Update the figure size
             plot_grid.fig.set_size_inches(fig_width_inches, fig_height_inches)
             
-            # Set square aspect ratio for each subplot
+            # Configure subplots with tight spacing to reduce whitespace
+            plot_grid.fig.subplots_adjust(
+                left=0.05, right=0.98,
+                top=0.95, bottom=0.05,
+                wspace=0.3, hspace=0.4
+            )
+            
+            # Ensure axes use auto aspect (no forced square - let data determine)
             for ax in plot_grid.axs.flat:
-                ax.set_aspect('auto')  # Use 'auto' for data plots, but box is square
-                ax.set_box_aspect(1)  # Force square box aspect ratio
+                ax.set_aspect('auto')
+                # Reduce tick label size for compactness
+                ax.tick_params(axis='both', labelsize=7)
+                ax.title.set_fontsize(8)
             
-            plot_grid.fig.tight_layout()
-            
-            # Create matplotlib canvas
+            # Create matplotlib canvas with rasterization for better scroll performance
             fig_canvas = FigureCanvasTkAgg(plot_grid.fig, master=scrollable_frame)
+            
+            # Rasterize the figure for faster rendering during scrolling
+            for ax in plot_grid.axs.flat:
+                ax.set_rasterization_zorder(0)
+            
             fig_canvas.draw()
             
             # Get the required size for the figure widget

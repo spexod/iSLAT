@@ -39,13 +39,19 @@ class FitLinesPlotGrid:
         self.cols = cols
 
         self.spectrum_name = kwargs.get('spectrum_name', 'Spectrum')
-        self.figsize = kwargs.get('figsize', (5 * self.cols, 5 * self.rows))
+        self.figsize = kwargs.get('figsize', (2.5 * self.cols, 2 * self.rows))
         self.fig: Figure
         self.axs: np.ndarray[Axes]
-        #self.fig, self.axs = plt.subplots(rows, cols, figsize=self.figsize, layout='constrained')
-        self.fig = plt.figure(figsize=self.figsize, layout='constrained')
+        # Create figure without constrained layout - we'll control spacing manually
+        self.fig = plt.figure(figsize=self.figsize)
         self.axs = self.fig.subplots(self.rows, self.cols)
-        #self.fig.tight_layout(pad=2.0)
+        # Ensure axs is always 2D array even for single row/column
+        if self.rows == 1 and self.cols == 1:
+            self.axs = np.array([[self.axs]])
+        elif self.rows == 1:
+            self.axs = self.axs.reshape(1, -1)
+        elif self.cols == 1:
+            self.axs = self.axs.reshape(-1, 1)
         self.plt_extra_range = kwargs.get('plt_extra_range', 0.015)  # extra range to plot for each line
         self.wave_data = kwargs.get('wave_data', None)
         self.flux_data = kwargs.get('flux_data', None)
@@ -78,8 +84,7 @@ class FitLinesPlotGrid:
             
             # plot the fit result
             if fitted_wave is None or fitted_flux is None:
-                ax.set_title(f"Line {idx+1}: Fit Error", in_layout=True)
-                #ax.text(0, 0, 'Fit Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
+                ax.set_title(f"Line {idx+1}: Fit Error", fontsize=8)
                 continue
 
             # get color based on fit det
@@ -96,7 +101,7 @@ class FitLinesPlotGrid:
                 # plot the xmin and xmax for each line
                 #ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
             
-                ax.set_title(f"Line {idx+1}: {self.fit_csv_dict[idx]['species']}_{self.fit_csv_dict[idx]['lam']:.2f}", in_layout=True)
+                ax.set_title(f"{self.fit_csv_dict[idx]['species']} {self.fit_csv_dict[idx]['lam']:.2f}", fontsize=8)
                 # set y lim to 10% above and below the observed flux in the fit range
                 y_min = np.min(spectrum_flux) - 0.1 * np.abs(np.min(spectrum_flux))
                 y_max = np.max(spectrum_flux) + 0.1 * np.abs(np.max(spectrum_flux))
@@ -105,13 +110,12 @@ class FitLinesPlotGrid:
                 #ax.set_ylabel("Flux (Jy)")
                 #ax.label_outer()
             except Exception as e:
-                ax.set_title(f"Line {idx+1}: Plot Error", in_layout=True)
-                #ax.text(0, 0, 'Plot Error', horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
+                ax.set_title(f"Plot Error", fontsize=8)
                 print(f"Error plotting line {idx+1}: {e}")       
 
             # add a y label to only the first column
             if col == 0:
-                ax.set_ylabel("Flux (Jy)")
+                ax.set_ylabel("Flux (Jy)", fontsize=7)
 
             self.axs[row, col] = ax
 
