@@ -17,8 +17,12 @@ The class Intensity calculates the intensities
 """
 
 import numpy as np
+import time
 from typing import Optional, Union, Literal, TYPE_CHECKING, Any
 import iSLAT.Constants as c
+
+# Performance logging
+from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
 
 # Lazy imports for performance
 _scipy_imported = False
@@ -543,12 +547,15 @@ class Intensity:
         method: Literal["curve_growth", "radex", "curve_growth_no_overlap"], default "curve_growth"
             Calculation method, either "curve_growth" for Eq. A1 or "radex" for less accurate approximation
         """
+        start_time = time.perf_counter()
+        
         # Check if we can use cached result
         if (self._cache_valid and 
             self._t_kin == t_kin and 
             self._n_mol == n_mol and 
             self._dv == dv and
             self._intensity is not None):
+            log_timing(f"Intensity.calc_intensity(cache_hit)", time.perf_counter() - start_time, verbose=False)
             return
 
         # Validate inputs
@@ -567,6 +574,8 @@ class Intensity:
         self._tau = tau
         self._intensity = intensity
         self._cache_valid = True
+        
+        log_timing(f"Intensity.calc_intensity({method})", time.perf_counter() - start_time)
 
     def calc_intensity_batch(self, t_kin_array: np.ndarray, n_mol_array: np.ndarray, 
                            dv_array: np.ndarray, method: Literal["curve_growth", "radex", "curve_growth_no_overlap"] = "curve_growth") -> np.ndarray:

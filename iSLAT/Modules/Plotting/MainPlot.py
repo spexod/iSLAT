@@ -57,6 +57,10 @@ class iSLATPlot:
     def __init__(self, parent_frame, wave_data, flux_data, theme, islat_class_ref):
         self.theme = theme
         self.islat = islat_class_ref
+        
+        # Flag to defer data-dependent operations until window is visible
+        # This prevents blocking during startup while lazy loading triggers
+        self._data_initialized = False
 
         self.active_lines = []  # List of (line, text, scatter, values) tuples for active molecular lines
         self.atomic_lines = []
@@ -75,7 +79,8 @@ class iSLATPlot:
         self.ax1.set_title("Full Spectrum with Line Inspection")
         self.ax1.set_ylabel('Flux density (Jy)')
         self.ax2.set_title("Line inspection plot")
-        self.ax3.set_title(f"{self.islat.active_molecule.displaylabel} Population diagram")
+        # Use placeholder title - will be updated when data is initialized
+        self.ax3.set_title("Population diagram")
 
         self.parent_frame = parent_frame
 
@@ -109,8 +114,30 @@ class iSLATPlot:
         # Register callbacks for parameter and molecule changes
         self._register_update_callbacks()
         
-        # Set initial zoom range to display_range if available
+        # DEFERRED: Don't set initial zoom range here - wait for initialize_data()
+        # This prevents triggering molecule calculations before window is visible
+        # self._set_initial_zoom_range()
+    
+    def initialize_data(self):
+        """
+        Initialize data-dependent plot elements.
+        
+        Call this AFTER the window is visible to avoid blocking during startup.
+        This triggers lazy molecule loading and intensity calculations.
+        """
+        if self._data_initialized:
+            return
+        
+        print("Initializing plot data...")
+        
+        # Update population diagram title with actual molecule name
+        if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+            self.ax3.set_title(f"{self.islat.active_molecule.displaylabel} Population diagram")
+        
+        # Set initial zoom range (may trigger flux calculations)
         self._set_initial_zoom_range()
+        
+        self._data_initialized = True
 
     def create_toolbar(self, frame):
         self.toolbar = NavigationToolbar2Tk(self.canvas, window = frame)
@@ -215,6 +242,40 @@ class iSLATPlot:
             self.ax1.set_ylim(ymin=fig_bottom_height, ymax=fig_height + (fig_height / 8))
 
         self.canvas.draw_idle()
+
+    # ================================
+    # Loading Indicator for Async Display
+    # ================================
+    def show_loading_indicator(self, message="Loading..."):
+        """
+        Show a loading indicator on the plot while calculations are in progress.
+        
+        Parameters
+        ----------
+        message : str
+            Message to display on the loading indicator
+        """
+        self._loading_text = self.ax1.text(
+            0.5, 0.5, message,
+            transform=self.ax1.transAxes,
+            ha='center', va='center',
+            fontsize=16, fontweight='bold',
+            color='gray', alpha=0.8,
+            bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.9, edgecolor='gray')
+        )
+        self.canvas.draw_idle()
+        # Process pending events to show immediately
+        self.canvas.get_tk_widget().update_idletasks()
+    
+    def hide_loading_indicator(self):
+        """Remove the loading indicator from the plot."""
+        if hasattr(self, '_loading_text') and self._loading_text is not None:
+            try:
+                self._loading_text.remove()
+            except ValueError:
+                pass  # Already removed
+            self._loading_text = None
+            self.canvas.draw_idle()
 
     def _set_initial_zoom_range(self):
         """Set the initial zoom range based on display_range or data range"""
@@ -903,8 +964,9 @@ class iSLATPlot:
         # Refresh the plots to apply colors
         if hasattr(self, 'canvas'):
             self.canvas.draw()
-        # Also update any existing plots to use colors
-        if hasattr(self, 'update_all_plots'):
+        # Only update plots if data has been initialized (avoid blocking during startup)
+        if hasattr(self, '_data_initialized') and self._data_initialized:
+            if hasattr(self, 'update_all_plots'):
                 self.update_all_plots()
     
     def load_full_spectrum(self):

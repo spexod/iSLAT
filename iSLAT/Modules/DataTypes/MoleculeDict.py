@@ -5,6 +5,9 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 import time
 import os
 
+# Performance logging
+from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
+
 from .Molecule import Molecule
 import iSLAT.Constants as default_parms
 
@@ -458,14 +461,38 @@ class MoleculeDict(dict):
                        update_global_parameters: bool = True, 
                        strategy: str = "auto",
                        max_workers: Optional[int] = None, 
-                       force_multiprocessing: bool = False) -> Dict[str, Any]:
-        """Unified molecule loading method with automatic strategy selection."""
+                       force_multiprocessing: bool = False,
+                       defer_calculations: bool = True) -> Dict[str, Any]:
+        """Unified molecule loading method with automatic strategy selection.
+        
+        Parameters
+        ----------
+        molecules_data : List[Dict[str, Any]]
+            List of molecule data dictionaries
+        initial_molecule_parameters : Dict[str, Dict[str, Any]]
+            Initial parameters for each molecule type
+        update_global_parameters : bool, default True
+            Whether to update global parameters from first molecule
+        strategy : str, default "auto"
+            Loading strategy: "auto", "sequential", or "parallel"
+        max_workers : Optional[int]
+            Maximum number of workers for parallel loading
+        force_multiprocessing : bool, default False
+            Force use of multiprocessing
+        defer_calculations : bool, default True
+            If True, defer intensity calculations until needed (faster startup).
+            If False, calculate intensities immediately after loading.
+        """
+        section = PerformanceSection("MoleculeDict.load_molecules")
+        section.start()
+        
         if not molecules_data:
             return {"success": 0, "failed": 0, "errors": [], "molecules": []}
         
         print(f"Loading {len(molecules_data)} molecules...")
         
         # Filter valid molecules
+        section.mark("filter_valid")
         valid_molecules_data = [
             mol_data for mol_data in molecules_data 
             if (mol_data.get("Molecule Name") or mol_data.get("name")) 
@@ -490,19 +517,30 @@ class MoleculeDict(dict):
             self._global_stellar_rv = float(valid_molecules_data[0].get("StellarRV", default_parms.DEFAULT_STELLAR_RV))
 
         # Execute loading
+        section.mark("execute_loading")
         start_time = time.time()
         if strategy == "parallel":
             results = self._load_molecules_parallel(valid_molecules_data, initial_molecule_parameters, max_workers)
         else:
             results = self._load_molecules_sequential(valid_molecules_data, initial_molecule_parameters)
+        section.mark("loading_complete")
 
-        # Calculate intensities for loaded molecules
-        if results['success'] > 0:
+        # Calculate intensities for loaded molecules (unless deferred for faster startup)
+        section.mark("calculate_intensities")
+        if results['success'] > 0 and not defer_calculations:
+            print("Calculating intensities immediately (defer_calculations=False)...")
             intensity_results = self.bulk_calculate_intensities(results['molecules'])
             results['intensity_calculation'] = intensity_results
+        elif results['success'] > 0:
+            print(f"Deferring intensity calculations for {results['success']} molecules (faster startup)")
+            results['intensity_calculation'] = {'deferred': True, 'molecules': results['molecules']}
+        section.mark("intensities_complete")
         
         elapsed_time = time.time() - start_time
         print(f"Loading completed in {elapsed_time:.2f}s - Success: {results['success']}, Failed: {results['failed']}")
+        
+        section.end()
+        print(section.get_breakdown())
         
         return results
     

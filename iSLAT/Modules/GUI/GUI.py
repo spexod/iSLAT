@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import filedialog, ttk, font, simpledialog, messagebox
 import os
+import threading
+import queue
 
 from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv
@@ -117,7 +119,16 @@ class GUI:
 
         self._force_theme_update()
 
-    def start(self):
+    def start(self, display_spectrum_async=True):
+        """
+        Start the GUI and enter the main event loop.
+        
+        Parameters
+        ----------
+        display_spectrum_async : bool, default True
+            If True, display spectrum asynchronously after GUI is shown (faster startup).
+            If False, display spectrum synchronously (blocks until complete).
+        """
         self.create_window()
     
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -128,8 +139,28 @@ class GUI:
             self.master.after(100, lambda: self.master.attributes('-topmost', False))
         
         self.master.lift()
-
+        
+        # Schedule async spectrum display after GUI is shown
+        if display_spectrum_async:
+            # Use after(1) to run after first event loop iteration (GUI visible first)
+            self.master.after(1, self._start_async_spectrum_display)
+        
         self.window.mainloop()
+    
+    def _start_async_spectrum_display(self):
+        """Called after GUI is shown - starts async spectrum calculation."""
+        if (hasattr(self, 'plot') and self.plot is not None and
+            hasattr(self.islat_class, 'wave_data') and hasattr(self.islat_class, 'flux_data')):
+            print("Starting async spectrum display...")
+            self.display_spectrum_async(callback=self._on_async_display_complete)
+    
+    def _on_async_display_complete(self, success):
+        """Called when async spectrum display completes."""
+        if success:
+            # Update file label if available
+            if (hasattr(self, "file_interaction_pane") and 
+                hasattr(self.islat_class, 'loaded_spectrum_name')):
+                self.file_interaction_pane.update_file_label(self.islat_class.loaded_spectrum_name)
 
     def on_closing(self):
         #if messagebox.askokcancel("Quit", "Do you want to save your work?"):
@@ -148,6 +179,80 @@ class GUI:
 
     def get_plot_renderer(self):
         return self.plot.plot_renderer
+
+    # ================================
+    # Async Spectrum Display
+    # ================================
+    def display_spectrum_async(self, callback=None):
+        """
+        Display spectrum asynchronously to avoid blocking the GUI during startup.
+        
+        This method shows a loading indicator, runs the intensive spectrum calculations
+        in a background thread, and updates the GUI when complete.
+        
+        Parameters
+        ----------
+        callback : callable, optional
+            Function to call when display is complete
+        """
+        self._async_result_queue = queue.Queue()
+        self._async_callback = callback
+        
+        # Show loading state immediately
+        if hasattr(self, 'plot') and self.plot is not None:
+            self.plot.show_loading_indicator("Calculating molecule spectra...")
+        
+        # Start background calculation thread
+        calc_thread = threading.Thread(
+            target=self._async_spectrum_calculation,
+            daemon=True
+        )
+        calc_thread.start()
+        
+        # Start polling for completion (non-blocking)
+        self._poll_async_result()
+    
+    def _async_spectrum_calculation(self):
+        """Background thread: perform spectrum calculations."""
+        try:
+            # This triggers lazy intensity calculations for all visible molecules
+            if (hasattr(self.islat_class, 'molecules_dict') and 
+                hasattr(self.islat_class, 'wave_data_original')):
+                wave_data = self.islat_class.wave_data_original
+                # Pre-calculate summed flux (triggers all lazy calculations)
+                self.islat_class.molecules_dict.get_summed_flux(wave_data, visible_only=True)
+            
+            self._async_result_queue.put(('success', None))
+        except Exception as e:
+            self._async_result_queue.put(('error', str(e)))
+    
+    def _poll_async_result(self):
+        """Poll for async calculation completion (runs on main thread)."""
+        try:
+            status, error = self._async_result_queue.get_nowait()
+            
+            # Calculation complete - update GUI
+            if hasattr(self, 'plot') and self.plot is not None:
+                self.plot.hide_loading_indicator()
+                
+                if status == 'success':
+                    print("Async spectrum calculation complete - updating display...")
+                    # Initialize data-dependent plot elements now that calculations are done
+                    self.plot.initialize_data()
+                    self.plot.update_model_plot()
+                    if hasattr(self.plot, 'canvas'):
+                        self.plot.canvas.draw()
+                    print("Spectrum displayed successfully (async)")
+                else:
+                    print(f"Warning: Async spectrum calculation failed: {error}")
+            
+            # Call completion callback if provided
+            if self._async_callback:
+                self._async_callback(status == 'success')
+                
+        except queue.Empty:
+            # Still calculating - poll again in 50ms
+            self.master.after(50, self._poll_async_result)
 
     @staticmethod
     def file_selector(title : str = None, filetypes=None, initialdir=None, use_abspath=True, allow_multiple=False):

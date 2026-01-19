@@ -1,7 +1,11 @@
 from typing import Optional, Dict, Any, Tuple, Union, Callable
 import numpy as np
+import time
 from collections import defaultdict
 import threading
+
+# Performance logging
+from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
 
 # Lazy imports with thread safety
 _spectrum_module = None
@@ -237,12 +241,14 @@ class Molecule:
         
     def _ensure_lines_loaded(self):
         if self.lines is None:
+            start_time = time.perf_counter()
             if self.filepath:
-                #print("Loading lines from filepath:", self._lines_filepath)
+                print("Loading lines from filepath:", self.filepath)
                 self.lines = MoleculeLineList(molecule_id=self.name, filename=self.filepath)
             else:
                 print("Creating empty line list")
                 self.lines = MoleculeLineList(molecule_id=self.name)
+            log_timing(f"Molecule._ensure_lines_loaded({self.name})", time.perf_counter() - start_time)
     
     def _ensure_intensity_calculated(self):
         if self._dirty_flags['intensity'] or self._intensity_cache['data'] is None:
@@ -254,15 +260,22 @@ class Molecule:
             self._calculate_spectrum_with_caching()
     
     def _calculate_intensity_with_caching(self):
+        section = PerformanceSection(f"Molecule._calculate_intensity({self.name})")
+        section.start()
+        
         current_hash = self._compute_intensity_hash()
         
         if (self._intensity_cache['hash'] == current_hash and 
             self._intensity_cache['data'] is not None):
             self._cache_stats['hits'] += 1
+            section.mark("cache_hit")
+            section.end()
             return
         
+        section.mark("ensure_lines")
         self._ensure_lines_loaded()
         
+        section.mark("create_intensity_obj")
         if self.intensity is None:
             Intensity = _get_intensity_module()
             self.intensity = Intensity(self.lines)
@@ -274,12 +287,14 @@ class Molecule:
         except AttributeError:
             method = "curve_growth"
 
+        section.mark("calc_intensity")
         self.intensity.calc_intensity(
             t_kin=self._temp,
             n_mol=self._n_mol,
             dv=self._broad,
             method=method
         )
+        section.mark("calc_complete")
 
         intensity_data = {
             'intensity_array': self.intensity._intensity.copy() if self.intensity._intensity is not None else None,
@@ -300,6 +315,9 @@ class Molecule:
         self._dirty_flags['intensity'] = False
         self._param_hash_cache['intensity'] = current_hash
         self._cache_stats['misses'] += 1
+        
+        section.end()
+        print(section.get_breakdown())
     
     def _calculate_spectrum_with_caching(self):
         current_hash = self._compute_spectrum_hash()

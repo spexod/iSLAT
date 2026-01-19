@@ -4,6 +4,12 @@ import os
 import time
 import sys
 
+# Performance logging - import early for startup timing
+from .Modules.Debug.PerformanceLogger import (
+    perf_log, log_timing, PerformanceSection, 
+    mark_startup_begin, get_performance_summary, reset_performance_data
+)
+
 from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
 from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path, hitran_data_folder_path, hitran_data_folder_name, example_data_folder_path
 
@@ -31,6 +37,11 @@ class iSLAT:
         """
         Initialize the iSLAT application with minimal setup.
         """
+        # Start performance tracking
+        reset_performance_data()
+        mark_startup_begin()
+        init_start = time.perf_counter()
+        
         # === CORE STATE ===
         self._user_settings = None
         self._active_molecule = None
@@ -65,6 +76,8 @@ class iSLAT:
         
         # === PERFORMANCE FLAGS ===
         self._use_parallel_processing = False
+        
+        log_timing("iSLAT.__init__", time.perf_counter() - init_start)
 
     # === MOLECULE MANAGEMENT METHODS ===
     def _set_initial_active_molecule(self):
@@ -87,11 +100,15 @@ class iSLAT:
         use_parallel : bool, default False
             If True, uses parallel processing for loading.
         """
+        section = PerformanceSection("iSLAT.init_molecules")
+        section.start()
+        
         # Use parallel processing setting if not explicitly provided
         if not use_parallel:
             use_parallel = self._use_parallel_processing if hasattr(self, '_use_parallel_processing') else False
         
         # Lazy load user_saved_molecules if needed
+        section.mark("load_user_saved_molecules")
         if mole_save_data is None:
             mole_save_data = self.user_saved_molecules
 
@@ -101,6 +118,7 @@ class iSLAT:
             return False
 
         # Convert to list format efficiently
+        section.mark("prepare_molecule_list")
         if isinstance(mole_save_data, dict):
             molecules_list = [mol for mol in mole_save_data.values() if mol.get("Molecule Name") and mol.get("Molecule Name") not in self.molecules_dict]
             parms = self.initial_molecule_parameters
@@ -120,11 +138,13 @@ class iSLAT:
                 self.molecules_dict.global_wavelength_range = spectrum_range
 
         try:
+            section.mark("load_molecules")
             start_time = time.time()
             results = self.molecules_dict.load_molecules(
                 molecules_list, 
                 parms,
             )
+            section.mark("load_complete")
             
             elapsed_time = time.time() - start_time
             print(f"Loaded {len(results)} molecules in {elapsed_time:.3f}s")
@@ -138,11 +158,15 @@ class iSLAT:
                     print(f"  - {error}")
 
             self._set_initial_active_molecule()
+            
+            section.end()
+            print(section.get_breakdown())
 
             return True
                     
         except Exception as e:
             print(f"Error loading molecules: {e}")
+            section.end()
 
     def add_molecule_from_hitran(self, refresh=True, hitran_files=None, molecule_names=None, use_parallel=False, name_popups=True):
         """
@@ -487,9 +511,13 @@ class iSLAT:
         ValueError  
             If file format is not supported.
         """
+        section = PerformanceSection("iSLAT.load_spectrum")
+        section.start()
+        
         #filetypes = [('CSV Files', '*.csv'), ('TXT Files', '*.txt'), ('DAT Files', '*.dat')]
-        spectra_directory = example_data_folder_path #os.path.abspath("DATAFILES/EXAMPLE-data")
+        spectra_directory = example_data_folder_path
         if file_path is None:
+            section.mark("file_selector")
             from .Modules.GUI import GUI
             file_path = GUI.file_selector(
                 title='Choose Spectrum Data File',
@@ -498,10 +526,12 @@ class iSLAT:
 
         if file_path:
             try:
+                section.mark("check_file_exists")
                 # Check if file exists
                 if not os.path.exists(file_path):
                     raise FileNotFoundError(f"Spectrum file not found: {file_path}")
                 
+                section.mark("read_spectral_data")
                 # Use the new read_spectral_data function
                 df = read_spectral_data(file_path)
                 
@@ -610,6 +640,9 @@ class iSLAT:
                     self.GUI.file_interaction_pane.update_file_label(self.loaded_spectrum_name)
                 self.update_model_spectrum()
             
+            section.end()
+            print(section.get_breakdown())
+            
             print("Spectrum loaded successfully")
             return True
         else:
@@ -708,11 +741,19 @@ class iSLAT:
         """
         Initialize the GUI components of iSLAT.
         This function sets up the main window, menus, and other GUI elements.
+        
+        The spectrum display is now handled asynchronously by the GUI class,
+        allowing the GUI to appear immediately while calculations run in the background.
         """
+        section = PerformanceSection("iSLAT.init_gui")
+        section.start()
+        
         try:
             if not hasattr(self, "GUI") or self.GUI is None:
+                section.mark("import_gui_module")
                 from .Modules.GUI import GUI as GUIClass
                 
+                section.mark("create_gui_object")
                 self.GUI = GUIClass(
                     master=None,
                     molecule_data=getattr(self, 'molecules_dict', None),
@@ -725,34 +766,27 @@ class iSLAT:
                 if self.GUI is None:
                     raise RuntimeError("Failed to create GUI object")
             
+            section.mark("start_gui")
             if hasattr(self.GUI, 'start') and callable(self.GUI.start):
-                self.GUI.start()
+                # Start GUI with async spectrum display (GUI shows immediately,
+                # spectrum calculations run in background thread)
+                section.mark("display_spectrum_async")
+                print("Starting GUI with async spectrum display...")
                 
-                # Immediately display spectrum after GUI starts if we have data
-                if (hasattr(self, 'wave_data') and hasattr(self, 'flux_data') and 
-                    hasattr(self.GUI, "plot") and self.GUI.plot is not None):
-                    try:
-                        print("Displaying spectrum in GUI...")
-                        self.GUI.plot.update_model_plot()
-                        
-                        # Force immediate canvas update to ensure spectrum is visible
-                        if hasattr(self.GUI.plot, 'canvas'):
-                            self.GUI.plot.canvas.draw()
-                            
-                        print("Spectrum displayed successfully")
-                        
-                        # Update file label if available
-                        if (hasattr(self.GUI, "file_interaction_pane") and 
-                            hasattr(self, 'loaded_spectrum_name')):
-                            self.GUI.file_interaction_pane.update_file_label(self.loaded_spectrum_name)
-                            
-                    except Exception as e:
-                        print(f"Warning: Error displaying spectrum during GUI init: {e}")
+                section.end()
+                print(section.get_breakdown())
+                
+                # Print overall performance summary before mainloop blocks
+                print(get_performance_summary())
+                
+                # This enters mainloop - async display scheduled via after()
+                self.GUI.start(display_spectrum_async=True)
                         
             else:
                 raise AttributeError(f"GUI object does not have a callable 'start' method")
                 
         except Exception as e:
+            section.end()
             print(f"Error initializing GUI: {e}")
             import traceback
             traceback.print_exc()

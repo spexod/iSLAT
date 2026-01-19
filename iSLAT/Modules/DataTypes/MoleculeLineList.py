@@ -1,6 +1,10 @@
 import numpy as np
+import time
 from collections import namedtuple
 from typing import Optional, List, Any, NamedTuple
+
+# Performance logging
+from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
 
 #from .MoleculeLine import MoleculeLine
 
@@ -156,15 +160,22 @@ class MoleculeLineList:
         filename : str
             Path to the .par file
         """
+        section = PerformanceSection(f"MoleculeLineList._load_from_file({self.molecule_id})")
+        section.start()
+        
         from iSLAT.Modules.FileHandling.molecular_data_reader import read_molecular_data
         
+        section.mark("read_molecular_data")
         partition_function, lines_data, other_fields = read_molecular_data(self.molecule_id, filename)
+        section.mark("parse_complete")
+        
         self.partition_function = partition_function
         
         self._molar_mass = other_fields[0][1]
         print(f'Molar_mass: {self._molar_mass}')
 
         # Convert list of dicts to structured numpy array for fast column access
+        section.mark("convert_to_structured_array")
         if lines_data:
             n_lines = len(lines_data)
             self._raw_lines_data = np.empty(n_lines, dtype=_LINE_DTYPE)
@@ -189,6 +200,9 @@ class MoleculeLineList:
         self.lines = None  # Will be created on demand
         self._data_loaded = True
         self._invalidate_caches()
+        
+        section.end()
+        print(section.get_breakdown())
         
     def _ensure_lines_created(self):
         """Ensure MoleculeLine objects are created from raw data."""
