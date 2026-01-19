@@ -42,7 +42,6 @@ class FitLinesPlotGrid:
         self.figsize = kwargs.get('figsize', (2.5 * self.cols, 2 * self.rows))
         self.fig: Figure
         self.axs: np.ndarray[Axes]
-        # Create figure without constrained layout - we'll control spacing manually
         self.fig = plt.figure(figsize=self.figsize)
         self.axs = self.fig.subplots(self.rows, self.cols)
         # Ensure axs is always 2D array even for single row/column

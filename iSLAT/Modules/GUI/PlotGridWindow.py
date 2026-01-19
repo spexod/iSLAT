@@ -1,15 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 
 from iSLAT.Modules.Plotting.FitLinesPlotGrid import FitLinesPlotGrid
 
-from typing import Dict, List, Optional, Tuple, Callable, Any, Union, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.Molecule import Molecule
@@ -17,148 +12,116 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from lmfit.model import ModelResult
 
-# Minimum size for each subplot cell (in pixels) to ensure visibility
-SUBPLOT_MIN_SIZE = 200  # Reduced for better fit
-SUBPLOT_ASPECT_RATIO = 1.2  # Width:Height ratio (slightly wider than tall for axis labels)
+# Size settings - each subplot will be approximately this size
+SUBPLOT_WIDTH_INCHES = 1.8
+SUBPLOT_HEIGHT_INCHES = 1.5
 
 class PlotGridWindow(tk.Toplevel):
     def __init__(self, parent, 
                  plot_grid_list: List[FitLinesPlotGrid] = None,
                  **kwargs):
         super().__init__(parent)
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True)
-
-        self.title("Fit Lines Plot Grid Window")
-        self.geometry("1200x800")  # Set a reasonable default window size
         
-        #self.plot_grid = FitLinesPlotGrid(fit_data=fit_data, rows=rows, cols=cols, figsize=figsize, **kwargs)
-        #self.plot_grid.plot()
+        self.title("Fit Lines Plot Grid Window")
+        self.geometry("1200x800")
         
         self.plot_grid_list = plot_grid_list if plot_grid_list is not None else []
         
-        self.generate_plots()
+        # Create notebook
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Generate all tabs
+        self._generate_tabs()
 
-        '''self.toolbar_frame = ttk.Frame(self)
-        self.toolbar_frame.pack(fill=tk.X)
-        
-        toolbar = ttk.Frame(self.toolbar_frame)
-        toolbar.pack(side=tk.LEFT)'''
-        
-        '''btn_save = ttk.Button(toolbar, text="Save Figure", command=self.save_figure)
-        btn_save.pack(side=tk.LEFT, padx=2, pady=2)'''
+    def _generate_tabs(self):
+        """Generate all tabs with their plots."""
+        for idx, plot_grid in enumerate(self.plot_grid_list):
+            self._create_tab(plot_grid)
 
-    def _create_scrollable_frame(self, parent):
-        """Create a vertically scrollable frame using canvas."""
-        # Create a canvas and scrollbar
-        canvas = tk.Canvas(parent, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+    def _create_tab(self, plot_grid: FitLinesPlotGrid):
+        """Create a single tab with scrollable plot grid."""
+        # Main tab frame
+        tab_frame = ttk.Frame(self.notebook)
+        self.notebook.add(tab_frame, text=f"{plot_grid.spectrum_name}")
         
-        # Create the scrollable frame inside the canvas
-        scrollable_frame = ttk.Frame(canvas)
+        # Toolbar at top
+        toolbar_frame = ttk.Frame(tab_frame)
+        toolbar_frame.pack(fill=tk.X, side=tk.TOP, pady=2)
         
-        # Configure the scrollable frame to update scroll region when resized
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        btn_save = ttk.Button(toolbar_frame, text="Save Figure", 
+                              command=lambda pg=plot_grid: self.save_figure(pg))
+        btn_save.pack(side=tk.LEFT, padx=5)
+        
+        # Create scrollable container
+        canvas_frame = ttk.Frame(tab_frame)
+        canvas_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Scrollbar and canvas
+        scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical")
+        scrollbar.pack(side="right", fill="y")
+        
+        scroll_canvas = tk.Canvas(canvas_frame, highlightthickness=0,
+                                   yscrollcommand=scrollbar.set)
+        scroll_canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=scroll_canvas.yview)
+        
+        # Frame inside canvas to hold the matplotlib figure
+        inner_frame = ttk.Frame(scroll_canvas)
+        canvas_window = scroll_canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+        
+        # Configure figure size based on grid dimensions
+        fig_width = SUBPLOT_WIDTH_INCHES * plot_grid.cols
+        fig_height = SUBPLOT_HEIGHT_INCHES * plot_grid.rows
+        
+        plot_grid.fig.set_size_inches(fig_width, fig_height)
+        plot_grid.fig.set_dpi(100)
+        
+        # Compact subplot spacing
+        plot_grid.fig.subplots_adjust(
+            left=0.05, right=0.98,
+            top=0.96, bottom=0.04,
+            wspace=0.3, hspace=0.4
         )
         
-        # Create a window inside the canvas for the scrollable frame
-        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        # Reduce font sizes for compact display
+        for ax in plot_grid.axs.flat:
+            ax.tick_params(axis='both', labelsize=7)
+            ax.title.set_fontsize(8)
+            if ax.yaxis.label:
+                ax.yaxis.label.set_fontsize(7)
         
-        # Make the scrollable frame expand to canvas width
-        def configure_canvas_width(event):
-            canvas.itemconfig(canvas_window, width=event.width)
-        canvas.bind("<Configure>", configure_canvas_width)
+        # Create matplotlib canvas widget
+        fig_canvas = FigureCanvasTkAgg(plot_grid.fig, master=inner_frame)
+        fig_canvas.draw()
+        fig_widget = fig_canvas.get_tk_widget()
+        fig_widget.pack(fill=tk.BOTH, expand=True)
         
-        # Configure canvas scrolling
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # Update scroll region when inner frame changes size
+        def update_scroll_region(event=None):
+            scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all"))
         
-        # Pack scrollbar and canvas
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
+        inner_frame.bind("<Configure>", update_scroll_region)
         
-        # Bind mouse wheel scrolling with faster scroll speed
-        def _on_mousewheel(event):
-            # Increase scroll speed by using larger multiplier
-            canvas.yview_scroll(int(-1 * (event.delta / 40)), "units")
+        # Make inner frame expand horizontally with canvas
+        def configure_inner_frame(event):
+            scroll_canvas.itemconfig(canvas_window, width=event.width)
         
-        def _bind_mousewheel(event):
-            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        scroll_canvas.bind("<Configure>", configure_inner_frame)
         
-        def _unbind_mousewheel(event):
-            canvas.unbind_all("<MouseWheel>")
+        # Mouse wheel scrolling
+        def on_mousewheel(event):
+            scroll_canvas.yview_scroll(int(-1 * (event.delta / 60)), "units")
         
-        scrollable_frame.bind("<Enter>", _bind_mousewheel)
-        scrollable_frame.bind("<Leave>", _unbind_mousewheel)
+        def bind_mousewheel(event):
+            scroll_canvas.bind_all("<MouseWheel>", on_mousewheel)
         
-        return scrollable_frame, canvas
+        def unbind_mousewheel(event):
+            scroll_canvas.unbind_all("<MouseWheel>")
         
-    def generate_plots(self):
-        for idx, plot_grid in enumerate(self.plot_grid_list):
-            # Create main frame for this tab
-            tab_frame = ttk.Frame(self.notebook)
-            self.notebook.add(tab_frame, text=f"{plot_grid.spectrum_name}")
-            
-            # Create toolbar at the top (outside scrollable area)
-            toolbar_frame = ttk.Frame(tab_frame)
-            toolbar_frame.pack(fill=tk.X, side=tk.TOP)
-            
-            toolbar = ttk.Frame(toolbar_frame)
-            toolbar.pack(side=tk.LEFT)
-            
-            btn_save = ttk.Button(toolbar, text="Save Figure", command=lambda pg=plot_grid: self.save_figure(pg))
-            btn_save.pack(side=tk.LEFT, padx=2, pady=2)
-            
-            # Create scrollable container for the plot
-            scroll_container = ttk.Frame(tab_frame)
-            scroll_container.pack(fill=tk.BOTH, expand=True)
-            
-            scrollable_frame, scroll_canvas = self._create_scrollable_frame(scroll_container)
-            
-            # Calculate required figure size based on subplot count
-            # Use reasonable sizes that fit well on screen
-            subplot_width_inches = SUBPLOT_MIN_SIZE / plot_grid.fig.dpi
-            subplot_height_inches = subplot_width_inches / SUBPLOT_ASPECT_RATIO
-            
-            fig_width_inches = subplot_width_inches * plot_grid.cols
-            fig_height_inches = subplot_height_inches * plot_grid.rows
-            
-            # Update the figure size
-            plot_grid.fig.set_size_inches(fig_width_inches, fig_height_inches)
-            
-            # Configure subplots with tight spacing to reduce whitespace
-            plot_grid.fig.subplots_adjust(
-                left=0.05, right=0.98,
-                top=0.95, bottom=0.05,
-                wspace=0.3, hspace=0.4
-            )
-            
-            # Ensure axes use auto aspect (no forced square - let data determine)
-            for ax in plot_grid.axs.flat:
-                ax.set_aspect('auto')
-                # Reduce tick label size for compactness
-                ax.tick_params(axis='both', labelsize=7)
-                ax.title.set_fontsize(8)
-            
-            # Create matplotlib canvas with rasterization for better scroll performance
-            fig_canvas = FigureCanvasTkAgg(plot_grid.fig, master=scrollable_frame)
-            
-            # Rasterize the figure for faster rendering during scrolling
-            for ax in plot_grid.axs.flat:
-                ax.set_rasterization_zorder(0)
-            
-            fig_canvas.draw()
-            
-            # Get the required size for the figure widget
-            fig_width_px = int(plot_grid.fig.get_figwidth() * plot_grid.fig.dpi)
-            fig_height_px = int(plot_grid.fig.get_figheight() * plot_grid.fig.dpi)
-            
-            # Configure the canvas widget with explicit size
-            fig_widget = fig_canvas.get_tk_widget()
-            fig_widget.configure(width=fig_width_px, height=fig_height_px)
-            fig_widget.pack(fill=tk.NONE, expand=False)
-    
+        scroll_canvas.bind("<Enter>", bind_mousewheel)
+        scroll_canvas.bind("<Leave>", unbind_mousewheel)
+
     def save_figure(self, plot_grid: FitLinesPlotGrid):
         """Save the figure to a file."""
         from tkinter import filedialog
