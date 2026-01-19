@@ -1,5 +1,7 @@
 import numpy as np
 import time
+import os
+import hashlib
 from collections import namedtuple
 from typing import Optional, List, Any, NamedTuple
 
@@ -22,6 +24,9 @@ def _get_pandas():
             pd = None
             _pandas_imported = True
     return pd
+
+# Cache version - increment when cache format changes
+_CACHE_VERSION = 1
 
 class LineTuple(NamedTuple):
     """Named tuple for line data"""
@@ -151,9 +156,142 @@ class MoleculeLineList:
         self._data_loaded = True
         self._invalidate_caches()
 
+    # ================================
+    # Binary Cache System for HITRAN Files
+    # ================================
+    def _get_cache_path(self, source_filepath: str) -> str:
+        """
+        Get the cache file path for a given source file.
+        
+        Parameters
+        ----------
+        source_filepath : str
+            Path to the original .par file
+            
+        Returns
+        -------
+        str
+            Path to the corresponding .npz cache file
+        """
+        from iSLAT.Modules.FileHandling import hitran_cache_folder_path
+        
+        # Create cache folder if it doesn't exist
+        os.makedirs(hitran_cache_folder_path, exist_ok=True)
+        
+        # Generate cache filename based on source file name and molecule_id
+        source_basename = os.path.basename(source_filepath)
+        cache_name = f"{self.molecule_id}_{source_basename}.npz"
+        return os.path.join(hitran_cache_folder_path, cache_name)
+    
+    def _is_cache_valid(self, source_filepath: str, cache_filepath: str) -> bool:
+        """
+        Check if the cache file is valid (exists and is newer than source).
+        
+        Parameters
+        ----------
+        source_filepath : str
+            Path to the original .par file
+        cache_filepath : str
+            Path to the cache file
+            
+        Returns
+        -------
+        bool
+            True if cache is valid and can be used
+        """
+        if not os.path.exists(cache_filepath):
+            return False
+        
+        if not os.path.exists(source_filepath):
+            return False
+        
+        # Check if cache is newer than source file
+        cache_mtime = os.path.getmtime(cache_filepath)
+        source_mtime = os.path.getmtime(source_filepath)
+        
+        return cache_mtime > source_mtime
+    
+    def _load_from_cache(self, cache_filepath: str) -> bool:
+        """
+        Load molecular data from a binary cache file.
+        
+        Parameters
+        ----------
+        cache_filepath : str
+            Path to the .npz cache file
+            
+        Returns
+        -------
+        bool
+            True if cache was loaded successfully, False otherwise
+        """
+        try:
+            with np.load(cache_filepath, allow_pickle=True) as data:
+                # Verify cache version
+                cache_version = int(data.get('cache_version', 0))
+                if cache_version != _CACHE_VERSION:
+                    print(f"Cache version mismatch (got {cache_version}, expected {_CACHE_VERSION}), rebuilding...")
+                    return False
+                
+                # Load partition function
+                partition_t = data['partition_t']
+                partition_q = data['partition_q']
+                self.partition_function = self._partition_type(t=partition_t, q=partition_q)
+                
+                # Load molar mass
+                self._molar_mass = float(data['molar_mass'])
+                
+                # Load lines data
+                self._raw_lines_data = data['lines_data']
+                
+                self.lines = None  # Will be created on demand
+                self._data_loaded = True
+                self._invalidate_caches()
+                
+                return True
+                
+        except Exception as e:
+            print(f"Failed to load cache: {e}")
+            return False
+    
+    def _save_to_cache(self, cache_filepath: str) -> bool:
+        """
+        Save molecular data to a binary cache file.
+        
+        Parameters
+        ----------
+        cache_filepath : str
+            Path to the .npz cache file
+            
+        Returns
+        -------
+        bool
+            True if cache was saved successfully, False otherwise
+        """
+        try:
+            # Prepare partition function arrays
+            partition_t = np.array(self.partition_function.t) if self.partition_function else np.array([])
+            partition_q = np.array(self.partition_function.q) if self.partition_function else np.array([])
+            
+            # Save all data to compressed npz file
+            np.savez_compressed(
+                cache_filepath,
+                cache_version=np.array(_CACHE_VERSION),
+                partition_t=partition_t,
+                partition_q=partition_q,
+                molar_mass=np.array(self._molar_mass if self._molar_mass else 0.0),
+                lines_data=self._raw_lines_data
+            )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Failed to save cache: {e}")
+            return False
+
     def _load_from_file(self, filename: str):
         """
-        Load molecular data from a .par file using the FileHandling module.
+        Load molecular data from a .par file, using binary cache if available.
         
         Parameters
         ----------
@@ -163,9 +301,36 @@ class MoleculeLineList:
         section = PerformanceSection(f"MoleculeLineList._load_from_file({self.molecule_id})")
         section.start()
         
+        # Resolve full path for cache lookup
+        from iSLAT.Modules.FileHandling import hitran_data_folder_path, absolute_data_files_path
+        
+        if os.path.isabs(filename):
+            source_filepath = filename
+        else:
+            # Try relative to data files path
+            source_filepath = os.path.join(absolute_data_files_path, filename)
+            if not os.path.exists(source_filepath):
+                source_filepath = filename
+        
+        cache_filepath = self._get_cache_path(source_filepath)
+        
+        section.mark("check_cache")
+        # Try to load from cache first
+        if self._is_cache_valid(source_filepath, cache_filepath):
+            section.mark("load_from_cache")
+            if self._load_from_cache(cache_filepath):
+                print(f"[CACHE HIT] Loaded {self.molecule_id} from binary cache")
+                section.mark("cache_load_complete")
+                section.end()
+                print(section.get_breakdown())
+                return
+        
+        # Cache miss or invalid - parse the original file
+        section.mark("read_molecular_data")
+        print(f"[CACHE MISS] Parsing {self.molecule_id} from source file...")
+        
         from iSLAT.Modules.FileHandling.molecular_data_reader import read_molecular_data
         
-        section.mark("read_molecular_data")
         partition_function, lines_data, other_fields = read_molecular_data(self.molecule_id, filename)
         section.mark("parse_complete")
         
@@ -200,6 +365,11 @@ class MoleculeLineList:
         self.lines = None  # Will be created on demand
         self._data_loaded = True
         self._invalidate_caches()
+        
+        # Save to cache for next time
+        section.mark("save_to_cache")
+        if self._save_to_cache(cache_filepath):
+            print(f"[CACHE SAVED] {self.molecule_id} cached for faster loading")
         
         section.end()
         print(section.get_breakdown())

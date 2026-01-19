@@ -245,6 +245,247 @@ class MoleculeDict(dict):
             for key in oldest_keys:
                 del self._summed_flux_cache[key]
 
+    # ================================
+    # Parallel Intensity Calculations
+    # ================================
+    def calculate_intensities_parallel(self, molecule_names: Optional[List[str]] = None,
+                                       max_workers: Optional[int] = None,
+                                       show_progress: bool = True) -> Dict[str, Any]:
+        """
+        Calculate intensities for multiple molecules in parallel using threads.
+        
+        This method triggers lazy loading and intensity calculations for all 
+        specified molecules concurrently, significantly speeding up startup 
+        and recalculation operations.
+        
+        Note: Uses ThreadPoolExecutor because NumPy releases the GIL during
+        heavy computations, allowing true parallelism for numeric operations.
+        
+        Parameters
+        ----------
+        molecule_names : List[str], optional
+            List of molecule names to calculate. If None, calculates all visible molecules.
+        max_workers : int, optional
+            Maximum number of parallel workers. Defaults to min(CPU cores, 6).
+        show_progress : bool, default True
+            Whether to print progress information.
+            
+        Returns
+        -------
+        dict
+            Dictionary with 'success' count, 'failed' count, 'times' dict, and 'errors' list.
+        """
+        section = PerformanceSection("MoleculeDict.calculate_intensities_parallel")
+        section.start()
+        
+        if molecule_names is None:
+            molecule_names = list(self.get_visible_molecules())
+        
+        if not molecule_names:
+            section.end()
+            return {'success': 0, 'failed': 0, 'times': {}, 'errors': []}
+        
+        # Filter to existing molecules
+        valid_molecules = [name for name in molecule_names if name in self]
+        
+        if not valid_molecules:
+            section.end()
+            return {'success': 0, 'failed': 0, 'times': {}, 'errors': []}
+        
+        if show_progress:
+            print(f"[PARALLEL] Starting intensity calculations for {len(valid_molecules)} molecules...")
+        
+        # Determine worker count
+        if max_workers is None:
+            max_workers = min(os.cpu_count() or 4, 6, len(valid_molecules))
+        
+        results = {
+            'success': 0,
+            'failed': 0,
+            'times': {},
+            'errors': []
+        }
+        
+        section.mark("submit_jobs")
+        
+        def calculate_single_molecule(mol_name: str) -> Tuple[str, bool, float, Optional[str]]:
+            """Calculate intensity for a single molecule (runs in thread)."""
+            start = time.perf_counter()
+            try:
+                molecule = self[mol_name]
+                # Set wavelength range
+                molecule._wavelength_range = self._global_wavelength_range
+                # Trigger lazy calculation
+                molecule._ensure_intensity_calculated()
+                elapsed = time.perf_counter() - start
+                return (mol_name, True, elapsed, None)
+            except Exception as e:
+                elapsed = time.perf_counter() - start
+                return (mol_name, False, elapsed, str(e))
+        
+        # Execute in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(calculate_single_molecule, name): name 
+                      for name in valid_molecules}
+            
+            for future in as_completed(futures):
+                mol_name, success, elapsed, error = future.result()
+                results['times'][mol_name] = elapsed
+                
+                if success:
+                    results['success'] += 1
+                    if show_progress:
+                        print(f"  [DONE] {mol_name}: {elapsed:.3f}s")
+                else:
+                    results['failed'] += 1
+                    results['errors'].append(f"{mol_name}: {error}")
+                    if show_progress:
+                        print(f"  [FAIL] {mol_name}: {error}")
+        
+        section.mark("all_complete")
+        elapsed = section.end()
+        
+        total_time = sum(results['times'].values())
+        if show_progress:
+            print(f"[PARALLEL] Complete: {results['success']} succeeded, {results['failed']} failed")
+            print(f"[PARALLEL] Total calculation time: {total_time:.2f}s (wall time: {elapsed:.2f}s)")
+            print(f"[PARALLEL] Speedup: {total_time / max(elapsed, 0.001):.1f}x")
+        
+        return results
+
+    def get_summed_flux_parallel(self, wave_data: np.ndarray, visible_only: bool = True,
+                                 max_workers: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get summed flux with parallel pre-calculation of intensities.
+        
+        This is an optimized version of get_summed_flux that first calculates
+        all molecule intensities in parallel before summing.
+        
+        Parameters
+        ----------
+        wave_data : np.ndarray
+            Input wavelength array (used for caching, not for interpolation)
+        visible_only : bool, default True
+            Whether to include only visible molecules
+        max_workers : int, optional
+            Maximum number of parallel workers
+            
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Combined wavelengths and summed flux arrays
+        """
+        section = PerformanceSection("MoleculeDict.get_summed_flux_parallel")
+        section.start()
+        
+        if wave_data is None:
+            section.end()
+            return np.array([]), np.array([])
+        
+        molecules = list(self.get_visible_molecules() if visible_only else self.keys())
+        if not molecules:
+            section.end()
+            return np.array([]), np.array([])
+        
+        # Check cache first
+        cache_key = self._get_flux_cache_key(wave_data, molecules)
+        current_param_hash = self._compute_molecules_parameter_hash(molecules)
+        
+        if cache_key in self._summed_flux_cache:
+            cached_wavelengths, cached_flux, cached_param_hash = self._summed_flux_cache[cache_key]
+            if (cached_param_hash == current_param_hash and
+                self._validate_summed_cache_entry(cached_wavelengths, cached_flux)):
+                section.mark("cache_hit")
+                section.end()
+                return cached_wavelengths.copy(), cached_flux.copy()
+        
+        section.mark("parallel_intensity_calc")
+        
+        # Pre-calculate all intensities in parallel
+        self.calculate_intensities_parallel(molecules, max_workers=max_workers, show_progress=True)
+        
+        section.mark("sum_fluxes")
+        
+        # Parallelize get_flux calls since spectrum convolution is CPU-intensive
+        # NumPy releases the GIL, so threads provide real parallelism here
+        def get_molecule_flux(mol_name: str) -> Tuple[str, Optional[np.ndarray], Optional[np.ndarray], float]:
+            """Get flux for a single molecule (runs in thread)."""
+            import time as _time
+            _start = _time.perf_counter()
+            
+            if mol_name not in self:
+                return (mol_name, None, None, 0.0)
+            
+            molecule = self[mol_name]
+            molecule._wavelength_range = self._global_wavelength_range
+            
+            try:
+                mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
+                _elapsed = _time.perf_counter() - _start
+                return (mol_name, mol_wavelengths, mol_flux, _elapsed)
+            except Exception as e:
+                print(f"Warning: Failed to get flux for molecule {mol_name}: {e}")
+                return (mol_name, None, None, _time.perf_counter() - _start)
+        
+        # Run get_flux in parallel
+        flux_results = {}
+        flux_times = {}
+        
+        if max_workers is None:
+            flux_workers = min(os.cpu_count() or 4, 6, len(molecules))
+        else:
+            flux_workers = max_workers
+        
+        with ThreadPoolExecutor(max_workers=flux_workers) as executor:
+            futures = {executor.submit(get_molecule_flux, name): name for name in molecules}
+            
+            for future in as_completed(futures):
+                mol_name, mol_wavelengths, mol_flux, elapsed = future.result()
+                flux_times[mol_name] = elapsed
+                if mol_wavelengths is not None and mol_flux is not None:
+                    flux_results[mol_name] = (mol_wavelengths, mol_flux)
+        
+        # Print timing info
+        for mol_name, elapsed in sorted(flux_times.items(), key=lambda x: x[1]):
+            print(f"  [SUM] get_flux({mol_name}): {elapsed*1000:.1f}ms")
+        
+        total_flux_time = sum(flux_times.values())
+        print(f"[SUM] Total get_flux time: {total_flux_time:.2f}s (parallel)")
+        
+        # Now combine the results (fast array operations)
+        combined_wavelengths = None
+        combined_flux = None
+        
+        for mol_name in molecules:
+            if mol_name not in flux_results:
+                continue
+            
+            mol_wavelengths, mol_flux = flux_results[mol_name]
+            
+            if len(mol_wavelengths) > 0:
+                if not np.all(np.isfinite(mol_flux)):
+                    mol_flux = np.nan_to_num(mol_flux, nan=0.0, posinf=0.0, neginf=0.0)
+                
+                if combined_wavelengths is None:
+                    combined_wavelengths = mol_wavelengths.copy()
+                    combined_flux = mol_flux.copy()
+                else:
+                    if len(mol_wavelengths) != len(combined_wavelengths):
+                        raise ValueError(f"Grid size mismatch for {mol_name}")
+                    combined_flux += mol_flux
+        
+        if combined_wavelengths is None:
+            section.end()
+            return np.array([]), np.array([])
+        
+        # Cache result
+        self._cache_summed_flux_result(cache_key, combined_wavelengths, combined_flux, current_param_hash)
+        
+        section.end()
+        print(section.get_breakdown())
+        
+        return combined_wavelengths, combined_flux
+
     def process_molecules(self, operation: str, molecule_names: Optional[List[str]] = None, 
                          use_parallel: bool = None, max_workers: Optional[int] = None, 
                          **kwargs) -> Dict[str, Any]:

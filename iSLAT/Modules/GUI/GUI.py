@@ -214,14 +214,14 @@ class GUI:
         self._poll_async_result()
     
     def _async_spectrum_calculation(self):
-        """Background thread: perform spectrum calculations."""
+        """Background thread: perform spectrum calculations using parallel intensity calculation."""
         try:
             # This triggers lazy intensity calculations for all visible molecules
             if (hasattr(self.islat_class, 'molecules_dict') and 
                 hasattr(self.islat_class, 'wave_data_original')):
                 wave_data = self.islat_class.wave_data_original
-                # Pre-calculate summed flux (triggers all lazy calculations)
-                self.islat_class.molecules_dict.get_summed_flux(wave_data, visible_only=True)
+                # Use parallel pre-calculation for significant speedup
+                self.islat_class.molecules_dict.get_summed_flux_parallel(wave_data, visible_only=True)
             
             self._async_result_queue.put(('success', None))
         except Exception as e:
