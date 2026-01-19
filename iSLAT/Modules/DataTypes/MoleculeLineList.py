@@ -1,6 +1,6 @@
 import numpy as np
 from collections import namedtuple
-from typing import Optional, List, Union, Any, NamedTuple
+from typing import Optional, List, Any, NamedTuple
 
 #from .MoleculeLine import MoleculeLine
 
@@ -42,7 +42,6 @@ class LineTuple(NamedTuple):
     g_low: np.ndarray[int]
     '''Lower state degeneracy'''
 
-
 # Structured array dtype for efficient line data storage
 # Note: lev_up and lev_low are quantum state labels (strings like '0_0_0|10_2_9')
 _LINE_DTYPE = np.dtype([
@@ -57,7 +56,6 @@ _LINE_DTYPE = np.dtype([
     ('g_up', np.int32),
     ('g_low', np.int32)
 ])
-
 
 class MoleculeLineList:
     """

@@ -5,7 +5,7 @@ import time
 import sys
 
 from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
-from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path, hitran_data_folder_path, hitran_data_folder_name
+from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path, hitran_data_folder_path, hitran_data_folder_name, example_data_folder_path
 
 from .Modules.Hitran_data import download_hitran_data
 
@@ -488,7 +488,7 @@ class iSLAT:
             If file format is not supported.
         """
         #filetypes = [('CSV Files', '*.csv'), ('TXT Files', '*.txt'), ('DAT Files', '*.dat')]
-        spectra_directory = os.path.abspath("DATAFILES/EXAMPLE-data")
+        spectra_directory = example_data_folder_path #os.path.abspath("DATAFILES/EXAMPLE-data")
         if file_path is None:
             from .Modules.GUI import GUI
             file_path = GUI.file_selector(
