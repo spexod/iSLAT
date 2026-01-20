@@ -1,5 +1,5 @@
 {
-    "first_startup": true,
+    "first_startup": false,
     "reload_default_files": false,
     "fit_line_uncertainty": 3,
     "line_threshold": 0.03,
@@ -19,5 +19,8 @@
     "start_on_top": true,
     "clear_old_fits": true,
     "intensity_opacity_overlap_setting": true,
+    "default_spectra_file_to_load": null,
+    "save_fit_plot_grid_directly_to_PDF": true,
+    "update_save_file_names_in_save_csv": true,
     "theme": "LightTheme"
 }
