@@ -92,7 +92,7 @@ class TopBar(ResizableFrame):
         spectrum_menu.add_command(label="Save Parameters", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters", command=self.load_parameters)
         spectrum_menu.add_command(label="Output Full Spectrum", command=lambda: output_full_spectrum(self.islat))
-        spectrum_menu.add_command(label="Display Full Spectrum", command=lambda: FullSpectrumWindow(self.master, self.islat))
+        spectrum_menu.add_command(label="Display Full Spectrum (Ctrl+F)", command=lambda: FullSpectrumWindow(self.master, self.islat))
         spectrum_drpdwn.config(menu=spectrum_menu)
 
         if os_name == "Darwin":
@@ -113,8 +113,8 @@ class TopBar(ResizableFrame):
         saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
         atomic_lines_tip = "Show atomic lines\nusing seperation threshold\nset in the 'Line Separ."
         #export_model_tip = "Export current\nmodels into csv files"
-        toggle_legend_tip = "Turn legend on/off"
-        toggle_full_spectrum_tip = "Turn full spectrum on/off"
+        toggle_legend_tip = "Turn legend on/off\nKeybind: L"
+        toggle_full_spectrum_tip = "Toggle full spectrum view on/off\nKeybind: F\n\nOpen in new window: Ctrl+F"
         create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.toggle_saved_lines, 0, 3, tip_text=saved_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Full Spectrum", self.toggle_full_spectrum, 0, 5, tip_text=toggle_full_spectrum_tip)

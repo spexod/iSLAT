@@ -1029,6 +1029,7 @@ class iSLATPlot:
             self.is_full_spectrum = False
         
         self.is_full_spectrum = not self.is_full_spectrum
+        print(f"[DEBUG] toggle_full_spectrum called. is_full_spectrum = {self.is_full_spectrum}")
 
         if self.is_full_spectrum:
             self.load_full_spectrum()

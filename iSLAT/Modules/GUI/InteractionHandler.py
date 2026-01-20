@@ -64,8 +64,13 @@ class InteractionHandler:
     
     def _setup_keyboard_events(self):
         """Set up keyboard event handlers"""
+        # Matplotlib key events (work when canvas has focus)
         self.canvas.mpl_connect('key_press_event', self._on_key_press)
         self.canvas.mpl_connect('key_release_event', self._on_key_release)
+        
+        # Also bind at tkinter level for global keybindings that work
+        # even when full spectrum canvas or other widgets have focus
+        self._setup_tkinter_keybindings()
     
     def _setup_plot_navigation(self):
         """Set up plot navigation callbacks"""
@@ -244,6 +249,8 @@ class InteractionHandler:
         elif event.key == 'l':
             # Toggle legend
             self._toggle_legend()
+        # Note: 'f' and 'control+f' are handled by tkinter keybindings (_on_tk_key_f and _on_tk_key_ctrl_f)
+        # Don't duplicate here to avoid double-triggering
     
     def _on_key_release(self, event):
         """Handle key release events"""
@@ -371,6 +378,82 @@ class InteractionHandler:
         if legend:
             legend.set_visible(not legend.get_visible())
         self.canvas.draw_idle()
+    
+    def _setup_tkinter_keybindings(self):
+        """Set up tkinter-level keybindings that work globally"""
+        # Get the root window - try multiple sources
+        root = None
+        
+        # First try: parent_frame's toplevel (most reliable during init)
+        if hasattr(self.plot_manager, 'parent_frame') and self.plot_manager.parent_frame:
+            try:
+                root = self.plot_manager.parent_frame.winfo_toplevel()
+            except Exception:
+                pass
+        
+        # Second try: GUI.master
+        if root is None and hasattr(self.islat, 'GUI') and self.islat.GUI:
+            if hasattr(self.islat.GUI, 'master'):
+                root = self.islat.GUI.master
+        
+        if root is None:
+            print("Warning: Could not set up tkinter keybindings - no root window found")
+            return
+        
+        # Store root reference for later
+        self._tk_root = root
+        
+        print(f"[DEBUG] Setting up tkinter keybindings on root: {root}")
+        
+        # Use bind_all for global keybindings that work regardless of focus
+        # Use KeyPress event with keysym check for more reliable handling
+        root.bind_all('<KeyPress>', self._on_tk_keypress)
+    
+    def _on_tk_keypress(self, event):
+        """Handle all key press events from tkinter"""
+        import platform
+        
+        # Only handle 'f' or 'F' key
+        if event.keysym.lower() != 'f':
+            return  # Not 'f' key, ignore
+        
+        # Check if focus is on an entry widget - don't interfere with typing
+        widget_class = event.widget.winfo_class()
+        if widget_class in ('Entry', 'Text', 'TEntry', 'TCombobox'):
+            return  # Don't consume event, let typing work
+        
+        # Check if Ctrl or Command modifier is pressed
+        # On Windows/Linux: Control is state bit 2 (0x4)
+        # On Mac: Command is state bit 3 (0x8)
+        ctrl_pressed = False
+        if platform.system() == "Darwin":
+            ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
+        else:
+            ctrl_pressed = bool(event.state & 0x4)
+        
+        if ctrl_pressed:
+            # Ctrl+F / Cmd+F - open full spectrum window
+            print("[DEBUG] Ctrl+F pressed, opening full spectrum window")
+            self._open_full_spectrum_window()
+        else:
+            # Just 'f' - toggle full spectrum mode
+            print(f"[DEBUG] 'f' key pressed alone, toggling full spectrum.")
+            self._toggle_full_spectrum()
+        
+        return 'break'  # Prevent event from propagating
+
+    def _toggle_full_spectrum(self):
+        """Toggle full spectrum mode on the main plot"""
+        if hasattr(self.plot_manager, 'toggle_full_spectrum'):
+            self.plot_manager.toggle_full_spectrum()
+    
+    def _open_full_spectrum_window(self):
+        """Open a separate full spectrum window"""
+        from iSLAT.Modules.GUI.FullSpectrumWindow import FullSpectrumWindow
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'master'):
+            FullSpectrumWindow(self.islat.GUI.master, self.islat)
+        else:
+            print("[DEBUG] Could not open FullSpectrumWindow - GUI.master not found")
     
     # Callback management
     def add_selection_callback(self, name: str, callback: Callable):
