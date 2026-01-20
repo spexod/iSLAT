@@ -12,13 +12,115 @@ import pandas as pd
 import threading
 from datetime import datetime
 from dataclasses import dataclass
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 import iSLAT.Constants as c
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
+
+
+def _fit_task_worker(task_data: Dict[str, Any]) -> Tuple[int, int, Dict, Any, Any, Any]:
+    """
+    Module-level worker function for ProcessPoolExecutor.
+    
+    ProcessPoolExecutor requires a top-level function (can't pickle instance methods).
+    This function recreates the minimal fitting logic needed for each task.
+    """
+    from lmfit.models import GaussianModel
+    import numpy as np
+    
+    # Unpack task data
+    spectrum_idx = task_data['spectrum_idx']
+    line_idx = task_data['line_idx']
+    wave_data = task_data['wave_data']
+    flux_data = task_data['flux_data']
+    err_data = task_data['err_data']
+    xmin = task_data['xmin']
+    xmax = task_data['xmax']
+    center_wave = task_data['center_wave']
+    line_info = task_data['line_info']
+    sig_det_lim = task_data.get('sig_det_lim', 2.0)
+    
+    # Extract fitting region
+    fit_mask = (wave_data >= xmin) & (wave_data <= xmax)
+    x_fit = wave_data[fit_mask]
+    y_fit = flux_data[fit_mask]
+    
+    # Perform Gaussian fit (simplified version of FittingEngine logic)
+    fit_result = None
+    fitted_wave = None
+    fitted_flux = None
+    
+    try:
+        model = GaussianModel()
+        params = model.guess(y_fit, x=x_fit)
+        
+        # Apply error weights if available
+        weights = None
+        if err_data is not None:
+            err_fit = err_data[fit_mask] if len(err_data) > len(x_fit) else err_data
+            if len(err_fit) == len(y_fit) and len(err_fit) > 0:
+                max_err = np.max(err_fit)
+                if max_err > 0:
+                    err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
+                    weights = 1.0 / err_fit_safe
+        
+        if weights is not None:
+            fit_result = model.fit(y_fit, params, x=x_fit, weights=weights, nan_policy='omit')
+        else:
+            fit_result = model.fit(y_fit, params, x=x_fit, nan_policy='omit')
+        
+        fitted_wave = x_fit
+        fitted_flux = fit_result.eval(x=fitted_wave)
+    except Exception:
+        pass
+    
+    # Calculate flux integral
+    wavelength_mask = (wave_data >= xmin) & (wave_data <= xmax)
+    flux_data_integral = 0.0
+    err_data_integral = 0.0
+    
+    if np.any(wavelength_mask):
+        lam_range = wave_data[wavelength_mask]
+        flux_range = flux_data[wavelength_mask]
+        if len(lam_range) >= 2:
+            SPEED_OF_LIGHT_MICRONS = 2.99792458e14  # μm/s
+            freq_range = SPEED_OF_LIGHT_MICRONS / lam_range[::-1]
+            flux_data_integral = -np.trapezoid(flux_range[::-1], x=freq_range[::-1]) * 1e-23
+            if err_data is not None:
+                err_range = err_data[wavelength_mask]
+                err_data_integral = -np.trapezoid(err_range[::-1], x=freq_range[::-1]) * 1e-23
+    
+    # Format result entry (simplified version)
+    result_entry = dict(line_info)
+    result_entry['xmin'] = xmin
+    result_entry['xmax'] = xmax
+    result_entry['Flux_meas'] = flux_data_integral
+    result_entry['Err_meas'] = err_data_integral
+    
+    if fit_result is not None and hasattr(fit_result, 'params'):
+        result_entry['Centr_fit'] = fit_result.params.get('center', center_wave)
+        result_entry['Flux_fit'] = fit_result.params.get('amplitude', 0.0) * fit_result.params.get('sigma', 1.0) * np.sqrt(2 * np.pi)
+        result_entry['FWHM_fit'] = fit_result.params.get('sigma', 0.0) * 2.35482
+        result_entry['Fit_det'] = True
+    else:
+        result_entry['Centr_fit'] = center_wave
+        result_entry['Flux_fit'] = 0.0
+        result_entry['FWHM_fit'] = 0.0
+        result_entry['Fit_det'] = False
+    
+    # Determine detection based on SNR
+    if err_data_integral != 0:
+        snr = abs(flux_data_integral / err_data_integral)
+        result_entry['SNR'] = snr
+        result_entry['Det'] = snr >= sig_det_lim
+    else:
+        result_entry['SNR'] = 0.0
+        result_entry['Det'] = False
+    
+    return (spectrum_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux)
 
 
 @dataclass
@@ -172,6 +274,7 @@ class BatchFittingService:
     # Class-level settings for batch fitting behavior
     PARALLEL_BATCH_FITTING: bool = True
     BATCH_FITTING_MAX_WORKERS: int = None  # None uses CPU count - 1
+    USE_PROCESS_POOL: bool = True  # True = ProcessPoolExecutor (true parallelism), False = ThreadPoolExecutor (shared memory)
     
     def __init__(self, islat_instance):
         """
@@ -613,15 +716,54 @@ class BatchFittingService:
             for spec_data in spectrum_data
         }
         
-        # Phase 3: Execute all tasks in parallel using a single thread pool
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(self._fit_single_task, task, sig_det_lim): task
-                for task in all_tasks
-            }
+        # Phase 3: Execute all tasks in parallel
+        # Choose executor based on class setting
+        if self.USE_PROCESS_POOL:
+            # ProcessPoolExecutor for true parallelism (bypasses GIL)
+            # Convert tasks to picklable dictionaries
+            task_dicts = []
+            for task in all_tasks:
+                task_dicts.append({
+                    'spectrum_idx': task.spectrum_idx,
+                    'line_idx': task.line_idx,
+                    'wave_data': task.wave_data,
+                    'flux_data': task.flux_data,
+                    'err_data': task.err_data,
+                    'xmin': task.xmin,
+                    'xmax': task.xmax,
+                    'center_wave': task.center_wave,
+                    'line_info': task.line_info,
+                    'sig_det_lim': sig_det_lim
+                })
+            
+            ExecutorClass = ProcessPoolExecutor
+            task_list = task_dicts
+            worker_func = _fit_task_worker
+            # Map task_dict back to FittingTask for progress tracking
+            task_lookup = {id(td): all_tasks[i] for i, td in enumerate(task_dicts)}
+        else:
+            # ThreadPoolExecutor for shared memory (lower overhead)
+            ExecutorClass = ThreadPoolExecutor
+            task_list = all_tasks
+            worker_func = lambda t: self._fit_single_task(t, sig_det_lim)
+            task_lookup = None
+        
+        with ExecutorClass(max_workers=max_workers) as executor:
+            if self.USE_PROCESS_POOL:
+                futures = {executor.submit(worker_func, task): task for task in task_list}
+            else:
+                futures = {executor.submit(self._fit_single_task, task, sig_det_lim): task for task in task_list}
             
             for future in as_completed(futures):
-                task = futures[future]
+                submitted_task = futures[future]
+                # Get the original FittingTask for progress tracking
+                if self.USE_PROCESS_POOL:
+                    # Find matching task by index
+                    idx = task_dicts.index(submitted_task)
+                    task = all_tasks[idx]
+                else:
+                    task = submitted_task
+                
                 try:
                     spec_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux = future.result()
                     
