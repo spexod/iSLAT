@@ -233,9 +233,14 @@ def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_fi
         elif isinstance(value, (int, float, str, bool)) or value is None:
             # Only save basic types
             clean_line_info[key] = value
+        elif isinstance(value, (np.bool_, np.integer, np.floating)):
+            # Handle numpy scalar types - convert to Python native types
+            clean_line_info[key] = value.item()
+        elif hasattr(value, 'value'):
+            # Handle lmfit Parameter objects (and similar) - extract the numeric value
+            clean_line_info[key] = value.value
         else:
-            # Convert other types to string but warn
-            print(f"Warning: Converting {key}={type(value)} to string in saved line")
+            # Convert other types to their native Python equivalent silently
             clean_line_info[key] = str(value)
     
     #print(f"Saving line to {filename}")
