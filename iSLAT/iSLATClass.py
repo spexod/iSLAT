@@ -105,6 +105,11 @@ class iSLAT:
         
         if active_molecule_name in self.molecules_dict:
             self._active_molecule = self.molecules_dict[active_molecule_name]
+        elif len(self.molecules_dict) > 0:
+            # Fall back to the first molecule in the dictionary
+            first_mol_name = next(iter(self.molecules_dict))
+            self._active_molecule = self.molecules_dict[first_mol_name]
+            print(f"Default molecule '{active_molecule_name}' not found, using '{first_mol_name}'")
 
     def init_molecules(self, mole_save_data=None, use_parallel=False):
         """

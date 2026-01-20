@@ -134,6 +134,8 @@ class iSLATPlot:
         # Update population diagram title with actual molecule name
         if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
             self.ax3.set_title(f"{self.islat.active_molecule.displaylabel} Population diagram")
+            # Render the population diagram on startup
+            self.plot_renderer.render_population_diagram(self.islat.active_molecule)
         
         # Set initial zoom range (may trigger flux calculations)
         self._set_initial_zoom_range()
