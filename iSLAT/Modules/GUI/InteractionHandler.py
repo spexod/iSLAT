@@ -403,7 +403,8 @@ class InteractionHandler:
         # Store root reference for later
         self._tk_root = root
         
-        print(f"[DEBUG] Setting up tkinter keybindings on root: {root}")
+        # debug print
+        #print(f"[DEBUG] Setting up tkinter keybindings on root: {root}")
         
         # Use bind_all for global keybindings that work regardless of focus
         # Use KeyPress event with keysym check for more reliable handling
@@ -435,15 +436,15 @@ class InteractionHandler:
             
             if ctrl_pressed and shift_pressed:
                 # Ctrl+Shift+F / Cmd+Shift+F - output full spectrum (save to file)
-                print("[DEBUG] Ctrl+Shift+F pressed, outputting full spectrum")
+                #print("[DEBUG] Ctrl+Shift+F pressed, outputting full spectrum")
                 self._output_full_spectrum()
             elif ctrl_pressed:
                 # Ctrl+F / Cmd+F - open full spectrum window
-                print("[DEBUG] Ctrl+F pressed, opening full spectrum window")
+                #print("[DEBUG] Ctrl+F pressed, opening full spectrum window")
                 self._open_full_spectrum_window()
             else:
                 # Just 'f' - toggle full spectrum mode
-                print(f"[DEBUG] 'f' key pressed alone, toggling full spectrum.")
+                #print(f"[DEBUG] 'f' key pressed alone, toggling full spectrum.")
                 self._toggle_full_spectrum()
             
             return 'break'  # Prevent event from propagating
