@@ -98,6 +98,9 @@ class FileInteractionPane(ttk.Frame):
         line_list_text = "None"
         if hasattr(self.islat_class, 'input_line_list') and self.islat_class.input_line_list:
             line_list_text = os.path.basename(self.islat_class.input_line_list)
+        output_file_text = "None"
+        if hasattr(self.islat_class, 'output_line_measurements') and self.islat_class.output_line_measurements:
+            output_file_text = os.path.basename(self.islat_class.output_line_measurements)
         
         self.input_line_list_label = trim_label(
             self.label_frame, 
@@ -115,9 +118,15 @@ class FileInteractionPane(ttk.Frame):
         self.input_line_list_btn.grid(row=1, column=1, sticky="e", padx=(5, 5), pady=2)
         
         # Row 2: Output line measurements
-        self.output_measurements_label = tk.Label(
+        '''self.output_measurements_label = tk.Label(
             self.label_frame, 
-            text="None", 
+            text=output_file_text, 
+            anchor="w",
+            bg=self.bg
+        )'''
+        self.output_measurements_label = trim_label(
+            self.label_frame, 
+            text=output_file_text, 
             anchor="w",
             bg=self.bg
         )
@@ -275,8 +284,29 @@ class FileInteractionPane(ttk.Frame):
     
     def _load_output_line_measurements(self):
         """Calls the ifh class to save output line measurements."""
-        from iSLAT.Modules.FileHandling.iSLATFileHandling import save_output_line_measurements
-        filepath, filename = save_output_line_measurements(self.islat_class.output_line_measurements)
-        self.islat_class.output_line_measurements = filepath
+        try:
+            from iSLAT.Modules.FileHandling.iSLATFileHandling import save_output_line_measurements
+            
+            if not hasattr(self.islat_class, 'output_line_measurements'):
+                self.islat_class.output_line_measurements = None
 
-        self.update_label(self.output_measurements_label, text=filename)
+            #filepath, filename = save_output_line_measurements(self.islat_class.output_line_measurements)
+            
+            result = save_output_line_measurements(self.islat_class.output_line_measurements)
+        
+            if result is None:
+                # User cancelled the dialog
+                return
+            
+            filepath, filename = result
+            self.islat_class.output_line_measurements = filepath
+            self.data_field.insert_text(f"Set output line measurements file to: {filepath}")
+
+            try:
+                self.update_label(self.output_measurements_label, filename)
+            except Exception as g:
+                self.data_field.insert_text(f"Error updating output line measurements label: {g}")
+                print(f"Error updating output line measurements label: {g}")
+        except Exception as e:
+            self.data_field.insert_text(f"Error setting output line measurements file: {e}")
+            print(f"Error setting output line measurements file: {e}")
