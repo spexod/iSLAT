@@ -555,8 +555,7 @@ class PlotRenderer:
         handles, labels = self.ax2.get_legend_handles_labels()
         if handles:
             self.ax2.legend()
-
-        self.canvas.draw_idle()
+        # Don't call canvas.draw_idle() here - let caller batch it
     
     def _should_clear_old_fits(self) -> bool:
         """Check if old fit results should be cleared when making new selections."""
@@ -617,22 +616,49 @@ class PlotRenderer:
             collection.remove()
             debug_config.trace("plot_renderer", f"Removed old fit result collection: {collection.get_label()}")
         
-        # Force canvas redraw if anything was removed
-        if lines_to_remove or collections_to_remove:
-            self.canvas.draw_idle()
+        # Don't call canvas.draw_idle() here - let caller batch it
     
-    def render_population_diagram(self, molecule: 'Molecule', wave_range: Optional[Tuple[float, float]] = None) -> None:
+    def render_population_diagram(self, molecule: 'Molecule', wave_range: Optional[Tuple[float, float]] = None, force_redraw: bool = False) -> None:
         """
         Render population diagram using molecule's cached intensity data.
         
         This method relies on the molecule's internal caching system rather than
         maintaining its own cache to avoid conflicts with cached parameter restoration.
+        
+        Parameters
+        ----------
+        molecule : Molecule
+            The molecule to render
+        wave_range : tuple, optional
+            Wavelength range (not currently used)
+        force_redraw : bool
+            If True, forces redraw even if cached. If False, skips if same molecule.
         """
+        # Check if we can skip redrawing (same molecule, no parameter changes)
+        # Use molecule's _compute_intensity_hash() for cache validation
+        current_hash = None
+        if molecule is not None and hasattr(molecule, '_compute_intensity_hash'):
+            current_hash = (molecule.name, molecule._compute_intensity_hash())
+        
+        if not force_redraw and hasattr(self, '_pop_diagram_molecule'):
+            if (self._pop_diagram_molecule is molecule and 
+                current_hash is not None and
+                hasattr(self, '_pop_diagram_cache_key') and
+                self._pop_diagram_cache_key == current_hash):
+                # Same molecule with same parameters - skip full redraw
+                return
+        
         self.ax3.clear()
         
         if molecule is None:
             self.ax3.set_title("No molecule selected")
+            self._pop_diagram_molecule = None
+            self._pop_diagram_cache_key = None
             return
+        
+        # Cache the molecule reference and cache key
+        self._pop_diagram_molecule = molecule
+        self._pop_diagram_cache_key = current_hash
             
         try:
             # Use molecule's cached intensity data directly
@@ -1039,6 +1065,7 @@ class PlotRenderer:
         """
         Render active lines as scatter points in the population diagram.
         
+        Uses vectorized operations for better performance.
         Lines are filtered based on intensity threshold from user settings.
         Only lines with intensity above threshold_percent of the strongest line are rendered.
         
@@ -1057,41 +1084,47 @@ class PlotRenderer:
         filtered_line_data = self.filter_lines_by_threshold(line_data, threshold_percent)
         
         if not filtered_line_data:
-            print(f"No lines above threshold ({threshold_percent*100:.1f}% of strongest line) for population diagram")
+            debug_config.trace("plot_renderer", f"No lines above threshold ({threshold_percent*100:.1f}%)")
             return
             
-        print(f"Rendering {len(filtered_line_data)}/{len(line_data)} lines in population diagram above threshold ({threshold_percent*100:.1f}%)")
+        debug_config.trace("plot_renderer", f"Rendering {len(filtered_line_data)}/{len(line_data)} lines in pop diagram")
         
         # Get max intensity from original data for consistent percentage calculation
         original_intensities = [intensity for _, intensity, _ in line_data]
         max_intensity = max(original_intensities) if original_intensities else 1.0
         
-        # Calculate rd_yax values for each filtered line and add scatter points
-        for idx, (line, intensity, tau_val) in enumerate(filtered_line_data):
+        # Get molecule properties once (not in loop)
+        molecule = getattr(self.islat, 'active_molecule', None)
+        if molecule is None:
+            return
+        radius = getattr(molecule, 'radius', 1.0)
+        distance = getattr(molecule, 'distance', getattr(self.islat, 'global_dist', 140.0))
+        
+        # Pre-calculate constants
+        area = np.pi * (radius * c.ASTRONOMICAL_UNIT_M * 1e2) ** 2
+        dist = distance * c.PARSEC_CM
+        beam_s = area / dist ** 2
+        
+        # Cache theme value once
+        active_color = self._get_theme_value("active_scatter_line_color", 'green')
+        
+        # Collect data for vectorized scatter (faster than individual scatter calls)
+        e_ups = []
+        rd_yaxs = []
+        value_data_list = []
+        
+        for line, intensity, tau_val in filtered_line_data:
             if all(x is not None for x in [intensity, line.a_stein, line.g_up, line.lam]):
-                # Get molecule properties safely
-                molecule = getattr(self.islat, 'active_molecule', None)
-                if molecule is None:
-                    continue
-                    
-                radius = getattr(molecule, 'radius', 1.0)
-                distance = getattr(molecule, 'distance', getattr(self.islat, 'global_dist', 140.0))
-                
                 # Calculate rd_yax
-                area = np.pi * (radius * c.ASTRONOMICAL_UNIT_M * 1e2) ** 2
-                dist = distance * c.PARSEC_CM
-                beam_s = area / dist ** 2
                 F = intensity * beam_s
                 freq = c.SPEED_OF_LIGHT_MICRONS / line.lam
                 rd_yax = np.log(4 * np.pi * F / (line.a_stein * c.PLANCK_CONSTANT * freq * line.g_up))
                 
-                # Create scatter point
-                sc = self.ax3.scatter(line.e_up, rd_yax, s=30, 
-                                     color=self._get_theme_value("scatter_main_color", 'green'), 
-                                     edgecolors='black', picker=True)
+                e_ups.append(line.e_up)
+                rd_yaxs.append(rd_yax)
                 
                 # Store line information
-                value_data = {
+                value_data_list.append({
                     'lam': line.lam,
                     'e': line.e_up,
                     'a': line.a_stein,
@@ -1103,17 +1136,32 @@ class PlotRenderer:
                     'up_lev': line.lev_up if line.lev_up else 'N/A',
                     'low_lev': line.lev_low if line.lev_low else 'N/A',
                     'tau': tau_val if tau_val is not None else 'N/A',
-                    'intensity_percent': (intensity / max_intensity) * 100  # Store percentage for debugging
-                }
-                
-                # Update existing entry or create new one
-                if idx < len(active_lines_list):
-                    # Update existing entry with scatter artist
-                    active_lines_list[idx][2] = sc  # Set scatter artist
-                    active_lines_list[idx][3].update(value_data)  # Update value data
-                else:
-                    # Create new entry: [line_artist, text_obj, scatter_artist, value_data]
-                    active_lines_list.append([None, None, sc, value_data])
+                    'intensity_percent': (intensity / max_intensity) * 100
+                })
+        
+        if not e_ups:
+            return
+            
+        # Create single vectorized scatter call (much faster than N individual calls)
+        sc = self.ax3.scatter(e_ups, rd_yaxs, s=30, 
+                             color=active_color, 
+                             edgecolors='black', picker=True)
+        
+        # Store the scatter collection for later recoloring
+        self._active_scatter_collection = sc
+        self._active_scatter_count = len(e_ups)
+        
+        # Store reference to scatter and value data in active_lines_list
+        # Each entry gets the same scatter ref but different point_index for recoloring
+        for idx, value_data in enumerate(value_data_list):
+            value_data['_scatter_point_index'] = idx  # Store index within scatter collection
+            if idx < len(active_lines_list):
+                # Update existing entry with scatter artist reference
+                active_lines_list[idx][2] = sc  # All points share same scatter collection
+                active_lines_list[idx][3].update(value_data)
+            else:
+                # Create new entry: [line_artist, text_obj, scatter_artist, value_data]
+                active_lines_list.append([None, None, sc, value_data])
     
     def render_active_lines_in_line_inspection(self, line_data: List[Tuple['MoleculeLine', float, Optional[float]]], active_lines_list: List[Any], 
                                               max_y: float) -> None:
@@ -1140,14 +1188,17 @@ class PlotRenderer:
         filtered_line_data = self.filter_lines_by_threshold(line_data, threshold_percent)
         
         if not filtered_line_data:
-            print(f"No lines above threshold ({threshold_percent*100:.1f}% of strongest line)")
+            debug_config.trace("plot_renderer", f"No lines above threshold ({threshold_percent*100:.1f}%)")
             return
             
-        print(f"Rendering {len(filtered_line_data)}/{len(line_data)} lines above threshold ({threshold_percent*100:.1f}%)")
+        debug_config.trace("plot_renderer", f"Rendering {len(filtered_line_data)}/{len(line_data)} lines in line inspection")
         
         # Get max intensity from original data for consistent scaling
         original_intensities = [intensity for _, intensity, _ in line_data]
         max_intensity = max(original_intensities) if original_intensities else 1.0
+        
+        # Cache theme value once (not in loop)
+        active_color = self._get_theme_value("active_scatter_line_color", "green")
         
         # Plot vertical lines for each filtered molecular line and create/update active_lines entries
         for idx, (line, intensity, tau_val) in enumerate(filtered_line_data):
@@ -1159,14 +1210,14 @@ class PlotRenderer:
             if lineheight > 0:
                 # Create vertical line
                 vline = self.ax2.vlines(line.lam, 0, lineheight,
-                                       color=self._get_theme_value("active_scatter_line_color", "green"), 
+                                       color=active_color, 
                                        linestyle='dashed', linewidth=1, picker=True)
                 
                 # Add text label
                 text = self.ax2.text(line.lam, lineheight,
                                    f"{line.e_up:.0f},{line.a_stein:.3f}", 
                                    fontsize='x-small', 
-                                   color=self._get_theme_value("active_scatter_line_color", "green"), 
+                                   color=active_color, 
                                    rotation=45)
                 
                 # Create value data for this line
@@ -1212,48 +1263,62 @@ class PlotRenderer:
         """
         if not active_lines_list:
             return None
-            
-        # Reset all lines to green first
+        
+        # Get the active scatter collection and count
+        scatter_collection = getattr(self, '_active_scatter_collection', None)
+        scatter_count = getattr(self, '_active_scatter_count', 0)
+        active_color = self._get_theme_value("active_scatter_line_color", 'green')
+        
+        # Reset all line inspection lines to green first
         for line, text_obj, scatter, value in active_lines_list:
             if line is not None:
-                line.set_color('green')
-            if scatter is not None:
-                scatter.set_facecolor('green')
-                scatter.set_zorder(1)  # Reset z-order
+                line.set_color(active_color)
             if text_obj is not None:
-                text_obj.set_color('green')
+                text_obj.set_color(active_color)
 
-        # Find the line with the highest intensity
+        # Find the line with the highest intensity and its scatter index
         highest_intensity = -float('inf')
         strongest_triplet = None
+        strongest_scatter_idx = None
         
         for line, text_obj, scatter, value in active_lines_list:
             intensity = value.get('inten', 0) if value else 0
             if intensity > highest_intensity:
                 highest_intensity = intensity
                 strongest_triplet = [line, text_obj, scatter, value]
+                strongest_scatter_idx = value.get('_scatter_point_index', None) if value else None
         
-        # Highlight the strongest line in orange
+        # Reset scatter collection to all green, then highlight strongest in orange
+        if scatter_collection is not None and scatter_count > 0:
+            # Create color array - all green initially
+            import matplotlib.colors as mcolors
+            colors = [mcolors.to_rgba(active_color)] * scatter_count
+            
+            # Set the strongest point to orange
+            if strongest_scatter_idx is not None and strongest_scatter_idx < scatter_count:
+                colors[strongest_scatter_idx] = mcolors.to_rgba('orange')
+            
+            scatter_collection.set_facecolors(colors)
+            scatter_collection.set_zorder(1)  # Reset base z-order
+        
+        # Highlight the strongest line inspection elements in orange
         if strongest_triplet is not None:
             line, text_obj, scatter, value = strongest_triplet
             if line is not None:
                 line.set_color('orange')
-            if scatter is not None:
-                scatter.set_facecolor('orange')
-                scatter.set_zorder(10)  # Bring to front
             if text_obj is not None:
                 text_obj.set_color('orange')
         
         return strongest_triplet
     
-    def handle_line_pick_event(self, picked_artist: Any, active_lines_list: List[Any]) -> Any:
+    def handle_line_pick_event(self, event: Any, active_lines_list: List[Any]) -> Any:
         """
         Handle line pick events and highlight the selected line.
         
         Parameters
         ----------
-        picked_artist : Any
-            The matplotlib artist that was picked
+        event : Any
+            The matplotlib pick event
         active_lines_list : List[Any]
             List of [line_artist, scatter_artist, value_data] tuples
             
@@ -1263,28 +1328,54 @@ class PlotRenderer:
             The value data of the picked line or None
         """
         picked_value = None
+        picked_scatter_idx = None
+        picked_artist = event.artist
         
-        # Find which entry in active_lines was picked and reset colors
+        # Get the active scatter collection and count
+        scatter_collection = getattr(self, '_active_scatter_collection', None)
+        scatter_count = getattr(self, '_active_scatter_count', 0)
+        active_color = self._get_theme_value("active_scatter_line_color", 'green')
+        
+        # Check if the picked artist is the scatter collection
+        # If so, use event.ind to determine which specific point was clicked
+        scatter_point_clicked = None
+        if picked_artist is scatter_collection and hasattr(event, 'ind') and len(event.ind) > 0:
+            scatter_point_clicked = event.ind[0]  # Get first clicked point index
+        
+        # Find which entry in active_lines was picked and reset line inspection colors
         for line, text_obj, scatter, value in active_lines_list:
-            is_picked = (picked_artist is line or picked_artist is scatter)
+            # Check if this specific line was picked
+            is_line_picked = (picked_artist is line)
+            # Check if this specific scatter point was picked (by matching index)
+            point_idx = value.get('_scatter_point_index', None) if value else None
+            is_scatter_picked = (scatter_point_clicked is not None and point_idx == scatter_point_clicked)
+            is_picked = is_line_picked or is_scatter_picked
             
-            # Reset all to green first
+            # Reset line inspection elements to green first
             if line is not None:
-                line.set_color('green')
-            if scatter is not None:
-                scatter.set_facecolor('green')
+                line.set_color(active_color)
             if text_obj is not None:
-                text_obj.set_color('green')
+                text_obj.set_color(active_color)
 
             # If this was the picked item, highlight in orange
             if is_picked:
                 picked_value = value
+                picked_scatter_idx = point_idx
                 if line is not None:
                     line.set_color('orange')
-                if scatter is not None:
-                    scatter.set_facecolor('orange')
                 if text_obj is not None:
                     text_obj.set_color('orange')
+
+        # Update scatter collection colors - all green except picked point
+        if scatter_collection is not None and scatter_count > 0:
+            import matplotlib.colors as mcolors
+            colors = [mcolors.to_rgba(active_color)] * scatter_count
+            
+            # Set the picked point to orange
+            if picked_scatter_idx is not None and picked_scatter_idx < scatter_count:
+                colors[picked_scatter_idx] = mcolors.to_rgba('orange')
+            
+            scatter_collection.set_facecolors(colors)
 
         return picked_value
     

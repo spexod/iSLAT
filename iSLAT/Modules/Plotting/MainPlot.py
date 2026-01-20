@@ -375,6 +375,7 @@ class iSLATPlot:
         if xmin is None or xmax is None:
             # If no selection but we need to update population diagram due to molecule/parameter changes
             debug_config.verbose("line_inspection", "No selection, updating population diagram only")
+            self.clear_active_lines()
             self.plot_renderer.render_population_diagram(self.islat.active_molecule)
             self.plot_renderer.ax2.clear()
             self.current_selection = None
@@ -409,12 +410,21 @@ class iSLATPlot:
         self.clear_active_lines()
         self.plot_line_inspection(xmin, xmax, line_data, highlight_strongest=highlight_strongest)
         self.plot_population_diagram(line_data)
-        self.canvas.mpl_connect('pick_event', self.on_pick_line)
+        # Highlight strongest line AFTER both line inspection and population diagram are rendered
+        # so that both the vertical line and scatter point get the orange color
+        if highlight_strongest:
+            self.highlight_strongest_line()
+        # Only connect pick event once (check if already connected)
+        if not hasattr(self, '_pick_event_connected'):
+            self.canvas.mpl_connect('pick_event', self.on_pick_line)
+            self._pick_event_connected = True
+        # Single canvas update at the end
+        self.canvas.draw_idle()
         debug_config.verbose("line_inspection", "plot_spectrum_around_line completed")
     
     def on_pick_line(self, event):
         """Handle line pick events by delegating to PlotRenderer."""
-        picked_value = self.plot_renderer.handle_line_pick_event(event.artist, self.active_lines)
+        picked_value = self.plot_renderer.handle_line_pick_event(event, self.active_lines)
         if picked_value:
             self.selected_line = picked_value
             self._display_line_info(picked_value)
@@ -423,6 +433,7 @@ class iSLATPlot:
     def highlight_strongest_line(self):
         """
         Highlight the strongest line by delegating to PlotRenderer.
+        Note: Does NOT call canvas.draw_idle() - caller is responsible for batching.
         """
         strongest = self.plot_renderer.highlight_strongest_line(self.active_lines)
         if strongest is not None:
@@ -431,8 +442,7 @@ class iSLATPlot:
             self.selected_line = value
             if value:
                 self._display_line_info(value)
-        
-        self.canvas.draw_idle()
+        # Don't call canvas.draw_idle() here - let caller batch it
 
     def _display_line_info(self, value, clear_data_field=True):
         """
@@ -506,13 +516,21 @@ class iSLATPlot:
 
     def clear_selection(self):
         self.current_selection = None
+        self.clear_active_lines()
         self.ax2.clear()
+        # Refresh population diagram without active line dots
+        if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+            self.plot_renderer.render_population_diagram(self.islat.active_molecule)
         self.canvas.draw_idle()
         return
 
     def plot_line_inspection(self, xmin=None, xmax=None, line_data=None, highlight_strongest=True):
         if xmin is None or xmax is None:
+            self.clear_active_lines()
             self.plot_renderer.ax2.clear()
+            # Refresh population diagram without active line dots
+            if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+                self.plot_renderer.render_population_diagram(self.islat.active_molecule)
             self.current_selection = None
             self.canvas.draw_idle()
             return
@@ -522,13 +540,21 @@ class iSLATPlot:
             try:
                 line_data = self.plot_renderer.get_molecule_line_data(self.islat.active_molecule, xmin, xmax)
                 if not line_data:
+                    self.clear_active_lines()
                     self.ax2.clear()
+                    # Refresh population diagram without active line dots
+                    if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+                        self.plot_renderer.render_population_diagram(self.islat.active_molecule)
                     self.current_selection = None
                     self.canvas.draw_idle()
                     return
             except Exception as e:
                 debug_config.warning("main_plot", f"Could not get line data: {e}")
+                self.clear_active_lines()
                 self.ax2.clear()
+                # Refresh population diagram without active line dots
+                if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+                    self.plot_renderer.render_population_diagram(self.islat.active_molecule)
                 self.current_selection = None
                 self.canvas.draw_idle()
                 return
@@ -541,15 +567,11 @@ class iSLATPlot:
         data_region_y = self.islat.flux_data[data_mask]
         max_y = np.nanmax(data_region_y) if len(data_region_y) > 0 else (self.plot_renderer.ax2.get_ylim()[1] / 1.1) #returns ymin, ymax
             
-        # Clear and add vertical lines using PlotRenderer
-        self.clear_active_lines()
+        # Add vertical lines using PlotRenderer (clear_active_lines already called by caller)
         self.plot_renderer.render_active_lines_in_line_inspection(line_data, self.active_lines, max_y)
 
-        self.canvas.draw_idle()
-
-        # Highlight the strongest line
-        if highlight_strongest:
-            self.highlight_strongest_line()
+        # Don't call canvas.draw_idle() here - let caller batch it
+        # Don't highlight here - do it after population diagram scatter points are created
 
     def plot_population_diagram(self, line_data):
         """
@@ -561,15 +583,16 @@ class iSLATPlot:
         line_data : list
             List of (MoleculeLine, intensity, tau) tuples
         """
-        # First update the base population diagram with current molecule parameters
+        # Only redraw base population diagram if molecule changed (uses internal caching)
+        # This avoids expensive full redraw on every selection change
         self.plot_renderer.render_population_diagram(self.islat.active_molecule)
         
         # Add active line scatter points
         if line_data:
             self.plot_renderer.render_active_lines_in_population_diagram(line_data, self.active_lines)
         
-        self.canvas.draw_idle()
-        self.highlight_strongest_line()
+        # Don't call canvas.draw_idle() here - let caller batch it
+        # Don't call highlight_strongest_line() here - already called in plot_line_inspection
 
     def update_line_inspection_plot(self, xmin=None, xmax=None):
         """
@@ -592,8 +615,7 @@ class iSLATPlot:
             active_molecule=self.islat.active_molecule,
             fit_result=fit_result
         )
-
-        self.canvas.draw_idle()
+        # Don't call canvas.draw_idle() here - let caller batch it
 
     def toggle_legend(self):
         if hasattr(self, 'is_full_spectrum') and self.is_full_spectrum:
