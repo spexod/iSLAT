@@ -413,34 +413,106 @@ class InteractionHandler:
         """Handle all key press events from tkinter"""
         import platform
         
-        # Only handle 'f' or 'F' key
-        if event.keysym.lower() != 'f':
-            return  # Not 'f' key, ignore
+        keysym = event.keysym.lower()
         
         # Check if focus is on an entry widget - don't interfere with typing
         widget_class = event.widget.winfo_class()
         if widget_class in ('Entry', 'Text', 'TEntry', 'TCombobox'):
             return  # Don't consume event, let typing work
         
-        # Check if Ctrl or Command modifier is pressed
-        # On Windows/Linux: Control is state bit 2 (0x4)
-        # On Mac: Command is state bit 3 (0x8)
-        ctrl_pressed = False
-        if platform.system() == "Darwin":
-            ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
-        else:
-            ctrl_pressed = bool(event.state & 0x4)
+        # Handle 'f' key for full spectrum
+        if keysym == 'f':
+            # Check if Ctrl or Command modifier is pressed
+            # On Windows/Linux: Control is state bit 2 (0x4)
+            # On Mac: Command is state bit 3 (0x8)
+            ctrl_pressed = False
+            if platform.system() == "Darwin":
+                ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
+            else:
+                ctrl_pressed = bool(event.state & 0x4)
+            
+            if ctrl_pressed:
+                # Ctrl+F / Cmd+F - open full spectrum window
+                print("[DEBUG] Ctrl+F pressed, opening full spectrum window")
+                self._open_full_spectrum_window()
+            else:
+                # Just 'f' - toggle full spectrum mode
+                print(f"[DEBUG] 'f' key pressed alone, toggling full spectrum.")
+                self._toggle_full_spectrum()
+            
+            return 'break'  # Prevent event from propagating
         
-        if ctrl_pressed:
-            # Ctrl+F / Cmd+F - open full spectrum window
-            print("[DEBUG] Ctrl+F pressed, opening full spectrum window")
-            self._open_full_spectrum_window()
-        else:
-            # Just 'f' - toggle full spectrum mode
-            print(f"[DEBUG] 'f' key pressed alone, toggling full spectrum.")
-            self._toggle_full_spectrum()
+        # Handle arrow keys for molecule selection
+        elif keysym == 'up':
+            self._select_previous_molecule()
+            return 'break'
+        elif keysym == 'down':
+            self._select_next_molecule()
+            return 'break'
+
+    def _select_next_molecule(self):
+        """Select the next molecule in the list"""
+        if not hasattr(self.islat, 'molecules_dict') or not self.islat.molecules_dict:
+            return
         
-        return 'break'  # Prevent event from propagating
+        molecules = list(self.islat.molecules_dict.keys())
+        if not molecules:
+            return
+        
+        # Get current active molecule
+        current = None
+        if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+            if hasattr(self.islat.active_molecule, 'name'):
+                current = self.islat.active_molecule.name
+            else:
+                current = str(self.islat.active_molecule)
+        
+        # Find current index and get next
+        try:
+            current_idx = molecules.index(current)
+            next_idx = (current_idx + 1) % len(molecules)
+        except (ValueError, TypeError):
+            next_idx = 0
+        
+        next_mol = molecules[next_idx]
+        self._set_molecule_via_control_panel(next_mol)
+    
+    def _select_previous_molecule(self):
+        """Select the previous molecule in the list"""
+        if not hasattr(self.islat, 'molecules_dict') or not self.islat.molecules_dict:
+            return
+        
+        molecules = list(self.islat.molecules_dict.keys())
+        if not molecules:
+            return
+        
+        # Get current active molecule
+        current = None
+        if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+            if hasattr(self.islat.active_molecule, 'name'):
+                current = self.islat.active_molecule.name
+            else:
+                current = str(self.islat.active_molecule)
+        
+        # Find current index and get previous
+        try:
+            current_idx = molecules.index(current)
+            prev_idx = (current_idx - 1) % len(molecules)
+        except (ValueError, TypeError):
+            prev_idx = len(molecules) - 1
+        
+        prev_mol = molecules[prev_idx]
+        self._set_molecule_via_control_panel(prev_mol)
+    
+    def _set_molecule_via_control_panel(self, mol_name):
+        """Set the active molecule through the control panel to update UI properly"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'control_panel'):
+            control_panel = self.islat.GUI.control_panel
+            if hasattr(control_panel, '_on_molecule_selected'):
+                control_panel._on_molecule_selected(mol_name)
+        else:
+            # Fallback: set directly on islat
+            self.islat.active_molecule = mol_name
 
     def _toggle_full_spectrum(self):
         """Toggle full spectrum mode on the main plot"""
