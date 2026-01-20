@@ -6,8 +6,11 @@ separated from GUI concerns to enable reuse and testing.
 """
 
 import os
+import sys
 import numpy as np
 import pandas as pd
+import threading
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
@@ -16,6 +19,54 @@ import iSLAT.Constants as c
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 
+class ProgressTracker:
+    """
+    Thread-safe progress tracker for parallel batch fitting.
+    
+    Redraws all progress bars in-place when any spectrum updates,
+    providing a clean, non-scrolling display.
+    """
+    
+    _update_interval = 10  # Update display every N lines processed
+
+    def __init__(self, spectrum_names: List[str]):
+        self._lock = threading.Lock()
+        self._spectrum_names = list(spectrum_names)  # Preserve order
+        self._progress = {name: (0, 1) for name in spectrum_names}  # name -> (current, total)
+        self._lines_printed = 0
+        self._last_update = {name: 0 for name in spectrum_names}
+    
+    def update(self, spectrum_name: str, current: int, total: int):
+        """Update progress for a specific spectrum and redraw all bars."""
+        with self._lock:
+            self._progress[spectrum_name] = (current, total)
+            
+            # Only redraw on interval or completion to reduce flicker
+            last = self._last_update.get(spectrum_name, 0)
+            if current < total and (current - last) < self._update_interval:
+                return
+            self._last_update[spectrum_name] = current
+            
+            # Move cursor up to overwrite previous output
+            if self._lines_printed > 0:
+                sys.stdout.write(f"\033[{self._lines_printed}A")
+            
+            # Redraw all progress bars
+            lines = []
+            for name in self._spectrum_names:
+                curr, tot = self._progress[name]
+                percent = int((curr / tot) * 100) if tot > 0 else 0
+                bar_length = 20
+                filled = int(bar_length * curr / tot) if tot > 0 else 0
+                bar = '█' * filled + '░' * (bar_length - filled)
+                # Pad to consistent width to overwrite previous content
+                line = f"  {name}: [{bar}] {curr}/{tot} ({percent}%)"
+                lines.append(line.ljust(80))
+            
+            output = '\n'.join(lines)
+            sys.stdout.write(output + '\n')
+            sys.stdout.flush()
+            self._lines_printed = len(lines)
 
 class BatchFittingService:
     """
@@ -43,6 +94,37 @@ class BatchFittingService:
         self.fitting_engine = FittingEngine(islat_instance)
         # Cache for saved lines to avoid re-reading
         self._saved_lines_cache: Dict[str, pd.DataFrame] = {}
+        # Thread-safe printing lock
+        self._print_lock = threading.Lock()
+        # Progress tracker for parallel processing
+        self._progress_tracker: Optional[ProgressTracker] = None
+        # Current output folder for batch run
+        self._current_output_folder: Optional[str] = None
+    
+    def _create_run_folder(self, base_path: str, line_list_name: str) -> str:
+        """
+        Create a unique subfolder for this batch run.
+        
+        Parameters
+        ----------
+        base_path : str
+            Base directory for output
+        line_list_name : str
+            Name of the line list file (used in folder name)
+            
+        Returns
+        -------
+        str
+            Path to the created folder
+        """
+        # Create folder name with line list and timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        line_list_base = os.path.splitext(os.path.basename(line_list_name))[0]
+        folder_name = f"batch_{line_list_base}_{timestamp}"
+        folder_path = os.path.join(base_path, folder_name)
+        
+        os.makedirs(folder_path, exist_ok=True)
+        return folder_path
     
     def _get_saved_lines(self, saved_lines_file: str) -> pd.DataFrame:
         """Get saved lines from cache or read from file."""
@@ -67,7 +149,8 @@ class BatchFittingService:
         err_data: Optional[np.ndarray] = None,
         output_file: Optional[str] = None,
         progress_callback: Optional[Callable[[str], None]] = None,
-        saved_lines_df: Optional[pd.DataFrame] = None
+        saved_lines_df: Optional[pd.DataFrame] = None,
+        line_progress_callback: Optional[Callable[[int, int], None]] = None
     ) -> Tuple[Optional[List[Dict]], Optional[Tuple]]:
         """
         Fit saved lines to a spectrum.
@@ -88,6 +171,8 @@ class BatchFittingService:
             Output file name for fit results
         progress_callback : callable, optional
             Callback function for progress updates: callback(message: str)
+        line_progress_callback : callable, optional
+            Callback for per-line progress: callback(current_line, total_lines)
             
         Returns
         -------
@@ -121,6 +206,8 @@ class BatchFittingService:
             wavedata=wavedata,
             fluxdata=fluxdata,
             err_data=err_data,
+            progress_callback=line_progress_callback,
+            output_path=self._current_output_folder
         )
         
         return fit_data
@@ -133,8 +220,9 @@ class BatchFittingService:
         progress_callback: Optional[Callable[[str], None]] = None,
         parallel: Optional[bool] = None,
         max_workers: Optional[int] = None,
-        defer_plots: bool = True
-    ) -> List[Any]:
+        defer_plots: bool = True,
+        base_output_path: Optional[str] = None
+    ) -> Tuple[List[Any], Optional[str]]:
         """
         Fit saved lines to multiple spectrum files with optional parallel processing.
         
@@ -154,11 +242,13 @@ class BatchFittingService:
             Maximum number of parallel workers. If None, uses class default.
         defer_plots : bool, optional
             If True, generate plots after all fitting is complete (default: True)
+        base_output_path : str, optional
+            Base directory for output. If provided, creates a unique subfolder.
             
         Returns
         -------
-        list
-            List of FitLinesPlotGrid objects for each spectrum
+        tuple
+            (List of FitLinesPlotGrid objects, output_folder path or None)
         """
         from iSLAT.Modules.Plotting.FitLinesPlotGrid import FitLinesPlotGrid
         
@@ -167,6 +257,17 @@ class BatchFittingService:
             parallel = self.PARALLEL_BATCH_FITTING
         if max_workers is None:
             max_workers = self.BATCH_FITTING_MAX_WORKERS
+        
+        # Create unique output folder for this run
+        if base_output_path:
+            self._current_output_folder = self._create_run_folder(base_output_path, saved_lines_file)
+            print(f"\n{'='*60}")
+            print(f"Batch Fit: {len(spectrum_files)} spectra")
+            print(f"Line list: {os.path.basename(saved_lines_file)}")
+            print(f"Output folder: {self._current_output_folder}")
+            print(f"{'='*60}")
+        else:
+            self._current_output_folder = None
         
         if progress_callback:
             progress_callback(f"Fitting saved lines to {len(spectrum_files)} spectra...\n")
@@ -186,6 +287,10 @@ class BatchFittingService:
             if max_workers is None:
                 import os as os_module
                 max_workers = max(1, os_module.cpu_count() - 1)
+            
+            # Initialize thread-safe progress tracker with all spectrum names
+            spectrum_names = [os.path.basename(f) for f in spectrum_files]
+            self._progress_tracker = ProgressTracker(spectrum_names)
             
             # Process spectra in parallel
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -211,6 +316,9 @@ class BatchFittingService:
                     except Exception as e:
                         if progress_callback:
                             progress_callback(f"Error: {os.path.basename(spectrum_file)}: {e}\n")
+            
+            # Clear progress tracker
+            self._progress_tracker = None
         else:
             # Sequential processing
             for spectrum_file in spectrum_files:
@@ -249,22 +357,42 @@ class BatchFittingService:
         if progress_callback:
             progress_callback(f"Completed: {len(fit_results)}/{len(spectrum_files)} spectra fitted.\n")
         
+        # Print summary
+        print(f"\nFitting complete: {len(fit_results)}/{len(spectrum_files)} spectra processed")
+        
+        # Store output folder for return
+        output_folder = self._current_output_folder
+        
         # Clear cache after batch processing
         self.clear_cache()
         
-        return plot_grid_list
+        return plot_grid_list, output_folder
     
     def _fit_single_spectrum(
         self,
         spectrum_file: str,
         saved_lines_file: str,
         saved_lines_df: pd.DataFrame,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        progress_callback: Optional[Callable[[str], None]] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Fit saved lines to a single spectrum file.
         
         This is a worker method designed for parallel execution.
+        
+        Parameters
+        ----------
+        spectrum_file : str
+            Path to the spectrum file
+        saved_lines_file : str
+            Path to the saved lines CSV file
+        saved_lines_df : pd.DataFrame
+            Pre-loaded saved lines dataframe (for caching)
+        config : dict
+            Configuration dictionary
+        progress_callback : callable, optional
+            Callback for progress updates
         
         Returns
         -------
@@ -286,6 +414,23 @@ class BatchFittingService:
             
             spectrum_name = os.path.basename(spectrum_file)
             
+            # Create progress callback based on whether parallel tracker is active
+            if self._progress_tracker:
+                # Use milestone-based progress for parallel execution
+                def line_progress(current, total):
+                    self._progress_tracker.update(spectrum_name, current, total)
+            else:
+                # Use simple carriage-return progress for sequential execution
+                def line_progress(current, total):
+                    percent = int((current / total) * 100)
+                    bar_length = 20
+                    filled = int(bar_length * current / total)
+                    bar = '█' * filled + '░' * (bar_length - filled)
+                    sys.stdout.write(f"\r  {spectrum_name}: [{bar}] {current}/{total} lines ({percent}%)")
+                    sys.stdout.flush()
+                    if current == total:
+                        print()  # New line when complete
+            
             # Fit the saved lines to the loaded spectrum
             fit_data = self.fit_lines_to_spectrum(
                 saved_lines_file=saved_lines_file,
@@ -293,7 +438,8 @@ class BatchFittingService:
                 wavedata=wavedata,
                 fluxdata=fluxdata,
                 err_data=err_data,
-                progress_callback=None
+                progress_callback=None,
+                line_progress_callback=line_progress
             )
             
             if fit_data:
@@ -345,6 +491,9 @@ class BatchFittingService:
             try:
                 plot_grid.fig.savefig(pdf_path, dpi=200, bbox_inches='tight')
                 saved_files.append(pdf_path)
+                
+                # Always print to console when PDF is saved
+                print(f"Saved fit plot grid to: {pdf_path}")
                 
                 if progress_callback:
                     progress_callback(f"Saved fit plot grid to: {pdf_path}\n")

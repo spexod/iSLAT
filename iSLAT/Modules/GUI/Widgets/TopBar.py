@@ -302,11 +302,12 @@ class TopBar(ResizableFrame):
                 return
             
             # Use batch fitting service for multiple files
-            plot_grid_list = self.batch_fitting_service.fit_lines_to_multiple_spectra(
+            plot_grid_list, output_folder = self.batch_fitting_service.fit_lines_to_multiple_spectra(
                 saved_lines_file=self.islat.input_line_list,
                 spectrum_files=list(spectrum_files),
                 config=self.config,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                base_output_path=line_saves_file_path
             )
             
             if plot_grid_list:
@@ -314,9 +315,11 @@ class TopBar(ResizableFrame):
                 save_directly_to_pdf = self.config.get('save_fit_plot_grid_directly_to_PDF', False)
                 
                 if save_directly_to_pdf:
+                    # Use the output folder created during batch processing
+                    save_path = output_folder if output_folder else line_saves_file_path
                     self.batch_fitting_service.save_plot_grids_to_pdf(
                         plot_grid_list,
-                        line_saves_file_path,
+                        save_path,
                         progress_callback=progress_callback
                     )
                 else:

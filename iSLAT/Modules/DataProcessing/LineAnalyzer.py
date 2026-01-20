@@ -262,7 +262,7 @@ class LineAnalyzer:
 
         return line_flux_meas, line_err_meas
 
-    def analyze_saved_lines(self, saved_lines_file, fitting_engine, output_file=None, wavedata=None, fluxdata=None, err_data=None):
+    def analyze_saved_lines(self, saved_lines_file, fitting_engine, output_file=None, wavedata=None, fluxdata=None, err_data=None, progress_callback=None, output_path=None):
         """
         Comprehensive analysis of saved lines using data already present in the saved lines file.
         Performs fitting and rotation diagram calculations without external spectral arrays.
@@ -274,7 +274,11 @@ class LineAnalyzer:
         fitting_engine : FittingEngine
             Fitting engine instance to use for formatting results
         output_file : str, optional
-            Output file path for results
+            Output file name for results
+        output_path : str, optional
+            Output directory path for results. If None, uses default.
+        progress_callback : callable, optional
+            Callback function for progress updates: callback(current, total)
             
         Returns
         -------
@@ -300,7 +304,12 @@ class LineAnalyzer:
         calc_flux_data = self.islat.flux_data if fluxdata is None else fluxdata
         err_data = self.islat.err_data if err_data is None else err_data
         
+        total_lines = len(saved_lines)
+        
         for i, line_row in saved_lines.iterrows():
+            # Report progress
+            if progress_callback:
+                progress_callback(i + 1, total_lines)
             #try:
             # Extract all line information from saved file
             center_wave = float(line_row['lam']) if 'lam' in line_row else 0.0
@@ -364,6 +373,9 @@ class LineAnalyzer:
         
         # Save results if output file specified
         if output_file and fit_results_csv_data:
-            ifh.save_fit_results(fit_results_csv_data, file_name=output_file)
+            if output_path:
+                ifh.save_fit_results(fit_results_csv_data, file_path=output_path, file_name=output_file)
+            else:
+                ifh.save_fit_results(fit_results_csv_data, file_name=output_file)
 
         return fit_results_csv_data, (fit_results_data, fitted_waves, fitted_fluxes)

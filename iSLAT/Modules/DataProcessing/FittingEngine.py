@@ -124,7 +124,8 @@ class FittingEngine:
             
             return result, fitted_wave, fitted_flux
         except Exception as e:
-            print(f"Error during single Gaussian fit: {e}")
+            if self.VERBOSE_FIT_OUTPUT:
+                print(f"Error during single Gaussian fit: {e}")
             return None, None, None
 
     def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):

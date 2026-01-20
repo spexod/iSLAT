@@ -206,8 +206,22 @@ def read_line_saves(file_path=save_folder_path, file_name=line_saves_file_name) 
         print(f"Line saves file not found: {filename}")
     return pd.DataFrame()
 
-def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_file_name, overwritefile=False):
-    """Save a line to the line saves file."""
+def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_file_name, overwritefile=False, silent=False):
+    """Save a line to the line saves file.
+    
+    Parameters
+    ----------
+    line_info : dict
+        Line information to save
+    file_path : str
+        Directory path
+    file_name : str
+        File name
+    overwritefile : bool
+        Whether to overwrite existing file
+    silent : bool
+        If True, suppress per-line print output
+    """
     filename = os.path.join(file_path, file_name)
     
     # Sanitize line_info to ensure no objects get saved as strings
@@ -241,9 +255,13 @@ def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_fi
         df.to_csv(filename, mode='w', header=True, index=False)
     else:
         df.to_csv(filename, mode='a', header=do_header, index=False)
-    print(f"Saved line at ~{clean_line_info['lam']:.4f} μm to {filename}")
+    
+    if not silent:
+        print(f"Saved line at ~{clean_line_info['lam']:.4f} μm to {filename}")
+    
+    return filename
 
-def save_fit_results(fit_results_data, file_path = line_saves_file_path, file_name= fit_save_lines_file_name, overwritefile=True):
+def save_fit_results(fit_results_data, file_path = line_saves_file_path, file_name= fit_save_lines_file_name, overwritefile=True, silent=True):
     """
     Save fit results data to CSV file.
     
@@ -255,6 +273,8 @@ def save_fit_results(fit_results_data, file_path = line_saves_file_path, file_na
         Directory path to save the file
     file_name : str
         Name of the CSV file
+    silent : bool
+        If True, print summary instead of per-line messages (default: True)
         
     Returns
     -------
@@ -270,7 +290,11 @@ def save_fit_results(fit_results_data, file_path = line_saves_file_path, file_na
         # Clear the output but do not delete the file
         open(full_path, 'w').close()
     for fit_result in fit_results_data:
-        save_line(fit_result, file_path=file_path, file_name=file_name)
+        save_line(fit_result, file_path=file_path, file_name=file_name, silent=silent)
+    
+    # Print summary if in silent mode
+    if silent and fit_results_data:
+        print(f"Saved {len(fit_results_data)} lines to {full_path}")
     
     return full_path
 
