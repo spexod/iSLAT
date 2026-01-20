@@ -423,12 +423,29 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text("Completed fitting saved lines to all selected spectra.\n")
 
             if plot_grid_list:
-                # Open a new window to display the plot grid
-                #grid_window = tk.Toplevel(self.master)
-                #grid_window.title("Fit Lines Plot Grid")
-                plot_grid_window = PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
-                #plot_grid_window.pack(fill="both", expand=True)
-
+                # Check user setting for direct PDF save
+                save_directly_to_pdf = self.config.get('save_fit_plot_grid_directly_to_PDF', False)
+                
+                if save_directly_to_pdf:
+                    # Save each plot grid directly to PDF without showing window
+                    save_dir = line_saves_file_path
+                    os.makedirs(save_dir, exist_ok=True)
+                    
+                    for plot_grid in plot_grid_list:
+                        pdf_filename = f"{plot_grid.spectrum_name}_fit_grid.pdf"
+                        pdf_path = os.path.join(save_dir, pdf_filename)
+                        try:
+                            plot_grid.fig.savefig(pdf_path, dpi=200, bbox_inches='tight')
+                            self.data_field.insert_text(f"Saved fit plot grid to: {pdf_path}\n", clear_after=False)
+                        except Exception as save_error:
+                            self.data_field.insert_text(f"Error saving PDF {pdf_filename}: {save_error}\n", clear_after=False)
+                        finally:
+                            # Close the figure to free memory
+                            import matplotlib.pyplot as plt
+                            plt.close(plot_grid.fig)
+                else:
+                    # Open a new window to display the plot grid
+                    plot_grid_window = PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
         else:
             # Fit saved lines to the currently loaded spectrum
             self._perform_saved_lines_fit()
