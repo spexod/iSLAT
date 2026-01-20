@@ -1046,4 +1046,7 @@ class iSLATPlot:
 
             # Restore the original canvas
             self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
-            self.canvas.draw_idle()
+            
+            # Refresh the main plot to reflect any molecule changes that occurred
+            # during full spectrum mode (visibility toggles, new molecules, etc.)
+            self.update_model_plot()

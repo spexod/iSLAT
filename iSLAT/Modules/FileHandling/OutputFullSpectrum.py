@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.widgets import SpanSelector
 from pathlib import Path 
 from tkinter import filedialog
 
@@ -59,6 +60,7 @@ class FullSpectrumPlot:
         # Plot attributes
         self.fig: Optional["Figure"] = None
         self.subplots: Dict[int, "Axes"] = {}
+        self.span_selectors: Dict[int, SpanSelector] = {}  # Span selectors for each subplot
         self.mol_labels: List[str] = []
         self.mol_colors: List[str] = []
         if "figsize" in kwargs:
@@ -178,6 +180,8 @@ class FullSpectrumPlot:
             # This allows update-in-place optimization to work
             if n not in self.subplots or self.subplots[n] not in self.fig.axes:
                 self.subplots[n] = plt.subplot(len(self.xlim1), 1, n + 1)
+                # Add span selector for this subplot
+                self._setup_span_selector(n)
             
             # Calculate y-axis limits
             flux_mask = (self.wave > xr[0] - 0.02) & (self.wave < xr[1])
@@ -397,6 +401,121 @@ class FullSpectrumPlot:
             for text in ax.texts[:]:
                 if hasattr(text, '_islat_atomic_line'):
                     text.remove()
+
+    def _setup_span_selector(self, subplot_index: int):
+        """
+        Set up a span selector for a specific subplot.
+        
+        Parameters:
+        -----------
+        subplot_index : int
+            Index of the subplot to add span selector to
+        """
+        if subplot_index not in self.subplots:
+            return
+        
+        ax = self.subplots[subplot_index]
+        
+        # Create span selector for this subplot
+        span = SpanSelector(
+            ax,
+            lambda xmin, xmax, idx=subplot_index: self._on_span_select(xmin, xmax, idx),
+            direction='horizontal',
+            useblit=True,
+            props=dict(alpha=0.3, facecolor='lime'),
+            interactive=True,
+            drag_from_anywhere=True
+        )
+        self.span_selectors[subplot_index] = span
+    
+    def _on_span_select(self, xmin: float, xmax: float, subplot_index: int):
+        """
+        Handle span selection on a subplot.
+        Switches back to regular plot mode and triggers line inspection.
+        
+        Parameters:
+        -----------
+        xmin : float
+            Minimum wavelength of selection
+        xmax : float
+            Maximum wavelength of selection
+        subplot_index : int
+            Index of the subplot where selection was made
+        """
+        # Ignore tiny selections (likely accidental clicks)
+        if abs(xmax - xmin) < 0.001:
+            return
+        
+        # Store the selection for the main plot to use
+        self._pending_selection = (xmin, xmax)
+        
+        # Get reference to main plot (it's GUI.plot, not GUI.main_plot)
+        main_plot = self.islat_ref.GUI.plot
+        
+        # Switch back to regular mode
+        if hasattr(main_plot, 'is_full_spectrum') and main_plot.is_full_spectrum:
+            # Toggle off full spectrum mode
+            main_plot.toggle_full_spectrum()
+            
+            # After switching back, trigger line inspection with the selected range
+            # Need to use after_idle to ensure the canvas is ready
+            if hasattr(self.islat_ref, 'root'):
+                self.islat_ref.root.after(100, lambda: self._apply_selection_to_main_plot(xmin, xmax))
+            else:
+                self._apply_selection_to_main_plot(xmin, xmax)
+    
+    def _apply_selection_to_main_plot(self, xmin: float, xmax: float):
+        """
+        Apply the selection to the main plot after switching modes.
+        
+        Parameters:
+        -----------
+        xmin : float
+            Minimum wavelength of selection
+        xmax : float
+            Maximum wavelength of selection
+        """
+        main_plot = self.islat_ref.GUI.plot
+        
+        # Invalidate the population diagram cache to force a full redraw
+        # This is necessary because switching from full spectrum mode may leave
+        # the plot renderer's cached state out of sync
+        if hasattr(main_plot, 'plot_renderer'):
+            main_plot.plot_renderer._pop_diagram_molecule = None
+            main_plot.plot_renderer._pop_diagram_cache_key = None
+            # Also clear the active scatter collection reference
+            main_plot.plot_renderer._active_scatter_collection = None
+            main_plot.plot_renderer._active_scatter_count = 0
+        
+        # Set the current selection
+        main_plot.current_selection = (xmin, xmax)
+        
+        # Update the main plot's view to center on the selection
+        # Calculate a reasonable view range around the selection
+        selection_center = (xmin + xmax) / 2
+        selection_width = xmax - xmin
+        view_padding = max(selection_width * 2, 0.5)  # At least 0.5 um padding
+        
+        view_xmin = selection_center - view_padding
+        view_xmax = selection_center + view_padding
+        
+        # Set the x-axis limits on the main spectrum plot
+        main_plot.ax1.set_xlim(view_xmin, view_xmax)
+        
+        # Update the span selector's visual extents to show the selection
+        if hasattr(main_plot, 'interaction_handler') and hasattr(main_plot.interaction_handler, 'span_selector'):
+            span = main_plot.interaction_handler.span_selector
+            if span is not None:
+                try:
+                    span.extents = (xmin, xmax)
+                except Exception:
+                    pass  # Some matplotlib versions may not support setting extents
+        
+        # Trigger the line inspection plot
+        main_plot.onselect(xmin, xmax)
+        
+        # Redraw the canvas
+        main_plot.canvas.draw_idle()
 
     def show(self):
         """Display the plot."""
