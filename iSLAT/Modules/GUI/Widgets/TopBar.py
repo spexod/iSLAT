@@ -165,13 +165,21 @@ class TopBar(ResizableFrame):
         try:
             self.line_toggle = not self.line_toggle
 
-            if self.line_toggle:
-                # Plot the saved lines on the main plot
-                self.main_plot.plot_saved_lines(loaded_lines=loaded_lines, data_field=self.data_field)
-            
+            # Check if full spectrum view is active
+            if hasattr(self.main_plot, 'is_full_spectrum') and self.main_plot.is_full_spectrum:
+                # Use optimized toggle method that only adds/removes line artists
+                if hasattr(self.main_plot, 'full_spectrum_plot'):
+                    self.main_plot.full_spectrum_plot.toggle_saved_lines(self.line_toggle)
+                    if hasattr(self.main_plot, 'full_spectrum_plot_canvas'):
+                        self.main_plot.full_spectrum_plot_canvas.draw_idle()
             else:
-                self.main_plot.remove_saved_lines()
-                # self.data_field.insert_text("Removed lines")
+                # Regular view - toggle on the main plot
+                if self.line_toggle:
+                    # Plot the saved lines on the main plot
+                    self.main_plot.plot_saved_lines(loaded_lines=loaded_lines, data_field=self.data_field)
+                else:
+                    self.main_plot.remove_saved_lines()
+                    # self.data_field.insert_text("Removed lines")
             
         except Exception as e:
             self.data_field.insert_text(f"Error loading saved lines: {e}\n")
@@ -499,10 +507,19 @@ class TopBar(ResizableFrame):
         try:
             self.atomic_toggle = not self.atomic_toggle
 
-            if self.atomic_toggle:
-                self.main_plot.plot_atomic_lines(data_field=self.data_field)
+            # Check if full spectrum view is active
+            if hasattr(self.main_plot, 'is_full_spectrum') and self.main_plot.is_full_spectrum:
+                # Use optimized toggle method that only adds/removes line artists
+                if hasattr(self.main_plot, 'full_spectrum_plot'):
+                    self.main_plot.full_spectrum_plot.toggle_atomic_lines(self.atomic_toggle)
+                    if hasattr(self.main_plot, 'full_spectrum_plot_canvas'):
+                        self.main_plot.full_spectrum_plot_canvas.draw_idle()
             else:
-                self.main_plot.remove_atomic_lines()
+                # Regular view
+                if self.atomic_toggle:
+                    self.main_plot.plot_atomic_lines(data_field=self.data_field)
+                else:
+                    self.main_plot.remove_atomic_lines()
 
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")

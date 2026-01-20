@@ -135,21 +135,29 @@ class FullSpectrumPlot:
             # Plot lines in the current wavelength range
             for i in range(len(svd_lamb)):
                 if xr[0] < svd_lamb[i] < xr[1]:
-                    ax.vlines(svd_lamb[i], ymin, ymax, linestyles='dotted', 
+                    line = ax.vlines(svd_lamb[i], ymin, ymax, linestyles='dotted', 
                             color='grey', linewidth=0.7)
+                    line._islat_saved_line = True  # Mark for easy removal
                     
                     # Position label
                     label_y = ymax
                     label_x = svd_lamb[i] + self.offset_label
                     
-                    ax.text(label_x, label_y, f"{svd_species[i]} {svd_lineID[i]}", 
+                    text = ax.text(label_x, label_y, f"{svd_species[i]} {svd_lineID[i]}", 
                         fontsize=6, rotation=90, va='top', ha='left', color='grey')
+                    text._islat_saved_line = True  # Mark for easy removal
         else:
             pass
             #print("No line data available for annotations.")
     
-    def generate_plot(self):
-        """Generate the full spectrum plot with multiple panels."""
+    def generate_plot(self, force_clear: bool = False):
+        """Generate the full spectrum plot with multiple panels.
+        
+        Parameters:
+        -----------
+        force_clear : bool
+            If True, forces clearing of axes even on updates
+        """
         # Create figure if it doesn't exist
         if not hasattr(self, 'fig') or self.fig is None:
             if hasattr(self, 'figsize'):
@@ -185,16 +193,15 @@ class FullSpectrumPlot:
             
             #self.plot_renderer.clear_model_lines(ax=self.subplots[n], lines=self.plot_renderer.model_lines, do_clear_self=False)
 
-            # Plot line annotations
-            self._plot_line_list(self.subplots[n], xr, ymin, ymax)
-
             # Temporarily set render_out to use thinner lines for output
             original_render_out = self.plot_renderer.render_out
             self.plot_renderer.render_out = True
             
             # Determine if this is an update (subplots already exist) or initial render
             # For updates, don't clear axes to enable update-in-place optimization
+            # Unless force_clear is True (e.g., when toggling lines off)
             is_update = (n in self.subplots and self.subplots[n] in self.fig.axes)
+            should_clear = (not is_update) or force_clear
             
             # Render the spectrum and molecules without automatic legend. We'll add a custom legend at the end
             self.plot_renderer.render_main_spectrum_plot(
@@ -205,10 +212,12 @@ class FullSpectrumPlot:
                 summed_flux=summed_flux,
                 axes=self.subplots[n],
                 update_legend=False,  # Disable automatic legend - we'll add custom one
-                clear_axes=not is_update  # Don't clear on updates for faster rendering
+                clear_axes=should_clear  # Clear axes when needed
             )
+            
+            # Plot line annotations AFTER main plot (so they're not cleared)
             if self.islat_ref.GUI.top_bar.line_toggle:
-                self.plot_renderer.plot_saved_lines(self.line_data, self.saved_lines, fig = self.subplots[n])
+                self._plot_line_list(self.subplots[n], xr, ymin, ymax)
 
             if self.islat_ref.GUI.top_bar.atomic_toggle:
                 atomic_lines = load_atomic_lines()
@@ -270,11 +279,124 @@ class FullSpectrumPlot:
         self.fig.supylabel("Flux Density (Jy)", fontsize=10)
         self.fig.canvas.draw_idle()
     
-    def reload_data(self):
-        """Refresh the plot data with any updates from the molecules dictionary."""
+    def reload_data(self, force_clear: bool = False):
+        """Refresh the plot data with any updates from the molecules dictionary.
+        
+        Parameters:
+        -----------
+        force_clear : bool
+            If True, forces clearing of axes even on updates (needed for toggle off)
+        """
         self._load_data()
         self._prepare_molecule_info()
-        self.generate_plot()
+        self.generate_plot(force_clear=force_clear)
+    
+    def toggle_saved_lines(self, show: bool):
+        """
+        Optimized toggle for saved lines - only adds/removes line artists.
+        Avoids full replot for better performance.
+        
+        Parameters:
+        -----------
+        show : bool
+            If True, show saved lines. If False, hide them.
+        """
+        if not hasattr(self, 'subplots') or not self.subplots:
+            return
+        
+        if show:
+            # Add saved lines to each subplot
+            for n, xlim in enumerate(self.xlim1):
+                if n not in self.subplots:
+                    continue
+                ax = self.subplots[n]
+                xr = [self.xlim1[n], self.xlim1[n] + self.step]
+                
+                # Calculate y limits
+                flux_mask = (self.wave > xr[0] - 0.02) & (self.wave < xr[1])
+                if np.any(flux_mask):
+                    ymax = np.nanmax(self.flux[flux_mask]) * (1 + self.ymax_factor)
+                    ymin = -0.01
+                else:
+                    ymin, ymax = -0.01, 0.15
+                
+                self._plot_line_list(ax, xr, ymin, ymax)
+        else:
+            # Remove saved lines from each subplot
+            self._remove_saved_line_artists()
+        
+        # Redraw canvas
+        if hasattr(self, 'fig') and self.fig is not None:
+            self.fig.canvas.draw_idle()
+    
+    def _remove_saved_line_artists(self):
+        """Remove all saved line artists from subplots."""
+        for n, ax in self.subplots.items():
+            # Remove marked line collections
+            for collection in ax.collections[:]:
+                if hasattr(collection, '_islat_saved_line'):
+                    collection.remove()
+            # Remove marked text annotations
+            for text in ax.texts[:]:
+                if hasattr(text, '_islat_saved_line'):
+                    text.remove()
+    
+    def toggle_atomic_lines(self, show: bool):
+        """
+        Optimized toggle for atomic lines - only adds/removes line artists.
+        Avoids full replot for better performance.
+        
+        Parameters:
+        -----------
+        show : bool
+            If True, show atomic lines. If False, hide them.
+        """
+        if not hasattr(self, 'subplots') or not self.subplots:
+            return
+        
+        if show:
+            # Add atomic lines to each subplot
+            atomic_lines_data = load_atomic_lines()
+            
+            for n, xlim in enumerate(self.xlim1):
+                if n not in self.subplots:
+                    continue
+                ax = self.subplots[n]
+                xr = [self.xlim1[n], self.xlim1[n] + self.step]
+                
+                # Filter atomic lines for this range
+                filtered_atomic = atomic_lines_data[
+                    (atomic_lines_data['wave'] >= xr[0]) &
+                    (atomic_lines_data['wave'] <= xr[1])
+                ]
+                
+                if len(filtered_atomic) > 0:
+                    wavelengths = filtered_atomic['wave'].values
+                    species = filtered_atomic['species'].values
+                    line_ids = filtered_atomic['line'].values
+                    
+                    self.plot_renderer.render_atomic_lines(
+                        filtered_atomic, ax, wavelengths, species, line_ids, using_subplot=True
+                    )
+        else:
+            # Remove atomic lines from each subplot
+            self._remove_atomic_line_artists()
+        
+        # Redraw canvas
+        if hasattr(self, 'fig') and self.fig is not None:
+            self.fig.canvas.draw_idle()
+    
+    def _remove_atomic_line_artists(self):
+        """Remove all atomic line artists from subplots."""
+        for n, ax in self.subplots.items():
+            # Remove marked lines
+            for line in ax.lines[:]:
+                if hasattr(line, '_islat_atomic_line'):
+                    line.remove()
+            # Remove marked text annotations
+            for text in ax.texts[:]:
+                if hasattr(text, '_islat_atomic_line'):
+                    text.remove()
 
     def show(self):
         """Display the plot."""

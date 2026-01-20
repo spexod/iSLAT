@@ -997,6 +997,7 @@ class PlotRenderer:
 
         for i in range(len(wavelengths)):
             line = axis.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
+            line._islat_atomic_line = True  # Mark for easy removal
             
             # Adjust the y-coordinate to place labels within the plot borders
             ylim = axis.get_ylim()
@@ -1010,6 +1011,7 @@ class PlotRenderer:
             label_text = f"{species[i]} {line_ids[i]}"
             label = axis.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
                                                 va='top', ha='left', color='tomato')
+            label._islat_atomic_line = True  # Mark for easy removal
             if using_subplot is False:
                 atomic_lines.append((line, label))
 
