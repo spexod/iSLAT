@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import threading
 from datetime import datetime
+from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
@@ -18,6 +19,98 @@ import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 import iSLAT.Constants as c
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
+
+
+@dataclass
+class FittingTask:
+    """Represents a single line fitting task."""
+    spectrum_name: str
+    spectrum_idx: int
+    line_idx: int
+    line_row: pd.Series
+    wave_data: np.ndarray
+    flux_data: np.ndarray
+    err_data: np.ndarray
+    xmin: float
+    xmax: float
+    center_wave: float
+    line_info: Dict[str, Any]
+
+
+class FittingWorkQueue:
+    """
+    Manages a flattened work queue of all (spectrum, line) fitting tasks.
+    
+    Distributes all fitting tasks across a single thread pool for optimal
+    CPU utilization without nested parallelism or thread oversubscription.
+    """
+    
+    def __init__(self, max_workers: Optional[int] = None):
+        """
+        Initialize the work queue.
+        
+        Parameters
+        ----------
+        max_workers : int, optional
+            Maximum number of worker threads. If None, uses CPU count - 1.
+        """
+        if max_workers is None:
+            max_workers = max(1, os.cpu_count() - 1)
+        self.max_workers = max_workers
+        self._lock = threading.Lock()
+        self._progress = {}  # spectrum_name -> (completed, total)
+        self._lines_printed = 0
+        self._update_interval = 5  # Update display every N tasks completed
+        self._tasks_since_update = 0
+    
+    def initialize_progress(self, spectrum_line_counts: Dict[str, int]):
+        """Initialize progress tracking for all spectra."""
+        with self._lock:
+            self._progress = {name: (0, count) for name, count in spectrum_line_counts.items()}
+            self._lines_printed = 0
+            self._tasks_since_update = 0
+    
+    def update_progress(self, spectrum_name: str):
+        """Increment progress for a spectrum and redraw if needed."""
+        with self._lock:
+            curr, total = self._progress.get(spectrum_name, (0, 1))
+            self._progress[spectrum_name] = (curr + 1, total)
+            self._tasks_since_update += 1
+            
+            # Only redraw periodically to reduce overhead
+            if self._tasks_since_update < self._update_interval:
+                # Check if any spectrum just completed
+                if curr + 1 < total:
+                    return
+            
+            self._tasks_since_update = 0
+            self._redraw_progress()
+    
+    def _redraw_progress(self):
+        """Redraw all progress bars (called with lock held)."""
+        # Move cursor up to overwrite previous output
+        if self._lines_printed > 0:
+            sys.stdout.write(f"\033[{self._lines_printed}A")
+        
+        lines = []
+        for name, (curr, total) in self._progress.items():
+            percent = int((curr / total) * 100) if total > 0 else 0
+            bar_length = 20
+            filled = int(bar_length * curr / total) if total > 0 else 0
+            bar = '█' * filled + '░' * (bar_length - filled)
+            line = f"  {name}: [{bar}] {curr}/{total} ({percent}%)"
+            lines.append(line.ljust(80))
+        
+        output = '\n'.join(lines)
+        sys.stdout.write(output + '\n')
+        sys.stdout.flush()
+        self._lines_printed = len(lines)
+    
+    def finalize_progress(self):
+        """Ensure final progress state is displayed."""
+        with self._lock:
+            self._redraw_progress()
+
 
 class ProgressTracker:
     """
@@ -140,6 +233,52 @@ class BatchFittingService:
         """Clear the saved lines cache."""
         self._saved_lines_cache.clear()
     
+    def _fit_single_task(
+        self,
+        task: FittingTask,
+        sig_det_lim: float = 2.0
+    ) -> Tuple[int, int, Dict[str, Any], Any, np.ndarray, np.ndarray]:
+        """
+        Fit a single line task - worker method for flattened parallel execution.
+        
+        Parameters
+        ----------
+        task : FittingTask
+            The fitting task containing all necessary data
+        sig_det_lim : float
+            Detection limit for signal-to-noise ratio
+            
+        Returns
+        -------
+        tuple
+            (spectrum_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux)
+        """
+        fit_mask = (task.wave_data >= task.xmin) & (task.wave_data <= task.xmax)
+        x_fit = task.wave_data[fit_mask]
+        y_fit = task.flux_data[fit_mask]
+        
+        fit_result, fitted_wave, fitted_flux = self.fitting_engine.fit_gaussian_line(
+            wave_data=x_fit,
+            flux_data=y_fit,
+            xmin=task.xmin,
+            xmax=task.xmax,
+            initial_guess=None,
+            deblend=False,
+            err_data=task.err_data
+        )
+        
+        flux_data_integral, err_data_integral = self.line_analyzer.flux_integral(
+            task.wave_data, task.flux_data, err=task.err_data, 
+            lam_min=task.xmin, lam_max=task.xmax
+        )
+        
+        result_entry = self.fitting_engine.format_fit_results_for_csv(
+            fit_result, flux_data_integral, err_data_integral,
+            task.xmin, task.xmax, task.center_wave, task.line_info, sig_det_lim
+        )
+        
+        return (task.spectrum_idx, task.line_idx, result_entry, fit_result, fitted_wave, fitted_flux)
+    
     def fit_lines_to_spectrum(
         self,
         saved_lines_file: str,
@@ -150,7 +289,8 @@ class BatchFittingService:
         output_file: Optional[str] = None,
         progress_callback: Optional[Callable[[str], None]] = None,
         saved_lines_df: Optional[pd.DataFrame] = None,
-        line_progress_callback: Optional[Callable[[int, int], None]] = None
+        line_progress_callback: Optional[Callable[[int, int], None]] = None,
+        parallel_lines: Optional[bool] = None
     ) -> Tuple[Optional[List[Dict]], Optional[Tuple]]:
         """
         Fit saved lines to a spectrum.
@@ -173,6 +313,9 @@ class BatchFittingService:
             Callback function for progress updates: callback(message: str)
         line_progress_callback : callable, optional
             Callback for per-line progress: callback(current_line, total_lines)
+        parallel_lines : bool, optional
+            If True, parallelize line fitting within this spectrum.
+            If None, uses LineAnalyzer class default.
             
         Returns
         -------
@@ -207,7 +350,8 @@ class BatchFittingService:
             fluxdata=fluxdata,
             err_data=err_data,
             progress_callback=line_progress_callback,
-            output_path=self._current_output_folder
+            output_path=self._current_output_folder,
+            parallel=parallel_lines
         )
         
         return fit_data
@@ -277,50 +421,16 @@ class BatchFittingService:
         if saved_lines_df.empty:
             if progress_callback:
                 progress_callback("No saved lines found in file.\n")
-            return []
+            return [], None
         
-        # Collect fit results and spectrum data for deferred plot generation
-        fit_results = []
-        
-        if parallel and len(spectrum_files) > 1:
-            # Use parallel processing
-            if max_workers is None:
-                import os as os_module
-                max_workers = max(1, os_module.cpu_count() - 1)
-            
-            # Initialize thread-safe progress tracker with all spectrum names
-            spectrum_names = [os.path.basename(f) for f in spectrum_files]
-            self._progress_tracker = ProgressTracker(spectrum_names)
-            
-            # Process spectra in parallel
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit all fitting tasks
-                future_to_file = {
-                    executor.submit(
-                        self._fit_single_spectrum,
-                        spectrum_file,
-                        saved_lines_file,
-                        saved_lines_df,
-                        config
-                    ): spectrum_file
-                    for spectrum_file in spectrum_files
-                }
-                
-                # Collect results as they complete
-                for future in as_completed(future_to_file):
-                    spectrum_file = future_to_file[future]
-                    try:
-                        result = future.result()
-                        if result:
-                            fit_results.append(result)
-                    except Exception as e:
-                        if progress_callback:
-                            progress_callback(f"Error: {os.path.basename(spectrum_file)}: {e}\n")
-            
-            # Clear progress tracker
-            self._progress_tracker = None
+        # Use the flattened work queue approach for optimal parallelism
+        if parallel:
+            fit_results = self._fit_multiple_spectra_flattened(
+                spectrum_files, saved_lines_file, saved_lines_df, config, max_workers, progress_callback
+            )
         else:
             # Sequential processing
+            fit_results = []
             for spectrum_file in spectrum_files:
                 try:
                     result = self._fit_single_spectrum(
@@ -368,6 +478,204 @@ class BatchFittingService:
         
         return plot_grid_list, output_folder
     
+    def _fit_multiple_spectra_flattened(
+        self,
+        spectrum_files: List[str],
+        saved_lines_file: str,
+        saved_lines_df: pd.DataFrame,
+        config: Dict[str, Any],
+        max_workers: Optional[int],
+        progress_callback: Optional[Callable[[str], None]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Fit multiple spectra using a flattened work queue for optimal CPU utilization.
+        
+        Instead of parallelizing at either spectrum or line level, this method
+        creates a single queue of all (spectrum, line) fitting tasks and distributes
+        them across all available workers.
+        
+        Parameters
+        ----------
+        spectrum_files : list of str
+            List of spectrum file paths
+        saved_lines_file : str
+            Path to saved lines file
+        saved_lines_df : pd.DataFrame
+            Pre-loaded saved lines DataFrame
+        config : dict
+            Configuration dictionary
+        max_workers : int, optional
+            Maximum workers for thread pool
+        progress_callback : callable, optional
+            Callback for progress updates
+            
+        Returns
+        -------
+        list of dict
+            List of result dictionaries for each spectrum
+        """
+        # Set up worker count
+        if max_workers is None:
+            max_workers = max(1, os.cpu_count() - 1)
+        
+        total_lines = len(saved_lines_df)
+        sig_det_lim = 2.0
+        
+        # Phase 1: Load all spectrum data (I/O bound, done sequentially)
+        spectrum_data = []
+        spectrum_names = []
+        
+        for spectrum_idx, spectrum_file in enumerate(spectrum_files):
+            try:
+                save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
+                stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
+                stellar_rv = float(stellar_rv)
+                
+                spectrum_df = ifh.read_spectral_data(spectrum_file)
+                wavedata = spectrum_df['wave'].to_numpy()
+                wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)
+                fluxdata = spectrum_df['flux'].to_numpy()
+                err_data = spectrum_df['err'].to_numpy()
+                
+                spectrum_name = os.path.basename(spectrum_file)
+                spectrum_names.append(spectrum_name)
+                
+                spectrum_data.append({
+                    'spectrum_idx': spectrum_idx,
+                    'spectrum_name': spectrum_name,
+                    'spectrum_file': spectrum_file,
+                    'wavedata': wavedata,
+                    'fluxdata': fluxdata,
+                    'err_data': err_data
+                })
+            except Exception as e:
+                if progress_callback:
+                    progress_callback(f"Error loading {os.path.basename(spectrum_file)}: {e}\n")
+        
+        if not spectrum_data:
+            return []
+        
+        # Phase 2: Create all fitting tasks (flattened across all spectra and lines)
+        all_tasks = []
+        
+        for spec_data in spectrum_data:
+            for line_idx, line_row in saved_lines_df.iterrows():
+                center_wave = float(line_row['lam']) if 'lam' in line_row else 0.0
+                xmin = float(line_row['xmin']) if 'xmin' in line_row and not pd.isna(line_row['xmin']) else center_wave - 0.01
+                xmax = float(line_row['xmax']) if 'xmax' in line_row and not pd.isna(line_row['xmax']) else center_wave + 0.01
+                
+                line_info = {
+                    'species': line_row.get('species', 'Unknown'),
+                    'lev_up': line_row.get('lev_up', ''),
+                    'lev_low': line_row.get('lev_low', ''),
+                    'lam': center_wave,
+                    'a_stein': float(line_row.get('a_stein', 0.0)) if not pd.isna(line_row.get('a_stein', 0.0)) else 0.0,
+                    'e_up': float(line_row.get('e_up', 0.0)) if not pd.isna(line_row.get('e_up', 0.0)) else 0.0,
+                    'e_low': float(line_row.get('e_low', 0.0)) if not pd.isna(line_row.get('e_low', 0.0)) else 0.0,
+                    'g_up': float(line_row.get('g_up', 1.0)) if not pd.isna(line_row.get('g_up', 1.0)) else 1.0,
+                    'g_low': float(line_row.get('g_low', 1.0)) if not pd.isna(line_row.get('g_low', 1.0)) else 1.0,
+                }
+                line_info.update({key: line_row[key] for key in line_row.index if key not in line_info})
+                
+                task = FittingTask(
+                    spectrum_name=spec_data['spectrum_name'],
+                    spectrum_idx=spec_data['spectrum_idx'],
+                    line_idx=line_idx,
+                    line_row=line_row,
+                    wave_data=spec_data['wavedata'],
+                    flux_data=spec_data['fluxdata'],
+                    err_data=spec_data['err_data'],
+                    xmin=xmin,
+                    xmax=xmax,
+                    center_wave=center_wave,
+                    line_info=line_info
+                )
+                all_tasks.append(task)
+        
+        total_tasks = len(all_tasks)
+        
+        # Initialize work queue with progress tracking
+        work_queue = FittingWorkQueue(max_workers=max_workers)
+        work_queue.initialize_progress({name: total_lines for name in spectrum_names})
+        
+        # Pre-allocate result storage: results[spectrum_idx][line_idx] = result
+        results_by_spectrum = {
+            spec_data['spectrum_idx']: {
+                'spectrum_name': spec_data['spectrum_name'],
+                'wavedata': spec_data['wavedata'],
+                'fluxdata': spec_data['fluxdata'],
+                'err_data': spec_data['err_data'],
+                'fit_results_csv': [None] * total_lines,
+                'fit_results_data': [None] * total_lines,
+                'fitted_waves': [None] * total_lines,
+                'fitted_fluxes': [None] * total_lines
+            }
+            for spec_data in spectrum_data
+        }
+        
+        # Phase 3: Execute all tasks in parallel using a single thread pool
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(self._fit_single_task, task, sig_det_lim): task
+                for task in all_tasks
+            }
+            
+            for future in as_completed(futures):
+                task = futures[future]
+                try:
+                    spec_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux = future.result()
+                    
+                    # Store result in appropriate spectrum bucket
+                    spec_results = results_by_spectrum[spec_idx]
+                    spec_results['fit_results_csv'][line_idx] = result_entry
+                    spec_results['fit_results_data'][line_idx] = fit_result
+                    spec_results['fitted_waves'][line_idx] = fitted_wave
+                    spec_results['fitted_fluxes'][line_idx] = fitted_flux
+                    
+                    # Update progress
+                    work_queue.update_progress(task.spectrum_name)
+                    
+                except Exception as e:
+                    # Continue processing other tasks
+                    pass
+        
+        # Ensure final progress is displayed
+        work_queue.finalize_progress()
+        
+        # Phase 4: Aggregate and save results for each spectrum
+        fit_results = []
+        
+        for spec_idx, spec_results in results_by_spectrum.items():
+            # Filter out None entries
+            fit_results_csv = [r for r in spec_results['fit_results_csv'] if r is not None]
+            
+            # Add rotation diagram values
+            if fit_results_csv and any(entry.get('a_stein', 0) > 0 for entry in fit_results_csv):
+                self.line_analyzer.add_rotation_diagram_values(fit_results_csv)
+            
+            # Save results
+            spectrum_name = spec_results['spectrum_name']
+            spectrum_base_name = os.path.splitext(spectrum_name)[0]
+            output_file = f"{spectrum_base_name}-{os.path.basename(saved_lines_file)}"
+            
+            if self._current_output_folder and fit_results_csv:
+                ifh.save_fit_results(fit_results_csv, file_path=self._current_output_folder, file_name=output_file)
+            
+            # Package for plot generation
+            fit_results.append({
+                'spectrum_name': spectrum_name,
+                'fit_data': (fit_results_csv, (
+                    spec_results['fit_results_data'],
+                    spec_results['fitted_waves'],
+                    spec_results['fitted_fluxes']
+                )),
+                'wavedata': spec_results['wavedata'],
+                'fluxdata': spec_results['fluxdata'],
+                'err_data': spec_results['err_data']
+            })
+        
+        return fit_results
+
     def _fit_single_spectrum(
         self,
         spectrum_file: str,
@@ -432,6 +740,10 @@ class BatchFittingService:
                         print()  # New line when complete
             
             # Fit the saved lines to the loaded spectrum
+            # Disable line-level parallelism when we're already running spectra in parallel
+            # to avoid nested parallelism and thread oversubscription
+            parallel_lines = not bool(self._progress_tracker)
+            
             fit_data = self.fit_lines_to_spectrum(
                 saved_lines_file=saved_lines_file,
                 spectrum_name=spectrum_name,
@@ -439,7 +751,8 @@ class BatchFittingService:
                 fluxdata=fluxdata,
                 err_data=err_data,
                 progress_callback=None,
-                line_progress_callback=line_progress
+                line_progress_callback=line_progress,
+                parallel_lines=parallel_lines
             )
             
             if fit_data:
