@@ -17,6 +17,9 @@ class FittingEngine:
     including line fitting, deblending, and slab model fitting.
     """
     
+    # Class-level setting to control verbose fit output
+    VERBOSE_FIT_OUTPUT: bool = False
+    
     def __init__(self, islat_instance):
         """
         Initialize the fitting engine.
@@ -109,8 +112,8 @@ class FittingEngine:
             else:
                 result = model.fit(flux_fit, params, x=x_fit, nan_policy='omit')
             
-            #print(result.fit_report())
-            sys.stdout.write(result.fit_report() + '\n')
+            if self.VERBOSE_FIT_OUTPUT:
+                sys.stdout.write(result.fit_report() + '\n')
 
             # Generate fitted curve on original wavelength grid
             fitted_wave = wave_data
@@ -222,8 +225,8 @@ class FittingEngine:
         result = model.fit(flux_data, params, x=wave_data, weights=weights, 
                           method='leastsq', nan_policy='omit')
         
-        #print(result.fit_report())
-        sys.stdout.write(result.fit_report() + '\n')
+        if self.VERBOSE_FIT_OUTPUT:
+            sys.stdout.write(result.fit_report() + '\n')
         self.fit_results_summary = result.summary()
         
         # Generate fitted curve from x min and x max and wave data

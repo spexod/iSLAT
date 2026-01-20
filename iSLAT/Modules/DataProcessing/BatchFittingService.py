@@ -8,12 +8,14 @@ separated from GUI concerns to enable reuse and testing.
 import os
 import numpy as np
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 import iSLAT.Constants as c
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
+
 
 class BatchFittingService:
     """
@@ -22,6 +24,10 @@ class BatchFittingService:
     This class handles the logic for fitting saved lines to multiple spectrum files,
     extracting and processing fit results, and generating output files.
     """
+    
+    # Class-level settings for batch fitting behavior
+    PARALLEL_BATCH_FITTING: bool = True
+    BATCH_FITTING_MAX_WORKERS: int = None  # None uses CPU count - 1
     
     def __init__(self, islat_instance):
         """
@@ -35,6 +41,22 @@ class BatchFittingService:
         self.islat = islat_instance
         self.line_analyzer = LineAnalyzer(islat_instance)
         self.fitting_engine = FittingEngine(islat_instance)
+        # Cache for saved lines to avoid re-reading
+        self._saved_lines_cache: Dict[str, pd.DataFrame] = {}
+    
+    def _get_saved_lines(self, saved_lines_file: str) -> pd.DataFrame:
+        """Get saved lines from cache or read from file."""
+        if saved_lines_file not in self._saved_lines_cache:
+            try:
+                self._saved_lines_cache[saved_lines_file] = pd.read_csv(saved_lines_file)
+            except Exception as e:
+                print(f"Error reading saved lines file: {e}")
+                return pd.DataFrame()
+        return self._saved_lines_cache[saved_lines_file]
+    
+    def clear_cache(self):
+        """Clear the saved lines cache."""
+        self._saved_lines_cache.clear()
     
     def fit_lines_to_spectrum(
         self,
@@ -44,7 +66,8 @@ class BatchFittingService:
         fluxdata: Optional[np.ndarray] = None,
         err_data: Optional[np.ndarray] = None,
         output_file: Optional[str] = None,
-        progress_callback: Optional[Callable[[str], None]] = None
+        progress_callback: Optional[Callable[[str], None]] = None,
+        saved_lines_df: Optional[pd.DataFrame] = None
     ) -> Tuple[Optional[List[Dict]], Optional[Tuple]]:
         """
         Fit saved lines to a spectrum.
@@ -107,10 +130,13 @@ class BatchFittingService:
         saved_lines_file: str,
         spectrum_files: List[str],
         config: Dict[str, Any],
-        progress_callback: Optional[Callable[[str], None]] = None
+        progress_callback: Optional[Callable[[str], None]] = None,
+        parallel: Optional[bool] = None,
+        max_workers: Optional[int] = None,
+        defer_plots: bool = True
     ) -> List[Any]:
         """
-        Fit saved lines to multiple spectrum files.
+        Fit saved lines to multiple spectrum files with optional parallel processing.
         
         Parameters
         ----------
@@ -122,6 +148,12 @@ class BatchFittingService:
             Configuration dictionary with settings like fit_line_uncertainty
         progress_callback : callable, optional
             Callback function for progress updates: callback(message: str)
+        parallel : bool, optional
+            If True, use parallel processing. If None, uses class default.
+        max_workers : int, optional
+            Maximum number of parallel workers. If None, uses class default.
+        defer_plots : bool, optional
+            If True, generate plots after all fitting is complete (default: True)
             
         Returns
         -------
@@ -130,62 +162,153 @@ class BatchFittingService:
         """
         from iSLAT.Modules.Plotting.FitLinesPlotGrid import FitLinesPlotGrid
         
+        # Use class defaults if not specified
+        if parallel is None:
+            parallel = self.PARALLEL_BATCH_FITTING
+        if max_workers is None:
+            max_workers = self.BATCH_FITTING_MAX_WORKERS
+        
+        if progress_callback:
+            progress_callback(f"Fitting saved lines to {len(spectrum_files)} spectra...\n")
+        
+        # Pre-cache saved lines to avoid repeated file reads
+        saved_lines_df = self._get_saved_lines(saved_lines_file)
+        if saved_lines_df.empty:
+            if progress_callback:
+                progress_callback("No saved lines found in file.\n")
+            return []
+        
+        # Collect fit results and spectrum data for deferred plot generation
+        fit_results = []
+        
+        if parallel and len(spectrum_files) > 1:
+            # Use parallel processing
+            if max_workers is None:
+                import os as os_module
+                max_workers = max(1, os_module.cpu_count() - 1)
+            
+            # Process spectra in parallel
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all fitting tasks
+                future_to_file = {
+                    executor.submit(
+                        self._fit_single_spectrum,
+                        spectrum_file,
+                        saved_lines_file,
+                        saved_lines_df,
+                        config
+                    ): spectrum_file
+                    for spectrum_file in spectrum_files
+                }
+                
+                # Collect results as they complete
+                for future in as_completed(future_to_file):
+                    spectrum_file = future_to_file[future]
+                    try:
+                        result = future.result()
+                        if result:
+                            fit_results.append(result)
+                    except Exception as e:
+                        if progress_callback:
+                            progress_callback(f"Error: {os.path.basename(spectrum_file)}: {e}\n")
+        else:
+            # Sequential processing
+            for spectrum_file in spectrum_files:
+                try:
+                    result = self._fit_single_spectrum(
+                        spectrum_file,
+                        saved_lines_file,
+                        saved_lines_df,
+                        config
+                    )
+                    if result:
+                        fit_results.append(result)
+                except Exception as e:
+                    if progress_callback:
+                        progress_callback(f"Error: {os.path.basename(spectrum_file)}: {e}\n")
+        
+        # Generate plots (can be parallelized or deferred)
         plot_grid_list = []
         
-        if progress_callback:
-            progress_callback(f"Fitting saved lines to {len(spectrum_files)} spectrum files...\n")
-        
-        for spectrum_file in spectrum_files:
+        for result in fit_results:
             try:
-                # Get stellar RV for this spectrum
-                save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
-                stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
-                stellar_rv = float(stellar_rv)
-                
-                # Load the spectrum data
-                spectrum_df = ifh.read_spectral_data(spectrum_file)
-                wavedata = np.array(spectrum_df['wave'].values)
-                wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)  # Apply stellar RV correction
-                fluxdata = np.array(spectrum_df['flux'].values)
-                err_data = np.array(spectrum_df['err'].values)
-                
-                spectrum_name = os.path.basename(spectrum_file)
-                
-                # Fit the saved lines to the loaded spectrum
-                fit_data = self.fit_lines_to_spectrum(
-                    saved_lines_file=saved_lines_file,
-                    spectrum_name=spectrum_name,
-                    wavedata=wavedata,
-                    fluxdata=fluxdata,
-                    err_data=err_data,
-                    progress_callback=None  # Don't spam progress for individual files
+                plot_grid = FitLinesPlotGrid(
+                    fit_data=result['fit_data'],
+                    wave_data=result['wavedata'],
+                    flux_data=result['fluxdata'],
+                    err_data=result['err_data'],
+                    fit_line_uncertainty=config.get('fit_line_uncertainty', 3.0),
+                    spectrum_name=result['spectrum_name']
                 )
-                
-                if fit_data:
-                    # Generate plot grid
-                    plot_grid = FitLinesPlotGrid(
-                        fit_data=fit_data,
-                        wave_data=wavedata,
-                        flux_data=fluxdata,
-                        err_data=err_data,
-                        fit_line_uncertainty=config.get('fit_line_uncertainty', 3.0),
-                        spectrum_name=spectrum_name
-                    )
-                    plot_grid.generate_plot()
-                    plot_grid_list.append(plot_grid)
-                
+                plot_grid.generate_plot()
+                plot_grid_list.append(plot_grid)
+            except Exception as e:
                 if progress_callback:
-                    progress_callback(f"Completed fitting for: {spectrum_name}\n")
-                    
-            except Exception as load_error:
-                if progress_callback:
-                    progress_callback(f"Error loading spectrum {os.path.basename(spectrum_file)}: {load_error}\n")
-                continue
+                    progress_callback(f"Error generating plot for {result['spectrum_name']}: {e}\n")
         
         if progress_callback:
-            progress_callback("Completed fitting saved lines to all selected spectra.\n")
+            progress_callback(f"Completed: {len(fit_results)}/{len(spectrum_files)} spectra fitted.\n")
+        
+        # Clear cache after batch processing
+        self.clear_cache()
         
         return plot_grid_list
+    
+    def _fit_single_spectrum(
+        self,
+        spectrum_file: str,
+        saved_lines_file: str,
+        saved_lines_df: pd.DataFrame,
+        config: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fit saved lines to a single spectrum file.
+        
+        This is a worker method designed for parallel execution.
+        
+        Returns
+        -------
+        dict or None
+            Dictionary containing fit results and spectrum data for plot generation
+        """
+        try:
+            # Get stellar RV for this spectrum
+            save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
+            stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
+            stellar_rv = float(stellar_rv)
+            
+            # Load the spectrum data
+            spectrum_df = ifh.read_spectral_data(spectrum_file)
+            wavedata = spectrum_df['wave'].to_numpy()  # More efficient than np.array(df['col'].values)
+            wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)
+            fluxdata = spectrum_df['flux'].to_numpy()
+            err_data = spectrum_df['err'].to_numpy()
+            
+            spectrum_name = os.path.basename(spectrum_file)
+            
+            # Fit the saved lines to the loaded spectrum
+            fit_data = self.fit_lines_to_spectrum(
+                saved_lines_file=saved_lines_file,
+                spectrum_name=spectrum_name,
+                wavedata=wavedata,
+                fluxdata=fluxdata,
+                err_data=err_data,
+                progress_callback=None
+            )
+            
+            if fit_data:
+                return {
+                    'spectrum_name': spectrum_name,
+                    'fit_data': fit_data,
+                    'wavedata': wavedata,
+                    'fluxdata': fluxdata,
+                    'err_data': err_data
+                }
+            return None
+            
+        except Exception as e:
+            print(f"Error fitting spectrum {spectrum_file}: {e}")
+            return None
     
     def save_plot_grids_to_pdf(
         self,
