@@ -452,7 +452,7 @@ class FullSpectrumPlot:
         # Get reference to main plot (it's GUI.plot, not GUI.main_plot)
         main_plot = self.islat_ref.GUI.plot
         
-        # Switch back to regular mode
+        # Switch back to regular mode if in embedded full spectrum mode
         if hasattr(main_plot, 'is_full_spectrum') and main_plot.is_full_spectrum:
             # Toggle off full spectrum mode
             main_plot.toggle_full_spectrum()
@@ -463,6 +463,9 @@ class FullSpectrumPlot:
                 self.islat_ref.root.after(100, lambda: self._apply_selection_to_main_plot(xmin, xmax))
             else:
                 self._apply_selection_to_main_plot(xmin, xmax)
+        else:
+            # We're in a separate FullSpectrumWindow, just apply selection to main plot
+            self._apply_selection_to_main_plot(xmin, xmax)
     
     def _apply_selection_to_main_plot(self, xmin: float, xmax: float):
         """
@@ -507,9 +510,13 @@ class FullSpectrumPlot:
             span = main_plot.interaction_handler.span_selector
             if span is not None:
                 try:
+                    # Set the span visible and update its extents
+                    span.set_visible(True)
                     span.extents = (xmin, xmax)
-                except Exception:
-                    pass  # Some matplotlib versions may not support setting extents
+                    # Force update the span's visual
+                    span.update()
+                except Exception as e:
+                    print(f"[DEBUG] Could not set span extents: {e}")
         
         # Trigger the line inspection plot
         main_plot.onselect(xmin, xmax)
