@@ -425,13 +425,19 @@ class InteractionHandler:
             # Check if Ctrl or Command modifier is pressed
             # On Windows/Linux: Control is state bit 2 (0x4)
             # On Mac: Command is state bit 3 (0x8)
+            # Shift is state bit 0 (0x1)
             ctrl_pressed = False
+            shift_pressed = bool(event.state & 0x1)
             if platform.system() == "Darwin":
                 ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
             else:
                 ctrl_pressed = bool(event.state & 0x4)
             
-            if ctrl_pressed:
+            if ctrl_pressed and shift_pressed:
+                # Ctrl+Shift+F / Cmd+Shift+F - output full spectrum (save to file)
+                print("[DEBUG] Ctrl+Shift+F pressed, outputting full spectrum")
+                self._output_full_spectrum()
+            elif ctrl_pressed:
                 # Ctrl+F / Cmd+F - open full spectrum window
                 print("[DEBUG] Ctrl+F pressed, opening full spectrum window")
                 self._open_full_spectrum_window()
@@ -526,6 +532,11 @@ class InteractionHandler:
             FullSpectrumWindow(self.islat.GUI.master, self.islat)
         else:
             print("[DEBUG] Could not open FullSpectrumWindow - GUI.master not found")
+    
+    def _output_full_spectrum(self):
+        """Output full spectrum to file (same as menu command)"""
+        from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
+        output_full_spectrum(self.islat)
     
     # Callback management
     def add_selection_callback(self, name: str, callback: Callable):
