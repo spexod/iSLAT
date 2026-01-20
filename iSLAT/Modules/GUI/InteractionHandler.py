@@ -455,6 +455,30 @@ class InteractionHandler:
         elif keysym == 'down':
             self._select_next_molecule()
             return 'break'
+        
+        # Handle Ctrl+S for save parameters
+        elif keysym == 's':
+            ctrl_pressed = False
+            if platform.system() == "Darwin":
+                ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
+            else:
+                ctrl_pressed = bool(event.state & 0x4)
+            
+            if ctrl_pressed:
+                self._save_parameters()
+                return 'break'
+        
+        # Handle Ctrl+L for load parameters
+        elif keysym == 'l':
+            ctrl_pressed = False
+            if platform.system() == "Darwin":
+                ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
+            else:
+                ctrl_pressed = bool(event.state & 0x4)
+            
+            if ctrl_pressed:
+                self._load_parameters()
+                return 'break'
 
     def _select_next_molecule(self):
         """Select the next molecule in the list"""
@@ -537,6 +561,18 @@ class InteractionHandler:
         """Output full spectrum to file (same as menu command)"""
         from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
         output_full_spectrum(self.islat)
+    
+    def _save_parameters(self):
+        """Save parameters (same as menu command)"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'top_bar'):
+            if hasattr(self.islat.GUI.top_bar, 'save_parameters'):
+                self.islat.GUI.top_bar.save_parameters()
+    
+    def _load_parameters(self):
+        """Load parameters (same as menu command)"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'top_bar'):
+            if hasattr(self.islat.GUI.top_bar, 'load_parameters'):
+                self.islat.GUI.top_bar.load_parameters()
     
     # Callback management
     def add_selection_callback(self, name: str, callback: Callable):

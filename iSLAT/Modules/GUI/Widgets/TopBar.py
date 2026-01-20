@@ -89,8 +89,8 @@ class TopBar(ResizableFrame):
         else:
             spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters ▼", 0, 1)
         spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
-        spectrum_menu.add_command(label="Save Parameters", command=self.save_parameters)
-        spectrum_menu.add_command(label="Load Parameters", command=self.load_parameters)
+        spectrum_menu.add_command(label="Save Parameters (Ctrl+S)", command=self.save_parameters)
+        spectrum_menu.add_command(label="Load Parameters (Ctrl+L)", command=self.load_parameters)
         spectrum_menu.add_command(label="Output Full Spectrum (Ctrl+Shift+F)", command=lambda: output_full_spectrum(self.islat))
         spectrum_menu.add_command(label="Display Full Spectrum (Ctrl+F)", command=lambda: FullSpectrumWindow(self.master, self.islat))
         spectrum_drpdwn.config(menu=spectrum_menu)
