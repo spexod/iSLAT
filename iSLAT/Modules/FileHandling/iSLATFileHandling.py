@@ -185,18 +185,25 @@ def read_HITRAN_data(file_path):
         return []
 
 def read_line_saves(file_path=save_folder_path, file_name=line_saves_file_name) -> pd.DataFrame:
-    if not file_path or not file_name:
+    if not file_name:
         return pd.DataFrame()
     
-    print(f"joining {file_path} and {file_name}")
-
-    filename = os.path.join(file_path, file_name)
+    # Check if file_name is already an absolute path
+    if os.path.isabs(file_name):
+        filename = file_name
+    elif file_path:
+        filename = os.path.join(file_path, file_name)
+    else:
+        filename = file_name
+    
     if os.path.exists(filename):
         try:
             return pd.read_csv(filename)
         except Exception as e:
             print(f"Error reading line saves file: {e}")
             return pd.DataFrame()
+    else:
+        print(f"Line saves file not found: {filename}")
     return pd.DataFrame()
 
 def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_file_name, overwritefile=False):
