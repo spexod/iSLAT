@@ -94,9 +94,14 @@ class FileInteractionPane(ttk.Frame):
         )
         
         # Row 1: Input line list
+        # Check if a default line list is already loaded
+        line_list_text = "None"
+        if hasattr(self.islat_class, 'input_line_list') and self.islat_class.input_line_list:
+            line_list_text = os.path.basename(self.islat_class.input_line_list)
+        
         self.input_line_list_label = trim_label(
             self.label_frame, 
-            text="None", 
+            text=line_list_text, 
             anchor="w",
             bg=self.bg
         )
@@ -255,7 +260,13 @@ class FileInteractionPane(ttk.Frame):
         Open file dialog to select input line list file and store in islat_class.
         """
         from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
-        filepath, filename = load_input_line_list(self.islat_class.input_line_list)
+        result = load_input_line_list(self.islat_class.input_line_list)
+        
+        if result is None:
+            # User cancelled the dialog
+            return
+        
+        filepath, filename = result
         self.islat_class.input_line_list = filepath
 
         self.update_label(self.input_line_list_label, filename)

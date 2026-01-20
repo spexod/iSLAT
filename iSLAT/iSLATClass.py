@@ -71,13 +71,32 @@ class iSLAT:
         # === DATA CONTAINERS ===
         self.hitran_data = {}
         #self._hitran_file_cache = {}  # Cache for HITRAN file data to avoid re-reading
-        self.input_line_list: Optional[Union[str, PathLike]] = None
+        self.input_line_list: Optional[Union[str, PathLike]] = self._load_default_line_list()
         self.output_line_measurements = None
         
         # === PERFORMANCE FLAGS ===
         self._use_parallel_processing = False
         
         log_timing("iSLAT.__init__", time.perf_counter() - init_start)
+
+    def _load_default_line_list(self) -> Optional[str]:
+        """
+        Load the default line list from user settings if configured.
+        
+        Returns
+        -------
+        str or None
+            Path to the default line list file, or None if not configured or file doesn't exist.
+        """
+        default_line_list = self.user_settings.get("default_line_list_to_load", None)
+        
+        if default_line_list is not None:
+            if os.path.exists(default_line_list):
+                return default_line_list
+            else:
+                print(f"Warning: Default line list file not found: {default_line_list}")
+        
+        return None
 
     # === MOLECULE MANAGEMENT METHODS ===
     def _set_initial_active_molecule(self):
