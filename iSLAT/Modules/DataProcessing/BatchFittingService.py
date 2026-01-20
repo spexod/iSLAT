@@ -20,6 +20,70 @@ import iSLAT.Constants as c
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 
+def batch_extract_component_parameters(params, prefix='', rest_wavelength=None, sig_det_lim=2):
+        """
+        Extract parameters for a single Gaussian component from fit results.
+        
+        Parameters
+        ----------
+        params : lmfit.Parameters
+            Fitted parameters object
+        prefix : str, optional
+            Parameter prefix (e.g., 'g1_' for multi-component fits, '' for single component)
+        rest_wavelength : float, optional
+            Rest wavelength for Doppler shift calculation
+        sig_det_lim : float, optional
+            Detection significance limit (default: 2)
+            
+        Returns
+        -------
+        dict
+            Dictionary containing extracted component parameters
+        """
+        center = params[f'{prefix}center'].value
+        center_err = params[f'{prefix}center'].stderr if params[f'{prefix}center'].stderr else 0.0
+        amplitude = params[f'{prefix}amplitude'].value
+        amplitude_err = params[f'{prefix}amplitude'].stderr if params[f'{prefix}amplitude'].stderr else 0.0
+        height = params[f'{prefix}height'].value if f'{prefix}height' in params else amplitude
+        height_err = params[f'{prefix}height'].stderr if f'{prefix}height' in params and params[f'{prefix}height'].stderr else amplitude_err
+        sigma = params[f'{prefix}sigma'].value
+        sigma_freq = c.SPEED_OF_LIGHT_MICRONS / (center**2) * sigma
+        sigma_freq_err = c.SPEED_OF_LIGHT_MICRONS / (center**2) * params[f'{prefix}sigma'].stderr if params[f'{prefix}sigma'].stderr else 0.0
+        
+        fwhm = params[f'{prefix}fwhm'].value / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params else 2.355 * sigma
+        fwhm_err = params[f'{prefix}fwhm'].stderr / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params and params[f'{prefix}fwhm'].stderr else 0.0
+        
+        gauss_area = height * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
+        if height_err is not None and height != 0 and sigma_freq != 0:
+            gauss_area_err = np.absolute(gauss_area * np.sqrt(
+                (height_err / height) ** 2 +
+                (sigma_freq_err / sigma_freq) ** 2))  # get area error
+        else:
+            gauss_area_err = np.nan
+        
+        # Calculate fit signal-to-noise and detection for component
+        fit_det = abs(gauss_area) > sig_det_lim * gauss_area_err if not np.isnan(gauss_area_err) else False
+        
+        # Calculate Doppler shift if rest wavelength provided
+        doppler = ((center - rest_wavelength) / rest_wavelength * c.SPEED_OF_LIGHT_KMS) if rest_wavelength else np.nan
+        
+        component_params = {
+            'center': center,
+            'center_stderr': center_err,
+            'amplitude': amplitude,
+            'amplitude_stderr': amplitude_err,
+            'sigma': sigma,
+            'sigma_freq': sigma_freq,
+            'sigma_freq_stderr': sigma_freq_err,
+            'fwhm': fwhm,
+            'fwhm_stderr': fwhm_err,
+            'area': gauss_area,
+            'area_stderr': gauss_area_err,
+            'fit_detected': fit_det,
+            'doppler_shift': doppler
+        }
+        
+        return component_params
 
 def _fit_task_worker(task_data: Dict[str, Any]) -> Tuple[int, int, Dict, Any, Any, Any]:
     """
@@ -97,10 +161,75 @@ def _fit_task_worker(task_data: Dict[str, Any]) -> Tuple[int, int, Dict, Any, An
     result_entry = dict(line_info)
     result_entry['xmin'] = xmin
     result_entry['xmax'] = xmax
-    result_entry['Flux_meas'] = flux_data_integral
-    result_entry['Err_meas'] = err_data_integral
+    result_entry['Flux_data'] = flux_data_integral
+    result_entry['Err_data'] = err_data_integral
     
-    if fit_result is not None and hasattr(fit_result, 'params'):
+    line_sn = np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1)
+    result_entry['Line_SN'] = line_sn
+
+    if np.absolute(flux_data_integral) > sig_det_lim * err_data_integral:
+        line_det = True
+    else:
+        line_det = False
+
+    result_entry['Line_Det'] = line_det
+    result_entry['Flux_islat'] = flux_data_integral # Default to data values
+    result_entry['Err_islat'] = err_data_integral   # Will be overwritten if fit succeeds
+
+    # Process fit results if successful
+    if fit_result and fit_result.success:
+        # Extract fit parameters using the helper method
+        component_params = batch_extract_component_parameters(fit_result.params, '', line_info.get('lam'), sig_det_lim)
+        
+        # Get individual parameters for backward compatibility
+        center = component_params['center']
+        center_err = component_params['center_stderr']
+        gauss_area = component_params['area']
+        gauss_area_err = component_params['area_stderr']
+        fwhm = component_params['fwhm']
+        fwhm_err = component_params['fwhm_stderr']
+        fit_det = component_params['fit_detected']
+        doppler = component_params['doppler_shift']
+
+        fit_sn = gauss_area / gauss_area_err if gauss_area_err > 0 else 0.0
+        
+        # Update result with fit information
+        result_entry.update({
+            'Fit_SN': np.round(fit_sn, decimals=1),
+            'Fit_det': bool(fit_det),
+            'Flux_fit': np.float64(f'{gauss_area:.{3}e}'),
+            'Err_fit': np.float64(f'{gauss_area_err:.{3}e}'),
+            'FWHM_fit': np.round(fwhm, decimals=5) if fit_det else np.nan,
+            'FWHM_err': np.round(fwhm_err, decimals=5) if fit_det else np.nan,
+            'Centr_fit': np.round(center, decimals=5) if fit_det else np.nan,
+            'Centr_err': np.round(center_err, decimals=5) if fit_det else np.nan,
+            'Doppler': np.round(doppler, decimals=1) if fit_det else np.nan,
+            'Red-chisq': np.float64(f'{fit_result.redchi:.{3}e}' if fit_result.redchi is not None else np.nan),
+            'Fit_success': bool(True)
+        })
+        
+        # Update iSLAT flux values if fit is good and detected
+        if fit_det:
+            result_entry['Flux_islat'] = np.float64(f'{gauss_area:.{3}e}')
+            result_entry['Err_islat'] = np.float64(f'{gauss_area_err:.{3}e}')
+    else:
+        # Fit failed - fill with NaN values but keep data measurements
+        result_entry.update({
+            #'Fit_SN': np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1),
+            'Fit_SN': 0.0,
+            'Fit_det': False,
+            'Flux_fit': np.nan, #np.float64(f'{flux_data_integral:.{3}e}'),  # Use data flux for failed fit
+            'Err_fit': np.nan, #np.float64(f'{err_data_integral:.{3}e}'),
+            'FWHM_fit': np.nan,
+            'FWHM_err': np.nan,
+            'Centr_fit': np.nan,
+            'Centr_err': np.nan,
+            'Doppler': np.nan,
+            'Red-chisq': np.nan,
+            'Fit_success': bool(False)
+        })
+
+    '''if fit_result is not None and hasattr(fit_result, 'params'):
         result_entry['Centr_fit'] = fit_result.params.get('center', center_wave)
         result_entry['Flux_fit'] = fit_result.params.get('amplitude', 0.0) * fit_result.params.get('sigma', 1.0) * np.sqrt(2 * np.pi)
         result_entry['FWHM_fit'] = fit_result.params.get('sigma', 0.0) * 2.35482
@@ -109,19 +238,18 @@ def _fit_task_worker(task_data: Dict[str, Any]) -> Tuple[int, int, Dict, Any, An
         result_entry['Centr_fit'] = center_wave
         result_entry['Flux_fit'] = 0.0
         result_entry['FWHM_fit'] = 0.0
-        result_entry['Fit_det'] = False
+        result_entry['Fit_det'] = False'''
     
-    # Determine detection based on SNR
+    '''# Determine detection based on SNR
     if err_data_integral != 0:
         snr = abs(flux_data_integral / err_data_integral)
         result_entry['SNR'] = snr
         result_entry['Det'] = snr >= sig_det_lim
     else:
         result_entry['SNR'] = 0.0
-        result_entry['Det'] = False
-    
-    return (spectrum_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux)
+        result_entry['Det'] = False'''
 
+    return (spectrum_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux)
 
 @dataclass
 class FittingTask:
