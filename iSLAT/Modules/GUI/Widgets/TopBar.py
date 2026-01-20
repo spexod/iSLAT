@@ -279,8 +279,22 @@ class TopBar(ResizableFrame):
                                  If False, fits saved lines to the currently loaded spectrum.
         """
         if not self.islat.input_line_list:
-            self.data_field.insert_text("No input line list file configured.\n")
-            return
+            # Prompt user to load a line list first
+            self.data_field.insert_text("No line list loaded. Please select a line list file.\n")
+            from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
+            result = load_input_line_list()
+            
+            if result is None:
+                self.data_field.insert_text("No line list selected. Operation cancelled.\n")
+                return
+            
+            file_path, file_name = result
+            self.islat.input_line_list = file_path
+            self.data_field.insert_text(f"Loaded line list: {file_name}\n")
+            
+            # Update the FileInteractionPane label if available
+            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_pane'):
+                self.islat.GUI.file_pane.update_file_labels()
         
         if not self.islat.output_line_measurements:
             self.data_field.insert_text("No output line measurements file configured. Using default\n")
