@@ -239,7 +239,8 @@ class LineAnalyzer:
             except (ValueError, TypeError, ZeroDivisionError):
                 entry['RD_y'] = np.nan
 
-    def flux_integral(self, lam, flux, err, lam_min, lam_max):
+    @staticmethod
+    def flux_integral(lam, flux, err, lam_min, lam_max) -> Tuple[float, float]:
         wavelength_mask = (lam >= lam_min) & (lam <= lam_max)
 
         if not np.any (wavelength_mask):
