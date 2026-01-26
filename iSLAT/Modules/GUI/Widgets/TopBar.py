@@ -464,6 +464,8 @@ class TopBar(ResizableFrame):
                 output_folder=output_folder,
                 data_field=self.data_field,
                 input_file=self.islat.input_line_list,
+                flux_col_name=self.islat.user_settings.get("flux_col_name", "Flux_islat"),
+                error_col_name=self.islat.user_settings.get("error_col_name", "Err_data")
             )
                 
         except Exception as e:

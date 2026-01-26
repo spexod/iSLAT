@@ -23,5 +23,7 @@
     "default_line_list_to_load": null,
     "save_fit_plot_grid_directly_to_PDF": true,
     "update_save_file_names_in_save_csv": true,
+    "flux_col_name": "Flux_islat",
+    "error_col_name": "Err_data",
     "theme": "LightTheme"
 }

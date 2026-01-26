@@ -69,6 +69,8 @@ class SlabModel:
             - intrinsic_line_width: Intrinsic line broadening (km/s)
             - input_filename: Name of the input file in output_folder
             - input_file: Full path to the input file (optional, defaults to 'fit_data.csv')
+            - flux_col_name: Column name for flux measurements
+            - error_col_name: Column name for measurement errors
         """
         self.data_field = data_field
 
@@ -110,7 +112,9 @@ class SlabModel:
         
         # Load data if file exists
         if os.path.exists(self.input_file):
-            self.chi2_evaluator.load_file(self.input_file)
+            self.chi2_evaluator.load_file(self.input_file, 
+                                          flux_col_name=self._get_parameter('flux_col_name', 'Flux_islat'),
+                                          error_col_name=self._get_parameter('error_col_name', 'Err_data'))
         else:
             if self.data_field:
                 self.data_field.insert_text(f"Warning: Input file '{self.input_file}' not found. Chi-squared evaluation may fail.", clear_after=False)
@@ -148,7 +152,9 @@ class SlabModel:
             'model_line_width': self._get_parameter('model_line_width', 
                                                   getattr(self.mol_object, 'model_line_width', c.MODEL_LINE_WIDTH)),
             'intrinsic_line_width': self._get_parameter('intrinsic_line_width', 
-                                                      getattr(self.mol_object, 'broad', c.INTRINSIC_LINE_WIDTH))
+                                                      getattr(self.mol_object, 'broad', c.INTRINSIC_LINE_WIDTH)),
+            'flux_col_name': self._get_parameter('flux_col_name', 'Flux_islat'),
+            'error_col_name': self._get_parameter('error_col_name', 'Err_data'),
         }
         
         self._config_cache['fitting_params'] = params
