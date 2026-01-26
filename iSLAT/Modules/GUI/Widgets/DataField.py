@@ -37,7 +37,6 @@ class DataField(ttk.Frame):
             
             if self.clear_before_next:
                 self.clear()
-
                 
             # if clear_after:
             #     self.clear()

@@ -440,11 +440,24 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Error finding single lines: {e}\n")
 
     def single_slab_fit(self):
-        """Run single slab fit analysis."""
-        self.data_field.insert_text("Running single slab fit analysis...\n")
-        
+        """Run single slab fit analysis."""        
+        if self.islat.input_line_list is None:
+            self.data_field.insert_text("No input line list specified. Cannot perform slab fit.\n", clear_after=True)
+            return
+
+        self.data_field.insert_text("Running single slab fit analysis...\n", clear_after=False)
+
         try:
-            output_folder = os.path.dirname(self.islat.output_line_measurements)
+            try:
+                if not self.islat.output_line_measurements:
+                    self.data_field.insert_text(f"No output line measurements file specified.\nUsing default folder: {line_saves_file_path}.", clear_after=False)
+                    output_folder = line_saves_file_path
+                else:
+                    output_folder = os.path.dirname(self.islat.output_line_measurements)
+            except Exception as e:
+                self.data_field.insert_text(f"Error determining output folder: {e}", clear_after=False)
+                self.data_field.insert_text(f"Using default folder: {line_saves_file_path}", clear_after=False)
+                output_folder = line_saves_file_path
             # Use the SlabModel class to perform the fit
             slab_model = SlabModel(
                 mol_object=self.islat.active_molecule,
