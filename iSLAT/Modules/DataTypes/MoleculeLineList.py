@@ -3,7 +3,10 @@ import time
 import os
 import hashlib
 from collections import namedtuple
-from typing import Optional, List, Any, NamedTuple
+from typing import Optional, List, Any, NamedTuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas
 
 # Performance logging
 from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
@@ -431,7 +434,7 @@ class MoleculeLineList:
         self._g_low_cache = None
         self._pandas_df_cache = None  # Invalidate DataFrame cache too
 
-    def get_ndarray(self):
+    def get_ndarray(self) -> np.ndarray:
         """
         Convert the line data to a numpy ndarray.
 
@@ -446,7 +449,7 @@ class MoleculeLineList:
             return np.array([])
         return np.array([line.get_ndarray() for line in self.lines])
     
-    def get_pandas_table(self):
+    def get_pandas_table(self) -> "pandas.DataFrame":
         """
         Get all lines as a pandas DataFrame.
         

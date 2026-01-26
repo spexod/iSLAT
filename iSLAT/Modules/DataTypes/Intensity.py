@@ -50,7 +50,7 @@ def _get_pandas():
     return pd
 
 if TYPE_CHECKING:
-    import pandas as pd
+    import pandas
     from .MoleculeLineList import MoleculeLineList
 else:
     # Lazy import for runtime
@@ -791,7 +791,7 @@ class Intensity:
                f"tau={self.tau}, intensity={self.intensity})"
 
     @property
-    def get_table(self) -> Any:
+    def get_table(self) -> "pandas.DataFrame":
         """pd.DataFrame: Pandas dataframe with line data"""
         pd = _get_pandas()
         if pd is None:
