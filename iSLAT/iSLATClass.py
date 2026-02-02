@@ -478,6 +478,13 @@ class iSLAT:
         if not os.path.exists(save_file):
             print(f"No save file found at: {save_file}")
             print("Loading default molecule parameters instead.")
+            # Notify GUI if available
+            if hasattr(self, 'GUI') and self.GUI is not None:
+                if hasattr(self.GUI, 'data_field') and self.GUI.data_field is not None:
+                    self.GUI.data_field.insert_text(
+                        f"No save file found at: {save_file}\nLoading default molecule parameters instead.",
+                        clear_after=False
+                    )
             self._initialize_molecules_for_spectrum()
             return
         
