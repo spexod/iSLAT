@@ -556,6 +556,7 @@ class PlotRenderer:
         if handles:
             self.ax2.legend()
         # Don't call canvas.draw_idle() here - let caller batch it
+        self.canvas.draw_idle()
     
     def _should_clear_old_fits(self) -> bool:
         """Check if old fit results should be cleared when making new selections."""
