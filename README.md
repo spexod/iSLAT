@@ -1,7 +1,7 @@
 # iSLAT
 [![DOI](https://zenodo.org/badge/731677457.svg)](https://zenodo.org/doi/10.5281/zenodo.12167853)\
 **Current version: v4.06.02**\
-**Upcoming new version:** iSLAT is currently being updated and a new version is planned for release by the end of 2025; the new version is significantly faster and includes additional functionality. If you wish to test the beta version, go to the version5-beta branch.
+**Upcoming new version:** iSLAT is currently being updated and a new version is planned for release in early 2026; the new version is significantly faster and includes additional functionality. If you wish to test the new beta version, go to the version5-beta branch.
 
 *If you are running a previous version, make sure to update to the latest one (see below for instructions)!*
 
