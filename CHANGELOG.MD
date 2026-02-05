@@ -1,6 +1,6 @@
 # Changelog
 
-## v5.02.00 - January 22, 2026
+## v5.02.00 - February 05, 2026
 
 ### New Features
 
@@ -66,8 +66,9 @@
 - Changed usage of `np.trapz` to `np.trapezoid` for numerical integration (numpy deprecation fix)
 - Removed debug print statements from InteractionHandler and other modules
 - Cleaned up leftover code
-- Removed whitespace
 - Updated gitignore to ignore files in the example data folder that are not the provided data files
+- Updated the requirements file to specify the minimum version for several packages
+- Added a version field to the user settings file, planning to implement version checking and add the file to the gitignore
 
 ---
 
