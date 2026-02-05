@@ -85,9 +85,9 @@ class TopBar(ResizableFrame):
         molecule_drpdwn.config(menu=molecule_menu)
 
         if os_name == "Darwin":
-            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters", 0, 1)
+            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters", 0, 1)
         else:
-            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters ▼", 0, 1)
+            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters ▼", 0, 1)
         spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
         spectrum_menu.add_command(label="Save Parameters (Ctrl+S)", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters (Ctrl+L)", command=self.load_parameters)
