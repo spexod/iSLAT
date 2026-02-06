@@ -1,6 +1,7 @@
 #import traceback
 import tkinter as tk
 from tkinter import ttk, colorchooser
+import numpy as np
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
 from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorButton
@@ -256,6 +257,18 @@ class ControlPanel(ttk.Frame):
             if entry and var:
                 self._global_parameter_entries[field_config['property']] = (entry, var)
             
+            # Add "Match Spectrum" button next to model_pixel_res field
+            if field_key == 'model_pixel_res':
+                match_btn = ttk.Button(
+                    parent, 
+                    text="Match", 
+                    width=5,
+                    command=self._match_spectrum_pixel_res
+                )
+                match_btn.grid(row=row, column=col + 2, padx=1, sticky="w")
+                match_tip = "Set model pixel resolution\nto match the currently\nloaded spectrum"
+                CreateToolTip(match_btn, match_tip)
+            
             col_offset += 1
 
     def _build_color_and_vis_controls(self, parent):
@@ -384,6 +397,33 @@ class ControlPanel(ttk.Frame):
             current_value = getattr(self.islat.molecules_dict, property_name, 0.0)
         
         return self._create_simple_entry(parent, label_text, current_value, row, col, update_global_parameter, width, param_name=property_name, tip_text=tip_text)
+
+    def _match_spectrum_pixel_res(self):
+        """Set model pixel resolution to match the currently loaded spectrum."""
+        if not hasattr(self.islat, 'wave_data') or self.islat.wave_data is None:
+            self.data_field.insert_text("No spectrum loaded to match pixel resolution.")
+            return
+        
+        if len(self.islat.wave_data) < 3:
+            self.data_field.insert_text("Spectrum has too few data points.")
+            return
+        
+        # Calculate median pixel resolution from the spectrum (same logic as iSLATClass)
+        spectrum_pixel_res = np.median(self.islat.wave_data[1:-1] - self.islat.wave_data[0:-2])
+        
+        # Set the global model pixel resolution
+        if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
+            self.islat.molecules_dict.global_model_pixel_res = spectrum_pixel_res
+            
+            # Update the entry field display with proper formatting and reset styling
+            if hasattr(self, '_global_parameter_entries') and 'global_model_pixel_res' in self._global_parameter_entries:
+                entry, var = self._global_parameter_entries['global_model_pixel_res']
+                formatted_value = self._format_value(spectrum_pixel_res, 'global_model_pixel_res')
+                var.set(formatted_value)
+                # Reset entry styling to normal (not gray/italic)
+                entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+            
+            self.data_field.insert_text(f"Model pixel res. set to spectrum value: {spectrum_pixel_res:.4g} µm")
 
     def _create_molecule_specific_controls(self, parent, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""
@@ -912,9 +952,13 @@ class ControlPanel(ttk.Frame):
         for property_name, (entry, var) in self._global_parameter_entries.items():
             try:
                 new_value = getattr(self.islat.molecules_dict, property_name, 0.0)
+                # Format the value properly using the field configuration
+                formatted_value = self._format_value(new_value, property_name)
                 current_value = var.get()
-                if str(current_value) != str(new_value):
-                    self._set_var(var, str(new_value))
+                if str(current_value) != str(formatted_value):
+                    self._set_var(var, formatted_value)
+                    # Reset entry styling to normal (not gray/italic)
+                    entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
             except (AttributeError, TypeError):
                 pass
 
