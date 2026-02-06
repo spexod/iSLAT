@@ -457,7 +457,7 @@ class InteractionHandler:
             self._select_next_molecule()
             return 'break'
         
-        # Handle Ctrl+S for save parameters
+        # Handle Ctrl+S for save parameters, plain 's' for toggle saved lines
         elif keysym == 's':
             ctrl_pressed = False
             if platform.system() == "Darwin":
@@ -467,9 +467,11 @@ class InteractionHandler:
             
             if ctrl_pressed:
                 self._save_parameters()
-                return 'break'
+            else:
+                self._toggle_saved_lines()
+            return 'break'
         
-        # Handle Ctrl+L for load parameters
+        # Handle Ctrl+L for load parameters, plain 'l' for toggle legend
         elif keysym == 'l':
             ctrl_pressed = False
             if platform.system() == "Darwin":
@@ -479,7 +481,14 @@ class InteractionHandler:
             
             if ctrl_pressed:
                 self._load_parameters()
-                return 'break'
+            else:
+                self._toggle_legend()
+            return 'break'
+        
+        # Handle 'a' key for toggling atomic lines
+        elif keysym == 'a':
+            self._toggle_atomic_lines()
+            return 'break'
         
         # Handle 'm' key for toggling summed spectrum
         elif keysym == 'm':
@@ -559,6 +568,23 @@ class InteractionHandler:
         """Toggle summed spectrum visibility on the main plot"""
         if hasattr(self.plot_manager, 'toggle_summed_spectrum'):
             self.plot_manager.toggle_summed_spectrum()
+    
+    def _toggle_atomic_lines(self):
+        """Toggle atomic lines visibility"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'top_bar'):
+            if hasattr(self.islat.GUI.top_bar, 'toggle_atomic_lines'):
+                self.islat.GUI.top_bar.toggle_atomic_lines()
+    
+    def _toggle_saved_lines(self):
+        """Toggle saved lines visibility"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'top_bar'):
+            if hasattr(self.islat.GUI.top_bar, 'toggle_saved_lines'):
+                self.islat.GUI.top_bar.toggle_saved_lines()
+    
+    def _toggle_legend(self):
+        """Toggle legend visibility on the main plot"""
+        if hasattr(self.plot_manager, 'toggle_legend'):
+            self.plot_manager.toggle_legend()
     
     def _open_full_spectrum_window(self):
         """Open a separate full spectrum window"""

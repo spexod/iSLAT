@@ -110,8 +110,8 @@ class TopBar(ResizableFrame):
         
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
-        saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
-        atomic_lines_tip = "Show atomic lines\nusing seperation threshold\nset in the 'Line Separ."
+        saved_lines_tip = "Show saved lines\nfrom the 'Input Line List'\nKeybind: S"
+        atomic_lines_tip = "Show atomic lines\nusing separation threshold\nset in the 'Line Separ.\nKeybind: A"
         #export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off\nKeybind: L"
         toggle_full_spectrum_tip = "Toggle full spectrum view on/off\nKeybind: F\n\nOpen in new window: Ctrl+F"
