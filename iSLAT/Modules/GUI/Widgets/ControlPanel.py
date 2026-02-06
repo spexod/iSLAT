@@ -449,6 +449,11 @@ class ControlPanel(ttk.Frame):
         self.plot.plot_renderer.remove_molecule_lines(mol_name)
         del self.islat.molecules_dict[mol_name]
 
+        # Update summed spectrum to reflect molecule removal
+        self.plot.plot_renderer._update_summed_spectrum_with_molecules(
+            self.islat.molecules_dict, self.islat.wave_data
+        )
+
         self.plot.canvas.draw_idle()
 
     def _create_molecule_parameter_entry(self, parent, label_text, param_name, row, col, width=7, tip_text = None):

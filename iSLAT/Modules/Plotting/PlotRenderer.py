@@ -129,6 +129,12 @@ class PlotRenderer:
         molecule.color = self._get_theme_value('default_molecule_color', 'blue')
         return self._get_theme_value('default_molecule_color', 'blue')
     
+    def set_summed_spectrum_visibility(self, visible: bool) -> None:
+        """Toggle visibility of the summed spectrum (gray fill)."""
+        for collection in self.ax1.collections[:]:
+            if hasattr(collection, '_islat_summed'):
+                collection.set_visible(visible)
+    
     def clear_all_plots(self) -> None:
         """Clear all plots and reset stats"""
         self.ax1.clear()

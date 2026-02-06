@@ -115,10 +115,12 @@ class TopBar(ResizableFrame):
         #export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off\nKeybind: L"
         toggle_full_spectrum_tip = "Toggle full spectrum view on/off\nKeybind: F\n\nOpen in new window: Ctrl+F"
+        toggle_summed_tip = "Toggle summed model flux on/off\n(gray fill in plot)"
         create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.toggle_saved_lines, 0, 3, tip_text=saved_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Full Spectrum", self.toggle_full_spectrum, 0, 5, tip_text=toggle_full_spectrum_tip)
-        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6, tip_text=toggle_legend_tip)
+        create_button(self.button_frame, self.theme, "Toggle Summed Flux", self.toggle_summed_spectrum, 0, 6, tip_text=toggle_summed_tip)
+        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 7, tip_text=toggle_legend_tip)
 
     def save_line(self, save_type="selected"):
         """Save the currently selected line to the line saves file."""
@@ -538,6 +540,16 @@ class TopBar(ResizableFrame):
 
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
+            traceback.print_exc()
+
+    def toggle_summed_spectrum(self):
+        """
+        Toggle the display of the summed spectral flux on the plot.
+        """
+        try:
+            self.main_plot.toggle_summed_spectrum()
+        except Exception as e:
+            self.data_field.insert_text(f"Error toggling summed spectrum: {e}\n")
             traceback.print_exc()
 
     def toggle_full_spectrum(self):

@@ -66,6 +66,7 @@ class iSLATPlot:
         self.atomic_lines = []
         self.saved_lines = []
         self.atomic_toggle: bool = False
+        self.summed_toggle: bool = True  # Summed spectrum visible by default
 
         #self.fig = plt.Figure(figsize=(15, 8.5))
         self.fig = plt.Figure(constrained_layout=True)
@@ -341,6 +342,10 @@ class iSLATPlot:
             summed_flux=summed_flux,
             error_data=getattr(self.islat, 'err_data', None)
         )
+
+        # Respect summed_toggle state after rendering
+        if not self.summed_toggle:
+            self.plot_renderer.set_summed_spectrum_visibility(False)
 
         if self.islat.GUI.top_bar.atomic_toggle:
             self.plot_atomic_lines()
@@ -1022,6 +1027,12 @@ class iSLATPlot:
             )
         self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
         self.full_spectrum_plot_canvas.draw_idle()
+
+    def toggle_summed_spectrum(self):
+        """Toggle visibility of the summed spectral flux."""
+        self.summed_toggle = not self.summed_toggle
+        self.plot_renderer.set_summed_spectrum_visibility(self.summed_toggle)
+        self.canvas.draw_idle()
 
     def toggle_full_spectrum(self):
         """Toggle between the regular three plots and a full spectrum view."""
