@@ -1031,8 +1031,20 @@ class iSLATPlot:
     def toggle_summed_spectrum(self):
         """Toggle visibility of the summed spectral flux."""
         self.summed_toggle = not self.summed_toggle
-        self.plot_renderer.set_summed_spectrum_visibility(self.summed_toggle)
-        self.canvas.draw_idle()
+        
+        # Handle full spectrum mode
+        if hasattr(self, 'is_full_spectrum') and self.is_full_spectrum:
+            if hasattr(self, 'full_spectrum_plot') and hasattr(self, 'full_spectrum_plot_canvas'):
+                # Toggle summed spectrum in all subplots of full spectrum view
+                for ax in self.full_spectrum_plot.subplots.values():
+                    for collection in ax.collections[:]:
+                        if hasattr(collection, '_islat_summed'):
+                            collection.set_visible(self.summed_toggle)
+                self.full_spectrum_plot_canvas.draw_idle()
+        else:
+            # Normal mode
+            self.plot_renderer.set_summed_spectrum_visibility(self.summed_toggle)
+            self.canvas.draw_idle()
 
     def toggle_full_spectrum(self):
         """Toggle between the regular three plots and a full spectrum view."""

@@ -115,7 +115,7 @@ class TopBar(ResizableFrame):
         #export_model_tip = "Export current\nmodels into csv files"
         toggle_legend_tip = "Turn legend on/off\nKeybind: L"
         toggle_full_spectrum_tip = "Toggle full spectrum view on/off\nKeybind: F\n\nOpen in new window: Ctrl+F"
-        toggle_summed_tip = "Toggle summed model flux on/off\n(gray fill in plot)"
+        toggle_summed_tip = "Toggle summed model flux on/off\n(gray fill in plot)\nKeybind: M"
         create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.toggle_saved_lines, 0, 3, tip_text=saved_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Full Spectrum", self.toggle_full_spectrum, 0, 5, tip_text=toggle_full_spectrum_tip)

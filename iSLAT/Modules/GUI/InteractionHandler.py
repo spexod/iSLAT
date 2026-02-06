@@ -480,6 +480,11 @@ class InteractionHandler:
             if ctrl_pressed:
                 self._load_parameters()
                 return 'break'
+        
+        # Handle 'm' key for toggling summed spectrum
+        elif keysym == 'm':
+            self._toggle_summed_spectrum()
+            return 'break'
 
     def _select_next_molecule(self):
         """Select the next molecule in the list"""
@@ -549,6 +554,11 @@ class InteractionHandler:
         """Toggle full spectrum mode on the main plot"""
         if hasattr(self.plot_manager, 'toggle_full_spectrum'):
             self.plot_manager.toggle_full_spectrum()
+    
+    def _toggle_summed_spectrum(self):
+        """Toggle summed spectrum visibility on the main plot"""
+        if hasattr(self.plot_manager, 'toggle_summed_spectrum'):
+            self.plot_manager.toggle_summed_spectrum()
     
     def _open_full_spectrum_window(self):
         """Open a separate full spectrum window"""
