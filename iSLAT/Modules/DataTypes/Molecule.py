@@ -2,7 +2,6 @@ from typing import Optional, Dict, Any, Tuple, Union, Callable
 import numpy as np
 import warnings
 import time
-from collections import defaultdict
 import threading
 
 # Performance logging
