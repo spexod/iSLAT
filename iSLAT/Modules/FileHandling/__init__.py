@@ -1,8 +1,15 @@
 from pathlib import Path
 import os
 
+# Get the absolute path to the iSLAT package directory
+# This ensures paths are correct regardless of where the code is called from
+_ISLAT_PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent  # Go up from FileHandling -> Modules -> iSLAT
+_ABSOLUTE_DATA_FILES_PATH = _ISLAT_PACKAGE_DIR / "DATAFILES"
+
+# Relative path for backward compatibility with any code expecting relative paths
 data_files_path = Path("DATAFILES")
-absolute_data_files_path = os.path.abspath(data_files_path)
+# Absolute path based on package location - use this for reliable file access
+absolute_data_files_path = str(_ABSOLUTE_DATA_FILES_PATH)
 
 save_folder_path = data_files_path / "SAVES"
 user_configuration_file_path = config_file_path = data_files_path / "CONFIG"
@@ -10,7 +17,8 @@ theme_file_path = data_files_path / "CONFIG" / "GUIThemes"
 user_configuration_file_name = "UserSettings.json"
 
 hitran_data_folder_name = Path("HITRANdata")
-hitran_data_folder_path = os.path.join(data_files_path, hitran_data_folder_name)
+# Use absolute path for HITRAN data to ensure cache works from anywhere
+hitran_data_folder_path = str(_ABSOLUTE_DATA_FILES_PATH / "HITRANdata")
 hitran_cache_folder_path = os.path.join(hitran_data_folder_path, "cache")
 
 example_data_folder_path = data_files_path / "EXAMPLE-data"
