@@ -49,6 +49,9 @@ class MoleculeDict(dict):
         for param, value in self._global_parms.items():
             setattr(self, f'_global_{param}', value)
         
+        # Flag to enable matched spectral sampling (interpolate model to data wavelengths)
+        self._match_spectral_sampling = False
+        
         self._global_parameter_change_callbacks: List[Callable] = []
         
         from .Molecule import Molecule
@@ -102,14 +105,16 @@ class MoleculeDict(dict):
         Parameters
         ----------
         wave_data : np.ndarray
-            Input wavelength array (used for caching, not for interpolation)
+            Input wavelength array. When _match_spectral_sampling is True, the model
+            flux will be interpolated to match this wavelength grid pixel-by-pixel.
         visible_only : bool, default True
             Whether to include only visible molecules
             
         Returns
         -------
         Tuple[np.ndarray, np.ndarray]
-            Combined wavelengths and summed flux arrays
+            Combined wavelengths and summed flux arrays. When _match_spectral_sampling
+            is enabled, wavelengths will match wave_data exactly.
         """
         if wave_data is None:
             return np.array([]), np.array([])
@@ -118,8 +123,10 @@ class MoleculeDict(dict):
         if not molecules:
             return np.array([]), np.array([])
         
-        # Generate cache key and get current parameter hash
+        # Include match_spectral_sampling flag in cache key for proper invalidation
         cache_key = self._get_flux_cache_key(wave_data, molecules)
+        if self._match_spectral_sampling:
+            cache_key = hash((cache_key, 'matched_sampling', wave_data.tobytes() if hasattr(wave_data, 'tobytes') else str(wave_data)))
         current_param_hash = self._compute_molecules_parameter_hash(molecules)
         
         # Check cache validity
@@ -132,9 +139,18 @@ class MoleculeDict(dict):
                 # Return copies to prevent accidental modification
                 return cached_wavelengths.copy(), cached_flux.copy()
         
-        # All molecules should return identical wavelength grids, so we can directly sum fluxes
-        combined_wavelengths = None
-        combined_flux = None
+        # When match_spectral_sampling is enabled, interpolate each molecule's flux
+        # to the input wave_data grid before summing
+        use_interpolation = self._match_spectral_sampling
+        
+        # Initialize output arrays
+        if use_interpolation:
+            # Use input wavelength grid
+            combined_wavelengths = wave_data.copy()
+            combined_flux = np.zeros_like(wave_data, dtype=np.float64)
+        else:
+            combined_wavelengths = None
+            combined_flux = None
         
         for mol_name in molecules:
             if mol_name not in self:
@@ -145,25 +161,37 @@ class MoleculeDict(dict):
             molecule._wavelength_range = self._global_wavelength_range
             
             try:
-                mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
+                if use_interpolation:
+                    # Get flux interpolated to input wavelength array
+                    mol_wavelengths, mol_flux = molecule.get_flux(
+                        wavelength_array=wave_data,
+                        return_wavelengths=True, 
+                        interpolate_to_input=True
+                    )
+                else:
+                    # Get flux on native model grid
+                    mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
                 
                 if mol_wavelengths is not None and mol_flux is not None and len(mol_wavelengths) > 0:
                     # Ensure finite values
                     if not np.all(np.isfinite(mol_flux)):
                         mol_flux = np.nan_to_num(mol_flux, nan=0.0, posinf=0.0, neginf=0.0)
                     
-                    if combined_wavelengths is None:
-                        # First molecule - use its grid as the reference
-                        combined_wavelengths = mol_wavelengths.copy()
-                        combined_flux = mol_flux.copy()
-                    else:
-                        # All subsequent molecules should have identical grids - directly sum
-                        # Assert that grids are identical (this should never fail with our fixes)
-                        if len(mol_wavelengths) != len(combined_wavelengths):
-                            raise ValueError(f"Grid size mismatch for {mol_name}: {len(mol_wavelengths)} vs {len(combined_wavelengths)}. This should not happen with consistent spectrum calculation.")
-                        
-                        # Direct summation
+                    if use_interpolation:
+                        # Direct summation on matched grid
                         combined_flux += mol_flux
+                    else:
+                        if combined_wavelengths is None:
+                            # First molecule - use its grid as the reference
+                            combined_wavelengths = mol_wavelengths.copy()
+                            combined_flux = mol_flux.copy()
+                        else:
+                            # All subsequent molecules should have identical grids - directly sum
+                            if len(mol_wavelengths) != len(combined_wavelengths):
+                                raise ValueError(f"Grid size mismatch for {mol_name}: {len(mol_wavelengths)} vs {len(combined_wavelengths)}. This should not happen with consistent spectrum calculation.")
+                            
+                            # Direct summation
+                            combined_flux += mol_flux
                             
             except Exception as e:
                 print(f"Warning: Failed to get flux for molecule {mol_name}: {e}")
@@ -365,7 +393,8 @@ class MoleculeDict(dict):
         Parameters
         ----------
         wave_data : np.ndarray
-            Input wavelength array (used for caching, not for interpolation)
+            Input wavelength array. When _match_spectral_sampling is True, the model
+            flux will be interpolated to match this wavelength grid pixel-by-pixel.
         visible_only : bool, default True
             Whether to include only visible molecules
         max_workers : int, optional
@@ -374,7 +403,8 @@ class MoleculeDict(dict):
         Returns
         -------
         Tuple[np.ndarray, np.ndarray]
-            Combined wavelengths and summed flux arrays
+            Combined wavelengths and summed flux arrays. When _match_spectral_sampling
+            is enabled, wavelengths will match wave_data exactly.
         """
         section = PerformanceSection("MoleculeDict.get_summed_flux_parallel")
         section.start()
@@ -388,8 +418,10 @@ class MoleculeDict(dict):
             section.end()
             return np.array([]), np.array([])
         
-        # Check cache first
+        # Check cache first - include match_spectral_sampling flag in cache key
         cache_key = self._get_flux_cache_key(wave_data, molecules)
+        if self._match_spectral_sampling:
+            cache_key = hash((cache_key, 'matched_sampling', wave_data.tobytes() if hasattr(wave_data, 'tobytes') else str(wave_data)))
         current_param_hash = self._compute_molecules_parameter_hash(molecules)
         
         if cache_key in self._summed_flux_cache:
@@ -407,6 +439,9 @@ class MoleculeDict(dict):
         
         section.mark("sum_fluxes")
         
+        # Check if we need to interpolate to input wavelengths
+        use_interpolation = self._match_spectral_sampling
+        
         # Parallelize get_flux calls since spectrum convolution is CPU-intensive
         # NumPy releases the GIL, so threads provide real parallelism here
         def get_molecule_flux(mol_name: str) -> Tuple[str, Optional[np.ndarray], Optional[np.ndarray], float]:
@@ -421,7 +456,15 @@ class MoleculeDict(dict):
             molecule._wavelength_range = self._global_wavelength_range
             
             try:
-                mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
+                if use_interpolation:
+                    # Get flux interpolated to input wavelength array
+                    mol_wavelengths, mol_flux = molecule.get_flux(
+                        wavelength_array=wave_data,
+                        return_wavelengths=True, 
+                        interpolate_to_input=True
+                    )
+                else:
+                    mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
                 _elapsed = _time.perf_counter() - _start
                 return (mol_name, mol_wavelengths, mol_flux, _elapsed)
             except Exception as e:
@@ -454,8 +497,13 @@ class MoleculeDict(dict):
         #print(f"[SUM] Total get_flux time: {total_flux_time:.2f}s (parallel)")
         
         # Now combine the results (fast array operations)
-        combined_wavelengths = None
-        combined_flux = None
+        if use_interpolation:
+            # Use input wavelength grid
+            combined_wavelengths = wave_data.copy()
+            combined_flux = np.zeros_like(wave_data, dtype=np.float64)
+        else:
+            combined_wavelengths = None
+            combined_flux = None
         
         for mol_name in molecules:
             if mol_name not in flux_results:
@@ -467,13 +515,17 @@ class MoleculeDict(dict):
                 if not np.all(np.isfinite(mol_flux)):
                     mol_flux = np.nan_to_num(mol_flux, nan=0.0, posinf=0.0, neginf=0.0)
                 
-                if combined_wavelengths is None:
-                    combined_wavelengths = mol_wavelengths.copy()
-                    combined_flux = mol_flux.copy()
-                else:
-                    if len(mol_wavelengths) != len(combined_wavelengths):
-                        raise ValueError(f"Grid size mismatch for {mol_name}")
+                if use_interpolation:
+                    # Direct summation on matched grid
                     combined_flux += mol_flux
+                else:
+                    if combined_wavelengths is None:
+                        combined_wavelengths = mol_wavelengths.copy()
+                        combined_flux = mol_flux.copy()
+                    else:
+                        if len(mol_wavelengths) != len(combined_wavelengths):
+                            raise ValueError(f"Grid size mismatch for {mol_name}")
+                        combined_flux += mol_flux
         
         if combined_wavelengths is None:
             section.end()
@@ -1199,3 +1251,17 @@ class MoleculeDict(dict):
         self._global_intensity_calculation_method = value
         self.bulk_update_parameters({'intensity_calculation_method': value})
         self._notify_global_parameter_change('intensity_calculation_method', old_value, value)
+
+    @property
+    def match_spectral_sampling(self) -> bool:
+        """Whether to interpolate model flux to match data wavelengths pixel-by-pixel."""
+        return self._match_spectral_sampling
+    
+    @match_spectral_sampling.setter
+    def match_spectral_sampling(self, value: bool) -> None:
+        old_value = self._match_spectral_sampling
+        self._match_spectral_sampling = bool(value)
+        if old_value != value:
+            # Clear summed flux cache when this changes
+            self._summed_flux_cache.clear()
+            self._notify_global_parameter_change('match_spectral_sampling', old_value, value)

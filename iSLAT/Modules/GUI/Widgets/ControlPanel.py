@@ -257,17 +257,21 @@ class ControlPanel(ttk.Frame):
             if entry and var:
                 self._global_parameter_entries[field_config['property']] = (entry, var)
             
-            # Add "Match Spectrum" button next to model_pixel_res field
+            # Add "Match Spectral Sampling" button next to model_pixel_res field
             if field_key == 'model_pixel_res':
-                match_btn = ttk.Button(
+                self._match_sampling_btn = ttk.Button(
                     parent, 
-                    text="Match", 
-                    width=5,
-                    command=self._match_spectrum_pixel_res
+                    text="Match Pix. Sampling", 
+                    command=self._toggle_match_spectral_sampling
                 )
-                match_btn.grid(row=row, column=col + 2, padx=1, sticky="w")
-                match_tip = "Set model pixel resolution\nto match the currently\nloaded spectrum"
-                CreateToolTip(match_btn, match_tip)
+                self._match_sampling_btn.grid(row=row, column=col + 2, padx=1, sticky="w")
+                match_tip = ("Toggle matched spectral sampling.\n"
+                             "When enabled, model flux is interpolated\n"
+                             "pixel-by-pixel to match the spectrum's\n"
+                             "wavelength grid (for data-model subtraction).\n"
+                             "MIRI and other spectra have uneven\n"
+                             "pixel sampling that varies with wavelength.")
+                CreateToolTip(self._match_sampling_btn, match_tip)
             
             col_offset += 1
 
@@ -398,32 +402,36 @@ class ControlPanel(ttk.Frame):
         
         return self._create_simple_entry(parent, label_text, current_value, row, col, update_global_parameter, width, param_name=property_name, tip_text=tip_text)
 
-    def _match_spectrum_pixel_res(self):
-        """Set model pixel resolution to match the currently loaded spectrum."""
+    def _toggle_match_spectral_sampling(self):
+        """Toggle matched spectral sampling mode.
+        
+        When enabled, model flux is interpolated pixel-by-pixel to match
+        the spectrum's wavelength grid. This is essential for accurate
+        data-model subtraction, especially for MIRI and other spectra
+        with uneven pixel sampling that varies with wavelength.
+        """
         if not hasattr(self.islat, 'wave_data') or self.islat.wave_data is None:
-            self.data_field.insert_text("No spectrum loaded to match pixel resolution.")
+            self.data_field.insert_text("No spectrum loaded.")
             return
         
-        if len(self.islat.wave_data) < 3:
-            self.data_field.insert_text("Spectrum has too few data points.")
+        if not hasattr(self.islat, 'molecules_dict') or not self.islat.molecules_dict:
+            self.data_field.insert_text("No molecules loaded.")
             return
         
-        # Calculate median pixel resolution from the spectrum (same logic as iSLATClass)
-        spectrum_pixel_res = np.median(self.islat.wave_data[1:-1] - self.islat.wave_data[0:-2])
+        # Toggle the flag - this will trigger the callback that updates plots
+        current_state = self.islat.molecules_dict.match_spectral_sampling
+        new_state = not current_state
+        self.islat.molecules_dict.match_spectral_sampling = new_state
         
-        # Set the global model pixel resolution
-        if hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict:
-            self.islat.molecules_dict.global_model_pixel_res = spectrum_pixel_res
-            
-            # Update the entry field display with proper formatting and reset styling
-            if hasattr(self, '_global_parameter_entries') and 'global_model_pixel_res' in self._global_parameter_entries:
-                entry, var = self._global_parameter_entries['global_model_pixel_res']
-                formatted_value = self._format_value(spectrum_pixel_res, 'global_model_pixel_res')
-                var.set(formatted_value)
-                # Reset entry styling to normal (not gray/italic)
-                entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
-            
-            self.data_field.insert_text(f"Model pixel res. set to spectrum value: {spectrum_pixel_res:.4g} µm")
+        # Update button appearance to indicate state
+        if hasattr(self, '_match_sampling_btn'):
+            if new_state:
+                self._match_sampling_btn.configure(text="✓ Match Pix. Sampling")
+            else:
+                self._match_sampling_btn.configure(text="Match Pix. Sampling")
+        
+        state_text = "enabled" if new_state else "disabled"
+        self.data_field.insert_text(f"Matched spectral sampling {state_text}.")
 
     def _create_molecule_specific_controls(self, parent, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""
@@ -959,6 +967,17 @@ class ControlPanel(ttk.Frame):
                     self._set_var(var, formatted_value)
                     # Reset entry styling to normal (not gray/italic)
                     entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+            except (AttributeError, TypeError):
+                pass
+        
+        # Also sync the match spectral sampling button state
+        if hasattr(self, '_match_sampling_btn'):
+            try:
+                is_matched = self.islat.molecules_dict.match_spectral_sampling
+                if is_matched:
+                    self._match_sampling_btn.configure(text="✓ Match Pix. Sampling")
+                else:
+                    self._match_sampling_btn.configure(text="Match Pix. Sampling")
             except (AttributeError, TypeError):
                 pass
 

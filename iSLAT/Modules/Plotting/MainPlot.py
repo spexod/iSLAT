@@ -209,7 +209,23 @@ class iSLATPlot:
     
     def _on_global_parameter_changed(self, parameter_name, old_value, new_value):
         """Handle global parameter changes that affect all molecules"""
-        # Refresh plots when global parameters change - molecules handle their own caching
+        # For match_spectral_sampling, update plots but preserve line inspection
+        if parameter_name == 'match_spectral_sampling':
+            # Handle full spectrum mode
+            if hasattr(self, 'is_full_spectrum') and self.is_full_spectrum:
+                if hasattr(self, 'full_spectrum_plot') and hasattr(self, 'full_spectrum_plot_canvas'):
+                    self.full_spectrum_plot.reload_data()
+                    self.full_spectrum_plot_canvas.draw_idle()
+            else:
+                # Normal mode
+                self.update_model_plot()
+                # If there's an active line inspection selection, refresh it too
+                if hasattr(self, 'current_selection') and self.current_selection:
+                    xmin, xmax = self.current_selection
+                    self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
+            return
+        
+        # For other global parameters, refresh all plots
         self.update_all_plots()
 
     def match_display_range(self, match_y=False):
