@@ -932,7 +932,7 @@ class MoleculeDict(dict):
                 temp=_safe_float(mol_data, "Temp"),
                 radius=_safe_float(mol_data, "Rad"),
                 n_mol=_safe_float(mol_data, "N_Mol"),
-                color=mol_data.get("Color"),
+                color=mol_data.get("Color") or mol_data.get("color"),
                 is_visible=mol_data.get("Vis", True),
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
