@@ -1763,3 +1763,49 @@ class PlotRenderer:
 
             #ax.legend()
             self.canvas.draw_idle()
+
+    # ------------------------------------------------------------------
+    # Factory helpers — create standalone plot objects from the current state
+    # ------------------------------------------------------------------
+    def create_line_inspection_plot(self, xmin: float, xmax: float, **kwargs):
+        """Return a standalone :class:`LineInspectionPlot` from the current state."""
+        from .LineInspectionPlot import LineInspectionPlot
+        return LineInspectionPlot(
+            wave_data=self.plot_manager.islat.wave_data_original,
+            flux_data=self.plot_manager.islat.flux_data_original,
+            xmin=xmin,
+            xmax=xmax,
+            molecule=getattr(self.islat, 'active_molecule', None),
+            theme=self.theme,
+            **kwargs,
+        )
+
+    def create_population_diagram_plot(self, molecule=None, **kwargs):
+        """Return a standalone :class:`PopulationDiagramPlot`."""
+        from .PopulationDiagramPlot import PopulationDiagramPlot
+        mol = molecule or getattr(self.islat, 'active_molecule', None)
+        return PopulationDiagramPlot(molecule=mol, theme=self.theme, **kwargs)
+
+    def create_full_spectrum_plot(self, **kwargs):
+        """Return a standalone :class:`FullSpectrumPlot` from the current state."""
+        from .FullSpectrumPlot import FullSpectrumPlot as StandaloneFullSpectrum
+        return StandaloneFullSpectrum(
+            wave_data=self.plot_manager.islat.wave_data_original,
+            flux_data=self.plot_manager.islat.flux_data_original,
+            molecules=self.islat.molecules_dict,
+            theme=self.theme,
+            **kwargs,
+        )
+
+    def create_main_plot_grid(self, inspection_range=None, **kwargs):
+        """Return a standalone :class:`MainPlotGrid` from the current state."""
+        from .MainPlotGrid import MainPlotGrid
+        return MainPlotGrid(
+            wave_data=self.plot_manager.islat.wave_data_original,
+            flux_data=self.plot_manager.islat.flux_data_original,
+            molecules=self.islat.molecules_dict,
+            active_molecule=getattr(self.islat, 'active_molecule', None),
+            inspection_range=inspection_range,
+            theme=self.theme,
+            **kwargs,
+        )

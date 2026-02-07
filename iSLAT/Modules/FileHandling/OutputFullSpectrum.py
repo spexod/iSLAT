@@ -12,6 +12,7 @@ from iSLAT.Modules.FileHandling import *
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 from iSLAT.Constants import SPEED_OF_LIGHT_KMS
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
+from iSLAT.Modules.Plotting.FullSpectrumPlot import FullSpectrumPlot as StandaloneFullSpectrumPlot
 
 from typing import Optional, Union, Literal, TYPE_CHECKING, Any, List, Dict, Tuple
 if TYPE_CHECKING:
