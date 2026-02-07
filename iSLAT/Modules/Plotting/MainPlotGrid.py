@@ -96,6 +96,8 @@ class MainPlotGrid(BasePlot):
     def generate_plot(self, **kwargs) -> None:
         """Build the three-panel layout."""
         self._ensure_figure()
+        # Clear previous axes so regeneration doesn't stack on top
+        self.fig.clf()
 
         gs = GridSpec(
             2, 2,

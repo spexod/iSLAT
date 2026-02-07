@@ -62,6 +62,8 @@ class PopulationDiagramPlot(BasePlot):
             self._ax = self._external_ax
         else:
             self._ensure_figure()
+            # Clear previous axes so regeneration doesn't stack on top
+            self.fig.clf()
             self._ax = self.fig.add_subplot(111)
 
         ax = self._ax

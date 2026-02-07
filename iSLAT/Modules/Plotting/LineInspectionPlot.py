@@ -90,6 +90,8 @@ class LineInspectionPlot(BasePlot):
             self._ax = self._external_ax
         else:
             self._ensure_figure()
+            # Clear previous axes so regeneration doesn't stack on top
+            self.fig.clf()
             self._ax = self.fig.add_subplot(111)
 
         ax = self._ax
@@ -291,6 +293,48 @@ class LineInspectionPlot(BasePlot):
     def format_line_info(info: Dict[str, Any]) -> str:
         """Return the pre-built formatted text from a :meth:`get_line_info` dict."""
         return info.get("formatted_text", "")
+
+    @staticmethod
+    def get_line_info_dataframe(
+        line_data: List[Tuple["MoleculeLine", float, Optional[float]]],
+    ) -> "pd.DataFrame":
+        """
+        Build a :class:`~pandas.DataFrame` with one row per molecular line.
+
+        Parameters
+        ----------
+        line_data : list of (MoleculeLine, intensity, tau)
+            Line tuples as returned by
+            ``Molecule.intensity.get_lines_in_range_with_intensity()``
+            or ``PlotRenderer.get_molecule_line_data()``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns: ``wavelength_um``, ``e_up_K``, ``e_low_K``,
+            ``a_stein``, ``g_up``, ``g_low``, ``upper_level``,
+            ``lower_level``, ``intensity``, ``tau``.
+            Rows are sorted by wavelength.
+        """
+        rows = []
+        for line, intensity, tau in line_data:
+            info = LineInspectionPlot.get_line_info(line, intensity, tau)
+            rows.append({
+                "wavelength_um": info["lam"],
+                "e_up_K":        info["e_up"],
+                "e_low_K":       info["e_low"],
+                "a_stein":       info["a_stein"],
+                "g_up":          info["g_up"],
+                "g_low":         info["g_low"],
+                "upper_level":   info["up_lev"],
+                "lower_level":   info["low_lev"],
+                "intensity":     info["intensity"],
+                "tau":           info["tau"],
+            })
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df = df.sort_values("wavelength_um", ignore_index=True)
+        return df
 
     # ------------------------------------------------------------------
     # Convenience: update the wavelength range without rebuilding

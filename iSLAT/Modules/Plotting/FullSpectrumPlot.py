@@ -112,6 +112,8 @@ class FullSpectrumPlot(BasePlot):
         """Build the multi-panel figure."""
         n = len(self._panel_edges)
         self._ensure_figure()
+        # Clear previous axes so regeneration doesn't stack on top
+        self.fig.clf()
 
         # Compute summed flux once (if molecules are available)
         summed_wave: Optional[np.ndarray] = None
