@@ -10,6 +10,7 @@ import numpy as np
 import iSLAT.Constants as c
 
 from .PlotRenderer import PlotRenderer
+from .BasePlot import BasePlot
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
@@ -189,8 +190,18 @@ class iSLATPlot:
             debug_config.error("main_plot", f"Could not apply plot theming: {e}")
     
     def _get_molecule_display_name(self, molecule):
-        """Get display name for a molecule"""
-        return getattr(molecule, 'displaylabel', getattr(molecule, 'name', 'unknown'))
+        """Get display name for a molecule (delegates to :class:`BasePlot`)."""
+        return BasePlot.get_molecule_display_name(molecule)
+
+    @property
+    def line_inspection_plot(self):
+        """Access the reusable :class:`LineInspectionPlot` delegate."""
+        return self.plot_renderer._line_inspection_plot
+
+    @property
+    def population_diagram_plot(self):
+        """Access the reusable :class:`PopulationDiagramPlot` delegate."""
+        return self.plot_renderer._population_diagram_plot
 
     def _register_update_callbacks(self):
         """Register callbacks to handle parameter and molecule changes"""

@@ -8,6 +8,9 @@ from matplotlib.lines import Line2D
 import iSLAT.Constants as c
 
 from matplotlib.axes import Axes
+from .BasePlot import BasePlot
+from .LineInspectionPlot import LineInspectionPlot
+from .PopulationDiagramPlot import PopulationDiagramPlot
 
 # Import debug configuration
 try:
@@ -92,18 +95,28 @@ class PlotRenderer:
         
         self.render_out = False
         
+        # Reusable standalone plot delegates (render into GUI axes)
+        self._line_inspection_plot: Optional[LineInspectionPlot] = None
+        self._population_diagram_plot: Optional[PopulationDiagramPlot] = None
+        
+        # Population diagram caching
+        self._pop_diagram_molecule = None
+        self._pop_diagram_cache_key = None
+        
         # Simplified stats - only for performance monitoring, no data caching
         self._plot_stats = {
             'renders_count': 0,
             'molecules_rendered': 0
         }
     
-    # Helper methods for common operations
-    def _get_molecule_display_name(self, molecule: 'Molecule') -> str:
-        """Get display name for a molecule"""
-        return getattr(molecule, 'displaylabel', getattr(molecule, 'name', 'unknown'))
+    # Helper methods for common operations — delegate to BasePlot where possible
+    @staticmethod
+    def _get_molecule_display_name(molecule: 'Molecule') -> str:
+        """Get display name for a molecule (delegates to :class:`BasePlot`)."""
+        return BasePlot.get_molecule_display_name(molecule)
     
-    def _get_molecule_identifier(self, molecule: 'Molecule') -> Optional[str]:
+    @staticmethod
+    def _get_molecule_identifier(molecule: 'Molecule') -> Optional[str]:
         """Get unique identifier for a molecule"""
         return getattr(molecule, 'name', getattr(molecule, 'displaylabel', None)) if molecule else None
     
@@ -403,24 +416,24 @@ class PlotRenderer:
     def render_line_inspection_plot(self, line_wave: Optional[np.ndarray], 
                                    line_flux: Optional[np.ndarray], 
                                    line_label: Optional[str] = None) -> None:
-        """Render the line inspection subplot"""
+        """Render a simple line inspection subplot (observed data only).
+        
+        Delegates to :class:`LineInspectionPlot` for consistent appearance.
+        """
         self.ax2.clear()
         
-        if line_wave is not None and line_flux is not None:
-            # Plot data in selected range
-            self.ax2.plot(line_wave, line_flux, 
-                         color=self._get_theme_value("foreground", "black"), 
-                         linewidth=1, 
-                         label="Data")
-
-            self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
-            self.ax2.set_ylabel("Flux (Jy) denisty", color=self._get_theme_value("foreground", "black"))
-            self.ax2.set_title("Line inspection plot", color=self._get_theme_value("foreground", "black"))
-            
-            # Show legend if there are labeled items
-            handles, labels = self.ax2.get_legend_handles_labels()
-            if handles:
-                self.ax2.legend()
+        if line_wave is not None and line_flux is not None and len(line_wave) > 0:
+            xmin, xmax = float(np.min(line_wave)), float(np.max(line_wave))
+            lip = LineInspectionPlot(
+                wave_data=line_wave,
+                flux_data=line_flux,
+                xmin=xmin,
+                xmax=xmax,
+                ax=self.ax2,
+                fig=self.fig,
+                theme=self.theme,
+            )
+            lip.generate_plot()
     
     def render_complete_line_inspection_plot(self, wave_data: np.ndarray, flux_data: np.ndarray,
                                            xmin: float, xmax: float, active_molecule: Optional['Molecule'] = None,
@@ -428,9 +441,9 @@ class PlotRenderer:
         """
         Render complete line inspection plot with observed data and active molecule model.
         
-        Delegates core rendering (observed spectrum + molecule overlay) to
-        :class:`LineInspectionPlot` while keeping GUI-specific fit-result
-        overlay logic in PlotRenderer.
+        Delegates core rendering (observed spectrum + molecule overlay) to a
+        reusable :class:`LineInspectionPlot` instance while keeping GUI-specific
+        fit-result overlay logic in PlotRenderer.
         
         Parameters
         ----------
@@ -453,19 +466,26 @@ class PlotRenderer:
         if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
             return
         
-        # Delegate core rendering to LineInspectionPlot
-        from .LineInspectionPlot import LineInspectionPlot
-        lip = LineInspectionPlot(
-            wave_data=wave_data,
-            flux_data=flux_data,
-            xmin=xmin,
-            xmax=xmax,
-            molecule=active_molecule,
-            ax=self.ax2,
-            fig=self.fig,
-            theme=self.theme,
-        )
-        lip.generate_plot()
+        # Reuse stored LineInspectionPlot, updating its parameters
+        if self._line_inspection_plot is None:
+            self._line_inspection_plot = LineInspectionPlot(
+                wave_data=wave_data,
+                flux_data=flux_data,
+                xmin=xmin,
+                xmax=xmax,
+                molecule=active_molecule,
+                ax=self.ax2,
+                fig=self.fig,
+                theme=self.theme,
+            )
+        else:
+            self._line_inspection_plot.wave_data = wave_data
+            self._line_inspection_plot.flux_data = flux_data
+            self._line_inspection_plot.xmin = xmin
+            self._line_inspection_plot.xmax = xmax
+            self._line_inspection_plot.molecule = active_molecule
+            self._line_inspection_plot.theme = self.theme
+        self._line_inspection_plot.generate_plot()
 
         # Overlay fit results (GUI-specific feature not in standalone class)
         if fit_result is not None:
@@ -596,11 +616,10 @@ class PlotRenderer:
     
     def render_population_diagram(self, molecule: 'Molecule', wave_range: Optional[Tuple[float, float]] = None, force_redraw: bool = False) -> None:
         """
-        Render population diagram using molecule's cached intensity data.
+        Render population diagram using a reusable :class:`PopulationDiagramPlot`.
         
-        Delegates core rendering to :class:`PopulationDiagramPlot` while
-        preserving the GUI-specific caching layer that avoids redundant
-        redraws when the molecule and its parameters haven't changed.
+        The GUI-specific caching layer avoids redundant redraws when the
+        molecule and its parameters haven't changed.
         
         Parameters
         ----------
@@ -612,37 +631,37 @@ class PlotRenderer:
             If True, forces redraw even if cached. If False, skips if same molecule.
         """
         # Check if we can skip redrawing (same molecule, no parameter changes)
-        # Use molecule's _compute_intensity_hash() for cache validation
         current_hash = None
         if molecule is not None and hasattr(molecule, '_compute_intensity_hash'):
             current_hash = (molecule.name, molecule._compute_intensity_hash())
         
-        if not force_redraw and hasattr(self, '_pop_diagram_molecule'):
+        if not force_redraw and self._pop_diagram_molecule is not None:
             if (self._pop_diagram_molecule is molecule and 
                 current_hash is not None and
-                hasattr(self, '_pop_diagram_cache_key') and
                 self._pop_diagram_cache_key == current_hash):
-                # Same molecule with same parameters - skip full redraw
                 return
         
-        # Cache the molecule reference and cache key
+        # Update cache keys
         self._pop_diagram_molecule = molecule
         self._pop_diagram_cache_key = current_hash
             
-        # Delegate core rendering to PopulationDiagramPlot
-        from .PopulationDiagramPlot import PopulationDiagramPlot
+        # Reuse stored PopulationDiagramPlot, updating its molecule
         try:
-            pop_plot = PopulationDiagramPlot(
-                molecule=molecule,
-                ax=self.ax3,
-                fig=self.fig,
-                theme=self.theme,
-            )
-            pop_plot.generate_plot()
+            if self._population_diagram_plot is None:
+                self._population_diagram_plot = PopulationDiagramPlot(
+                    molecule=molecule,
+                    ax=self.ax3,
+                    fig=self.fig,
+                    theme=self.theme,
+                )
+            else:
+                self._population_diagram_plot.molecule = molecule
+                self._population_diagram_plot.theme = self.theme
+            self._population_diagram_plot.generate_plot()
         except Exception as e:
             debug_config.error("plot_renderer", f"Error rendering population diagram: {e}")
             self.ax3.clear()
-            mol_label = self._get_molecule_display_name(molecule) if molecule else "Unknown"
+            mol_label = BasePlot.get_molecule_display_name(molecule) if molecule else "Unknown"
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
 
     def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines, fig = None) -> None:
@@ -1318,17 +1337,17 @@ class PlotRenderer:
     
     def get_molecule_spectrum_data(self, molecule: 'Molecule', wave_data: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
-        Get spectrum data directly from molecule's caching system.
+        Get spectrum data from molecule's caching system.
         
-        Uses get_flux() method which returns consistent wavelength grids for all molecules
-        when they use the same global wavelength range, eliminating grid size mismatches.
+        Delegates to :meth:`BasePlot.get_molecule_spectrum_data` with
+        additional debug logging for the GUI context.
         
         Parameters
         ----------
         molecule : Molecule
             Molecule with internal flux caching
         wave_data : np.ndarray
-            Wavelength array (not used for interpolation, just for caching key)
+            Wavelength array (passed through to molecule's get_flux)
             
         Returns
         -------
@@ -1338,27 +1357,16 @@ class PlotRenderer:
         if molecule is None or wave_data is None:
             return None, None
         
-        try:
-            # Use get_flux with return_wavelengths=True to get consistent grids
-            # All molecules with the same global wavelength range will return identical grids
-            result_wavelengths, result_flux = molecule.get_flux(
-                wavelength_array=wave_data, 
-                return_wavelengths=True, 
-                interpolate_to_input=False  # Use native grid for consistency
-            )
-            
-            if result_wavelengths is not None and result_flux is not None and len(result_flux) > 0:
-                debug_config.verbose("plot_renderer", 
-                                   f"Retrieved flux data for {self._get_molecule_display_name(molecule)}",
-                                   data_points=len(result_flux))
-                return result_wavelengths, result_flux
-            
-            debug_config.warning("plot_renderer", f"No flux data available for {self._get_molecule_display_name(molecule)}")
-            return None, None
-                
-        except Exception as e:
-            debug_config.error("plot_renderer", f"Could not get model data for molecule {self._get_molecule_display_name(molecule)}: {e}")
-            return None, None
+        result_wavelengths, result_flux = BasePlot.get_molecule_spectrum_data(molecule, wave_data)
+        
+        if result_wavelengths is not None and result_flux is not None and len(result_flux) > 0:
+            debug_config.verbose("plot_renderer",
+                               f"Retrieved flux data for {self._get_molecule_display_name(molecule)}",
+                               data_points=len(result_flux))
+            return result_wavelengths, result_flux
+        
+        debug_config.warning("plot_renderer", f"No flux data available for {self._get_molecule_display_name(molecule)}")
+        return None, None
     
     def get_molecule_line_data(self, molecule: 'Molecule', xmin: float, xmax: float) -> List[Tuple['MoleculeLine', float, Optional[float]]]:
         """
@@ -1521,9 +1529,10 @@ class PlotRenderer:
     
     def get_intensity_data(self, molecule: 'Molecule') -> Optional[pd.DataFrame]:
         """
-        Get intensity table directly from molecule's caching system.
+        Get intensity table from molecule's caching system.
         
-        Fixed to properly access molecule's intensity object using standard methods.
+        Delegates to :meth:`BasePlot.get_intensity_data` with additional
+        debug logging for the GUI context.
         
         Parameters
         ----------
@@ -1535,45 +1544,12 @@ class PlotRenderer:
         Optional[pd.DataFrame]
             Intensity table with columns: lam, intens, a_stein, g_up, e_up, etc.
         """
-        try:
-            if not hasattr(molecule, 'intensity') or molecule.intensity is None:
-                return None
-                
-            molecule_name = self._get_molecule_display_name(molecule)
-            intensity_obj = molecule.intensity
-            
-            # Check if intensity data is already computed (cache hit indicator)
-            has_computed_data = (hasattr(intensity_obj, 'intensity') and 
-                               intensity_obj.intensity is not None and 
-                               len(intensity_obj.intensity) > 0)
-            
-            # Ensure intensity is calculated (this uses molecule's internal caching)
-            if hasattr(molecule, 'calculate_intensity'):
-                molecule.calculate_intensity()
-            
-            # Check if data was already computed (cache hit) or newly computed
-            cache_status = "from cache" if has_computed_data else "newly computed"
-            
-            # Get the intensity table from the intensity object
-            if hasattr(intensity_obj, 'get_table'):
-                table = intensity_obj.get_table
-                if table is not None:
-                    # Reset index for consistent access
-                    if hasattr(table, 'index'):
-                        table.index = range(len(table.index))
-                    debug_config.verbose("plot_renderer", 
-                                       f"Retrieved intensity table for {molecule_name} ({cache_status})",
-                                       cache_hit=has_computed_data,
-                                       table_rows=len(table))
-                    return table
-            
-            return None
-            
-        except Exception as e:
-            debug_config.error("plot_renderer", f"Error getting intensity table for {self._get_molecule_display_name(molecule)}: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+        table = BasePlot.get_intensity_data(molecule)
+        if table is not None:
+            debug_config.verbose("plot_renderer",
+                               f"Retrieved intensity table for {self._get_molecule_display_name(molecule)}",
+                               table_rows=len(table))
+        return table
     
     def get_line_intensity_threshold(self) -> float:
         """
@@ -1697,7 +1673,6 @@ class PlotRenderer:
     # ------------------------------------------------------------------
     def create_line_inspection_plot(self, xmin: float, xmax: float, **kwargs):
         """Return a standalone :class:`LineInspectionPlot` from the current state."""
-        from .LineInspectionPlot import LineInspectionPlot
         return LineInspectionPlot(
             wave_data=self.plot_manager.islat.wave_data_original,
             flux_data=self.plot_manager.islat.flux_data_original,
@@ -1710,7 +1685,6 @@ class PlotRenderer:
 
     def create_population_diagram_plot(self, molecule=None, **kwargs):
         """Return a standalone :class:`PopulationDiagramPlot`."""
-        from .PopulationDiagramPlot import PopulationDiagramPlot
         mol = molecule or getattr(self.islat, 'active_molecule', None)
         return PopulationDiagramPlot(molecule=mol, theme=self.theme, **kwargs)
 

@@ -41,7 +41,7 @@ class LineInspectionPlot(BasePlot):
     line_data : list, optional
         List of ``(MoleculeLine, intensity, tau)`` tuples for line markers.
     line_threshold : float, optional
-        Fraction (0–1) of the strongest line below which lines are hidden.
+        Fraction (0-1) of the strongest line below which lines are hidden.
         Defaults to ``0.0`` (show all).
     figsize : tuple, optional
         Figure size. Defaults to ``(10, 4)``.
