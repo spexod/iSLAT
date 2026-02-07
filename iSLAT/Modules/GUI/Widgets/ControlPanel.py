@@ -292,6 +292,10 @@ class ControlPanel(ttk.Frame):
                 CreateToolTip(label_widget, tip_text)    
             if label == "Del.":
                 padx = (7,0)
+            # Make the "On" label clickable to toggle all molecule visibility
+            if label == "On":
+                label_widget.config(cursor="hand2", fg="blue")
+                label_widget.bind("<Button-1>", lambda e: self._toggle_all_molecule_visibility())
             label_widget.grid(row=0, column=col, sticky="ew", padx=padx)
             header_frame.grid_columnconfigure(col, weight=1)
     
@@ -721,6 +725,39 @@ class ControlPanel(ttk.Frame):
         if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot') and hasattr(self.islat.GUI.plot, 'on_molecule_visibility_changed'):
             self.islat.GUI.plot.on_molecule_visibility_changed(molecule_name, new_visibility)
             print(f"ControlPanel: Triggered selective plot refresh for visibility change")
+
+    def _toggle_all_molecule_visibility(self):
+        """Toggle the visibility of all molecules at once"""
+        if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
+            return
+        
+        # Determine new visibility state: if any molecule is visible, turn all off; otherwise turn all on
+        any_visible = any(mol.is_visible for mol in self.islat.molecules_dict.values())
+        new_visibility = not any_visible
+        
+        # Get all molecule names
+        all_molecule_names = list(self.islat.molecules_dict.keys())
+        
+        # Update visibility for all molecules
+        self.islat.molecules_dict.bulk_set_visibility(new_visibility, all_molecule_names)
+        
+        # Update all visibility checkboxes in the UI
+        for mol_name in all_molecule_names:
+            if mol_name in self.mol_visibility:
+                self.mol_visibility[mol_name].set(new_visibility)
+        
+        # Trigger plot refresh - handle both normal and full spectrum modes
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot'):
+            plot = self.islat.GUI.plot
+            # Check if full spectrum mode is active
+            if hasattr(plot, 'is_full_spectrum') and plot.is_full_spectrum:
+                if hasattr(plot, 'full_spectrum_plot') and hasattr(plot, 'full_spectrum_plot_canvas'):
+                    plot.full_spectrum_plot.reload_data()
+                    plot.full_spectrum_plot_canvas.draw_idle()
+            else:
+                plot.update_model_plot()
+        
+        #print(f"ControlPanel: Toggled all molecules to visibility={new_visibility}")
 
     def _on_color_button_clicked(self, mol_name, btn):
         """Handle color button clicks to open color chooser"""
