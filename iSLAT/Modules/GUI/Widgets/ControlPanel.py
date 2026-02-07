@@ -23,10 +23,10 @@ class ControlPanel(ttk.Frame):
 
         self.mol_visibility = {}
         self.column_labels = {
-            "On": "turn on/off this\nmodel in the plot ",
+            "On": "Turn on/off this\nmodel in the plot ",
             "Molecule": "Select active molecule", 
-            "Del.": "remove this model\nfrom the GUI",
-            "Color": "change color\nfor this model"
+            "Del.": "Remove this model\nfrom the GUI",
+            "Color": "Change color\nfor this model"
             }
         
         self.label_frame = tk.LabelFrame(self, text="Spectrum and Models Control Panel", relief="solid", borderwidth=1)
@@ -268,9 +268,9 @@ class ControlPanel(ttk.Frame):
                 match_tip = ("Toggle matched spectral sampling.\n"
                              "When enabled, model flux is interpolated\n"
                              "pixel-by-pixel to match the spectrum's\n"
-                             "wavelength grid (for data-model subtraction).\n"
-                             "MIRI and other spectra have uneven\n"
-                             "pixel sampling that varies with wavelength.")
+                             "wavelength grid") #(for data-model subtraction).\n"
+                             #"MIRI and other spectra have uneven\n"
+                             #"pixel sampling that varies with wavelength.")
                 CreateToolTip(self._match_sampling_btn, match_tip)
             
             col_offset += 1
