@@ -1,5 +1,5 @@
 from typing import (
-    Dict, List, Optional, Tuple, Callable, Any, Union,
+    Dict, List, Optional, Sequence, Tuple, Callable, Any, Union,
     Iterator, ItemsView, ValuesView, overload,
 )
 import numpy as np
@@ -14,7 +14,6 @@ from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, Performa
 from .Molecule import Molecule
 import iSLAT.Constants as default_parms
 
-
 def _safe_float(data: dict, key: str, default=None):
     """Safely convert a dictionary value to float."""
     value = data.get(key, default)
@@ -22,7 +21,6 @@ def _safe_float(data: dict, key: str, default=None):
         return float(value) if value is not None else default
     except (ValueError, TypeError):
         return default
-
 
 class MoleculeDict(dict):
     """
@@ -986,8 +984,73 @@ class MoleculeDict(dict):
             print(f"Error loading molecule '{mol_name}': {e}")
             return False
 
-    def bulk_update_parameters(self, parameter_dict: Dict[str, Any], 
-                              molecule_names: Optional[List[str]] = None) -> None:
+    def _resolve_molecule_names(
+        self,
+        identifiers: Optional[Sequence[Union[str, int, 'Molecule']]] = None,
+    ) -> List[str]:
+        """Resolve a flexible collection of molecule identifiers to key names.
+
+        Parameters
+        ----------
+        identifiers : sequence of str | int | Molecule, optional
+            Each element may be:
+
+            - **str** — looked up directly as a dictionary key.
+            - **int** — treated as a positional index into the ordered
+              dictionary keys (supports negative indexing).
+            - **Molecule** — resolved via its ``molecule_name`` attribute.
+
+            When *None*, all keys in the dictionary are returned.
+
+        Returns
+        -------
+        List[str]
+            Resolved molecule-name strings (only those present in the dict).
+
+        Raises
+        ------
+        TypeError
+            If an element is not ``str``, ``int``, or ``Molecule``.
+        IndexError
+            If an integer index is out of range.
+        """
+        if identifiers is None:
+            return list(self.keys())
+
+        keys_list: Optional[List[str]] = None  # lazily built for index access
+        resolved: List[str] = []
+
+        for ident in identifiers:
+            if isinstance(ident, str):
+                if ident in self:
+                    resolved.append(ident)
+            elif isinstance(ident, int):
+                if keys_list is None:
+                    keys_list = list(self.keys())
+                # Allow negative indexing like a regular list
+                if -len(keys_list) <= ident < len(keys_list):
+                    resolved.append(keys_list[ident])
+                else:
+                    raise IndexError(
+                        f"Molecule index {ident} out of range for "
+                        f"MoleculeDict with {len(keys_list)} entries."
+                    )
+            elif isinstance(ident, Molecule):
+                name = getattr(ident, 'molecule_name', None)
+                if name and name in self:
+                    resolved.append(name)
+            else:
+                raise TypeError(
+                    f"Expected str, int, or Molecule, got {type(ident).__name__}"
+                )
+
+        return resolved
+
+    def bulk_update_parameters(
+        self,
+        parameter_dict: Dict[str, Any],
+        molecules: Optional[Sequence[Union[str, int, Molecule]]] = None,
+    ) -> None:
         """
         Update one or more physical parameters on many molecules in a single call.
 
@@ -1014,23 +1077,36 @@ class MoleculeDict(dict):
             Values are automatically converted to the appropriate type
             (usually ``float``) by the underlying ``Molecule`` setter.
 
-        molecule_names : List[str], optional
-            Subset of molecule keys to update.  When *None* (default) **all**
-            molecules in the dictionary are updated.
+        molecules : sequence of str | int | Molecule, optional
+            Subset of molecules to update.  Each element may be:
+
+            - **str** — a molecule dictionary key (e.g. ``'H2O'``).
+            - **int** — a positional index into the dictionary keys
+              (supports negative indexing, e.g. ``-1`` for the last molecule).
+            - **Molecule** — a :class:`Molecule` instance already stored
+              in this dictionary (resolved via ``molecule_name``).
+
+            When *None* (default) **all** molecules are updated.
 
         Examples
         --------
         >>> # Set every molecule to 900 K and 1e18 column density
         >>> mol_dict.bulk_update_parameters({'temp': 900, 'n_mol': 1e18})
 
-        >>> # Update only H2O and CO
+        >>> # Update only H2O and CO by name
         >>> mol_dict.bulk_update_parameters(
         ...     {'temp': 700},
-        ...     molecule_names=['H2O', 'CO'],
+        ...     molecules=['H2O', 'CO'],
         ... )
+
+        >>> # Update the first two molecules by index
+        >>> mol_dict.bulk_update_parameters({'fwhm': 4.0}, molecules=[0, 1])
+
+        >>> # Pass Molecule objects directly
+        >>> h2o = mol_dict['H2O']
+        >>> mol_dict.bulk_update_parameters({'temp': 500}, molecules=[h2o])
         """
-        if molecule_names is None:
-            molecule_names = list(self.keys())
+        molecule_names = self._resolve_molecule_names(molecules)
         
         affected_molecules = []
         for mol_name in molecule_names:
@@ -1046,10 +1122,7 @@ class MoleculeDict(dict):
         # Only invalidate cache for molecules that actually changed
         if affected_molecules:
             self._selective_cache_invalidation(affected_molecules)
-        
-        # debug print
-        #print(f"Bulk updated parameters for {len(affected_molecules)} molecules (out of {len(molecule_names)} requested)")
-    
+            
     def _clear_all_caches(self) -> None:
         """Clear all caches."""
         self._summed_flux_cache.clear()
