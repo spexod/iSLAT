@@ -988,7 +988,47 @@ class MoleculeDict(dict):
 
     def bulk_update_parameters(self, parameter_dict: Dict[str, Any], 
                               molecule_names: Optional[List[str]] = None) -> None:
-        """Update parameters for multiple molecules efficiently."""
+        """
+        Update one or more physical parameters on many molecules in a single call.
+
+        Each molecule's :meth:`Molecule.bulk_update_parameters` is invoked with
+        ``skip_notification=True`` so that individual parameter-change callbacks
+        are suppressed. Cache invalidation is performed once at the end, only
+        for molecules whose parameters actually changed.
+
+        Parameters
+        ----------
+        parameter_dict : Dict[str, Any]
+            Mapping of parameter names to their new values.  Accepted keys
+            correspond to :class:`Molecule` properties, for example:
+
+            - ``'temp'`` — kinetic temperature (K)
+            - ``'n_mol'`` — column density (molecules)
+            - ``'radius'`` — emitting area radius (AU)
+            - ``'distance'`` — source distance (pc)
+            - ``'fwhm'`` — instrumental FWHM (km/s)
+            - ``'broad'`` — intrinsic line width / micro-turbulence (km/s)
+            - ``'rv_shift'`` — radial-velocity shift (km/s)
+            - ``'is_visible'`` — toggle molecule visibility (bool)
+
+            Values are automatically converted to the appropriate type
+            (usually ``float``) by the underlying ``Molecule`` setter.
+
+        molecule_names : List[str], optional
+            Subset of molecule keys to update.  When *None* (default) **all**
+            molecules in the dictionary are updated.
+
+        Examples
+        --------
+        >>> # Set every molecule to 900 K and 1e18 column density
+        >>> mol_dict.bulk_update_parameters({'temp': 900, 'n_mol': 1e18})
+
+        >>> # Update only H2O and CO
+        >>> mol_dict.bulk_update_parameters(
+        ...     {'temp': 700},
+        ...     molecule_names=['H2O', 'CO'],
+        ... )
+        """
         if molecule_names is None:
             molecule_names = list(self.keys())
         
