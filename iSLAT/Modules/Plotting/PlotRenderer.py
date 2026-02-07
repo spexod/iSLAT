@@ -427,7 +427,10 @@ class PlotRenderer:
                                            fit_result: Optional[Any] = None) -> None:
         """
         Render complete line inspection plot with observed data and active molecule model.
-        Uses PlotRenderer logic exclusively with molecule caching.
+        
+        Delegates core rendering (observed spectrum + molecule overlay) to
+        :class:`LineInspectionPlot` while keeping GUI-specific fit-result
+        overlay logic in PlotRenderer.
         
         Parameters
         ----------
@@ -450,60 +453,26 @@ class PlotRenderer:
         if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
             return
         
-        # Plot observed data in selected range
-        data_mask = (wave_data >= xmin) & (wave_data <= xmax)
-        observed_wave = wave_data[data_mask]
-        observed_flux = flux_data[data_mask]
-        
-        if len(observed_wave) > 0 and len(observed_flux) > 0:
-            self.ax2.plot(observed_wave, observed_flux, 
-                         color=self._get_theme_value("foreground", "black"), 
-                         linewidth=1, label="Data")
-        
-        # Calculate max_y for plot scaling
-        max_y = np.nanmax(observed_flux) if len(observed_flux) > 0 else 0.15
-        
-        # Plot the active molecule model using PlotRenderer's molecule spectrum method
-        if active_molecule is not None:
-            try:
-                # Use PlotRenderer's get_molecule_spectrum_data which leverages molecule caching
-                plot_lam, model_flux = self.get_molecule_spectrum_data(active_molecule, wave_data)
-                
-                
-                if plot_lam is not None and model_flux is not None and len(model_flux) > 0:
-                    # Filter the molecule data to the selected wavelength range
-                    model_mask = (plot_lam >= xmin) & (plot_lam <= xmax)
-                    if np.any(model_mask):
-                        model_wave_range = plot_lam[model_mask]
-                        model_flux_range = model_flux[model_mask]
-                        
-                        if len(model_wave_range) > 0 and len(model_flux_range) > 0:
-                            label = self._get_molecule_display_name(active_molecule)
-                            color = self._get_molecule_color(active_molecule)
-                            self.ax2.plot(model_wave_range, model_flux_range, 
-                                         color=color, linestyle="--", 
-                                         linewidth=2, label=label)
-                            if len(observed_flux) <= 0:
-                                max_y = np.nanmax(model_flux_range)
-            except Exception as e:
-                mol_name = self._get_molecule_display_name(active_molecule)
-                debug_config.warning("plot_renderer", f"Could not get model data for molecule {mol_name}: {e}")
+        # Delegate core rendering to LineInspectionPlot
+        from .LineInspectionPlot import LineInspectionPlot
+        lip = LineInspectionPlot(
+            wave_data=wave_data,
+            flux_data=flux_data,
+            xmin=xmin,
+            xmax=xmax,
+            molecule=active_molecule,
+            ax=self.ax2,
+            fig=self.fig,
+            theme=self.theme,
+        )
+        lip.generate_plot()
 
-        # Plot fit results if available
+        # Overlay fit results (GUI-specific feature not in standalone class)
         if fit_result is not None:
+            # Derive max_y from the axes limits set by LineInspectionPlot
+            current_ylim = self.ax2.get_ylim()
+            max_y = current_ylim[1] / 1.1 if current_ylim[1] > 0 else 0.15
             self._render_fit_results_in_line_inspection(fit_result, xmin, xmax, max_y)
-        
-        # Set plot properties
-        self.ax2.set_xlim(xmin, xmax)
-        self.ax2.set_ylim(0, max_y * 1.1)
-        self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
-        self.ax2.set_ylabel("Flux density (Jy)", color=self._get_theme_value("foreground", "black"))
-        self.ax2.set_title("Line inspection plot", color=self._get_theme_value("foreground", "black"))
-        
-        # Show legend if there are labeled items
-        handles, labels = self.ax2.get_legend_handles_labels()
-        if handles:
-            self.ax2.legend()
     
     def _render_fit_results_in_line_inspection(self, fit_result: Any, xmin: float, xmax: float, max_y: float) -> None:
         """Helper method to render fit results in the line inspection plot."""
@@ -629,8 +598,9 @@ class PlotRenderer:
         """
         Render population diagram using molecule's cached intensity data.
         
-        This method relies on the molecule's internal caching system rather than
-        maintaining its own cache to avoid conflicts with cached parameter restoration.
+        Delegates core rendering to :class:`PopulationDiagramPlot` while
+        preserving the GUI-specific caching layer that avoids redundant
+        redraws when the molecule and its parameters haven't changed.
         
         Parameters
         ----------
@@ -655,66 +625,24 @@ class PlotRenderer:
                 # Same molecule with same parameters - skip full redraw
                 return
         
-        self.ax3.clear()
-        
-        if molecule is None:
-            self.ax3.set_title("No molecule selected")
-            self._pop_diagram_molecule = None
-            self._pop_diagram_cache_key = None
-            return
-        
         # Cache the molecule reference and cache key
         self._pop_diagram_molecule = molecule
         self._pop_diagram_cache_key = current_hash
             
+        # Delegate core rendering to PopulationDiagramPlot
+        from .PopulationDiagramPlot import PopulationDiagramPlot
         try:
-            # Use molecule's cached intensity data directly
-            int_pars = self.get_intensity_data(molecule)
-            if int_pars is None:
-                mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f"{mol_label} - No intensity data", color=self._get_theme_value("foreground", "black"))
-                return
-
-            wavelength = int_pars['lam']
-            intens_mod = int_pars['intens']
-            Astein_mod = int_pars['a_stein']
-            gu = int_pars['g_up']
-            eu = int_pars['e_up']
-
-            radius = getattr(molecule, 'radius', None)
-            distance = getattr(molecule, 'distance', None)
-
-            area = np.pi * (radius * c.ASTRONOMICAL_UNIT_M * 1e2) ** 2
-            dist = distance * c.PARSEC_CM
-            beam_s = area / dist ** 2
-            F = intens_mod * beam_s
-            frequency = c.SPEED_OF_LIGHT_MICRONS / wavelength
-            rd_yax = np.log(4 * np.pi * F / (Astein_mod * c.PLANCK_CONSTANT * frequency * gu))
-            threshold = np.nanmax(F) / 100
-
-            # Set limits with bounds checking
-            valid_rd = rd_yax[F > threshold]
-            valid_eu = eu[F > threshold]
-            
-            if len(valid_rd) > 0 and len(valid_eu) > 0:
-                self.ax3.set_ylim(np.nanmin(valid_rd), np.nanmax(rd_yax) + 0.5)
-                self.ax3.set_xlim(np.nanmin(eu) - 50, np.nanmax(valid_eu))
-
-                # Populating the population diagram graph with the lines
-                self.ax3.scatter(eu, rd_yax, s=0.5, color=self._get_theme_value("scatter_main_color", '#838B8B'))
-
-                # Set labels
-                self.ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))', color=self._get_theme_value("foreground", "black"), labelpad = -1)
-                self.ax3.set_xlabel(r'$E_{u}$ (K)', color=self._get_theme_value("foreground", "black"))
-                mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f'{mol_label} Population diagram', fontsize='medium', color=self._get_theme_value("foreground", "black"))
-            else:
-                mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f"{mol_label} - No valid data for population diagram", color=self._get_theme_value("foreground", "black"))
-
+            pop_plot = PopulationDiagramPlot(
+                molecule=molecule,
+                ax=self.ax3,
+                fig=self.fig,
+                theme=self.theme,
+            )
+            pop_plot.generate_plot()
         except Exception as e:
             debug_config.error("plot_renderer", f"Error rendering population diagram: {e}")
-            mol_label = self._get_molecule_display_name(molecule)
+            self.ax3.clear()
+            mol_label = self._get_molecule_display_name(molecule) if molecule else "Unknown"
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
 
     def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines, fig = None) -> None:

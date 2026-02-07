@@ -95,6 +95,8 @@ class LineInspectionPlot(BasePlot):
         ax = self._ax
         ax.clear()
 
+        fg = self._get_theme_value("foreground", "black")
+
         # Mask to the inspection range
         mask = (self.wave_data >= self.xmin) & (self.wave_data <= self.xmax)
         obs_wave = self.wave_data[mask]
@@ -110,9 +112,13 @@ class LineInspectionPlot(BasePlot):
         if self.molecules is not None:
             visible = self.molecules.get_visible_molecules(return_objects=True)
             for mol in visible:
-                self._overlay_molecule(ax, mol, max_y)
+                mol_max = self._overlay_molecule(ax, mol)
+                if mol_max is not None and len(obs_flux) == 0:
+                    max_y = max(max_y, mol_max)
         elif self.molecule is not None:
-            self._overlay_molecule(ax, self.molecule, max_y)
+            mol_max = self._overlay_molecule(ax, self.molecule)
+            if mol_max is not None and len(obs_flux) == 0:
+                max_y = max(max_y, mol_max)
 
         # -- individual line markers ------------------------------------
         if self.line_data:
@@ -122,30 +128,38 @@ class LineInspectionPlot(BasePlot):
         ax.set_xlim(self.xmin, self.xmax)
         if max_y > 0:
             ax.set_ylim(0, max_y * 1.1)
-        ax.set_xlabel("Wavelength (μm)")
-        ax.set_ylabel("Flux density (Jy)")
-        ax.set_title("Line Inspection")
+        ax.set_xlabel("Wavelength (μm)", color=fg)
+        ax.set_ylabel("Flux density (Jy)", color=fg)
+        ax.set_title("Line inspection plot", color=fg)
         self._update_legend(ax)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _overlay_molecule(self, ax: Axes, molecule: "Molecule", max_y_ref: float) -> None:
-        """Plot one molecule model in the inspection range."""
+    def _overlay_molecule(self, ax: Axes, molecule: "Molecule") -> Optional[float]:
+        """Plot one molecule model in the inspection range.
+
+        Returns the max flux value in the range, or *None* if nothing was plotted.
+        """
         plot_lam, model_flux = self.get_molecule_spectrum_data(molecule, self.wave_data)
         if plot_lam is None or model_flux is None:
-            return
+            return None
         m = (plot_lam >= self.xmin) & (plot_lam <= self.xmax)
         if not np.any(m):
-            return
+            return None
+        model_wave_range = plot_lam[m]
+        model_flux_range = model_flux[m]
+        if len(model_wave_range) == 0 or len(model_flux_range) == 0:
+            return None
         ax.plot(
-            plot_lam[m],
-            model_flux[m],
+            model_wave_range,
+            model_flux_range,
             color=self.get_molecule_color(molecule),
             linestyle="--",
             linewidth=2,
             label=self.get_molecule_display_name(molecule),
         )
+        return float(np.nanmax(model_flux_range))
 
     def _plot_line_markers(
         self,

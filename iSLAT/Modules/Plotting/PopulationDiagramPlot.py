@@ -67,6 +67,8 @@ class PopulationDiagramPlot(BasePlot):
         ax = self._ax
         ax.clear()
 
+        fg = self._get_theme_value("foreground", "black")
+
         mol = self.molecule
         if mol is None:
             ax.set_title("No molecule selected")
@@ -74,7 +76,10 @@ class PopulationDiagramPlot(BasePlot):
 
         int_pars = self.get_intensity_data(mol)
         if int_pars is None:
-            ax.set_title(f"{self.get_molecule_display_name(mol)} — no intensity data")
+            ax.set_title(
+                f"{self.get_molecule_display_name(mol)} - No intensity data",
+                color=fg,
+            )
             return
 
         # Extract arrays from the intensity table
@@ -104,7 +109,10 @@ class PopulationDiagramPlot(BasePlot):
         valid_eu = eu[F > threshold]
 
         if len(valid_rd) == 0 or len(valid_eu) == 0:
-            ax.set_title(f"{self.get_molecule_display_name(mol)} — no valid data")
+            ax.set_title(
+                f"{self.get_molecule_display_name(mol)} - No valid data for population diagram",
+                color=fg,
+            )
             return
 
         # Base scatter
@@ -121,9 +129,13 @@ class PopulationDiagramPlot(BasePlot):
 
         ax.set_ylim(np.nanmin(valid_rd), np.nanmax(rd_yax) + 0.5)
         ax.set_xlim(np.nanmin(eu) - 50, np.nanmax(valid_eu))
-        ax.set_ylabel(r"ln(4πF/(hν$A_{u}$$g_{u}$))", labelpad=-1)
-        ax.set_xlabel(r"$E_{u}$ (K)")
-        ax.set_title(f"{self.get_molecule_display_name(mol)} Population Diagram", fontsize="medium")
+        ax.set_ylabel(r"ln(4πF/(hν$A_{u}$$g_{u}$))", color=fg, labelpad=-1)
+        ax.set_xlabel(r"$E_{u}$ (K)", color=fg)
+        ax.set_title(
+            f"{self.get_molecule_display_name(mol)} Population diagram",
+            fontsize="medium",
+            color=fg,
+        )
 
     # ------------------------------------------------------------------
     def _render_highlights(self, ax: Axes, beam_s: float) -> None:
