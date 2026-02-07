@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, Tuple, Union, Callable
+from typing import Optional, Dict, Any, Literal, Tuple, Union, Callable, overload
 import numpy as np
 import warnings
 import time
@@ -291,7 +291,7 @@ class Molecule:
     def _compute_full_parameter_hash(self):
         return hash((self._compute_spectrum_hash()))
 
-    def _load_from_user_save_data(self, kwargs):
+    def _load_from_user_save_data(self, kwargs: Dict[str, Any]):
         """Load parameters from user save data"""
         usd = self.user_save_data
         self.name = usd.get('Molecule Name', kwargs.get('name', 'Unknown Molecule'))
@@ -315,7 +315,7 @@ class Molecule:
         self.scale_number = self.initial_molecule_parameters.get('scale_number', 1.0)
         self.radius_init = self.initial_molecule_parameters.get('radius_init', self._radius_val if self._radius_val is not None else 1.0)
 
-    def _load_from_kwargs(self, kwargs):
+    def _load_from_kwargs(self, kwargs: Dict[str, Any]):
         """Load parameters from kwargs"""
         self.name = kwargs.get('name', kwargs.get('displaylabel', kwargs.get('filepath', 'Unknown Molecule')))
         self.filepath = kwargs.get('filepath', (self.hitran_data if hasattr(self, 'hitran_data') else None))
@@ -466,7 +466,8 @@ class Molecule:
         self._param_hash_cache['spectrum'] = current_hash
         self._cache_stats['misses'] += 1
     
-    def calculate_intensity(self):
+    def calculate_intensity(self) -> None:
+        """Trigger intensity calculation (lazy — skipped if cache is valid)."""
         self._ensure_intensity_calculated()
     
     def get_parameter_hash(self, cache_type='full'):
@@ -490,8 +491,39 @@ class Molecule:
             self._dirty_flags['spectrum'] = True
             self._dirty_flags['flux'] = True      # Flux depends on spectrum
 
-    def get_flux(self, wavelength_array=None, return_wavelengths=False, interpolate_to_input=False):
-        """Get flux data with RV shift properly applied
+    @overload
+    def get_flux(
+        self,
+        wavelength_array: Optional[np.ndarray] = ...,
+        *,
+        return_wavelengths: Literal[True],
+        interpolate_to_input: bool = ...,
+    ) -> Tuple[np.ndarray, np.ndarray]: ...
+
+    @overload
+    def get_flux(
+        self,
+        wavelength_array: Optional[np.ndarray] = ...,
+        *,
+        return_wavelengths: Literal[False] = ...,
+        interpolate_to_input: bool = ...,
+    ) -> np.ndarray: ...
+
+    @overload
+    def get_flux(
+        self,
+        wavelength_array: Optional[np.ndarray] = ...,
+        return_wavelengths: bool = ...,
+        interpolate_to_input: bool = ...,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]: ...
+
+    def get_flux(
+        self,
+        wavelength_array: Optional[np.ndarray] = None,
+        return_wavelengths: bool = False,
+        interpolate_to_input: bool = False,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """Get flux data with RV shift properly applied.
         
         The RV shift works by:
         1. Calculate spectrum on the unshifted wavelength grid
@@ -502,17 +534,19 @@ class Molecule:
         Parameters
         ----------
         wavelength_array : np.ndarray, optional
-            Input wavelength array for additional interpolation
+            Input wavelength array for additional interpolation.
         return_wavelengths : bool, default False
-            If True, return tuple of (wavelengths, flux)
+            If True, return tuple of (wavelengths, flux).
         interpolate_to_input : bool, default False
-            If True and wavelength_array is provided, interpolate to match input grid
-            If False, return spectrum's native grid (with RV shift applied)
+            If True and wavelength_array is provided, interpolate to match input grid.
+            If False, return spectrum's native grid (with RV shift applied).
             
         Returns
         -------
-        np.ndarray or tuple
-            Flux array or (wavelengths, flux) tuple
+        np.ndarray
+            Flux array when *return_wavelengths* is False.
+        tuple of (np.ndarray, np.ndarray)
+            ``(wavelengths, flux)`` when *return_wavelengths* is True.
         """
         if wavelength_array is not None:
             try:

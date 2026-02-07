@@ -1,4 +1,7 @@
-from typing import Dict, List, Optional, Tuple, Callable, Any, Union
+from typing import (
+    Dict, List, Optional, Tuple, Callable, Any, Union,
+    Iterator, ItemsView, ValuesView, overload,
+)
 import numpy as np
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -63,6 +66,36 @@ class MoleculeDict(dict):
         self._clear_all_caches()
         self._visible_molecules = set()  # Clear visibility cache
         print("MoleculeDict cleared.")
+
+    # ------------------------------------------------------------------
+    # Typed dict accessors — tell static analysis that values are Molecule
+    # ------------------------------------------------------------------
+    def __getitem__(self, key: str) -> Molecule:
+        return super().__getitem__(key)
+
+    def __setitem__(self, key: str, value: Molecule) -> None:
+        super().__setitem__(key, value)
+
+    @overload
+    def get(self, key: str) -> Optional[Molecule]: ...
+    @overload
+    def get(self, key: str, default: Molecule) -> Molecule: ...
+    @overload
+    def get(self, key: str, default: Any) -> Any: ...
+    def get(self, key: str, default: Any = None) -> Any:
+        return super().get(key, default)
+
+    def values(self) -> ValuesView[Molecule]:
+        return super().values()
+
+    def items(self) -> ItemsView[str, Molecule]:
+        return super().items()
+
+    def __iter__(self) -> Iterator[str]:
+        return super().__iter__()
+
+    def __contains__(self, key: object) -> bool:
+        return super().__contains__(key)
     
     def get_visible_molecules(self, return_objects: bool = False) -> Union[set, List['Molecule']]:
         """Get visible molecule names or objects."""
@@ -928,7 +961,7 @@ class MoleculeDict(dict):
                 hitran_data=mol_data.get("hitran_data"),
                 name=mol_name,
                 filepath=mol_data.get("file") or mol_data.get("File Path"),
-                displaylabel=mol_data.get("label") or mol_data.get("Molecule Label", mol_name),
+                displaylabel=mol_data.get("displaylabel") or mol_data.get("label") or mol_data.get("Molecule Label", mol_name),
                 temp=_safe_float(mol_data, "Temp"),
                 radius=_safe_float(mol_data, "Rad"),
                 n_mol=_safe_float(mol_data, "N_Mol"),
