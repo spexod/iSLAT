@@ -107,6 +107,8 @@ class TopBar(ResizableFrame):
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
+        spec_functions_menu.add_separator()
+        spec_functions_menu.add_command(label="Subtract Models from Data", command=self.subtract_models_from_data)
         
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
@@ -441,6 +443,19 @@ class TopBar(ResizableFrame):
         except Exception as e:
             self.data_field.insert_text(f"Error finding single lines: {e}\n")
 
+    def subtract_models_from_data(self):
+        """Subtract visible models from the data spectrum and save result."""
+        self.data_field.insert_text("Subtracting models from spectrum...\n", clear_after=True)
+        
+        try:
+            result = self.islat.subtract_models_from_data(visible_only=True)
+            if result:
+                self.data_field.insert_text(f"Model subtraction complete.\n", clear_after=False)
+            else:
+                self.data_field.insert_text("Model subtraction failed. Check console for details.\n", clear_after=False)
+        except Exception as e:
+            self.data_field.insert_text(f"Error during model subtraction: {e}\n", clear_after=False)
+    
     def single_slab_fit(self):
         """Run single slab fit analysis."""        
         if self.islat.input_line_list is None:

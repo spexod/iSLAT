@@ -945,6 +945,146 @@ class iSLAT:
         except Exception as e:
             debug_config.error("active_molecule", f"Error setting active molecule: {e}")
             # Don't change the active molecule if there's an error
+    
+    def subtract_models_from_data(self, visible_only: bool = True) -> Optional[str]:
+        """
+        Subtract active/visible model spectra from the data spectrum.
+        
+        Uses flux-conserving spectral resampling (spectres algorithm) to interpolate
+        the model flux to match the data's wavelength sampling before subtraction.
+        
+        The result is saved as a new spectrum file with '_iSLATsub' suffix in the
+        same folder as the original spectrum, and is automatically loaded into iSLAT.
+        
+        Parameters
+        ----------
+        visible_only : bool, default True
+            If True, only subtract visible molecules. If False, subtract all molecules.
+            
+        Returns
+        -------
+        Optional[str]
+            Path to the saved subtracted spectrum file, or None if operation failed.
+        """
+        import pandas as pd
+        from pathlib import Path
+        
+        # Import spectres function from Molecule module
+        from .Modules.DataTypes.Molecule import _spectres
+        
+        # Validate we have the required data
+        if not hasattr(self, 'wave_data') or self.wave_data is None:
+            print("Error: No spectrum data loaded.")
+            return None
+        
+        if not hasattr(self, 'flux_data') or self.flux_data is None:
+            print("Error: No flux data available.")
+            return None
+            
+        if not hasattr(self, 'molecules_dict') or not self.molecules_dict:
+            print("Error: No molecules loaded.")
+            return None
+        
+        # Get visible molecules
+        molecules = list(self.molecules_dict.get_visible_molecules() if visible_only else self.molecules_dict.keys())
+        if not molecules:
+            print("Error: No visible molecules to subtract.")
+            return None
+        
+        print(f"Subtracting {len(molecules)} molecule(s) from spectrum...")
+        
+        # Get the summed model flux on the model's native wavelength grid
+        # We need to get the raw model flux first, then resample it
+        model_wave = None
+        model_flux_sum = None
+        
+        for mol_name in molecules:
+            if mol_name not in self.molecules_dict:
+                continue
+            molecule: Molecule = self.molecules_dict[mol_name]
+            
+            try:
+                # Get molecule flux on its native grid (not interpolated)
+                mol_wave, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
+                
+                if mol_wave is None or mol_flux is None or len(mol_wave) == 0:
+                    continue
+                
+                if model_wave is None:
+                    model_wave = mol_wave
+                    model_flux_sum = mol_flux.copy()
+                else:
+                    # All molecules should have same wavelength grid when not interpolating
+                    model_flux_sum += mol_flux
+                    
+            except Exception as e:
+                print(f"Warning: Could not get flux for {mol_name}: {e}")
+                continue
+        
+        if model_wave is None or model_flux_sum is None:
+            print("Error: Could not compute model flux.")
+            return None
+        
+        # Use spectres to resample model flux to data wavelength grid
+        # This is flux-conserving, handling the different pixel sampling properly
+        print("Resampling model to data wavelength grid using flux-conserving algorithm...")
+        
+        try:
+            model_flux_resampled = _spectres(
+                self.wave_data,      # Target wavelength grid (data)
+                model_wave,          # Source wavelength grid (model)
+                model_flux_sum,      # Source flux (model)
+                fill=0.0,            # Use 0 for wavelengths outside model range
+                verbose=True
+            )
+        except Exception as e:
+            print(f"Error during spectral resampling: {e}")
+            return None
+        
+        # Subtract model from data
+        subtracted_flux = self.flux_data - model_flux_resampled
+        
+        # Create output dataframe
+        output_df = pd.DataFrame({
+            'wave': self.wave_data,
+            'flux': subtracted_flux,
+        })
+        
+        # Include error and continuum if available
+        if hasattr(self, 'err_data') and self.err_data is not None:
+            output_df['err'] = self.err_data
+        
+        if hasattr(self, 'continuum_data') and self.continuum_data is not None:
+            output_df['cont'] = self.continuum_data
+        
+        # Generate output filename
+        if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
+            original_path = Path(self.loaded_spectrum_file)
+            output_name = original_path.stem + "_iSLATsub" + original_path.suffix
+            output_path = original_path.parent / output_name
+        else:
+            output_path = Path("spectrum_iSLATsub.csv")
+        
+        # Save the subtracted spectrum
+        try:
+            output_df.to_csv(output_path, index=False)
+            print(f"Saved model-subtracted spectrum to: {output_path}")
+        except Exception as e:
+            print(f"Error saving subtracted spectrum: {e}")
+            return None
+        
+        # Load the subtracted spectrum into iSLAT
+        print("Loading subtracted spectrum into iSLAT...")
+        self.load_spectrum(str(output_path), load_parameters=False)
+        
+        # Update the GUI if available
+        if hasattr(self, 'GUI') and self.GUI is not None:
+            if hasattr(self.GUI, 'plot'):
+                self.GUI.plot.update_all_plots()
+            if hasattr(self.GUI, 'data_field'):
+                self.GUI.data_field.insert_text(f"Subtracted {len(molecules)} model(s) from spectrum.\nSaved to: {output_path.name}")
+        
+        return str(output_path)
         
     @property
     def display_range(self):
