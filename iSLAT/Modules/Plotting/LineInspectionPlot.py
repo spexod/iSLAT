@@ -202,6 +202,97 @@ class LineInspectionPlot(BasePlot):
         return max_y
 
     # ------------------------------------------------------------------
+    # Line information helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def get_line_info(
+        line: "MoleculeLine",
+        intensity: float,
+        tau: Optional[float] = None,
+        data_flux_in_range: Optional[float] = None,
+        model_flux_in_range: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Build a structured information dict for a single molecular line.
+
+        This is the canonical source of per-line metadata used by both
+        the GUI data-field display and standalone notebooks/scripts.
+
+        Parameters
+        ----------
+        line : MoleculeLine
+            The molecular transition.
+        intensity : float
+            Computed model intensity for this line.
+        tau : float, optional
+            Line opacity.
+        data_flux_in_range : float, optional
+            Observed (data) flux integral in the selection range
+            (erg s⁻¹ cm⁻²).
+        model_flux_in_range : float, optional
+            Model flux integral in the selection range (erg s⁻¹ cm⁻²).
+
+        Returns
+        -------
+        dict
+            Keys: ``lam``, ``e_up``, ``e_low``, ``a_stein``, ``g_up``,
+            ``g_low``, ``up_lev``, ``low_lev``, ``intensity``, ``tau``,
+            ``data_flux_in_range``, ``model_flux_in_range``,
+            ``formatted_text``.
+        """
+        lam     = getattr(line, "lam", None)
+        e_up    = getattr(line, "e_up", None)
+        e_low   = getattr(line, "e_low", None)
+        a_stein = getattr(line, "a_stein", None)
+        g_up    = getattr(line, "g_up", None)
+        g_low   = getattr(line, "g_low", None)
+        up_lev  = getattr(line, "lev_up", None) or "N/A"
+        low_lev = getattr(line, "lev_low", None) or "N/A"
+        tau_val = tau if tau is not None else "N/A"
+
+        # Build formatted text ------------------------------------------
+        wav_s   = f"{lam:.6f}"       if lam     is not None else "N/A"
+        a_s     = f"{a_stein:.3e}"   if a_stein is not None else "N/A"
+        e_s     = f"{e_up:.0f}"      if e_up    is not None else "N/A"
+        tau_s   = f"{tau_val:.3f}"   if isinstance(tau_val, (int, float)) else str(tau_val)
+        dflux_s = f"{data_flux_in_range:.3e}"  if data_flux_in_range  is not None else "N/A"
+        mflux_s = f"{model_flux_in_range:.3e}" if model_flux_in_range is not None else "N/A"
+
+        text = (
+            "\n--- Line Information ---\n"
+            "Selected line:\n"
+            f"Upper level = {up_lev}\n"
+            f"Lower level = {low_lev}\n"
+            f"Wavelength (μm) = {wav_s}\n"
+            f"Einstein-A coeff. (1/s) = {a_s}\n"
+            f"Upper level energy (K) = {e_s}\n"
+            f"Opacity = {tau_s}\n"
+            f"Data flux in range (erg/s/cm2) = {dflux_s}\n"
+            f"Model flux in range (erg/s/cm2) = {mflux_s}\n"
+        )
+
+        return {
+            "lam":                  lam,
+            "e_up":                 e_up,
+            "e_low":                e_low if e_low else "N/A",
+            "a_stein":              a_stein,
+            "g_up":                 g_up,
+            "g_low":                g_low if g_low else "N/A",
+            "up_lev":               up_lev,
+            "low_lev":              low_lev,
+            "intensity":            intensity,
+            "tau":                  tau_val,
+            "data_flux_in_range":   data_flux_in_range,
+            "model_flux_in_range":  model_flux_in_range,
+            "formatted_text":       text,
+        }
+
+    @staticmethod
+    def format_line_info(info: Dict[str, Any]) -> str:
+        """Return the pre-built formatted text from a :meth:`get_line_info` dict."""
+        return info.get("formatted_text", "")
+
+    # ------------------------------------------------------------------
     # Convenience: update the wavelength range without rebuilding
     # ------------------------------------------------------------------
     def set_range(self, xmin: float, xmax: float) -> None:

@@ -1079,21 +1079,12 @@ class PlotRenderer:
                 e_ups.append(line.e_up)
                 rd_yaxs.append(rd_yax)
                 
-                # Store line information
-                value_data_list.append({
-                    'lam': line.lam,
-                    'e': line.e_up,
-                    'a': line.a_stein,
-                    'g': line.g_up,
-                    'e_low': line.e_low if line.e_low else 'N/A',
-                    'g_low': line.g_low if line.g_low else 'N/A',
-                    'rd_yax': rd_yax,
-                    'inten': intensity,
-                    'up_lev': line.lev_up if line.lev_up else 'N/A',
-                    'low_lev': line.lev_low if line.lev_low else 'N/A',
-                    'tau': tau_val if tau_val is not None else 'N/A',
-                    'intensity_percent': (intensity / max_intensity) * 100
-                })
+                # Store line information using canonical helper
+                value_data = LineInspectionPlot.get_line_info(line, intensity, tau_val)
+                # Add GUI-internal fields
+                value_data['rd_yax'] = rd_yax
+                value_data['intensity_percent'] = (intensity / max_intensity) * 100
+                value_data_list.append(value_data)
         
         if not e_ups:
             return
@@ -1176,22 +1167,11 @@ class PlotRenderer:
                                    color=active_color, 
                                    rotation=45)
                 
-                # Create value data for this line
-                value_data = {
-                    'lam': line.lam,
-                    'e': line.e_up,
-                    'a': line.a_stein,
-                    'g': line.g_up,
-                    'e_low': line.e_low if line.e_low else 'N/A',
-                    'g_low': line.g_low if line.g_low else 'N/A',
-                    'inten': intensity,
-                    'up_lev': line.lev_up if line.lev_up else 'N/A',
-                    'low_lev': line.lev_low if line.lev_low else 'N/A',
-                    'tau': tau_val if tau_val is not None else 'N/A',
-                    #'text_obj': text,
-                    'lineheight': lineheight,
-                    'intensity_percent': (intensity / max_intensity) * 100  # Store percentage for debugging
-                }
+                # Create value data using canonical helper
+                value_data = LineInspectionPlot.get_line_info(line, intensity, tau_val)
+                # Add GUI-internal fields
+                value_data['lineheight'] = lineheight
+                value_data['intensity_percent'] = (intensity / max_intensity) * 100
                 
                 # Add new entry to active_lines or update existing one
                 if idx < len(active_lines_list):
@@ -1238,7 +1218,7 @@ class PlotRenderer:
         strongest_scatter_idx = None
         
         for line, text_obj, scatter, value in active_lines_list:
-            intensity = value.get('inten', 0) if value else 0
+            intensity = value.get('intensity', 0) if value else 0
             if intensity > highest_intensity:
                 highest_intensity = intensity
                 strongest_triplet = [line, text_obj, scatter, value]

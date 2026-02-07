@@ -479,70 +479,89 @@ class iSLATPlot:
     def _display_line_info(self, value, clear_data_field=True):
         """
         Helper method to display line information in the data field.
+
+        Delegates formatting to :meth:`LineInspectionPlot.get_line_info` and
+        enriches the result with observed / model flux integrals when a
+        selection range is active.
         """
-        # Calculate flux integral in selected range
+        from .LineInspectionPlot import LineInspectionPlot
+
+        # Calculate flux integrals in the selected range ----------------
+        data_flux = None
+        model_flux = None
         if hasattr(self, 'current_selection') and self.current_selection:
             xmin, xmax = self.current_selection
-            # Calculate flux integral
             err_data = getattr(self.islat, 'err_data', None)
-            line_flux, line_err = self.flux_integral(
-                lam=self.islat.wave_data, 
-                flux=self.islat.flux_data, 
-                lam_min=xmin, 
-                lam_max=xmax,
-                err=err_data
+            line_flux, _ = self.flux_integral(
+                lam=self.islat.wave_data,
+                flux=self.islat.flux_data,
+                lam_min=xmin, lam_max=xmax,
+                err=err_data,
             )
-            molecule_wave, molecule_flux = self.islat.active_molecule.get_flux(return_wavelengths=True)
-            molecule_flux_in_range, _ = self.flux_integral(
-                lam=molecule_wave, 
-                flux=molecule_flux, 
-                lam_min=xmin, 
-                lam_max=xmax,
-                err=None
+            data_flux = line_flux[0] if isinstance(line_flux, (list, tuple)) else line_flux
+            molecule_wave, molecule_flux_arr = self.islat.active_molecule.get_flux(return_wavelengths=True)
+            model_flux, _ = self.flux_integral(
+                lam=molecule_wave,
+                flux=molecule_flux_arr,
+                lam_min=xmin, lam_max=xmax,
+                err=None,
+            )
+
+        # If the value dict already comes from get_line_info, update flux
+        # fields and regenerate the formatted text.  Otherwise fall back
+        # to the legacy key names.
+        if 'formatted_text' in value:
+            # Re-generate info with actual flux values (the original was
+            # created at render time without them).
+            class _Line2:
+                pass
+            _l2 = _Line2()
+            _l2.lam = value.get('lam')
+            _l2.e_up = value.get('e_up')
+            _l2.e_low = value.get('e_low')
+            _l2.a_stein = value.get('a_stein')
+            _l2.g_up = value.get('g_up')
+            _l2.g_low = value.get('g_low')
+            _l2.lev_up = value.get('up_lev')
+            _l2.lev_low = value.get('low_lev')
+            info = LineInspectionPlot.get_line_info(
+                _l2,
+                intensity=value.get('intensity', 0),
+                tau=value.get('tau'),
+                data_flux_in_range=data_flux,
+                model_flux_in_range=model_flux,
             )
         else:
-            line_flux = [0.0]
-        
-        # Extract line information
-        lam = value.get('lam', None)
-        e_up = value.get('e', None)
-        a_stein = value.get('a', None)
-        g_up = value.get('g', None)
-        inten = value.get('inten', None)
-        up_lev = value.get('up_lev', 'N/A')
-        low_lev = value.get('low_lev', 'N/A')
-        tau_val = value.get('tau', 'N/A')
-        
-        # Format values to match original output
-        wavelength_str = f"{lam:.6f}" if lam is not None else 'N/A'
-        einstein_str = f"{a_stein:.3e}" if a_stein is not None else 'N/A'
-        energy_str = f"{e_up:.0f}" if e_up is not None else 'N/A'
-        tau_str = f"{tau_val:.3f}" if isinstance(tau_val, (float, int)) else str(tau_val)
-        flux_str = f"{line_flux[0]:.3e}" if isinstance(line_flux, (list, tuple)) and len(line_flux) > 0 else f"{line_flux:.3e}"
+            # Legacy value_data dict (keys: lam/e/a/g/inten/…)
+            # Build a minimal namespace so get_line_info can work.
+            class _Line:
+                pass
+            _l = _Line()
+            _l.lam = value.get('lam')
+            _l.e_up = value.get('e_up', value.get('e'))
+            _l.e_low = value.get('e_low')
+            _l.a_stein = value.get('a_stein', value.get('a'))
+            _l.g_up = value.get('g_up', value.get('g'))
+            _l.g_low = value.get('g_low')
+            _l.lev_up = value.get('up_lev')
+            _l.lev_low = value.get('low_lev')
+            info = LineInspectionPlot.get_line_info(
+                _l,
+                intensity=value.get('intensity', value.get('inten', 0)),
+                tau=value.get('tau'),
+                data_flux_in_range=data_flux,
+                model_flux_in_range=model_flux,
+            )
 
-        # Display line information in the original format
-        info_str = (
-            "\n--- Line Information ---\n"
-            "Selected line:\n"
-            f"Upper level = {up_lev}\n"
-            f"Lower level = {low_lev}\n"
-            f"Wavelength (μm) = {wavelength_str}\n"
-            f"Einstein-A coeff. (1/s) = {einstein_str}\n"
-            f"Upper level energy (K) = {energy_str}\n"
-            f"Opacity = {tau_str}\n"
-            f"Data flux in range (erg/s/cm2) = {flux_str}\n"
-            f"Model flux in range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
-        )
-        
-        # Add the information without clearing the data field, with error protection
+        info_str = LineInspectionPlot.format_line_info(info)
+
+        # Push to the GUI data-field (with error protection) -----------
         if (hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field') and
             self.islat.GUI.data_field is not None):
             try:
-                # Check if the widget still exists before accessing it
                 if hasattr(self.islat.GUI.data_field, 'text') and self.islat.GUI.data_field.text.winfo_exists():
                     self.islat.GUI.data_field.insert_text(info_str, clear_after=clear_data_field)
             except Exception as e:
-                # Silently ignore GUI access errors during initialization
                 print(f"Warning: Could not update data field: {e}")
                 pass
 
