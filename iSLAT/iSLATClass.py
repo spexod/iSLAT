@@ -10,7 +10,7 @@ from .Modules.Debug.PerformanceLogger import (
     mark_startup_begin, get_performance_summary, reset_performance_data
 )
 
-from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
+from .Modules.FileHandling.iSLATFileHandling import load_user_settings, save_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
 from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path, hitran_data_folder_path, hitran_data_folder_name, example_data_folder_path
 
 from .Modules.Hitran_data import download_hitran_data
@@ -326,7 +326,10 @@ class iSLAT:
             
         print("Checking HITRAN files:")
 
-        if self.user_settings.get("first_startup", False) or self.user_settings.get("reload_default_files", True):
+        is_first = self.user_settings.get("first_startup", False)
+        reload_files = self.user_settings.get("reload_default_files", False)
+
+        if is_first or reload_files:
             print('First startup or reload_default_files is True. Loading default HITRAN files ...')
             
             for mol, bm, iso in zip(self.mols, self.basem, self.isot):
@@ -338,6 +341,13 @@ class iSLAT:
                     except Exception as e:
                         print(f"ERROR: Failed to load HITRAN file for {mol}: {e}")
                     continue
+
+            # Mark first startup as complete so we don't repeat this on next launch
+            if is_first:
+                self.user_settings["first_startup"] = False
+            if reload_files:
+                self.user_settings["reload_default_files"] = False
+            save_user_settings(self.user_settings)
         else:
             print('Not the first startup and reload_default_files is False. Skipping HITRAN files loading.')
 

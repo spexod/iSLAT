@@ -15,6 +15,7 @@ save_folder_path = data_files_path / "SAVES"
 user_configuration_file_path = config_file_path = data_files_path / "CONFIG"
 theme_file_path = data_files_path / "CONFIG" / "GUIThemes"
 user_configuration_file_name = "UserSettings.json"
+default_user_settings_file_name = "DefaultUserSettings.json"
 
 hitran_data_folder_name = Path("HITRANdata")
 # Use absolute path for HITRAN data to ensure cache works from anywhere
@@ -58,6 +59,7 @@ __all__ = [
     "user_configuration_file_path",
     "theme_file_path",
     "user_configuration_file_name",
+    "default_user_settings_file_name",
     "hitran_data_folder_name",
     "hitran_data_folder_path",
     "hitran_cache_folder_path",

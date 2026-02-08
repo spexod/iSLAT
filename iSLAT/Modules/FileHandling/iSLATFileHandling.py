@@ -15,6 +15,69 @@ if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.Molecule import Molecule
 
+def _load_default_user_settings(file_path=user_configuration_file_path, file_name=default_user_settings_file_name):
+    """Load the DefaultUserSettings.json file and return its contents as a dict."""
+    file = os.path.join(file_path, file_name)
+    if os.path.exists(file):
+        with open(file, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def _migrate_user_settings(user_settings, file_path=user_configuration_file_path, file_name=user_configuration_file_name):
+    """
+    Compare the user_settings_version in UserSettings.json against
+    DefaultUserSettings.json.  If the default version is newer (or the
+    user file has no version at all), merge any new keys from the defaults
+    into the user settings while preserving the user's existing values.
+
+    Returns the (possibly updated) user_settings dict.
+    """
+    defaults = _load_default_user_settings(file_path)
+    if not defaults:
+        return user_settings  # nothing to compare against
+
+    default_version = defaults.get("user_settings_version", 0)
+    user_version = user_settings.get("user_settings_version", 0)
+
+    if user_version >= default_version:
+        return user_settings  # already up to date
+
+    # Add any keys present in defaults but missing from user settings
+    added_keys = []
+    for key, value in defaults.items():
+        if key not in user_settings:
+            user_settings[key] = value
+            added_keys.append(key)
+
+    # Remove any keys present in user settings but absent from defaults
+    # (skip internal/runtime keys that start with '_')
+    removed_keys = []
+    for key in list(user_settings.keys()):
+        if key not in defaults and not key.startswith("_"):
+            del user_settings[key]
+            removed_keys.append(key)
+
+    # Bump the version to match the defaults
+    user_settings["user_settings_version"] = default_version
+
+    changes = []
+    if added_keys:
+        changes.append(f"added: {', '.join(added_keys)}")
+    if removed_keys:
+        changes.append(f"removed: {', '.join(removed_keys)}")
+    if changes:
+        print(f"User settings migrated to version {default_version}. "
+              f"Fields {'; '.join(changes)}")
+    else:
+        print(f"User settings version updated to {default_version} (no field changes).")
+
+    # Persist the migrated settings to disk
+    save_user_settings(user_settings, file_path, file_name)
+
+    return user_settings
+
+
 def load_user_settings(file_path=user_configuration_file_path, file_name=user_configuration_file_name, theme_file_path=theme_file_path):
     """ load_user_settings() loads the user settings from the UserSettings.json file."""
     file = os.path.join(file_path, file_name)
@@ -22,18 +85,30 @@ def load_user_settings(file_path=user_configuration_file_path, file_name=user_co
         with open(file, 'r') as f:
             user_settings = json.load(f)
     else:
-        # If the file does not exist, return default settings and save them as a new json file
-        default_settings = {
-            "first_startup": True,
-            "reload_default_files": True,
-            "theme": "LightTheme"
-        }
+        # No user settings file exists — create one from the defaults
+        user_settings = _load_default_user_settings(file_path)
+        if user_settings:
+            print("No UserSettings.json found. Creating one from DefaultUserSettings.json.")
+        else:
+            # Absolute fallback if even the defaults file is missing
+            print("No UserSettings.json or DefaultUserSettings.json found. Using minimal defaults.")
+            user_settings = {"theme": "LightTheme"}
+
+        # Mark as first startup so the HITRAN check runs
+        user_settings["first_startup"] = True
+        user_settings["reload_default_files"] = True
+
         with open(file, 'w') as f:
-            json.dump(default_settings, f, indent=4)
-        user_settings = default_settings
-    
+            json.dump(user_settings, f, indent=4)
+
+    # Migrate user settings if the default version is newer
+    user_settings = _migrate_user_settings(user_settings, file_path, file_name)
+
     # append theme information to the user settings dictonary
-    theme_file = f"{theme_file_path}/{user_settings['theme']}.json"
+    theme_key = user_settings.get('theme', 'LightTheme')  # e.g. "LightTheme"
+    theme_file = f"{theme_file_path}/{theme_key}.json"
+    # Stash the file-stem key so save_user_settings can recover it
+    user_settings["_theme_key"] = theme_key
     if os.path.exists(theme_file):
         with open(theme_file, 'r') as f:
             theme_settings = json.load(f)
@@ -50,6 +125,51 @@ def load_user_settings(file_path=user_configuration_file_path, file_name=user_co
         user_settings["intensity_calculation_method"] = "curve_growth" # default fallback 
     
     return user_settings
+
+def save_user_settings(user_settings, file_path=user_configuration_file_path, file_name=user_configuration_file_name):
+    """
+    Persist the current user_settings dict back to UserSettings.json.
+
+    The in-memory dict may contain a parsed theme dict under the 'theme' key;
+    we store only the theme *name* string so the file stays clean.
+    Runtime-only keys like 'intensity_calculation_method' are also stripped.
+    """
+    file = os.path.join(file_path, file_name)
+
+    # Work on a shallow copy so we don't mutate the caller's dict
+    to_save = dict(user_settings)
+
+    # Convert theme dict back to its name string for storage
+    theme_val = to_save.get("theme")
+    if isinstance(theme_val, dict):
+        # Use the stashed key first, then fall back to guessing
+        to_save["theme"] = to_save.pop("_theme_key", "LightTheme")
+    else:
+        # Already a string; just drop the stash key if present
+        to_save.pop("_theme_key", None)
+
+    # Remove runtime-only keys that are derived, not user-configured
+    for runtime_key in ("intensity_calculation_method", "_theme_key"):
+        to_save.pop(runtime_key, None)
+
+    # Reorder keys to match the canonical order from DefaultUserSettings.json
+    # so that any newly-migrated fields appear in the correct position.
+    defaults = _load_default_user_settings(file_path)
+    if defaults:
+        ordered = {}
+        # First, add keys in the order they appear in the defaults
+        for key in defaults:
+            if key in to_save:
+                ordered[key] = to_save.pop(key)
+        # Then, append any user-only keys that aren't in defaults
+        ordered.update(to_save)
+        to_save = ordered
+
+    try:
+        with open(file, 'w') as f:
+            json.dump(to_save, f, indent=4)
+    except Exception as e:
+        print(f"Warning: Could not save user settings to {file}: {e}")
 
 def read_from_csv(file_path=save_folder_path, file_name=molsave_file_name):
     file = os.path.join(file_path, file_name)
