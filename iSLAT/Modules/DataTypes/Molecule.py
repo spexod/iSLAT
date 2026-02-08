@@ -6,6 +6,7 @@ import threading
 
 # Performance logging
 from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
+from iSLAT.Modules.Debug.DebugConfig import debug_config
 
 # ================================
 # Spectral Resampling Functions
@@ -342,7 +343,7 @@ class Molecule:
         if self.lines is None:
             start_time = time.perf_counter()
             if self.filepath:
-                print("Loading lines from filepath:", self.filepath)
+                debug_config.info('molecule_dict', f"Loading lines from filepath: {self.filepath}")
                 self.lines = MoleculeLineList(molecule_id=self.name, filename=self.filepath)
             else:
                 print("Creating empty line list")

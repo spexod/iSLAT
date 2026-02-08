@@ -24,6 +24,7 @@ from pathlib import Path
 import os
 #from iSLAT.Modules.FileHandling.iSLATFileHandling import data_files_path, hitran_data_folder_name
 from iSLAT.Modules.FileHandling import data_files_path, hitran_data_folder_name
+from iSLAT.Modules.Debug.DebugConfig import debug_config
 
 try:
     import pandas as pd
@@ -31,7 +32,6 @@ except ImportError:
     pd = None
 
 __all__ = ["read_molecular_data", "MolecularDataReader"]
-
 
 def read_molecular_data(molecule_name, filename):
     """
@@ -80,7 +80,7 @@ class MolecularDataReader:
         full_file_path = os.path.join(file_path, filename)
         full_file_path = os.path.abspath(full_file_path)
         #full_file_path = filename
-        print(f"Loading lines from filepath: {full_file_path}")
+        debug_config.info('molecule_dict', f"Loading lines from filepath: {full_file_path}")
 
         # Try fast method first
         try:

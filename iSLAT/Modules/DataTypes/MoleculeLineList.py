@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 # Performance logging
 from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
+from iSLAT.Modules.Debug.DebugConfig import debug_config
 
 #from .MoleculeLine import MoleculeLine
 
@@ -345,7 +346,7 @@ class MoleculeLineList:
         if self._is_cache_valid(source_filepath, cache_filepath):
             section.mark("load_from_cache")
             if self._load_from_cache(cache_filepath):
-                print(f"[CACHE HIT] Loaded {self.molecule_id} from binary cache")
+                debug_config.info('molecule_dict', f"[CACHE HIT] Loaded {self.molecule_id} from binary cache")
                 section.mark("cache_load_complete")
                 section.end()
                 section.get_breakdown(print_output=True)

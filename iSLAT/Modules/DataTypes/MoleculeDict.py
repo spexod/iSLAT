@@ -14,9 +14,53 @@ from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, Performa
 from .Molecule import Molecule
 import iSLAT.Constants as default_parms
 
-def _safe_float(data: dict, key: str, default=None):
-    """Safely convert a dictionary value to float."""
-    value = data.get(key, default)
+def _ci_get(data: dict, key: str):
+    """Look up *key* in *data* with a case-insensitive fallback.
+
+    Tries an exact-case ``dict.get`` first (O(1)).  Only when that
+    returns ``None`` does it fall back to a linear scan over keys.
+    """
+    val = data.get(key)
+    if val is not None:
+        return val
+    key_lower = key.lower()
+    for dk, dv in data.items():
+        if dk.lower() == key_lower:
+            return dv
+    return None
+
+def _safe_float(data: dict, key: Union[str, List[str]], default=None,
+                case_insensitive: bool = True):
+    """Safely convert a dictionary value to float.
+
+    Parameters
+    ----------
+    data : dict
+        Source dictionary to look up.
+    key : str or list of str
+        A single key **or** an ordered list of keys to try.  The first
+        key that exists in *data* (with a non-``None`` value) is used.
+    default : optional
+        Value returned when no key matches or conversion fails.
+    case_insensitive : bool, default True
+        When ``True``, key matching ignores case.  An exact-case match is
+        always tried first; if that misses, a case-insensitive scan of
+        *data* keys is performed as a fallback.
+    """
+    _lookup = _ci_get if case_insensitive else dict.get
+
+    if isinstance(key, list):
+        value = None
+        for k in key:
+            value = _lookup(data, k)
+            if value is not None:
+                break
+        if value is None:
+            value = default
+    else:
+        value = _lookup(data, key)
+        if value is None:
+            value = default
     try:
         return float(value) if value is not None else default
     except (ValueError, TypeError):
@@ -970,7 +1014,7 @@ class MoleculeDict(dict):
                 intensity_calculation_method=self._global_intensity_calculation_method,
                 fwhm=_safe_float(mol_data, "FWHM"),
                 rv_shift=_safe_float(mol_data, "RV Shift"),
-                broad=mol_data.get("Broad"),
+                broad=_safe_float(mol_data, "Broad"),
                 model_pixel_res=self._global_model_pixel_res,
                 model_line_width=self._global_model_line_width,
                 initial_molecule_parameters=mol_initial_params
