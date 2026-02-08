@@ -1,5 +1,37 @@
 # Changelog
 
+## v5.02.02 - February 08, 2026
+
+### iSLAT Package
+- Added new project toml file to define the package
+- As of commit [10eec...](https://github.com/John-M87/iSLATTests/commit/10eec425a25fd7973497b52d9acfad376b0c355c) (Made iSLAT installable as a package) you will need to do one of the follow to run this branch:
+    - Run ``pip install -e .`` from the project root (i.e. the directory where the `pyproject.toml` is located)
+    - Run ``pip install -e git://github.com/John-M87/iSLATTests.git@{ tag name }#egg={ desired egg name }`` (Untested)
+    - In the future you will be able to pip install as usual
+- Updated some files (such as iSLAT-launch.py) to remove code that is no longer needed
+- Added a new `iSLAT` console command when installed as a package
+    - When you type `iSLAT` into the command line it will auto run a start script and launch the GUI
+    - Could be used with a bat file if desired
+
+### New Features
+
+#### GUI Improvements
+- Added a new plus button next to the load spectrum button
+    - Lets you add multiple spectra to be used as a sample
+    - When a sample is loaded the Fit Saved Lines to Sample function automatically uses it
+    - When a sample is loaded you are also able to use the left and right arrow keys to dynamically move between the loaded spectra
+
+#### Example Notebooks
+- Edited all Notebooks to use a regular import for iSLAT instead of the sys path appending method
+
+### Bug Fixes
+- Updated HITRANdata file path in the FileHandling module
+
+### Code Quality
+- Bumped version to `v5.02.02`
+
+---
+
 ## v5.02.01 - February 07, 2026
 
 ### New Features

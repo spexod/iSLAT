@@ -3,7 +3,7 @@
 - Run ``pip install -e git://github.com/John-M87/iSLATTests.git@{ tag name }#egg={ desired egg name }`` (Untested)
 - In the future you will be able to pip install as usual
 
-# iSLAT v5.02.01 - beta release
+# iSLAT v5.02.02 - beta release
 
 ### Key updates from v5.00.01:
 - Further improvements in speed and computational efficiency

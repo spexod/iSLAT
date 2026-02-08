@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "iSLAT"
-version = "5.02.01"
+version = "5.02.02"
 description = "interactive Spectral-Line Analysis Tool for molecular emission spectra"
 readme = "README.md"
 license = {text = "Apache-2.0"}
