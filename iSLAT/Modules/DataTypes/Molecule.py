@@ -706,6 +706,12 @@ class Molecule:
         self._notify_my_parameter_change('is_visible', old_value, self._is_visible)
 
     @property
+    def line_list(self) -> Optional[MoleculeLineList]:
+        '''Access the MoleculeLineList, loading it if necessary.'''
+        self._ensure_lines_loaded()
+        return self.lines
+
+    @property
     def molar_mass(self) -> float:
         '''Molar mass in g/mol'''
         if not hasattr(self, '_molar_mass') or self._molar_mass is None:

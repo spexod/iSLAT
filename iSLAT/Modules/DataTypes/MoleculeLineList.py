@@ -505,6 +505,10 @@ class MoleculeLineList:
         self._ensure_data_loaded()
         return self.partition_function
     
+    def __len__(self) -> int:
+        """Return the number of lines in the list."""
+        return self.num_lines
+    
     @property
     def num_lines(self):
         """Number of lines in the list"""

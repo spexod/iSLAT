@@ -98,9 +98,9 @@ class Intensity:
     _BB_X_FACTOR = c.PLANCK_CONSTANT / c.BOLTZMANN_CONSTANT
     
     # Pre-computed constants for intensity calculation (avoid recomputing every call)
-    _SQRT_LN2_INV = 1.0 / (2.0 * np.sqrt(np.log(2.0)))  # ≈ 0.6005
-    _C3_OVER_8PI = (c.SPEED_OF_LIGHT_CGS ** 3) / (8.0 * np.pi)  # c³/(8π)
-    _INV_FGAUSS_1E5 = 1.0 / (1e5 * c.FGAUSS_PREFACTOR)  # 1/(10⁵ × FGAUSS_PREFACTOR)
+    _SQRT_LN2_INV = 1.0 / (2.0 * np.sqrt(np.log(2.0)))  # ~ 0.6005
+    _C3_OVER_8PI = (c.SPEED_OF_LIGHT_CGS ** 3) / (8.0 * np.pi)  # c^3/(8π)
+    _INV_FGAUSS_1E5 = 1.0 / (1e5 * c.FGAUSS_PREFACTOR)  # 1/(10^5 * FGAUSS_PREFACTOR)
     
     @staticmethod
     def _bb(nu: np.ndarray, T: np.ndarray) -> np.ndarray:
@@ -225,11 +225,11 @@ class Intensity:
         3. For overlapping lines: sum optical depths → apply curve-of-growth → distribute intensity
         
         Physical Basis:
-        - Isolated lines: I = (physical_factors) x ∫[1 - exp(-τ)] dv
+        - Isolated lines: I = (physical_factors) * ∫[1 - exp(-τ)] dv
         - Overlapping lines: I_total = ∫[1 - exp(-Στ_i)] dv, then distribute proportionally
         
         Performance:
-        - Memory complexity: O(n) instead of O(n²) for overlap detection
+        - Memory complexity: O(n) instead of O(n^2) for overlap detection
         - Time complexity: O(n log n) for sorting + O(n) for processing  
         - Vectorized operations for isolated lines (typically 85%+ of all lines)
         
@@ -244,14 +244,14 @@ class Intensity:
         freq_ratio : np.ndarray, shape (n_conditions, n_lines)
             Frequency ratios (v/c) for unit conversion
         sqrt_ln2_inv : float
-            Normalization constant: 1/(2√ln(2)) ≈ 0.6005 for Gaussian integration
+            Normalization constant: 1/(2*sqrt(ln(2))) ~ 0.6005 for Gaussian integration
         frequencies : np.ndarray, shape (n_lines,)
             Line rest frequencies in Hz
             
         Returns
         -------
         np.ndarray, shape (n_conditions, n_lines)
-            Calculated line intensities in CGS units (erg cm⁻² s⁻¹ Hz⁻¹)
+            Calculated line intensities in CGS units (erg cm^2 s^-1 Hz^-1)
             
         Notes
         -----
