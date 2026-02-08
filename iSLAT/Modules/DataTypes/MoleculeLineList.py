@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import time
 import os
@@ -81,7 +82,7 @@ class MoleculeLineList:
                  '_g_up_cache', '_g_low_cache', '_data_loaded', '_filename', '_raw_lines_data',
                  '_pandas_df_cache', '_molar_mass')
     
-    def __init__(self, molecule_id: Optional[str] = None, filename: Optional[str] = None, 
+    def __init__(self, molecule_id: Optional[str] = None, filename: Optional[str | Path] = None, 
                  lines_data: Optional[List[dict]] = None):
         """
         Initialize a MoleculeLineList object.
@@ -92,7 +93,7 @@ class MoleculeLineList:
             Identifier for the molecule.
         lines_data : list of dict, optional
             List of dictionaries containing line data with keys like 'frequency', 'wavelength', 'intensity', etc.
-        filename : str, optional
+        filename : str | Path, optional
             Path to a .par file to read molecular data from.
         """
         self.molecule_id = molecule_id
@@ -316,13 +317,13 @@ class MoleculeLineList:
             print(f"Failed to save cache: {e}")
             return False
 
-    def _load_from_file(self, filename: str):
+    def _load_from_file(self, filename: str | Path):
         """
         Load molecular data from a .par file, using binary cache if available.
         
         Parameters
         ----------
-        filename : str
+        filename : str | Path
             Path to the .par file
         """
         section = PerformanceSection(f"MoleculeLineList._load_from_file({self.molecule_id})")
@@ -909,3 +910,188 @@ class MoleculeLineList:
         """Get the molar mass of the molecule."""
         self._ensure_data_loaded()
         return self._molar_mass
+    
+    def get_upper_levels(self) -> np.ndarray:
+        """
+        Get all upper level energies from the lines.
+        
+        Returns
+        -------
+        np.ndarray
+            Array of upper level energies
+        """
+        self._ensure_data_loaded()
+        
+        # Use cached values if available
+        if self._lev_up_cache is not None:
+            return self._lev_up_cache
+        
+        # Use direct structured array column access (O(1) slice)
+        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
+            self._lev_up_cache = self._raw_lines_data['lev_up'].copy()
+        else:
+            self._ensure_lines_created()
+            if not self.lines:
+                self._lev_up_cache = np.array([])
+            else:
+                self._lev_up_cache = np.array([line.lev_up for line in self.lines])
+                
+        return self._lev_up_cache
+    
+    def get_lower_levels(self) -> np.ndarray:
+        """
+        Get all lower level energies from the lines.
+        
+        Returns
+        -------
+        np.ndarray
+            Array of lower level energies
+        """
+        self._ensure_data_loaded()
+        
+        # Use cached values if available
+        if self._lev_low_cache is not None:
+            return self._lev_low_cache
+        
+        # Use direct structured array column access (O(1) slice)
+        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
+            self._lev_low_cache = self._raw_lines_data['lev_low'].copy()
+        else:
+            self._ensure_lines_created()
+            if not self.lines:
+                self._lev_low_cache = np.array([])
+            else:
+                self._lev_low_cache = np.array([line.lev_low for line in self.lines])
+                
+        return self._lev_low_cache
+
+    # ================================
+    # .par File Writing
+    # ================================
+
+    def _write_line_data(self, fh, lines_df: Optional["pandas.DataFrame"] = None):
+        """Write line data to an open file handle in .par format.
+
+        Writes directly from the internal structured array or from an
+        externally supplied DataFrame (e.g. a filtered subset).
+
+        Parameters
+        ----------
+        fh : file handle
+            Writable file handle.
+        lines_df : pandas.DataFrame, optional
+            A DataFrame with the same columns as ``get_pandas_table()``.
+            When provided, these rows are written instead of the full
+            internal line list.
+
+        Returns
+        -------
+        fh : file handle
+            The same handle, for chaining.
+        """
+        if lines_df is not None:
+            raw = lines_df.to_records(index=False)
+        else:
+            self._ensure_data_loaded()
+            raw = self._raw_lines_data
+
+        numlines = len(raw) if raw is not None else 0
+
+        fh.write("Number of lines\n")
+        fh.write(str(numlines) + '\n')
+
+        fh.write("#    Nr                        Lev_up                       Lev_low   Lambda    Frequency")
+        fh.write("       Einstein-A     E_up           E_low        g_up   g_low\n")
+        fh.write("#                                                                    [micron]  [GHz]    ")
+        fh.write("       [s**-1]        [K]            [K]        \n")
+
+        if raw is not None:
+            for row in raw:
+                # freq is stored in Hz internally; .par format expects GHz
+                freq_ghz = float(row['freq']) / 1e9
+                fh.write(
+                    "{:6d}{:>30s}{:>30s}{:11.5f}{:15.8f}{:13.4e}{:15.5f}{:15.5f}{:7.1f}{:7.1f}\n".format(
+                        int(row['nr']),
+                        str(row['lev_up']),
+                        str(row['lev_low']),
+                        float(row['lam']),
+                        freq_ghz,
+                        float(row['a_stein']),
+                        float(row['e_up']),
+                        float(row['e_low']),
+                        float(row['g_up']),
+                        float(row['g_low']),
+                    )
+                )
+
+        return fh
+
+    def write_par_file(
+        self,
+        file_path: str | Path,
+        header: Optional["pandas.DataFrame"] = None,
+        lines_df: Optional["pandas.DataFrame"] = None,
+    ) -> None:
+        """Write the line list to a .par file.
+
+        Reuses the existing ``write_partition_function`` writer for the
+        partition-function block and writes line data directly from the
+        internal structured array (or from *lines_df* when supplied).
+
+        Parameters
+        ----------
+        file_path : str or Path
+            Output path for the .par file.
+        header : pandas.DataFrame, optional
+            Single-row DataFrame that can override default header fields.
+            Recognised columns (all optional): ``'mol'``, ``'M'``,
+            ``'isotopologue'``, ``'G'``, ``'molar_mass'``, ``'source'``,
+            ``'date'``.  Missing or ``None`` values fall back to defaults
+            derived from the line list's own metadata.
+        lines_df : pandas.DataFrame, optional
+            A filtered DataFrame (same columns as ``get_pandas_table()``).
+            When provided, only these rows are written.  The partition
+            function is still taken from the line list itself.
+        """
+        import datetime
+        from pathlib import Path as _Path
+        from iSLAT.Modules.FileHandling.partition_function_writer import write_partition_function
+
+        self._ensure_data_loaded()
+        file_path = _Path(file_path)
+        os.makedirs(file_path.parent, exist_ok=True)
+
+        # Build header overrides dict
+        overrides: dict = {}
+        if header is not None and not header.empty:
+            overrides = {
+                col: header[col].iloc[0]
+                for col in header.columns
+                if header[col].iloc[0] is not None
+            }
+
+        h_mol = overrides.get('mol', self.molecule_id or '')
+        h_M = overrides.get('M', '')
+        h_iso = overrides.get('isotopologue', '')
+        h_G = overrides.get('G', '')
+        h_mass = overrides.get('molar_mass', self._molar_mass or '')
+        h_source = overrides.get('source', 'Written from MoleculeLineList')
+        h_date = overrides.get('date', str(datetime.date.today()))
+
+        with open(file_path, 'w') as fh:
+            fh.write(f"# HITRAN {h_mol}; id:{h_M}; iso:{h_iso};gid:{h_G}\n")
+            fh.write(f"# Molar Mass: {h_mass}\n")
+            fh.write(f"# {h_source}\n")
+            fh.write(f"# {h_date}\n")
+
+            # Partition function — normalise column names to temp/q
+            if self.partition_function is not None:
+                pd = _get_pandas()
+                if pd is not None:
+                    qdata = pd.DataFrame({
+                        'temp': self.partition_function.t,
+                        'q': self.partition_function.q,
+                    })
+                    fh = write_partition_function(fh, qdata)
+
+            fh = self._write_line_data(fh, lines_df=lines_df)

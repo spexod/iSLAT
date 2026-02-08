@@ -53,6 +53,8 @@ set_input_file_folder_path = data_files_path / "LINELISTS"
 set_output_file_folder_path = line_saves_file_path
 set_output_file_name = "line_outputs.csv"
 
+from .line_data_writer import write_line_data
+
 __all__ = [
     "data_files_path",
     "absolute_data_files_path",
@@ -83,5 +85,6 @@ __all__ = [
     "deblend_models_file_path",
     "deblended_fit_stats_file_name",
     "deblended_fit_stats_file_path",
-    "example_data_folder_path"
+    "example_data_folder_path",
+    "write_line_data"
 ]
