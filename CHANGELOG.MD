@@ -4,7 +4,7 @@
 
 ### iSLAT Package
 - Added new project toml file to define the package
-- As of commit [10eec...](https://github.com/John-M87/iSLATTests/commit/10eec425a25fd7973497b52d9acfad376b0c355c) (Made iSLAT installable as a package) you will need to do one of the follow to run this branch:
+- As of commit [10eec...](https://github.com/John-M87/iSLATTests/commit/10eec425a25fd7973497b52d9acfad376b0c355c) (Made iSLAT installable as a package) you will need to do one of the follow to run the notebooks on this branch:
     - Run ``pip install -e .`` from the project root (i.e. the directory where the `pyproject.toml` is located)
     - Run ``pip install -e git://github.com/John-M87/iSLATTests.git@{ tag name }#egg={ desired egg name }`` (Untested)
     - In the future you will be able to pip install as usual
