@@ -339,7 +339,34 @@ class iSLATPlot:
         """
         Updates the main spectrum plot with observed data, model spectra, and summed flux.
         Uses molecules' built-in caching and hashing for optimal performance.
+        
+        If the full spectrum view is currently active, refreshes that instead of
+        (or in addition to) the regular three-panel canvas so the UI stays current
+        when a new spectrum is loaded or molecule parameters change.
         """
+        # If full spectrum mode is active, refresh it so the visible view stays current
+        if getattr(self, 'is_full_spectrum', False) and hasattr(self, 'full_spectrum_plot'):
+            try:
+                old_fig = self.full_spectrum_plot.fig
+                self.full_spectrum_plot.reload_data()
+                # If reload_data rebuilt the figure (wavelength range changed),
+                # the canvas still references the old figure — recreate it.
+                if self.full_spectrum_plot.fig is not old_fig and hasattr(self, 'full_spectrum_plot_canvas'):
+                    self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
+                    self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+                    self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
+                        self.full_spectrum_plot.fig,
+                        master=self.parent_frame
+                    )
+                    self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
+                if hasattr(self, 'full_spectrum_plot_canvas'):
+                    self.full_spectrum_plot_canvas.draw_idle()
+            except Exception as e:
+                debug_config.warning("main_plot", f"Failed to update full spectrum plot: {e}")
+            # Still update the underlying regular plot data so it's ready when
+            # the user switches back — but skip the canvas.draw_idle() at the end
+            # since the regular canvas is hidden.
+
         if not hasattr(self.islat, 'molecules_dict') or len(self.islat.molecules_dict) == 0:
             self.plot_renderer.clear_model_lines()
             self.canvas.draw_idle()
@@ -1057,15 +1084,19 @@ class iSLATPlot:
                 #self.full_spectrum_plot_canvas.get_tk_widget().destroy()
 
         if hasattr(self, 'full_spectrum_plot'):
+            old_fig = self.full_spectrum_plot.fig
             self.full_spectrum_plot.reload_data()
+            # If the figure was recreated (wavelength range changed), destroy
+            # the old canvas so a fresh one is built below.
+            if self.full_spectrum_plot.fig is not old_fig and hasattr(self, 'full_spectrum_plot_canvas'):
+                self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+                del self.full_spectrum_plot_canvas
         else:
             # Create a new full spectrum plot
             self.full_spectrum_plot = FullSpectrumPlot(self.islat)
             self.full_spectrum_plot.generate_plot()
 
-        if hasattr(self, 'full_spectrum_plot_canvas'):
-            pass
-        else:
+        if not hasattr(self, 'full_spectrum_plot_canvas'):
             # Create and pack the full spectrum canvas
             self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
                 self.full_spectrum_plot.fig, 

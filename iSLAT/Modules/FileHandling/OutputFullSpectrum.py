@@ -325,22 +325,37 @@ class FullSpectrumPlot:
         """
         self._load_data()
         
-        # Check if wavelength range changed significantly (new spectrum loaded)
-        old_xlim1_len = len(self.xlim1) if self.xlim1 is not None else 0
+        # Capture the previous wavelength layout so we can detect changes
+        old_xlim_start = self.xlim_start
+        old_xlim_end = self.xlim_end
+        old_step = self.step
+        old_n_panels = len(self.xlim1) if self.xlim1 is not None else 0
+
         self._update_wavelength_ranges()
-        new_xlim1_len = len(self.xlim1)
-        
-        # If number of panels changed, need to recreate figure
-        if old_xlim1_len != new_xlim1_len:
-            # Clear old subplots and figure
+
+        new_n_panels = len(self.xlim1)
+        # Recreate the figure when the wavelength range or panel count changed
+        # (e.g. a new spectrum file covering a different wavelength region)
+        range_changed = (
+            old_n_panels != new_n_panels
+            or not np.isclose(old_xlim_start, self.xlim_start, atol=1e-6)
+            or not np.isclose(old_xlim_end, self.xlim_end, atol=1e-6)
+            or not np.isclose(old_step, self.step, atol=1e-6)
+        )
+
+        if range_changed:
+            # Clear old subplots and figure so they are rebuilt for the new range
             self.subplots = {}
             self.span_selectors = {}
+            # Reset legend reference — it pointed to a now-stale axes
+            if hasattr(self, 'legend_subplot'):
+                self.legend_subplot = None
             if self.fig is not None:
                 self.fig.clear()
                 self.fig = None
         
         self._prepare_molecule_info()
-        self.generate_plot(force_clear=force_clear or (old_xlim1_len != new_xlim1_len))
+        self.generate_plot(force_clear=force_clear or range_changed)
     
     def toggle_saved_lines(self, show: bool):
         """
