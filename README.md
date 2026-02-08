@@ -1,4 +1,4 @@
-# iSLAT v5.02.00 - beta release
+# iSLAT v5.02.01 - beta release
 
 ### Key updates from v5.00.01:
 - Further improvements in speed and computational efficiency
@@ -11,6 +11,8 @@
 - Added several keybinds, which can be seen as tooltips in the GUI or on the new wiki page
 - Added new "default_spectra_file_to_load" and "default_line_list_to_load" options to the user settings file. More information on the wiki page
 - Created a CHANGELOG.MD file, which features a more detailed list of changes
+- Added a large number of example Juypter Notebooks showing some of the ways that you can use iSLAT functions without the GUI
+- Made the UserSettings file update when the version number is increased in the default user setting file
 
 ## **RECOMMENDED**
 If updating from version 4: clone the new iSLAT in a new folder on your machine, and copy over any save files you may have made with version 4 into the respective folders (e.g. SAVES/ or LINESAVES/ or LINELISTS/). 
