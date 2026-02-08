@@ -91,12 +91,22 @@ class FileInteractionPane(ttk.Frame):
             self.label_frame, 
             text="Load Spectrum"
         )
-        self.load_spectrum_btn.grid(row=0, column=1, columnspan=2, sticky="e", padx=(5, 5), pady=2)
+        self.load_spectrum_btn.grid(row=0, column=1, sticky="e", padx=(5, 0), pady=2)
         self.load_spectrum_btn.bind('<Button-1>', self._handle_load_spectrum_click)
         CreateToolTip(
             self.load_spectrum_btn, 
             "Click to load spectrum.\nCtrl/Cmd Click to load saved parameters."
         )
+
+        # + button to add sample spectra (row 0, column 2 - above the X buttons)
+        self.add_sample_btn = ttk.Button(
+            self.label_frame,
+            text="+",
+            width=2,
+            command=self._add_sample_spectra
+        )
+        self.add_sample_btn.grid(row=0, column=2, sticky="e", padx=(0, 5), pady=2)
+        CreateToolTip(self.add_sample_btn, "Add spectra to sample list\n(for Fit Saved Lines To Sample\nand left/right arrow cycling)")
         
         # Row 1: Input line list
         # Check if a default line list is already loaded
@@ -124,7 +134,7 @@ class FileInteractionPane(ttk.Frame):
         
         self.input_line_list_clear_btn = ttk.Button(
             self.label_frame,
-            text="✕",
+            text="\u2715",
             width=2,
             command=self._clear_input_line_list
         )
@@ -149,7 +159,7 @@ class FileInteractionPane(ttk.Frame):
         
         self.output_measurements_clear_btn = ttk.Button(
             self.label_frame,
-            text="✕",
+            text="\u2715",
             width=2,
             command=self._clear_output_line_measurements
         )
@@ -197,14 +207,23 @@ class FileInteractionPane(ttk.Frame):
     def update_file_label(self, filename=None):
         """
         Update the file label text.
+        When a sample is loaded, shows the current spectrum name and position
+        within the sample (e.g. "CITau.csv (1/4)").
         
         Args:
             filename: The filename to display. If None, checks islat_class for loaded spectrum name.
         """
-        if filename:
+        if filename is None:
+            if hasattr(self.islat_class, 'loaded_spectrum_name') and self.islat_class.loaded_spectrum_name:
+                filename = self.islat_class.loaded_spectrum_name
+        
+        sample = getattr(self.islat_class, 'sample_spectra', [])
+        idx = getattr(self.islat_class, 'sample_spectra_index', 0)
+        
+        if len(sample) > 1 and filename:
+            display_text = f"{filename} ({idx + 1}/{len(sample)})"
+        elif filename:
             display_text = f"{filename}"
-        elif hasattr(self.islat_class, 'loaded_spectrum_name') and self.islat_class.loaded_spectrum_name:
-            display_text = f"Loaded: {self.islat_class.loaded_spectrum_name}"
         else:
             display_text = "No file loaded"
 
@@ -336,6 +355,18 @@ class FileInteractionPane(ttk.Frame):
             self.islat_class.GUI.plot.remove_saved_lines()
         self.data_field.insert_text("Cleared input line list")
     
+    def _add_sample_spectra(self):
+        """Open file dialog to add spectra to the sample list."""
+        self.islat_class.add_sample_spectra()
+
+    def _clear_sample_spectra(self):
+        """Clear all sample spectra."""
+        self.islat_class.clear_sample_spectra()
+
+    def update_sample_spectra_label(self):
+        """Refresh the file label to reflect the current sample state."""
+        self.update_file_label()
+
     def _clear_output_line_measurements(self):
         """Clear the output line measurements file selection."""
         self.islat_class.output_line_measurements = None

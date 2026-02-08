@@ -98,6 +98,7 @@ class MoleculeDict(dict):
         self._match_spectral_sampling = False
         
         self._global_parameter_change_callbacks: List[Callable] = []
+        self._suppress_global_callbacks: bool = False
         
         from .Molecule import Molecule
         Molecule.add_molecule_parameter_change_callback(self._on_molecule_parameter_changed)
@@ -1366,7 +1367,14 @@ class MoleculeDict(dict):
             self._global_parameter_change_callbacks.remove(callback)
 
     def _notify_global_parameter_change(self, parameter_name: str, old_value: Any, new_value: Any) -> None:
-        """Notify callbacks of global parameter changes."""
+        """Notify callbacks of global parameter changes.
+        
+        Callbacks are skipped when ``_suppress_global_callbacks`` is ``True``.
+        This is used during bulk operations like ``load_spectrum`` to avoid
+        redundant plot refreshes while multiple global parameters are set.
+        """
+        if self._suppress_global_callbacks:
+            return
         for callback in self._global_parameter_change_callbacks:
             try:
                 callback(parameter_name, old_value, new_value)
