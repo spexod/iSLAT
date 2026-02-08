@@ -1252,3 +1252,8 @@ class iSLAT:
         if hasattr(self, 'molecules_dict') and hasattr(self.molecules_dict, 'global_wavelength_range'):
             print(f"Optimized for spectrum range: {self.molecules_dict.global_wavelength_range[0]:.1f} - {self.molecules_dict.global_wavelength_range[1]:.1f} µm")
         print("--- Ready for Analysis ---\n")'''
+
+def _cli_entry():
+    """Console-script entry point for ``islat`` command."""
+    app = iSLAT()
+    app.run()

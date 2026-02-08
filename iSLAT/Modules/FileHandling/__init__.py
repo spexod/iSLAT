@@ -21,8 +21,8 @@ default_user_settings_file_name = "DefaultUserSettings.json"
 
 hitran_data_folder_name = Path("HITRANdata")
 # Use absolute path for HITRAN data to ensure cache works from anywhere
-hitran_data_folder_path = str(_ABSOLUTE_DATA_FILES_PATH / "HITRANdata")
-hitran_cache_folder_path = os.path.join(hitran_data_folder_path, "cache")
+hitran_data_folder_path = _ABSOLUTE_DATA_FILES_PATH / "HITRANdata"
+hitran_cache_folder_path = os.path.join(str(hitran_data_folder_path), "cache")
 
 example_data_folder_path = data_files_path / "EXAMPLE-data"
 

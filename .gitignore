@@ -4,6 +4,8 @@ iSLAT/.DS_Store
 
 iSLAT/__pycache__/
 
+iSLAT.egg-info/
+
 iSLAT/DATAFILES/CONFIG/UserSettings.json
 
 iSLAT/DATAFILES/SAVES/

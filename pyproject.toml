@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iSLAT"
+version = "5.02.01"
+description = "interactive Spectral-Line Analysis Tool for molecular emission spectra"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Johnny McCaskill"},
+    {name = "Andrea Banzatti"},
+    {name = "Aaron Siemsen"},
+    {name = "Evan Jellison"},
+    {name = "Matthew Johnson"},
+    {name = "Simon Bruderer"},
+]
+keywords = ["astronomy", "spectroscopy", "molecular-emission", "HITRAN", "slab-model"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=2.3.5",
+    "scipy>=1.16.3",
+    "astropy>=7.2.0",
+    "pandas>=2.3.3",
+    "lmfit",
+    "astroquery",
+    "matplotlib>=3.10.7",
+]
+
+[project.optional-dependencies]
+gui = ["tk"]
+dev = ["pytest", "pytest-cov"]
+
+[project.urls]
+Homepage = "https://github.com/spexod/iSLAT"
+Repository = "https://github.com/spexod/iSLAT"
+
+[project.scripts]
+islat = "iSLAT.iSLATClass:_cli_entry"
+
+[tool.setuptools.packages.find]
+include = ["iSLAT*"]
+
+[tool.setuptools.package-data]
+"iSLAT" = [
+    "DATAFILES/**/*",
+]
