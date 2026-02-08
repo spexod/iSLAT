@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.MoleculeLine import MoleculeLine
 
-
 # ---------------------------------------------------------------------------
 # Default theme (used when no GUI theme is supplied)
 # ---------------------------------------------------------------------------
@@ -46,7 +45,6 @@ DEFAULT_THEME: Dict[str, Any] = {
     "zorder_summed": 1,
     "zorder_model": 3,
 }
-
 
 class BasePlot(ABC):
     """
