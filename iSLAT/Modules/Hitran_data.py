@@ -185,8 +185,9 @@ def download_hitran_data(mols, basem, isot) -> List[Tuple]:
     print(' ')
     print ('Checking for HITRAN files: ...')
 
+    from .FileHandling import hitran_data_folder_path as save_folder
+
     for mol, bm, iso in zip(mols, basem, isot):
-        save_folder = 'DATAFILES/HITRANdata'
         file_path = os.path.join(save_folder, "data_Hitran_{:}.par".format(mol))
 
         if os.path.exists(file_path):

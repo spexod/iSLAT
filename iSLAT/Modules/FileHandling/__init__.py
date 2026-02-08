@@ -7,9 +7,11 @@ _ISLAT_PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent  # Go up from
 _ABSOLUTE_DATA_FILES_PATH = _ISLAT_PACKAGE_DIR / "DATAFILES"
 
 # Relative path for backward compatibility with any code expecting relative paths
-data_files_path = Path("DATAFILES")
+#data_files_path = Path("DATAFILES")
 # Absolute path based on package location - use this for reliable file access
 absolute_data_files_path = str(_ABSOLUTE_DATA_FILES_PATH)
+
+data_files_path = Path(absolute_data_files_path)
 
 save_folder_path = data_files_path / "SAVES"
 user_configuration_file_path = config_file_path = data_files_path / "CONFIG"
