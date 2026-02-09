@@ -10,6 +10,7 @@ import numpy as np
 import iSLAT.Constants as c
 
 from .PlotRenderer import PlotRenderer
+from .BasePlot import BasePlot
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
@@ -189,8 +190,18 @@ class iSLATPlot:
             debug_config.error("main_plot", f"Could not apply plot theming: {e}")
     
     def _get_molecule_display_name(self, molecule):
-        """Get display name for a molecule"""
-        return getattr(molecule, 'displaylabel', getattr(molecule, 'name', 'unknown'))
+        """Get display name for a molecule (delegates to :class:`BasePlot`)."""
+        return BasePlot.get_molecule_display_name(molecule)
+
+    @property
+    def line_inspection_plot(self):
+        """Access the reusable :class:`LineInspectionPlot` delegate."""
+        return self.plot_renderer._line_inspection_plot
+
+    @property
+    def population_diagram_plot(self):
+        """Access the reusable :class:`PopulationDiagramPlot` delegate."""
+        return self.plot_renderer._population_diagram_plot
 
     def _register_update_callbacks(self):
         """Register callbacks to handle parameter and molecule changes"""
@@ -209,7 +220,23 @@ class iSLATPlot:
     
     def _on_global_parameter_changed(self, parameter_name, old_value, new_value):
         """Handle global parameter changes that affect all molecules"""
-        # Refresh plots when global parameters change - molecules handle their own caching
+        # For match_spectral_sampling, update plots but preserve line inspection
+        if parameter_name == 'match_spectral_sampling':
+            # Handle full spectrum mode
+            if hasattr(self, 'is_full_spectrum') and self.is_full_spectrum:
+                if hasattr(self, 'full_spectrum_plot') and hasattr(self, 'full_spectrum_plot_canvas'):
+                    self.full_spectrum_plot.reload_data()
+                    self.full_spectrum_plot_canvas.draw_idle()
+            else:
+                # Normal mode
+                self.update_model_plot()
+                # If there's an active line inspection selection, refresh it too
+                if hasattr(self, 'current_selection') and self.current_selection:
+                    xmin, xmax = self.current_selection
+                    self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
+            return
+        
+        # For other global parameters, refresh all plots
         self.update_all_plots()
 
     def match_display_range(self, match_y=False):
@@ -312,7 +339,34 @@ class iSLATPlot:
         """
         Updates the main spectrum plot with observed data, model spectra, and summed flux.
         Uses molecules' built-in caching and hashing for optimal performance.
+        
+        If the full spectrum view is currently active, refreshes that instead of
+        (or in addition to) the regular three-panel canvas so the UI stays current
+        when a new spectrum is loaded or molecule parameters change.
         """
+        # If full spectrum mode is active, refresh it so the visible view stays current
+        if getattr(self, 'is_full_spectrum', False) and hasattr(self, 'full_spectrum_plot'):
+            try:
+                old_fig = self.full_spectrum_plot.fig
+                self.full_spectrum_plot.reload_data()
+                # If reload_data rebuilt the figure (wavelength range changed),
+                # the canvas still references the old figure — recreate it.
+                if self.full_spectrum_plot.fig is not old_fig and hasattr(self, 'full_spectrum_plot_canvas'):
+                    self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
+                    self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+                    self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
+                        self.full_spectrum_plot.fig,
+                        master=self.parent_frame
+                    )
+                    self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
+                if hasattr(self, 'full_spectrum_plot_canvas'):
+                    self.full_spectrum_plot_canvas.draw_idle()
+            except Exception as e:
+                debug_config.warning("main_plot", f"Failed to update full spectrum plot: {e}")
+            # Still update the underlying regular plot data so it's ready when
+            # the user switches back — but skip the canvas.draw_idle() at the end
+            # since the regular canvas is hidden.
+
         if not hasattr(self.islat, 'molecules_dict') or len(self.islat.molecules_dict) == 0:
             self.plot_renderer.clear_model_lines()
             self.canvas.draw_idle()
@@ -452,70 +506,89 @@ class iSLATPlot:
     def _display_line_info(self, value, clear_data_field=True):
         """
         Helper method to display line information in the data field.
+
+        Delegates formatting to :meth:`LineInspectionPlot.get_line_info` and
+        enriches the result with observed / model flux integrals when a
+        selection range is active.
         """
-        # Calculate flux integral in selected range
+        from .LineInspectionPlot import LineInspectionPlot
+
+        # Calculate flux integrals in the selected range ----------------
+        data_flux = None
+        model_flux = None
         if hasattr(self, 'current_selection') and self.current_selection:
             xmin, xmax = self.current_selection
-            # Calculate flux integral
             err_data = getattr(self.islat, 'err_data', None)
-            line_flux, line_err = self.flux_integral(
-                lam=self.islat.wave_data, 
-                flux=self.islat.flux_data, 
-                lam_min=xmin, 
-                lam_max=xmax,
-                err=err_data
+            line_flux, _ = self.flux_integral(
+                lam=self.islat.wave_data,
+                flux=self.islat.flux_data,
+                lam_min=xmin, lam_max=xmax,
+                err=err_data,
             )
-            molecule_wave, molecule_flux = self.islat.active_molecule.get_flux(return_wavelengths=True)
-            molecule_flux_in_range, _ = self.flux_integral(
-                lam=molecule_wave, 
-                flux=molecule_flux, 
-                lam_min=xmin, 
-                lam_max=xmax,
-                err=None
+            data_flux = line_flux[0] if isinstance(line_flux, (list, tuple)) else line_flux
+            molecule_wave, molecule_flux_arr = self.islat.active_molecule.get_flux(return_wavelengths=True)
+            model_flux, _ = self.flux_integral(
+                lam=molecule_wave,
+                flux=molecule_flux_arr,
+                lam_min=xmin, lam_max=xmax,
+                err=None,
+            )
+
+        # If the value dict already comes from get_line_info, update flux
+        # fields and regenerate the formatted text.  Otherwise fall back
+        # to the legacy key names.
+        if 'formatted_text' in value:
+            # Re-generate info with actual flux values (the original was
+            # created at render time without them).
+            class _Line2:
+                pass
+            _l2 = _Line2()
+            _l2.lam = value.get('lam')
+            _l2.e_up = value.get('e_up')
+            _l2.e_low = value.get('e_low')
+            _l2.a_stein = value.get('a_stein')
+            _l2.g_up = value.get('g_up')
+            _l2.g_low = value.get('g_low')
+            _l2.lev_up = value.get('up_lev')
+            _l2.lev_low = value.get('low_lev')
+            info = LineInspectionPlot.get_line_info(
+                _l2,
+                intensity=value.get('intensity', 0),
+                tau=value.get('tau'),
+                data_flux_in_range=data_flux,
+                model_flux_in_range=model_flux,
             )
         else:
-            line_flux = [0.0]
-        
-        # Extract line information
-        lam = value.get('lam', None)
-        e_up = value.get('e', None)
-        a_stein = value.get('a', None)
-        g_up = value.get('g', None)
-        inten = value.get('inten', None)
-        up_lev = value.get('up_lev', 'N/A')
-        low_lev = value.get('low_lev', 'N/A')
-        tau_val = value.get('tau', 'N/A')
-        
-        # Format values to match original output
-        wavelength_str = f"{lam:.6f}" if lam is not None else 'N/A'
-        einstein_str = f"{a_stein:.3e}" if a_stein is not None else 'N/A'
-        energy_str = f"{e_up:.0f}" if e_up is not None else 'N/A'
-        tau_str = f"{tau_val:.3f}" if isinstance(tau_val, (float, int)) else str(tau_val)
-        flux_str = f"{line_flux[0]:.3e}" if isinstance(line_flux, (list, tuple)) and len(line_flux) > 0 else f"{line_flux:.3e}"
+            # Legacy value_data dict (keys: lam/e/a/g/inten/…)
+            # Build a minimal namespace so get_line_info can work.
+            class _Line:
+                pass
+            _l = _Line()
+            _l.lam = value.get('lam')
+            _l.e_up = value.get('e_up', value.get('e'))
+            _l.e_low = value.get('e_low')
+            _l.a_stein = value.get('a_stein', value.get('a'))
+            _l.g_up = value.get('g_up', value.get('g'))
+            _l.g_low = value.get('g_low')
+            _l.lev_up = value.get('up_lev')
+            _l.lev_low = value.get('low_lev')
+            info = LineInspectionPlot.get_line_info(
+                _l,
+                intensity=value.get('intensity', value.get('inten', 0)),
+                tau=value.get('tau'),
+                data_flux_in_range=data_flux,
+                model_flux_in_range=model_flux,
+            )
 
-        # Display line information in the original format
-        info_str = (
-            "\n--- Line Information ---\n"
-            "Selected line:\n"
-            f"Upper level = {up_lev}\n"
-            f"Lower level = {low_lev}\n"
-            f"Wavelength (μm) = {wavelength_str}\n"
-            f"Einstein-A coeff. (1/s) = {einstein_str}\n"
-            f"Upper level energy (K) = {energy_str}\n"
-            f"Opacity = {tau_str}\n"
-            f"Data flux in range (erg/s/cm2) = {flux_str}\n"
-            f"Model flux in range (erg/s/cm2) = {molecule_flux_in_range:.3e}\n"
-        )
-        
-        # Add the information without clearing the data field, with error protection
+        info_str = LineInspectionPlot.format_line_info(info)
+
+        # Push to the GUI data-field (with error protection) -----------
         if (hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field') and
             self.islat.GUI.data_field is not None):
             try:
-                # Check if the widget still exists before accessing it
                 if hasattr(self.islat.GUI.data_field, 'text') and self.islat.GUI.data_field.text.winfo_exists():
                     self.islat.GUI.data_field.insert_text(info_str, clear_after=clear_data_field)
             except Exception as e:
-                # Silently ignore GUI access errors during initialization
                 print(f"Warning: Could not update data field: {e}")
                 pass
 
@@ -1011,15 +1084,19 @@ class iSLATPlot:
                 #self.full_spectrum_plot_canvas.get_tk_widget().destroy()
 
         if hasattr(self, 'full_spectrum_plot'):
+            old_fig = self.full_spectrum_plot.fig
             self.full_spectrum_plot.reload_data()
+            # If the figure was recreated (wavelength range changed), destroy
+            # the old canvas so a fresh one is built below.
+            if self.full_spectrum_plot.fig is not old_fig and hasattr(self, 'full_spectrum_plot_canvas'):
+                self.full_spectrum_plot_canvas.get_tk_widget().destroy()
+                del self.full_spectrum_plot_canvas
         else:
             # Create a new full spectrum plot
             self.full_spectrum_plot = FullSpectrumPlot(self.islat)
             self.full_spectrum_plot.generate_plot()
 
-        if hasattr(self, 'full_spectrum_plot_canvas'):
-            pass
-        else:
+        if not hasattr(self, 'full_spectrum_plot_canvas'):
             # Create and pack the full spectrum canvas
             self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
                 self.full_spectrum_plot.fig, 

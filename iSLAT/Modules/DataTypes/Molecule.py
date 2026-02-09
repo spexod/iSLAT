@@ -1,11 +1,111 @@
-from typing import Optional, Dict, Any, Tuple, Union, Callable
+from typing import Optional, Dict, Any, Literal, Tuple, Union, Callable, overload
 import numpy as np
+import warnings
 import time
-from collections import defaultdict
 import threading
 
 # Performance logging
 from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
+from iSLAT.Modules.Debug.DebugConfig import debug_config
+
+# ================================
+# Spectral Resampling Functions
+# ================================
+def _make_bins(wavs):
+    """Given a series of wavelength points, find the edges and widths
+    of corresponding wavelength bins."""
+    edges = np.zeros(wavs.shape[0] + 1)
+    widths = np.zeros(wavs.shape[0])
+    edges[0] = wavs[0] - (wavs[1] - wavs[0]) / 2
+    widths[-1] = (wavs[-1] - wavs[-2])
+    edges[-1] = wavs[-1] + (wavs[-1] - wavs[-2]) / 2
+    edges[1:-1] = (wavs[1:] + wavs[:-1]) / 2
+    widths[:-1] = edges[1:-1] - edges[:-2]
+    return edges, widths
+
+def _spectres(new_wavs, spec_wavs, spec_fluxes, fill=0.0, verbose=False):
+    """
+    Flux-conserving spectral resampling onto a new wavelength basis.
+    
+    This properly handles rebinning by integrating flux over bins rather
+    than simple interpolation, which is important for accurate flux 
+    conservation when resampling spectra with different pixel sampling.
+    
+    Parameters
+    ----------
+    new_wavs : numpy.ndarray
+        Array containing the new wavelength sampling desired.
+    spec_wavs : numpy.ndarray
+        1D array containing the current wavelength sampling.
+    spec_fluxes : numpy.ndarray
+        Array containing spectral fluxes at the wavelengths in spec_wavs.
+    fill : float, optional
+        Value to use where new_wavs extends outside spec_wavs range.
+    verbose : bool, optional
+        If True, warn when fill values are used.
+        
+    Returns
+    -------
+    new_fluxes : numpy.ndarray
+        Array of resampled flux values with same length as new_wavs.
+    """
+    old_wavs = spec_wavs
+    old_fluxes = spec_fluxes
+
+    # Make arrays of edge positions and widths for the old and new bins
+    old_edges, old_widths = _make_bins(old_wavs)
+    new_edges, new_widths = _make_bins(new_wavs)
+
+    # Generate output array
+    new_fluxes = np.zeros(new_wavs.shape[0])
+
+    start = 0
+    stop = 0
+
+    # Calculate new flux values, looping over new bins
+    for j in range(new_wavs.shape[0]):
+        # Add filler values if new_wavs extends outside of spec_wavs
+        if (new_edges[j] < old_edges[0]) or (new_edges[j + 1] > old_edges[-1]):
+            new_fluxes[j] = fill
+            if (j == 0 or j == new_wavs.shape[0] - 1) and verbose:
+                warnings.warn(
+                    "spectres: new_wavs contains values outside the range "
+                    "in spec_wavs, new_fluxes will be filled with fill value.",
+                    category=RuntimeWarning,
+                )
+            continue
+
+        # Find first old bin which is partially covered by the new bin
+        while old_edges[start + 1] <= new_edges[j]:
+            start += 1
+
+        # Find last old bin which is partially covered by the new bin
+        while old_edges[stop + 1] < new_edges[j + 1]:
+            stop += 1
+
+        # If new bin is fully inside an old bin start and stop are equal
+        if stop == start:
+            new_fluxes[j] = old_fluxes[start]
+        else:
+            # Multiply the first and last old bin widths by partial coverage factor
+            start_factor = ((old_edges[start + 1] - new_edges[j])
+                            / (old_edges[start + 1] - old_edges[start]))
+            end_factor = ((new_edges[j + 1] - old_edges[stop])
+                          / (old_edges[stop + 1] - old_edges[stop]))
+
+            # Temporarily adjust widths for partial bins
+            old_widths[start] *= start_factor
+            old_widths[stop] *= end_factor
+
+            # Calculate flux-weighted average
+            f_widths = old_widths[start:stop + 1] * old_fluxes[start:stop + 1]
+            new_fluxes[j] = np.sum(f_widths) / np.sum(old_widths[start:stop + 1])
+
+            # Restore old bin widths to their initial values
+            old_widths[start] /= start_factor
+            old_widths[stop] /= end_factor
+
+    return new_fluxes
 
 # Lazy imports with thread safety
 _spectrum_module = None
@@ -192,7 +292,7 @@ class Molecule:
     def _compute_full_parameter_hash(self):
         return hash((self._compute_spectrum_hash()))
 
-    def _load_from_user_save_data(self, kwargs):
+    def _load_from_user_save_data(self, kwargs: Dict[str, Any]):
         """Load parameters from user save data"""
         usd = self.user_save_data
         self.name = usd.get('Molecule Name', kwargs.get('name', 'Unknown Molecule'))
@@ -216,7 +316,7 @@ class Molecule:
         self.scale_number = self.initial_molecule_parameters.get('scale_number', 1.0)
         self.radius_init = self.initial_molecule_parameters.get('radius_init', self._radius_val if self._radius_val is not None else 1.0)
 
-    def _load_from_kwargs(self, kwargs):
+    def _load_from_kwargs(self, kwargs: Dict[str, Any]):
         """Load parameters from kwargs"""
         self.name = kwargs.get('name', kwargs.get('displaylabel', kwargs.get('filepath', 'Unknown Molecule')))
         self.filepath = kwargs.get('filepath', (self.hitran_data if hasattr(self, 'hitran_data') else None))
@@ -243,7 +343,7 @@ class Molecule:
         if self.lines is None:
             start_time = time.perf_counter()
             if self.filepath:
-                print("Loading lines from filepath:", self.filepath)
+                debug_config.info('molecule_dict', f"Loading lines from filepath: {self.filepath}")
                 self.lines = MoleculeLineList(molecule_id=self.name, filename=self.filepath)
             else:
                 print("Creating empty line list")
@@ -367,7 +467,8 @@ class Molecule:
         self._param_hash_cache['spectrum'] = current_hash
         self._cache_stats['misses'] += 1
     
-    def calculate_intensity(self):
+    def calculate_intensity(self) -> None:
+        """Trigger intensity calculation (lazy — skipped if cache is valid)."""
         self._ensure_intensity_calculated()
     
     def get_parameter_hash(self, cache_type='full'):
@@ -391,8 +492,39 @@ class Molecule:
             self._dirty_flags['spectrum'] = True
             self._dirty_flags['flux'] = True      # Flux depends on spectrum
 
-    def get_flux(self, wavelength_array=None, return_wavelengths=False, interpolate_to_input=False):
-        """Get flux data with RV shift properly applied
+    @overload
+    def get_flux(
+        self,
+        wavelength_array: Optional[np.ndarray] = ...,
+        *,
+        return_wavelengths: Literal[True],
+        interpolate_to_input: bool = ...,
+    ) -> Tuple[np.ndarray, np.ndarray]: ...
+
+    @overload
+    def get_flux(
+        self,
+        wavelength_array: Optional[np.ndarray] = ...,
+        *,
+        return_wavelengths: Literal[False] = ...,
+        interpolate_to_input: bool = ...,
+    ) -> np.ndarray: ...
+
+    @overload
+    def get_flux(
+        self,
+        wavelength_array: Optional[np.ndarray] = ...,
+        return_wavelengths: bool = ...,
+        interpolate_to_input: bool = ...,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]: ...
+
+    def get_flux(
+        self,
+        wavelength_array: Optional[np.ndarray] = None,
+        return_wavelengths: bool = False,
+        interpolate_to_input: bool = False,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """Get flux data with RV shift properly applied.
         
         The RV shift works by:
         1. Calculate spectrum on the unshifted wavelength grid
@@ -403,17 +535,19 @@ class Molecule:
         Parameters
         ----------
         wavelength_array : np.ndarray, optional
-            Input wavelength array for additional interpolation
+            Input wavelength array for additional interpolation.
         return_wavelengths : bool, default False
-            If True, return tuple of (wavelengths, flux)
+            If True, return tuple of (wavelengths, flux).
         interpolate_to_input : bool, default False
-            If True and wavelength_array is provided, interpolate to match input grid
-            If False, return spectrum's native grid (with RV shift applied)
+            If True and wavelength_array is provided, interpolate to match input grid.
+            If False, return spectrum's native grid (with RV shift applied).
             
         Returns
         -------
-        np.ndarray or tuple
-            Flux array or (wavelengths, flux) tuple
+        np.ndarray
+            Flux array when *return_wavelengths* is False.
+        tuple of (np.ndarray, np.ndarray)
+            ``(wavelengths, flux)`` when *return_wavelengths* is True.
         """
         if wavelength_array is not None:
             try:
@@ -470,14 +604,15 @@ class Molecule:
 
             # Interpolate the flux from the shifted source back to the unshifted grid
             # This simulates observing a shifted source and correcting it back to rest frame
-            rv_corrected_flux = np.interp(lam_grid, shifted_source_lam_grid, flux_grid, left=0, right=0)
+            # Use flux-conserving spectral resampling for RV correction
+            rv_corrected_flux = _spectres(lam_grid, shifted_source_lam_grid, flux_grid, fill=0.0)
         else:
             rv_corrected_flux = flux_grid
 
         # Now decide on final output grid
         if interpolate_to_input and wavelength_array is not None:
-            # Interpolate the RV-corrected flux to the input wavelength array
-            interpolated_flux = np.interp(wavelength_array, lam_grid, rv_corrected_flux, left=0, right=0)
+            # Use flux-conserving spectral resampling to match the input wavelength array
+            interpolated_flux = _spectres(wavelength_array, lam_grid, rv_corrected_flux, fill=0.0)
             
             result_wavelengths = wavelength_array.copy()  # Copy to prevent modification
             result_flux = interpolated_flux
@@ -569,6 +704,12 @@ class Molecule:
         else:
             self._is_visible = bool(value)
         self._notify_my_parameter_change('is_visible', old_value, self._is_visible)
+
+    @property
+    def line_list(self) -> Optional[MoleculeLineList]:
+        '''Access the MoleculeLineList, loading it if necessary.'''
+        self._ensure_lines_loaded()
+        return self.lines
 
     @property
     def molar_mass(self) -> float:

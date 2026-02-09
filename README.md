@@ -1,4 +1,9 @@
-# iSLAT v5.02.00 - beta release
+# As of commit [10eec...](https://github.com/John-M87/iSLATTests/commit/10eec425a25fd7973497b52d9acfad376b0c355c) (Made iSLAT installable as a package) you will need to do one of the follow to run the notebooks on this branch:
+- Run ``pip install -e .`` from the project root (i.e. the directory where the `pyproject.toml` is located)
+- Run ``pip install -e git://github.com/John-M87/iSLATTests.git@{ tag name }#egg={ desired egg name }`` (Untested)
+- In the future you will be able to pip install as usual
+
+# iSLAT v5.02.02 - beta release
 
 ### Key updates from v5.00.01:
 - Further improvements in speed and computational efficiency
@@ -11,6 +16,8 @@
 - Added several keybinds, which can be seen as tooltips in the GUI or on the new wiki page
 - Added new "default_spectra_file_to_load" and "default_line_list_to_load" options to the user settings file. More information on the wiki page
 - Created a CHANGELOG.MD file, which features a more detailed list of changes
+- Added a large number of example Juypter Notebooks showing some of the ways that you can use iSLAT functions without the GUI
+- Made the UserSettings file update when the version number is increased in the default user setting file
 
 ## **RECOMMENDED**
 If updating from version 4: clone the new iSLAT in a new folder on your machine, and copy over any save files you may have made with version 4 into the respective folders (e.g. SAVES/ or LINESAVES/ or LINELISTS/). 

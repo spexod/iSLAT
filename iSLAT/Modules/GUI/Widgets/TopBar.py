@@ -107,6 +107,8 @@ class TopBar(ResizableFrame):
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
+        spec_functions_menu.add_separator()
+        spec_functions_menu.add_command(label="Subtract Models from Data", command=self.subtract_models_from_data)
         
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
@@ -119,7 +121,7 @@ class TopBar(ResizableFrame):
         create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.toggle_saved_lines, 0, 3, tip_text=saved_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Full Spectrum", self.toggle_full_spectrum, 0, 5, tip_text=toggle_full_spectrum_tip)
-        create_button(self.button_frame, self.theme, "Toggle Summed Flux", self.toggle_summed_spectrum, 0, 6, tip_text=toggle_summed_tip)
+        create_button(self.button_frame, self.theme, "Toggle Total Model", self.toggle_summed_spectrum, 0, 6, tip_text=toggle_summed_tip)
         create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 7, tip_text=toggle_legend_tip)
 
     def save_line(self, save_type="selected"):
@@ -418,8 +420,52 @@ class TopBar(ResizableFrame):
         return None
 
     def fit_saved_lines_to_sample(self):
-        """Fit saved line list to a number of spectrum files at once."""
-        self.fit_saved_lines(multiple_files=True)
+        """Fit saved line list to a number of spectrum files at once.
+        
+        If sample spectra have been added via the + button, those are used
+        automatically. Otherwise falls back to the file-selection dialog.
+        """
+        if hasattr(self.islat, 'sample_spectra') and len(self.islat.sample_spectra) > 1:
+            # Use the sample spectra list (already includes the primary)
+            self._fit_saved_lines_to_files(list(self.islat.sample_spectra))
+        else:
+            self.fit_saved_lines(multiple_files=True)
+
+    def _fit_saved_lines_to_files(self, spectrum_files):
+        """Fit saved lines to a given list of spectrum files."""
+        if not self.islat.input_line_list:
+            self.data_field.insert_text("No line list loaded. Please select a line list file.\n")
+            from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
+            result = load_input_line_list()
+            if result is None:
+                self.data_field.insert_text("No line list selected. Operation cancelled.\n")
+                return
+            file_path, file_name = result
+            self.islat.input_line_list = file_path
+            self.data_field.insert_text(f"Loaded line list: {file_name}\n")
+
+        def progress_callback(msg):
+            self.data_field.insert_text(msg, clear_after=False)
+
+        self.data_field.insert_text(f"Fitting saved lines to {len(spectrum_files)} spectra...\n")
+
+        plot_grid_list, output_folder = self.batch_fitting_service.fit_lines_to_multiple_spectra(
+            saved_lines_file=self.islat.input_line_list,
+            spectrum_files=spectrum_files,
+            config=self.config,
+            progress_callback=progress_callback,
+            base_output_path=line_saves_file_path
+        )
+
+        if plot_grid_list:
+            save_directly_to_pdf = self.config.get('save_fit_plot_grid_directly_to_PDF', False)
+            if save_directly_to_pdf:
+                save_path = output_folder if output_folder else line_saves_file_path
+                self.batch_fitting_service.save_plot_grids_to_pdf(
+                    plot_grid_list, save_path, progress_callback=progress_callback
+                )
+            else:
+                PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""
@@ -441,6 +487,19 @@ class TopBar(ResizableFrame):
         except Exception as e:
             self.data_field.insert_text(f"Error finding single lines: {e}\n")
 
+    def subtract_models_from_data(self):
+        """Subtract visible models from the data spectrum and save result."""
+        self.data_field.insert_text("Subtracting models from spectrum...\n", clear_after=True)
+        
+        try:
+            result = self.islat.subtract_models_from_data(visible_only=True)
+            if result:
+                self.data_field.insert_text(f"Model subtraction complete.\n", clear_after=False)
+            else:
+                self.data_field.insert_text("Model subtraction failed. Check console for details.\n", clear_after=False)
+        except Exception as e:
+            self.data_field.insert_text(f"Error during model subtraction: {e}\n", clear_after=False)
+    
     def single_slab_fit(self):
         """Run single slab fit analysis."""        
         if self.islat.input_line_list is None:

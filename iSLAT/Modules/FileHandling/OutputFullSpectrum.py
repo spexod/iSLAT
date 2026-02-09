@@ -12,6 +12,7 @@ from iSLAT.Modules.FileHandling import *
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 from iSLAT.Constants import SPEED_OF_LIGHT_KMS
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
+from iSLAT.Modules.Plotting.FullSpectrumPlot import FullSpectrumPlot as StandaloneFullSpectrumPlot
 
 from typing import Optional, Union, Literal, TYPE_CHECKING, Any, List, Dict, Tuple
 if TYPE_CHECKING:
@@ -39,11 +40,11 @@ class FullSpectrumPlot:
         """
         self.islat_ref = islat_ref
         
-        # Plot configuration
-        self.step = kwargs.get('step', 2.3)
-        self.xlim_start = kwargs.get('xlim_start', 4.9)
-        self.xlim_end = kwargs.get('xlim_end', 26)
-        self.xlim1 = np.arange(self.xlim_start, self.xlim_end, self.step)
+        # Plot configuration - these will be calculated dynamically from data
+        self.step = kwargs.get('step', None)  # Will be set in _update_wavelength_ranges()
+        self.xlim_start = kwargs.get('xlim_start', None)
+        self.xlim_end = kwargs.get('xlim_end', None)
+        self.xlim1 = None  # Will be set in _update_wavelength_ranges()
         self.offset_label = kwargs.get('offset_label', 0.003)
         self.ymax_factor = kwargs.get('ymax_factor', 0.2)
         #self.figsize = kwargs.get('figsize', (12, 16))
@@ -70,7 +71,30 @@ class FullSpectrumPlot:
 
         # Initialize data
         self._load_data()
+        self._update_wavelength_ranges()
         self._prepare_molecule_info()
+    
+    def _update_wavelength_ranges(self):
+        """Calculate wavelength panel ranges based on actual data."""
+        '''if self.wave is None or len(self.wave) == 0:
+            # Fallback to MIRI defaults if no data
+            self.xlim_start = 4.9
+            self.xlim_end = 26
+            self.step = 2.3
+        else:'''
+        wave_min = np.nanmin(self.wave)
+        wave_max = np.nanmax(self.wave)
+        
+        # Use exact wavelength values without rounding
+        self.xlim_start = wave_min
+        self.xlim_end = wave_max
+        
+        # Calculate step to produce ~10 panels
+        wavelength_range = self.xlim_end - self.xlim_start
+        target_panels = 10
+        self.step = wavelength_range / target_panels
+        
+        self.xlim1 = np.arange(self.xlim_start, self.xlim_end, self.step)
     
     def _load_data(self):
         """Load spectrum and line data from files."""
@@ -174,7 +198,10 @@ class FullSpectrumPlot:
 
         for n, xlim in enumerate(self.xlim1):
             # Create subplot for current wavelength range
-            xr = [self.xlim1[n], self.xlim1[n] + self.step]
+            # For the last panel, end at xlim_end instead of xlim + step
+            is_last_panel = (n == len(self.xlim1) - 1)
+            panel_end = self.xlim_end if is_last_panel else self.xlim1[n] + self.step
+            xr = [self.xlim1[n], panel_end]
             
             # Reuse existing subplot if available, otherwise create new one
             # This allows update-in-place optimization to work
@@ -185,9 +212,14 @@ class FullSpectrumPlot:
             
             # Calculate y-axis limits
             flux_mask = (self.wave > xr[0] - 0.02) & (self.wave < xr[1])
-            maxv = np.nanmax(self.flux[flux_mask])
-            ymax = maxv + maxv * self.ymax_factor
-            ymin = -0.005
+            if np.any(flux_mask):
+                maxv = np.nanmax(self.flux[flux_mask])
+                ymax = maxv + maxv * self.ymax_factor
+                ymin = -0.005
+            else:
+                # No data in this panel, use reasonable defaults
+                ymin = -0.005
+                ymax = 0.1
             
             # Set axis properties
             plt.xlim(xr)
@@ -292,8 +324,38 @@ class FullSpectrumPlot:
             If True, forces clearing of axes even on updates (needed for toggle off)
         """
         self._load_data()
+        
+        # Capture the previous wavelength layout so we can detect changes
+        old_xlim_start = self.xlim_start
+        old_xlim_end = self.xlim_end
+        old_step = self.step
+        old_n_panels = len(self.xlim1) if self.xlim1 is not None else 0
+
+        self._update_wavelength_ranges()
+
+        new_n_panels = len(self.xlim1)
+        # Recreate the figure when the wavelength range or panel count changed
+        # (e.g. a new spectrum file covering a different wavelength region)
+        range_changed = (
+            old_n_panels != new_n_panels
+            or not np.isclose(old_xlim_start, self.xlim_start, atol=1e-6)
+            or not np.isclose(old_xlim_end, self.xlim_end, atol=1e-6)
+            or not np.isclose(old_step, self.step, atol=1e-6)
+        )
+
+        if range_changed:
+            # Clear old subplots and figure so they are rebuilt for the new range
+            self.subplots = {}
+            self.span_selectors = {}
+            # Reset legend reference — it pointed to a now-stale axes
+            if hasattr(self, 'legend_subplot'):
+                self.legend_subplot = None
+            if self.fig is not None:
+                self.fig.clear()
+                self.fig = None
+        
         self._prepare_molecule_info()
-        self.generate_plot(force_clear=force_clear)
+        self.generate_plot(force_clear=force_clear or range_changed)
     
     def toggle_saved_lines(self, show: bool):
         """
@@ -314,7 +376,10 @@ class FullSpectrumPlot:
                 if n not in self.subplots:
                     continue
                 ax = self.subplots[n]
-                xr = [self.xlim1[n], self.xlim1[n] + self.step]
+                # For the last panel, end at xlim_end instead of xlim + step
+                is_last_panel = (n == len(self.xlim1) - 1)
+                panel_end = self.xlim_end if is_last_panel else self.xlim1[n] + self.step
+                xr = [self.xlim1[n], panel_end]
                 
                 # Calculate y limits
                 flux_mask = (self.wave > xr[0] - 0.02) & (self.wave < xr[1])
@@ -366,7 +431,10 @@ class FullSpectrumPlot:
                 if n not in self.subplots:
                     continue
                 ax = self.subplots[n]
-                xr = [self.xlim1[n], self.xlim1[n] + self.step]
+                # For the last panel, end at xlim_end instead of xlim + step
+                is_last_panel = (n == len(self.xlim1) - 1)
+                panel_end = self.xlim_end if is_last_panel else self.xlim1[n] + self.step
+                xr = [self.xlim1[n], panel_end]
                 
                 # Filter atomic lines for this range
                 filtered_atomic = atomic_lines_data[

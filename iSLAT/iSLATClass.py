@@ -10,7 +10,7 @@ from .Modules.Debug.PerformanceLogger import (
     mark_startup_begin, get_performance_summary, reset_performance_data
 )
 
-from .Modules.FileHandling.iSLATFileHandling import load_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
+from .Modules.FileHandling.iSLATFileHandling import load_user_settings, save_user_settings, read_default_molecule_parameters, read_initial_molecule_parameters, read_full_molecule_parameters, read_HITRAN_data, read_from_user_csv, read_default_csv, read_spectral_data
 from .Modules.FileHandling.iSLATFileHandling import molsave_file_name, save_folder_path, hitran_data_folder_path, hitran_data_folder_name, example_data_folder_path
 
 from .Modules.Hitran_data import download_hitran_data
@@ -73,6 +73,10 @@ class iSLAT:
         #self._hitran_file_cache = {}  # Cache for HITRAN file data to avoid re-reading
         self.input_line_list: Optional[Union[str, PathLike]] = self._load_default_line_list()
         self.output_line_measurements = None
+        
+        # === SAMPLE SPECTRA ===
+        self.sample_spectra: list[str] = []       # file paths of all spectra in the sample
+        self.sample_spectra_index: int = 0        # index into sample_spectra for currently displayed spectrum
         
         # === PERFORMANCE FLAGS ===
         self._use_parallel_processing = False
@@ -326,7 +330,10 @@ class iSLAT:
             
         print("Checking HITRAN files:")
 
-        if self.user_settings.get("first_startup", False) or self.user_settings.get("reload_default_files", True):
+        is_first = self.user_settings.get("first_startup", False)
+        reload_files = self.user_settings.get("reload_default_files", False)
+
+        if is_first or reload_files:
             print('First startup or reload_default_files is True. Loading default HITRAN files ...')
             
             for mol, bm, iso in zip(self.mols, self.basem, self.isot):
@@ -338,6 +345,13 @@ class iSLAT:
                     except Exception as e:
                         print(f"ERROR: Failed to load HITRAN file for {mol}: {e}")
                     continue
+
+            # Mark first startup as complete so we don't repeat this on next launch
+            if is_first:
+                self.user_settings["first_startup"] = False
+            if reload_files:
+                self.user_settings["reload_default_files"] = False
+            save_user_settings(self.user_settings)
         else:
             print('Not the first startup and reload_default_files is False. Skipping HITRAN files loading.')
 
@@ -521,6 +535,101 @@ class iSLAT:
             self._initialize_molecules_for_spectrum()
 
     # === SPECTRUM METHODS ===
+    def add_sample_spectra(self, file_paths: list[str] | None = None):
+        """
+        Add spectra to the sample list.
+        The currently loaded spectrum is automatically included as the first
+        entry if it is not already in the list.  Duplicates are skipped.
+        If file_paths is None, opens a file dialog for the user to select files.
+        """
+        if file_paths is None:
+            from .Modules.GUI import GUI
+            file_paths = GUI.file_selector(
+                title='Select Additional Spectra for Sample',
+                initialdir=example_data_folder_path,
+                allow_multiple=True
+            )
+        
+        if not file_paths:
+            return
+        
+        # Normalise: file_selector may return a single string or a tuple
+        if isinstance(file_paths, str):
+            file_paths = [file_paths]
+        else:
+            file_paths = list(file_paths)
+        
+        # Ensure the currently loaded spectrum is the first entry
+        if not self.sample_spectra:
+            if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
+                self.sample_spectra.append(self.loaded_spectrum_file)
+                self.sample_spectra_index = 0
+        
+        added = 0
+        for fp in file_paths:
+            if fp and os.path.exists(fp) and fp not in self.sample_spectra:
+                self.sample_spectra.append(fp)
+                added += 1
+        
+        if added:
+            print(f"Added {added} spectra to sample list (total: {len(self.sample_spectra)})")
+            # Update the file interaction pane if GUI exists
+            if hasattr(self, 'GUI') and self.GUI and hasattr(self.GUI, 'file_interaction_pane'):
+                self.GUI.file_interaction_pane.update_file_label()
+                self.GUI.data_field.insert_text(
+                    f"Added {added} sample spectra ({len(self.sample_spectra)} total)"
+                )
+
+    def clear_sample_spectra(self):
+        """Remove all sample spectra."""
+        self.sample_spectra.clear()
+        self.sample_spectra_index = 0
+        print("Cleared all sample spectra.")
+        if hasattr(self, 'GUI') and self.GUI and hasattr(self.GUI, 'file_interaction_pane'):
+            self.GUI.file_interaction_pane.update_file_label()
+            self.GUI.data_field.insert_text("Cleared all sample spectra")
+
+    def switch_to_spectrum(self, index: int):
+        """
+        Switch the displayed spectrum.
+        
+        Parameters
+        ----------
+        index : int
+            Index into sample_spectra (0..len-1).
+        """
+        if not self.sample_spectra:
+            return
+        
+        # Wrap around
+        index = index % len(self.sample_spectra)
+        
+        if index == self.sample_spectra_index:
+            return  # already showing this one
+        
+        file_path = self.sample_spectra[index]
+        if not os.path.exists(file_path):
+            print(f"Sample spectrum file not found: {file_path}")
+            return
+        
+        self.sample_spectra_index = index
+        self.load_spectrum(file_path=file_path)
+
+    def cycle_spectrum(self, direction: int):
+        """
+        Cycle through the sample spectra list.
+        
+        Parameters
+        ----------
+        direction : int
+            +1 for next (right arrow), -1 for previous (left arrow).
+        """
+        if len(self.sample_spectra) < 2:
+            return  # nothing to cycle through
+        
+        new_index = (self.sample_spectra_index + direction) % len(self.sample_spectra)
+        self.switch_to_spectrum(new_index)
+
     def load_spectrum(self, file_path=None, load_parameters=False):
         """
         Load a spectrum from file or show file dialog.
@@ -544,6 +653,9 @@ class iSLAT:
         """
         section = PerformanceSection("iSLAT.load_spectrum")
         section.start()
+        
+        # Track whether the user is explicitly choosing a new file
+        user_initiated = (file_path is None)
         
         if file_path is None:
             if self.user_settings.get("default_spectra_file_to_load", None) is not None:
@@ -618,6 +730,12 @@ class iSLAT:
             self.loaded_spectrum_file = file_path
             self.loaded_spectrum_name = os.path.basename(file_path)
 
+            # If user explicitly loaded a new primary spectrum, clear the sample
+            if user_initiated and self.sample_spectra:
+                self.sample_spectra.clear()
+                self.sample_spectra_index = 0
+                print("Cleared sample spectra (new primary spectrum loaded).")
+
             # Initialize molecules after spectrum is loaded (most efficient approach)
             if not self._molecules_loaded:
                 # Check if we should load saved parameters for this spectrum
@@ -626,15 +744,28 @@ class iSLAT:
                 else:
                     self._initialize_molecules_for_spectrum()
                 spectrum_range = (self.wave_data.min(), self.wave_data.max())
-                self.molecules_dict.global_wavelength_range = spectrum_range
-                self.molecules_dict.global_model_pixel_res = np.median(self.wave_data[1:-1] - self.wave_data[0:-2])
+                self.molecules_dict._suppress_global_callbacks = True
+                try:
+                    self.molecules_dict.global_wavelength_range = spectrum_range
+                    self.molecules_dict.global_model_pixel_res = np.median(self.wave_data[1:-1] - self.wave_data[0:-2])
+                finally:
+                    self.molecules_dict._suppress_global_callbacks = False
             else:
                 # Update existing molecules with new wavelength range if needed
                 if load_parameters:
                     self._load_spectrum_parameters()
                 spectrum_range = (self.wave_data.min(), self.wave_data.max())
-                self.molecules_dict.global_wavelength_range = spectrum_range
-                self.molecules_dict.global_model_pixel_res = np.median(self.wave_data[1:-1] - self.wave_data[0:-2])
+                # Suppress global-parameter-change callbacks while we set
+                # both wavelength_range and model_pixel_res in quick succession.
+                # This avoids redundant plot refreshes (one for each setter);
+                # we do a single explicit refresh afterwards.
+                self.molecules_dict._suppress_global_callbacks = True
+                try:
+                    self.molecules_dict.global_wavelength_range = spectrum_range
+                    self.molecules_dict.global_model_pixel_res = np.median(self.wave_data[1:-1] - self.wave_data[0:-2])
+                finally:
+                    self.molecules_dict._suppress_global_callbacks = False
+                # Recalculate model spectra with updated parameters BEFORE rendering plots
                 self.update_model_spectrum()
                 print(f"Updated existing molecules for new wavelength range: {spectrum_range[0]:.3f} - {spectrum_range[1]:.3f}")
 
@@ -661,6 +792,10 @@ class iSLAT:
                 print("Updating existing GUI with new spectrum...")
                 if hasattr(self.GUI, "plot") and self.GUI.plot is not None:
                     self.GUI.plot.update_model_plot()
+                    # Refresh line inspection + population diagram for the new spectrum
+                    if hasattr(self.GUI.plot, 'current_selection') and self.GUI.plot.current_selection:
+                        xmin, xmax = self.GUI.plot.current_selection
+                        self.GUI.plot.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
                     self.GUI.plot.match_display_range(match_y=True)
                     if hasattr(self.GUI.plot, 'canvas'):
                         self.GUI.plot.canvas.draw()
@@ -673,7 +808,7 @@ class iSLAT:
                 if (hasattr(self.GUI, "file_interaction_pane") and 
                     hasattr(self, 'loaded_spectrum_name')):
                     self.GUI.file_interaction_pane.update_file_label(self.loaded_spectrum_name)
-                self.update_model_spectrum()
+                    self.GUI.file_interaction_pane.update_sample_spectra_label()
             
             section.end()
             section.get_breakdown(print_output=True)
@@ -945,6 +1080,146 @@ class iSLAT:
         except Exception as e:
             debug_config.error("active_molecule", f"Error setting active molecule: {e}")
             # Don't change the active molecule if there's an error
+    
+    def subtract_models_from_data(self, visible_only: bool = True) -> Optional[str]:
+        """
+        Subtract active/visible model spectra from the data spectrum.
+        
+        Uses flux-conserving spectral resampling (spectres algorithm) to interpolate
+        the model flux to match the data's wavelength sampling before subtraction.
+        
+        The result is saved as a new spectrum file with '_iSLATsub' suffix in the
+        same folder as the original spectrum, and is automatically loaded into iSLAT.
+        
+        Parameters
+        ----------
+        visible_only : bool, default True
+            If True, only subtract visible molecules. If False, subtract all molecules.
+            
+        Returns
+        -------
+        Optional[str]
+            Path to the saved subtracted spectrum file, or None if operation failed.
+        """
+        import pandas as pd
+        from pathlib import Path
+        
+        # Import spectres function from Molecule module
+        from .Modules.DataTypes.Molecule import _spectres
+        
+        # Validate we have the required data
+        if not hasattr(self, 'wave_data') or self.wave_data is None:
+            print("Error: No spectrum data loaded.")
+            return None
+        
+        if not hasattr(self, 'flux_data') or self.flux_data is None:
+            print("Error: No flux data available.")
+            return None
+            
+        if not hasattr(self, 'molecules_dict') or not self.molecules_dict:
+            print("Error: No molecules loaded.")
+            return None
+        
+        # Get visible molecules
+        molecules = list(self.molecules_dict.get_visible_molecules() if visible_only else self.molecules_dict.keys())
+        if not molecules:
+            print("Error: No visible molecules to subtract.")
+            return None
+        
+        print(f"Subtracting {len(molecules)} molecule(s) from spectrum...")
+        
+        # Get the summed model flux on the model's native wavelength grid
+        # We need to get the raw model flux first, then resample it
+        model_wave = None
+        model_flux_sum = None
+        
+        for mol_name in molecules:
+            if mol_name not in self.molecules_dict:
+                continue
+            molecule: Molecule = self.molecules_dict[mol_name]
+            
+            try:
+                # Get molecule flux on its native grid (not interpolated)
+                mol_wave, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
+                
+                if mol_wave is None or mol_flux is None or len(mol_wave) == 0:
+                    continue
+                
+                if model_wave is None:
+                    model_wave = mol_wave
+                    model_flux_sum = mol_flux.copy()
+                else:
+                    # All molecules should have same wavelength grid when not interpolating
+                    model_flux_sum += mol_flux
+                    
+            except Exception as e:
+                print(f"Warning: Could not get flux for {mol_name}: {e}")
+                continue
+        
+        if model_wave is None or model_flux_sum is None:
+            print("Error: Could not compute model flux.")
+            return None
+        
+        # Use spectres to resample model flux to data wavelength grid
+        # This is flux-conserving, handling the different pixel sampling properly
+        print("Resampling model to data wavelength grid using flux-conserving algorithm...")
+        
+        try:
+            model_flux_resampled = _spectres(
+                self.wave_data,      # Target wavelength grid (data)
+                model_wave,          # Source wavelength grid (model)
+                model_flux_sum,      # Source flux (model)
+                fill=0.0,            # Use 0 for wavelengths outside model range
+                verbose=True
+            )
+        except Exception as e:
+            print(f"Error during spectral resampling: {e}")
+            return None
+        
+        # Subtract model from data
+        subtracted_flux = self.flux_data - model_flux_resampled
+        
+        # Create output dataframe
+        output_df = pd.DataFrame({
+            'wave': self.wave_data,
+            'flux': subtracted_flux,
+        })
+        
+        # Include error and continuum if available
+        if hasattr(self, 'err_data') and self.err_data is not None:
+            output_df['err'] = self.err_data
+        
+        if hasattr(self, 'continuum_data') and self.continuum_data is not None:
+            output_df['cont'] = self.continuum_data
+        
+        # Generate output filename
+        if hasattr(self, 'loaded_spectrum_file') and self.loaded_spectrum_file:
+            original_path = Path(self.loaded_spectrum_file)
+            output_name = original_path.stem + "_iSLATsub" + original_path.suffix
+            output_path = original_path.parent / output_name
+        else:
+            output_path = Path("spectrum_iSLATsub.csv")
+        
+        # Save the subtracted spectrum
+        try:
+            output_df.to_csv(output_path, index=False)
+            print(f"Saved model-subtracted spectrum to: {output_path}")
+        except Exception as e:
+            print(f"Error saving subtracted spectrum: {e}")
+            return None
+        
+        # Load the subtracted spectrum into iSLAT
+        print("Loading subtracted spectrum into iSLAT...")
+        self.load_spectrum(str(output_path), load_parameters=False)
+        
+        # Update the GUI if available
+        if hasattr(self, 'GUI') and self.GUI is not None:
+            if hasattr(self.GUI, 'plot'):
+                self.GUI.plot.update_all_plots()
+            if hasattr(self.GUI, 'data_field'):
+                self.GUI.data_field.insert_text(f"Subtracted {len(molecules)} model(s) from spectrum.\nSaved to: {output_path.name}")
+        
+        return str(output_path)
         
     @property
     def display_range(self):
@@ -977,3 +1252,8 @@ class iSLAT:
         if hasattr(self, 'molecules_dict') and hasattr(self.molecules_dict, 'global_wavelength_range'):
             print(f"Optimized for spectrum range: {self.molecules_dict.global_wavelength_range[0]:.1f} - {self.molecules_dict.global_wavelength_range[1]:.1f} µm")
         print("--- Ready for Analysis ---\n")'''
+
+def _cli_entry():
+    """Console-script entry point for ``islat`` command."""
+    app = iSLAT()
+    app.run()

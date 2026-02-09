@@ -1,5 +1,96 @@
 # Changelog
 
+## v5.02.02 - February 08, 2026
+
+### iSLAT Package
+- Added new project toml file to define the package
+- As of commit [10eec...](https://github.com/John-M87/iSLATTests/commit/10eec425a25fd7973497b52d9acfad376b0c355c) (Made iSLAT installable as a package) you will need to do one of the follow to run the notebooks on this branch:
+    - Run ``pip install -e .`` from the project root (i.e. the directory where the `pyproject.toml` is located)
+    - Run ``pip install -e git://github.com/John-M87/iSLATTests.git@{ tag name }#egg={ desired egg name }`` (Untested)
+    - In the future you will be able to pip install as usual
+- Updated some files (such as iSLAT-launch.py) to remove code that is no longer needed
+- Added a new `iSLAT` console command when installed as a package
+    - When you type `iSLAT` into the command line it will auto run a start script and launch the GUI
+    - Could be used with a bat file if desired
+
+### New Features
+
+#### GUI Improvements
+- Added a new plus button next to the load spectrum button
+    - Lets you add multiple spectra to be used as a sample
+    - When a sample is loaded the Fit Saved Lines to Sample function automatically uses it
+    - When a sample is loaded you are also able to use the left and right arrow keys to dynamically move between the loaded spectra
+
+#### Example Notebooks
+- Edited all Notebooks to use a regular import for iSLAT instead of the sys path appending method
+
+### Bug Fixes
+- Updated HITRANdata file path in the FileHandling module
+
+### Code Quality
+- Bumped version to `v5.02.02`
+
+---
+
+## v5.02.01 - February 07, 2026
+
+### New Features
+
+#### User Settings System
+- Added a versioning system for user settings (`user_settings_version` field in `DefaultUserSettings.json`)
+- User settings are now automatically migrated when the default version is bumped: new fields are added, removed fields are pruned, and key order matches the defaults file
+- If `UserSettings.json` does not exist, it is now created from `DefaultUserSettings.json` with `first_startup` set to `true`
+- The `first_startup` and `reload_default_files` flags are now correctly persisted back to `false` after the first launch
+- Added `save_user_settings()` function for writing settings back to disk while handling theme dict-to-string conversion and stripping runtime-only keys
+
+#### Full Spectrum Plot
+- The full spectrum plot now updates automatically when a new spectrum file is loaded
+- Wavelength range is recalculated and the figure is recreated when loading data that spans a different range
+- The Tk canvas is properly rebuilt when the underlying matplotlib figure changes
+
+#### Plotting Module Refactor
+- Added new modular plot classes: `BasePlot`, `FullSpectrumPlot`, `LineInspectionPlot`, `PopulationDiagramPlot`, `MainPlotGrid`
+- Refactored `PlotRenderer` and `MainPlot` to use the new plot classes for improved modularity
+- Plot classes now clear previous axes with `fig.clf()` so regeneration doesn't stack on top
+- Line inspection plot now includes information about lines in the current selection, displayed in the data field
+
+#### GUI Improvements
+- Added a toggle for the visibility of all molecules at once by pressing the "On" label in the control panel
+- Changed the "Toggle Summed Flux" button label to "Toggle Total Model"
+- Repositioned the X buttons for removing input and output files
+- Updated tooltips for several control panel items
+- First draft of model subtraction from data
+- The toggle total model button now toggles the visibility of the total model line in the main plot, and the total model is now included in the full spectrum plot
+
+#### Full Spectrum Mode
+- Reworked full spectrum mode to work with instruments other than MIRI (MIRI output remains the same)
+- First draft of updated pixel sampling using [spectres](https://github.com/ACCarnall/spectres) adaptation
+
+#### Example Notebooks
+- Reorganized example notebooks into `DataTypes`, `Interactive Widgets`, `Plotting`, and `Fitting` folders
+- Added `DataTypes_Overview.ipynb` — overview of the data type classes
+- Added `Molecule_Examples.ipynb` — examples for the Molecule class
+- Added `MoleculeDict_Examples.ipynb` — creating, managing, and visualizing molecular data
+- Added `MoleculeLineList_Examples.ipynb` — working with HITRAN line list data
+- Added `Plotting_Examples.ipynb` — static plotting examples
+- Added `Animated_Parameter_Evolution.ipynb` — animated parameter sweep plots
+- Added 10 interactive widget notebooks: Bulk Parameter Explorer, Intensity Parameter Explorer, Full Spectrum Plot, Line Inspection, Molecule Parameters, Low-Level Spectrum Viewer, Molecule Selector Dropdown, Side-by-Side Comparison, Spectrum Builder, and Visibility Toggles
+
+### Bug Fixes
+- Fixed `reload_default_files` defaulting to `True` in `check_HITRAN()`, which caused default files to reload on every launch
+- Fixed molecule color access when setting molecule from a new load
+- Fixed incorrect caching behavior in FileHandling `__init__.py`
+- Removed unused import of `defaultdict` from `Molecule.py`
+
+### Code Quality
+- Improved type hints in `Molecule` and `MoleculeDict` classes
+- Updated `bulk_update_parameters` in `MoleculeDict` to accept multiple kinds of input for specifying which molecules to update
+- Updated `safe_float` method in `MoleculeDict` with improved validation
+- Added `UserSettings.json` to `.gitignore` and removed it from Git tracking
+- Bumped version to `v5.02.01`
+
+---
+
 ## v5.02.00 - February 05, 2026
 
 ### New Features
