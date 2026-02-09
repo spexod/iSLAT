@@ -1,11 +1,6 @@
-# As of commit [10eec...](https://github.com/John-M87/iSLATTests/commit/10eec425a25fd7973497b52d9acfad376b0c355c) (Made iSLAT installable as a package) you will need to do one of the follow to run the notebooks on this branch:
-- Run ``pip install -e .`` from the project root (i.e. the directory where the `pyproject.toml` is located)
-- Run ``pip install -e git://github.com/John-M87/iSLATTests.git@{ tag name }#egg={ desired egg name }`` (Untested)
-- In the future you will be able to pip install as usual
+# iSLAT v5.02.02
 
-# iSLAT v5.02.02 - beta release
-
-### Key updates from v5.00.01:
+### Key updates from v5.01.00:
 - Further improvements in speed and computational efficiency
     - Particular improvements to the fit saved lines to sample function through batch processing
     - Start up speed is now much faster
@@ -31,7 +26,7 @@ If updating from version 4: clone the new iSLAT in a new folder on your machine,
 
 ## Past Updates
 
-**This is version v5.00.01 - beta release**
+**This is version v5.01.00 - beta release**
 **Key updates from v5.00.00:**
 - Further improvements in speed and computational efficiency.
 - The slab model now accounts for line opacity overlap and mutual saturation, which is particularly important in the case of water ortho-para lines that overlap (see Figure 5 in [Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract)).
