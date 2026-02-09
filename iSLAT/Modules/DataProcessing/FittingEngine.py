@@ -17,6 +17,9 @@ class FittingEngine:
     including line fitting, deblending, and slab model fitting.
     """
     
+    # Class-level setting to control verbose fit output
+    VERBOSE_FIT_OUTPUT: bool = False
+    
     def __init__(self, islat_instance):
         """
         Initialize the fitting engine.
@@ -109,8 +112,8 @@ class FittingEngine:
             else:
                 result = model.fit(flux_fit, params, x=x_fit, nan_policy='omit')
             
-            #print(result.fit_report())
-            sys.stdout.write(result.fit_report() + '\n')
+            if self.VERBOSE_FIT_OUTPUT:
+                sys.stdout.write(result.fit_report() + '\n')
 
             # Generate fitted curve on original wavelength grid
             fitted_wave = wave_data
@@ -121,7 +124,8 @@ class FittingEngine:
             
             return result, fitted_wave, fitted_flux
         except Exception as e:
-            print(f"Error during single Gaussian fit: {e}")
+            if self.VERBOSE_FIT_OUTPUT:
+                print(f"Error during single Gaussian fit: {e}")
             return None, None, None
 
     def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
@@ -172,8 +176,8 @@ class FittingEngine:
         
         # Calculate initial amplitude estimate
         # Total integrated flux divided by number of lines
-        total_flux = np.trapz(flux_data, wave_data)
-        #total_flux = np.trapz(flux_data, wave_data)
+        total_flux = np.trapezoid(flux_data, wave_data)
+        #total_flux = np.trapezoid(flux_data, wave_data)
         garea_fg = total_flux / len(line_centers) * 1e11  # Scaling factor
         
         # Set up parameter bounds based on tolerances
@@ -222,8 +226,8 @@ class FittingEngine:
         result = model.fit(flux_data, params, x=wave_data, weights=weights, 
                           method='leastsq', nan_policy='omit')
         
-        #print(result.fit_report())
-        sys.stdout.write(result.fit_report() + '\n')
+        if self.VERBOSE_FIT_OUTPUT:
+            sys.stdout.write(result.fit_report() + '\n')
         self.fit_results_summary = result.summary()
         
         # Generate fitted curve from x min and x max and wave data
@@ -510,18 +514,23 @@ class FittingEngine:
             #'intens': line_info.get('intens', 0.0),
             'a_stein': line_info.get('a_stein', 0.0),
             'e_up': line_info.get('e_up', 0.0),
+            'e_low': line_info.get('e_low', 0.0),
             'g_up': line_info.get('g_up', 1.0),
+            'g_low': line_info.get('g_low', 1.0),
             'xmin': xmin,
             'xmax': xmax,
+        }
+
+        result_entry.update({key: line_info[key] for key in line_info if key not in result_entry})  # Include all line info fields
+
+        result_entry.update({
             'Flux_data': np.float64(f'{flux_data_integral:.{3}e}'),
             'Err_data': np.float64(f'{err_data_integral:.{3}e}'),
             'Line_SN': np.round(line_sn, decimals=1),
             'Line_det': bool(line_det),
             'Flux_islat': np.float64(f'{flux_data_integral:.{3}e}'),  # Default to data values
             'Err_islat': np.float64(f'{err_data_integral:.{3}e}')     # Will be overwritten if fit succeeds
-        }
-
-        result_entry.update({key: line_info[key] for key in line_info if key not in result_entry})  # Include all line info fields
+        })
 
         # Process fit results if successful
         if fit_result and fit_result.success:

@@ -8,6 +8,9 @@ from matplotlib.lines import Line2D
 import iSLAT.Constants as c
 
 from matplotlib.axes import Axes
+from .BasePlot import BasePlot
+from .LineInspectionPlot import LineInspectionPlot
+from .PopulationDiagramPlot import PopulationDiagramPlot
 
 # Import debug configuration
 try:
@@ -92,18 +95,28 @@ class PlotRenderer:
         
         self.render_out = False
         
+        # Reusable standalone plot delegates (render into GUI axes)
+        self._line_inspection_plot: Optional[LineInspectionPlot] = None
+        self._population_diagram_plot: Optional[PopulationDiagramPlot] = None
+        
+        # Population diagram caching
+        self._pop_diagram_molecule = None
+        self._pop_diagram_cache_key = None
+        
         # Simplified stats - only for performance monitoring, no data caching
         self._plot_stats = {
             'renders_count': 0,
             'molecules_rendered': 0
         }
     
-    # Helper methods for common operations
-    def _get_molecule_display_name(self, molecule: 'Molecule') -> str:
-        """Get display name for a molecule"""
-        return getattr(molecule, 'displaylabel', getattr(molecule, 'name', 'unknown'))
+    # Helper methods for common operations — delegate to BasePlot where possible
+    @staticmethod
+    def _get_molecule_display_name(molecule: 'Molecule') -> str:
+        """Get display name for a molecule (delegates to :class:`BasePlot`)."""
+        return BasePlot.get_molecule_display_name(molecule)
     
-    def _get_molecule_identifier(self, molecule: 'Molecule') -> Optional[str]:
+    @staticmethod
+    def _get_molecule_identifier(molecule: 'Molecule') -> Optional[str]:
         """Get unique identifier for a molecule"""
         return getattr(molecule, 'name', getattr(molecule, 'displaylabel', None)) if molecule else None
     
@@ -128,6 +141,12 @@ class PlotRenderer:
         # Default fallback
         molecule.color = self._get_theme_value('default_molecule_color', 'blue')
         return self._get_theme_value('default_molecule_color', 'blue')
+    
+    def set_summed_spectrum_visibility(self, visible: bool) -> None:
+        """Toggle visibility of the summed spectrum (gray fill)."""
+        for collection in self.ax1.collections[:]:
+            if hasattr(collection, '_islat_summed'):
+                collection.set_visible(visible)
     
     def clear_all_plots(self) -> None:
         """Clear all plots and reset stats"""
@@ -397,31 +416,34 @@ class PlotRenderer:
     def render_line_inspection_plot(self, line_wave: Optional[np.ndarray], 
                                    line_flux: Optional[np.ndarray], 
                                    line_label: Optional[str] = None) -> None:
-        """Render the line inspection subplot"""
+        """Render a simple line inspection subplot (observed data only).
+        
+        Delegates to :class:`LineInspectionPlot` for consistent appearance.
+        """
         self.ax2.clear()
         
-        if line_wave is not None and line_flux is not None:
-            # Plot data in selected range
-            self.ax2.plot(line_wave, line_flux, 
-                         color=self._get_theme_value("foreground", "black"), 
-                         linewidth=1, 
-                         label="Data")
-
-            self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
-            self.ax2.set_ylabel("Flux (Jy) denisty", color=self._get_theme_value("foreground", "black"))
-            self.ax2.set_title("Line inspection plot", color=self._get_theme_value("foreground", "black"))
-            
-            # Show legend if there are labeled items
-            handles, labels = self.ax2.get_legend_handles_labels()
-            if handles:
-                self.ax2.legend()
+        if line_wave is not None and line_flux is not None and len(line_wave) > 0:
+            xmin, xmax = float(np.min(line_wave)), float(np.max(line_wave))
+            lip = LineInspectionPlot(
+                wave_data=line_wave,
+                flux_data=line_flux,
+                xmin=xmin,
+                xmax=xmax,
+                ax=self.ax2,
+                fig=self.fig,
+                theme=self.theme,
+            )
+            lip.generate_plot()
     
     def render_complete_line_inspection_plot(self, wave_data: np.ndarray, flux_data: np.ndarray,
                                            xmin: float, xmax: float, active_molecule: Optional['Molecule'] = None,
                                            fit_result: Optional[Any] = None) -> None:
         """
         Render complete line inspection plot with observed data and active molecule model.
-        Uses PlotRenderer logic exclusively with molecule caching.
+        
+        Delegates core rendering (observed spectrum + molecule overlay) to a
+        reusable :class:`LineInspectionPlot` instance while keeping GUI-specific
+        fit-result overlay logic in PlotRenderer.
         
         Parameters
         ----------
@@ -444,60 +466,33 @@ class PlotRenderer:
         if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
             return
         
-        # Plot observed data in selected range
-        data_mask = (wave_data >= xmin) & (wave_data <= xmax)
-        observed_wave = wave_data[data_mask]
-        observed_flux = flux_data[data_mask]
-        
-        if len(observed_wave) > 0 and len(observed_flux) > 0:
-            self.ax2.plot(observed_wave, observed_flux, 
-                         color=self._get_theme_value("foreground", "black"), 
-                         linewidth=1, label="Data")
-        
-        # Calculate max_y for plot scaling
-        max_y = np.nanmax(observed_flux) if len(observed_flux) > 0 else 0.15
-        
-        # Plot the active molecule model using PlotRenderer's molecule spectrum method
-        if active_molecule is not None:
-            try:
-                # Use PlotRenderer's get_molecule_spectrum_data which leverages molecule caching
-                plot_lam, model_flux = self.get_molecule_spectrum_data(active_molecule, wave_data)
-                
-                
-                if plot_lam is not None and model_flux is not None and len(model_flux) > 0:
-                    # Filter the molecule data to the selected wavelength range
-                    model_mask = (plot_lam >= xmin) & (plot_lam <= xmax)
-                    if np.any(model_mask):
-                        model_wave_range = plot_lam[model_mask]
-                        model_flux_range = model_flux[model_mask]
-                        
-                        if len(model_wave_range) > 0 and len(model_flux_range) > 0:
-                            label = self._get_molecule_display_name(active_molecule)
-                            color = self._get_molecule_color(active_molecule)
-                            self.ax2.plot(model_wave_range, model_flux_range, 
-                                         color=color, linestyle="--", 
-                                         linewidth=2, label=label)
-                            if len(observed_flux) <= 0:
-                                max_y = np.nanmax(model_flux_range)
-            except Exception as e:
-                mol_name = self._get_molecule_display_name(active_molecule)
-                debug_config.warning("plot_renderer", f"Could not get model data for molecule {mol_name}: {e}")
+        # Reuse stored LineInspectionPlot, updating its parameters
+        if self._line_inspection_plot is None:
+            self._line_inspection_plot = LineInspectionPlot(
+                wave_data=wave_data,
+                flux_data=flux_data,
+                xmin=xmin,
+                xmax=xmax,
+                molecule=active_molecule,
+                ax=self.ax2,
+                fig=self.fig,
+                theme=self.theme,
+            )
+        else:
+            self._line_inspection_plot.wave_data = wave_data
+            self._line_inspection_plot.flux_data = flux_data
+            self._line_inspection_plot.xmin = xmin
+            self._line_inspection_plot.xmax = xmax
+            self._line_inspection_plot.molecule = active_molecule
+            self._line_inspection_plot.theme = self.theme
+        self._line_inspection_plot.generate_plot()
 
-        # Plot fit results if available
+        # Overlay fit results (GUI-specific feature not in standalone class)
         if fit_result is not None:
+            # Derive max_y from the axes limits set by LineInspectionPlot
+            current_ylim = self.ax2.get_ylim()
+            max_y = current_ylim[1] / 1.1 if current_ylim[1] > 0 else 0.15
             self._render_fit_results_in_line_inspection(fit_result, xmin, xmax, max_y)
-        
-        # Set plot properties
-        self.ax2.set_xlim(xmin, xmax)
-        self.ax2.set_ylim(0, max_y * 1.1)
-        self.ax2.set_xlabel("Wavelength (μm)", color=self._get_theme_value("foreground", "black"))
-        self.ax2.set_ylabel("Flux density (Jy)", color=self._get_theme_value("foreground", "black"))
-        self.ax2.set_title("Line inspection plot", color=self._get_theme_value("foreground", "black"))
-        
-        # Show legend if there are labeled items
-        handles, labels = self.ax2.get_legend_handles_labels()
-        if handles:
-            self.ax2.legend()
     
     def _render_fit_results_in_line_inspection(self, fit_result: Any, xmin: float, xmax: float, max_y: float) -> None:
         """Helper method to render fit results in the line inspection plot."""
@@ -555,7 +550,7 @@ class PlotRenderer:
         handles, labels = self.ax2.get_legend_handles_labels()
         if handles:
             self.ax2.legend()
-
+        # Don't call canvas.draw_idle() here - let caller batch it
         self.canvas.draw_idle()
     
     def _should_clear_old_fits(self) -> bool:
@@ -617,76 +612,61 @@ class PlotRenderer:
             collection.remove()
             debug_config.trace("plot_renderer", f"Removed old fit result collection: {collection.get_label()}")
         
-        # Force canvas redraw if anything was removed
-        if lines_to_remove or collections_to_remove:
-            self.canvas.draw_idle()
+        # Don't call canvas.draw_idle() here - let caller batch it
     
-    def render_population_diagram(self, molecule: 'Molecule', wave_range: Optional[Tuple[float, float]] = None) -> None:
+    def render_population_diagram(self, molecule: 'Molecule', wave_range: Optional[Tuple[float, float]] = None, force_redraw: bool = False) -> None:
         """
-        Render population diagram using molecule's cached intensity data.
+        Render population diagram using a reusable :class:`PopulationDiagramPlot`.
         
-        This method relies on the molecule's internal caching system rather than
-        maintaining its own cache to avoid conflicts with cached parameter restoration.
+        The GUI-specific caching layer avoids redundant redraws when the
+        molecule and its parameters haven't changed.
+        
+        Parameters
+        ----------
+        molecule : Molecule
+            The molecule to render
+        wave_range : tuple, optional
+            Wavelength range (not currently used)
+        force_redraw : bool
+            If True, forces redraw even if cached. If False, skips if same molecule.
         """
-        self.ax3.clear()
+        # Check if we can skip redrawing (same molecule, no parameter changes)
+        current_hash = None
+        if molecule is not None and hasattr(molecule, '_compute_intensity_hash'):
+            current_hash = (molecule.name, molecule._compute_intensity_hash())
         
-        if molecule is None:
-            self.ax3.set_title("No molecule selected")
-            return
-            
-        try:
-            # Use molecule's cached intensity data directly
-            int_pars = self.get_intensity_data(molecule)
-            if int_pars is None:
-                mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f"{mol_label} - No intensity data", color=self._get_theme_value("foreground", "black"))
+        if not force_redraw and self._pop_diagram_molecule is not None:
+            if (self._pop_diagram_molecule is molecule and 
+                current_hash is not None and
+                self._pop_diagram_cache_key == current_hash):
                 return
-
-            wavelength = int_pars['lam']
-            intens_mod = int_pars['intens']
-            Astein_mod = int_pars['a_stein']
-            gu = int_pars['g_up']
-            eu = int_pars['e_up']
-
-            radius = getattr(molecule, 'radius', None)
-            distance = getattr(molecule, 'distance', None)
-
-            area = np.pi * (radius * c.ASTRONOMICAL_UNIT_M * 1e2) ** 2
-            dist = distance * c.PARSEC_CM
-            beam_s = area / dist ** 2
-            F = intens_mod * beam_s
-            frequency = c.SPEED_OF_LIGHT_MICRONS / wavelength
-            rd_yax = np.log(4 * np.pi * F / (Astein_mod * c.PLANCK_CONSTANT * frequency * gu))
-            threshold = np.nanmax(F) / 100
-
-            # Set limits with bounds checking
-            valid_rd = rd_yax[F > threshold]
-            valid_eu = eu[F > threshold]
+        
+        # Update cache keys
+        self._pop_diagram_molecule = molecule
+        self._pop_diagram_cache_key = current_hash
             
-            if len(valid_rd) > 0 and len(valid_eu) > 0:
-                self.ax3.set_ylim(np.nanmin(valid_rd), np.nanmax(rd_yax) + 0.5)
-                self.ax3.set_xlim(np.nanmin(eu) - 50, np.nanmax(valid_eu))
-
-                # Populating the population diagram graph with the lines
-                self.ax3.scatter(eu, rd_yax, s=0.5, color=self._get_theme_value("scatter_main_color", '#838B8B'))
-
-                # Set labels
-                self.ax3.set_ylabel(r'ln(4πF/(hν$A_{u}$$g_{u}$))', color=self._get_theme_value("foreground", "black"), labelpad = -1)
-                self.ax3.set_xlabel(r'$E_{u}$ (K)', color=self._get_theme_value("foreground", "black"))
-                mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f'{mol_label} Population diagram', fontsize='medium', color=self._get_theme_value("foreground", "black"))
+        # Reuse stored PopulationDiagramPlot, updating its molecule
+        try:
+            if self._population_diagram_plot is None:
+                self._population_diagram_plot = PopulationDiagramPlot(
+                    molecule=molecule,
+                    ax=self.ax3,
+                    fig=self.fig,
+                    theme=self.theme,
+                )
             else:
-                mol_label = self._get_molecule_display_name(molecule)
-                self.ax3.set_title(f"{mol_label} - No valid data for population diagram", color=self._get_theme_value("foreground", "black"))
-
+                self._population_diagram_plot.molecule = molecule
+                self._population_diagram_plot.theme = self.theme
+            self._population_diagram_plot.generate_plot()
         except Exception as e:
             debug_config.error("plot_renderer", f"Error rendering population diagram: {e}")
-            mol_label = self._get_molecule_display_name(molecule)
+            self.ax3.clear()
+            mol_label = BasePlot.get_molecule_display_name(molecule) if molecule else "Unknown"
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
 
     def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines, fig = None) -> None:
-        """Plot saved lines on the main spectrum"""
-        if not fig:
+        """Plot saved lines on given plot (defaults main plot)"""
+        if not fig: 
             fig = self.ax1
 
         for index, line in loaded_lines.iterrows():
@@ -835,16 +815,16 @@ class PlotRenderer:
         # Batch render all visible molecules without updating legend each time
         rendered_count = 0
         for mol in visible_molecules:
-            mol_name = getattr(mol, 'name', 'unknown')
+            #mol_name = getattr(mol, 'name', 'unknown')
             try:
                 # Render without updating legend (update_legend=False)
                 success = self.render_individual_molecule_spectrum(mol, wave_data, subplot=subplot, update_legend=False)
                 if success:
                     rendered_count += 1
                 else:
-                    debug_config.warning("plot_renderer", f"Could not render molecule {mol_name}")
+                    debug_config.warning("plot_renderer", f"Could not render molecule {getattr(mol, 'name', 'unknown')}")
             except Exception as e:
-                print(f"Error rendering molecule {mol_name}: {e}")
+                print(f"Error rendering molecule {getattr(mol, 'name', 'unknown')}: {e}")
                 continue
         
         # Update legend only once after all molecules are rendered (if requested)
@@ -965,9 +945,13 @@ class PlotRenderer:
         # Update summed spectrum using PlotRenderer
         self.update_summed_spectrum_only(wave_data, summed_flux)
     
-    def render_atomic_lines(self, atomic_lines, axis: Axes, wavelengths, species, line_ids):
+    def render_atomic_lines(self, atomic_lines, axis: Axes, wavelengths, species, line_ids, using_subplot = False):
+        if using_subplot:
+            pass
+
         for i in range(len(wavelengths)):
             line = axis.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
+            line._islat_atomic_line = True  # Mark for easy removal
             
             # Adjust the y-coordinate to place labels within the plot borders
             ylim = axis.get_ylim()
@@ -976,13 +960,14 @@ class PlotRenderer:
             # Adjust the x-coordinate to place labels just to the right of the line
             xlim = axis.get_xlim()
             label_x = wavelengths[i] + 0.006 * (xlim[1] - xlim[0])
-            
+
             # Add text label for the line
             label_text = f"{species[i]} {line_ids[i]}"
             label = axis.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
                                                 va='top', ha='left', color='tomato')
-            
-            atomic_lines.append((line, label))
+            label._islat_atomic_line = True  # Mark for easy removal
+            if using_subplot is False:
+                atomic_lines.append((line, label))
 
     def remove_atomic_lines(self, lines):
         for (line, text) in lines:
@@ -1036,6 +1021,7 @@ class PlotRenderer:
         """
         Render active lines as scatter points in the population diagram.
         
+        Uses vectorized operations for better performance.
         Lines are filtered based on intensity threshold from user settings.
         Only lines with intensity above threshold_percent of the strongest line are rendered.
         
@@ -1054,63 +1040,75 @@ class PlotRenderer:
         filtered_line_data = self.filter_lines_by_threshold(line_data, threshold_percent)
         
         if not filtered_line_data:
-            print(f"No lines above threshold ({threshold_percent*100:.1f}% of strongest line) for population diagram")
+            debug_config.trace("plot_renderer", f"No lines above threshold ({threshold_percent*100:.1f}%)")
             return
             
-        print(f"Rendering {len(filtered_line_data)}/{len(line_data)} lines in population diagram above threshold ({threshold_percent*100:.1f}%)")
+        debug_config.trace("plot_renderer", f"Rendering {len(filtered_line_data)}/{len(line_data)} lines in pop diagram")
         
         # Get max intensity from original data for consistent percentage calculation
         original_intensities = [intensity for _, intensity, _ in line_data]
         max_intensity = max(original_intensities) if original_intensities else 1.0
         
-        # Calculate rd_yax values for each filtered line and add scatter points
-        for idx, (line, intensity, tau_val) in enumerate(filtered_line_data):
+        # Get molecule properties once (not in loop)
+        molecule = getattr(self.islat, 'active_molecule', None)
+        if molecule is None:
+            return
+        radius = getattr(molecule, 'radius', 1.0)
+        distance = getattr(molecule, 'distance', getattr(self.islat, 'global_dist', 140.0))
+        
+        # Pre-calculate constants
+        area = np.pi * (radius * c.ASTRONOMICAL_UNIT_M * 1e2) ** 2
+        dist = distance * c.PARSEC_CM
+        beam_s = area / dist ** 2
+        
+        # Cache theme value once
+        active_color = self._get_theme_value("active_scatter_line_color", 'green')
+        
+        # Collect data for vectorized scatter (faster than individual scatter calls)
+        e_ups = []
+        rd_yaxs = []
+        value_data_list = []
+        
+        for line, intensity, tau_val in filtered_line_data:
             if all(x is not None for x in [intensity, line.a_stein, line.g_up, line.lam]):
-                # Get molecule properties safely
-                molecule = getattr(self.islat, 'active_molecule', None)
-                if molecule is None:
-                    continue
-                    
-                radius = getattr(molecule, 'radius', 1.0)
-                distance = getattr(molecule, 'distance', getattr(self.islat, 'global_dist', 140.0))
-                
                 # Calculate rd_yax
-                area = np.pi * (radius * c.ASTRONOMICAL_UNIT_M * 1e2) ** 2
-                dist = distance * c.PARSEC_CM
-                beam_s = area / dist ** 2
                 F = intensity * beam_s
                 freq = c.SPEED_OF_LIGHT_MICRONS / line.lam
                 rd_yax = np.log(4 * np.pi * F / (line.a_stein * c.PLANCK_CONSTANT * freq * line.g_up))
                 
-                # Create scatter point
-                sc = self.ax3.scatter(line.e_up, rd_yax, s=30, 
-                                     color=self._get_theme_value("scatter_main_color", 'green'), 
-                                     edgecolors='black', picker=True)
+                e_ups.append(line.e_up)
+                rd_yaxs.append(rd_yax)
                 
-                # Store line information
-                value_data = {
-                    'lam': line.lam,
-                    'e': line.e_up,
-                    'a': line.a_stein,
-                    'g': line.g_up,
-                    'e_low': line.e_low if line.e_low else 'N/A',
-                    'g_low': line.g_low if line.g_low else 'N/A',
-                    'rd_yax': rd_yax,
-                    'inten': intensity,
-                    'up_lev': line.lev_up if line.lev_up else 'N/A',
-                    'low_lev': line.lev_low if line.lev_low else 'N/A',
-                    'tau': tau_val if tau_val is not None else 'N/A',
-                    'intensity_percent': (intensity / max_intensity) * 100  # Store percentage for debugging
-                }
-                
-                # Update existing entry or create new one
-                if idx < len(active_lines_list):
-                    # Update existing entry with scatter artist
-                    active_lines_list[idx][2] = sc  # Set scatter artist
-                    active_lines_list[idx][3].update(value_data)  # Update value data
-                else:
-                    # Create new entry: [line_artist, text_obj, scatter_artist, value_data]
-                    active_lines_list.append([None, None, sc, value_data])
+                # Store line information using canonical helper
+                value_data = LineInspectionPlot.get_line_info(line, intensity, tau_val)
+                # Add GUI-internal fields
+                value_data['rd_yax'] = rd_yax
+                value_data['intensity_percent'] = (intensity / max_intensity) * 100
+                value_data_list.append(value_data)
+        
+        if not e_ups:
+            return
+            
+        # Create single vectorized scatter call (much faster than N individual calls)
+        sc = self.ax3.scatter(e_ups, rd_yaxs, s=30, 
+                             color=active_color, 
+                             edgecolors='black', picker=True)
+        
+        # Store the scatter collection for later recoloring
+        self._active_scatter_collection = sc
+        self._active_scatter_count = len(e_ups)
+        
+        # Store reference to scatter and value data in active_lines_list
+        # Each entry gets the same scatter ref but different point_index for recoloring
+        for idx, value_data in enumerate(value_data_list):
+            value_data['_scatter_point_index'] = idx  # Store index within scatter collection
+            if idx < len(active_lines_list):
+                # Update existing entry with scatter artist reference
+                active_lines_list[idx][2] = sc  # All points share same scatter collection
+                active_lines_list[idx][3].update(value_data)
+            else:
+                # Create new entry: [line_artist, text_obj, scatter_artist, value_data]
+                active_lines_list.append([None, None, sc, value_data])
     
     def render_active_lines_in_line_inspection(self, line_data: List[Tuple['MoleculeLine', float, Optional[float]]], active_lines_list: List[Any], 
                                               max_y: float) -> None:
@@ -1129,24 +1127,25 @@ class PlotRenderer:
         max_y : float
             Maximum y value for scaling line heights
         """
-        print("in render lines")
         if not line_data:
             return
-        print(f"max_y: {max_y}")
         
         # Get threshold and filter lines
         threshold_percent = self.get_line_intensity_threshold()
         filtered_line_data = self.filter_lines_by_threshold(line_data, threshold_percent)
         
         if not filtered_line_data:
-            print(f"No lines above threshold ({threshold_percent*100:.1f}% of strongest line)")
+            debug_config.trace("plot_renderer", f"No lines above threshold ({threshold_percent*100:.1f}%)")
             return
             
-        print(f"Rendering {len(filtered_line_data)}/{len(line_data)} lines above threshold ({threshold_percent*100:.1f}%)")
+        debug_config.trace("plot_renderer", f"Rendering {len(filtered_line_data)}/{len(line_data)} lines in line inspection")
         
         # Get max intensity from original data for consistent scaling
         original_intensities = [intensity for _, intensity, _ in line_data]
         max_intensity = max(original_intensities) if original_intensities else 1.0
+        
+        # Cache theme value once (not in loop)
+        active_color = self._get_theme_value("active_scatter_line_color", "green")
         
         # Plot vertical lines for each filtered molecular line and create/update active_lines entries
         for idx, (line, intensity, tau_val) in enumerate(filtered_line_data):
@@ -1158,32 +1157,21 @@ class PlotRenderer:
             if lineheight > 0:
                 # Create vertical line
                 vline = self.ax2.vlines(line.lam, 0, lineheight,
-                                       color=self._get_theme_value("active_scatter_line_color", "green"), 
+                                       color=active_color, 
                                        linestyle='dashed', linewidth=1, picker=True)
                 
                 # Add text label
                 text = self.ax2.text(line.lam, lineheight,
                                    f"{line.e_up:.0f},{line.a_stein:.3f}", 
                                    fontsize='x-small', 
-                                   color=self._get_theme_value("active_scatter_line_color", "green"), 
+                                   color=active_color, 
                                    rotation=45)
                 
-                # Create value data for this line
-                value_data = {
-                    'lam': line.lam,
-                    'e': line.e_up,
-                    'a': line.a_stein,
-                    'g': line.g_up,
-                    'e_low': line.e_low if line.e_low else 'N/A',
-                    'g_low': line.g_low if line.g_low else 'N/A',
-                    'inten': intensity,
-                    'up_lev': line.lev_up if line.lev_up else 'N/A',
-                    'low_lev': line.lev_low if line.lev_low else 'N/A',
-                    'tau': tau_val if tau_val is not None else 'N/A',
-                    #'text_obj': text,
-                    'lineheight': lineheight,
-                    'intensity_percent': (intensity / max_intensity) * 100  # Store percentage for debugging
-                }
+                # Create value data using canonical helper
+                value_data = LineInspectionPlot.get_line_info(line, intensity, tau_val)
+                # Add GUI-internal fields
+                value_data['lineheight'] = lineheight
+                value_data['intensity_percent'] = (intensity / max_intensity) * 100
                 
                 # Add new entry to active_lines or update existing one
                 if idx < len(active_lines_list):
@@ -1211,48 +1199,62 @@ class PlotRenderer:
         """
         if not active_lines_list:
             return None
-            
-        # Reset all lines to green first
+        
+        # Get the active scatter collection and count
+        scatter_collection = getattr(self, '_active_scatter_collection', None)
+        scatter_count = getattr(self, '_active_scatter_count', 0)
+        active_color = self._get_theme_value("active_scatter_line_color", 'green')
+        
+        # Reset all line inspection lines to green first
         for line, text_obj, scatter, value in active_lines_list:
             if line is not None:
-                line.set_color('green')
-            if scatter is not None:
-                scatter.set_facecolor('green')
-                scatter.set_zorder(1)  # Reset z-order
+                line.set_color(active_color)
             if text_obj is not None:
-                text_obj.set_color('green')
+                text_obj.set_color(active_color)
 
-        # Find the line with the highest intensity
+        # Find the line with the highest intensity and its scatter index
         highest_intensity = -float('inf')
         strongest_triplet = None
+        strongest_scatter_idx = None
         
         for line, text_obj, scatter, value in active_lines_list:
-            intensity = value.get('inten', 0) if value else 0
+            intensity = value.get('intensity', 0) if value else 0
             if intensity > highest_intensity:
                 highest_intensity = intensity
                 strongest_triplet = [line, text_obj, scatter, value]
+                strongest_scatter_idx = value.get('_scatter_point_index', None) if value else None
         
-        # Highlight the strongest line in orange
+        # Reset scatter collection to all green, then highlight strongest in orange
+        if scatter_collection is not None and scatter_count > 0:
+            # Create color array - all green initially
+            import matplotlib.colors as mcolors
+            colors = [mcolors.to_rgba(active_color)] * scatter_count
+            
+            # Set the strongest point to orange
+            if strongest_scatter_idx is not None and strongest_scatter_idx < scatter_count:
+                colors[strongest_scatter_idx] = mcolors.to_rgba('orange')
+            
+            scatter_collection.set_facecolors(colors)
+            scatter_collection.set_zorder(1)  # Reset base z-order
+        
+        # Highlight the strongest line inspection elements in orange
         if strongest_triplet is not None:
             line, text_obj, scatter, value = strongest_triplet
             if line is not None:
                 line.set_color('orange')
-            if scatter is not None:
-                scatter.set_facecolor('orange')
-                scatter.set_zorder(10)  # Bring to front
             if text_obj is not None:
                 text_obj.set_color('orange')
         
         return strongest_triplet
     
-    def handle_line_pick_event(self, picked_artist: Any, active_lines_list: List[Any]) -> Any:
+    def handle_line_pick_event(self, event: Any, active_lines_list: List[Any]) -> Any:
         """
         Handle line pick events and highlight the selected line.
         
         Parameters
         ----------
-        picked_artist : Any
-            The matplotlib artist that was picked
+        event : Any
+            The matplotlib pick event
         active_lines_list : List[Any]
             List of [line_artist, scatter_artist, value_data] tuples
             
@@ -1262,44 +1264,70 @@ class PlotRenderer:
             The value data of the picked line or None
         """
         picked_value = None
+        picked_scatter_idx = None
+        picked_artist = event.artist
         
-        # Find which entry in active_lines was picked and reset colors
+        # Get the active scatter collection and count
+        scatter_collection = getattr(self, '_active_scatter_collection', None)
+        scatter_count = getattr(self, '_active_scatter_count', 0)
+        active_color = self._get_theme_value("active_scatter_line_color", 'green')
+        
+        # Check if the picked artist is the scatter collection
+        # If so, use event.ind to determine which specific point was clicked
+        scatter_point_clicked = None
+        if picked_artist is scatter_collection and hasattr(event, 'ind') and len(event.ind) > 0:
+            scatter_point_clicked = event.ind[0]  # Get first clicked point index
+        
+        # Find which entry in active_lines was picked and reset line inspection colors
         for line, text_obj, scatter, value in active_lines_list:
-            is_picked = (picked_artist is line or picked_artist is scatter)
+            # Check if this specific line was picked
+            is_line_picked = (picked_artist is line)
+            # Check if this specific scatter point was picked (by matching index)
+            point_idx = value.get('_scatter_point_index', None) if value else None
+            is_scatter_picked = (scatter_point_clicked is not None and point_idx == scatter_point_clicked)
+            is_picked = is_line_picked or is_scatter_picked
             
-            # Reset all to green first
+            # Reset line inspection elements to green first
             if line is not None:
-                line.set_color('green')
-            if scatter is not None:
-                scatter.set_facecolor('green')
+                line.set_color(active_color)
             if text_obj is not None:
-                text_obj.set_color('green')
+                text_obj.set_color(active_color)
 
             # If this was the picked item, highlight in orange
             if is_picked:
                 picked_value = value
+                picked_scatter_idx = point_idx
                 if line is not None:
                     line.set_color('orange')
-                if scatter is not None:
-                    scatter.set_facecolor('orange')
                 if text_obj is not None:
                     text_obj.set_color('orange')
+
+        # Update scatter collection colors - all green except picked point
+        if scatter_collection is not None and scatter_count > 0:
+            import matplotlib.colors as mcolors
+            colors = [mcolors.to_rgba(active_color)] * scatter_count
+            
+            # Set the picked point to orange
+            if picked_scatter_idx is not None and picked_scatter_idx < scatter_count:
+                colors[picked_scatter_idx] = mcolors.to_rgba('orange')
+            
+            scatter_collection.set_facecolors(colors)
 
         return picked_value
     
     def get_molecule_spectrum_data(self, molecule: 'Molecule', wave_data: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
-        Get spectrum data directly from molecule's caching system.
+        Get spectrum data from molecule's caching system.
         
-        Uses get_flux() method which returns consistent wavelength grids for all molecules
-        when they use the same global wavelength range, eliminating grid size mismatches.
+        Delegates to :meth:`BasePlot.get_molecule_spectrum_data` with
+        additional debug logging for the GUI context.
         
         Parameters
         ----------
         molecule : Molecule
             Molecule with internal flux caching
         wave_data : np.ndarray
-            Wavelength array (not used for interpolation, just for caching key)
+            Wavelength array (passed through to molecule's get_flux)
             
         Returns
         -------
@@ -1309,27 +1337,16 @@ class PlotRenderer:
         if molecule is None or wave_data is None:
             return None, None
         
-        try:
-            # Use get_flux with return_wavelengths=True to get consistent grids
-            # All molecules with the same global wavelength range will return identical grids
-            result_wavelengths, result_flux = molecule.get_flux(
-                wavelength_array=wave_data, 
-                return_wavelengths=True, 
-                interpolate_to_input=False  # Use native grid for consistency
-            )
-            
-            if result_wavelengths is not None and result_flux is not None and len(result_flux) > 0:
-                debug_config.verbose("plot_renderer", 
-                                   f"Retrieved flux data for {self._get_molecule_display_name(molecule)}",
-                                   data_points=len(result_flux))
-                return result_wavelengths, result_flux
-            
-            debug_config.warning("plot_renderer", f"No flux data available for {self._get_molecule_display_name(molecule)}")
-            return None, None
-                
-        except Exception as e:
-            debug_config.error("plot_renderer", f"Could not get model data for molecule {self._get_molecule_display_name(molecule)}: {e}")
-            return None, None
+        result_wavelengths, result_flux = BasePlot.get_molecule_spectrum_data(molecule, wave_data)
+        
+        if result_wavelengths is not None and result_flux is not None and len(result_flux) > 0:
+            debug_config.verbose("plot_renderer",
+                               f"Retrieved flux data for {self._get_molecule_display_name(molecule)}",
+                               data_points=len(result_flux))
+            return result_wavelengths, result_flux
+        
+        debug_config.warning("plot_renderer", f"No flux data available for {self._get_molecule_display_name(molecule)}")
+        return None, None
     
     def get_molecule_line_data(self, molecule: 'Molecule', xmin: float, xmax: float) -> List[Tuple['MoleculeLine', float, Optional[float]]]:
         """
@@ -1492,9 +1509,10 @@ class PlotRenderer:
     
     def get_intensity_data(self, molecule: 'Molecule') -> Optional[pd.DataFrame]:
         """
-        Get intensity table directly from molecule's caching system.
+        Get intensity table from molecule's caching system.
         
-        Fixed to properly access molecule's intensity object using standard methods.
+        Delegates to :meth:`BasePlot.get_intensity_data` with additional
+        debug logging for the GUI context.
         
         Parameters
         ----------
@@ -1506,45 +1524,12 @@ class PlotRenderer:
         Optional[pd.DataFrame]
             Intensity table with columns: lam, intens, a_stein, g_up, e_up, etc.
         """
-        try:
-            if not hasattr(molecule, 'intensity') or molecule.intensity is None:
-                return None
-                
-            molecule_name = self._get_molecule_display_name(molecule)
-            intensity_obj = molecule.intensity
-            
-            # Check if intensity data is already computed (cache hit indicator)
-            has_computed_data = (hasattr(intensity_obj, 'intensity') and 
-                               intensity_obj.intensity is not None and 
-                               len(intensity_obj.intensity) > 0)
-            
-            # Ensure intensity is calculated (this uses molecule's internal caching)
-            if hasattr(molecule, 'calculate_intensity'):
-                molecule.calculate_intensity()
-            
-            # Check if data was already computed (cache hit) or newly computed
-            cache_status = "from cache" if has_computed_data else "newly computed"
-            
-            # Get the intensity table from the intensity object
-            if hasattr(intensity_obj, 'get_table'):
-                table = intensity_obj.get_table
-                if table is not None:
-                    # Reset index for consistent access
-                    if hasattr(table, 'index'):
-                        table.index = range(len(table.index))
-                    debug_config.verbose("plot_renderer", 
-                                       f"Retrieved intensity table for {molecule_name} ({cache_status})",
-                                       cache_hit=has_computed_data,
-                                       table_rows=len(table))
-                    return table
-            
-            return None
-            
-        except Exception as e:
-            debug_config.error("plot_renderer", f"Error getting intensity table for {self._get_molecule_display_name(molecule)}: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+        table = BasePlot.get_intensity_data(molecule)
+        if table is not None:
+            debug_config.verbose("plot_renderer",
+                               f"Retrieved intensity table for {self._get_molecule_display_name(molecule)}",
+                               table_rows=len(table))
+        return table
     
     def get_line_intensity_threshold(self) -> float:
         """
@@ -1662,3 +1647,47 @@ class PlotRenderer:
 
             #ax.legend()
             self.canvas.draw_idle()
+
+    # ------------------------------------------------------------------
+    # Factory helpers — create standalone plot objects from the current state
+    # ------------------------------------------------------------------
+    def create_line_inspection_plot(self, xmin: float, xmax: float, **kwargs):
+        """Return a standalone :class:`LineInspectionPlot` from the current state."""
+        return LineInspectionPlot(
+            wave_data=self.plot_manager.islat.wave_data_original,
+            flux_data=self.plot_manager.islat.flux_data_original,
+            xmin=xmin,
+            xmax=xmax,
+            molecule=getattr(self.islat, 'active_molecule', None),
+            theme=self.theme,
+            **kwargs,
+        )
+
+    def create_population_diagram_plot(self, molecule=None, **kwargs):
+        """Return a standalone :class:`PopulationDiagramPlot`."""
+        mol = molecule or getattr(self.islat, 'active_molecule', None)
+        return PopulationDiagramPlot(molecule=mol, theme=self.theme, **kwargs)
+
+    def create_full_spectrum_plot(self, **kwargs):
+        """Return a standalone :class:`FullSpectrumPlot` from the current state."""
+        from .FullSpectrumPlot import FullSpectrumPlot as StandaloneFullSpectrum
+        return StandaloneFullSpectrum(
+            wave_data=self.plot_manager.islat.wave_data_original,
+            flux_data=self.plot_manager.islat.flux_data_original,
+            molecules=self.islat.molecules_dict,
+            theme=self.theme,
+            **kwargs,
+        )
+
+    def create_main_plot_grid(self, inspection_range=None, **kwargs):
+        """Return a standalone :class:`MainPlotGrid` from the current state."""
+        from .MainPlotGrid import MainPlotGrid
+        return MainPlotGrid(
+            wave_data=self.plot_manager.islat.wave_data_original,
+            flux_data=self.plot_manager.islat.flux_data_original,
+            molecules=self.islat.molecules_dict,
+            active_molecule=getattr(self.islat, 'active_molecule', None),
+            inspection_range=inspection_range,
+            theme=self.theme,
+            **kwargs,
+        )

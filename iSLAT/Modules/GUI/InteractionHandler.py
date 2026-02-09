@@ -64,8 +64,13 @@ class InteractionHandler:
     
     def _setup_keyboard_events(self):
         """Set up keyboard event handlers"""
+        # Matplotlib key events (work when canvas has focus)
         self.canvas.mpl_connect('key_press_event', self._on_key_press)
         self.canvas.mpl_connect('key_release_event', self._on_key_release)
+        
+        # Also bind at tkinter level for global keybindings that work
+        # even when full spectrum canvas or other widgets have focus
+        self._setup_tkinter_keybindings()
     
     def _setup_plot_navigation(self):
         """Set up plot navigation callbacks"""
@@ -201,8 +206,10 @@ class InteractionHandler:
                         'wavelength': line_data['lam'],
                         'intensity': line_data['intens'],
                         'e_up': line_data['e_up'],
+                        'e_low': line_data['e_low'],
                         'a_stein': line_data['a_stein'],
                         'g_up': line_data['g_up'],
+                        'g_low': line_data['g_low'],
                         'up_lev': line_data.get('lev_up', 'N/A'),
                         'low_lev': line_data.get('lev_low', 'N/A'),
                         'tau': line_data.get('tau', 'N/A')
@@ -242,6 +249,8 @@ class InteractionHandler:
         elif event.key == 'l':
             # Toggle legend
             self._toggle_legend()
+        # Note: 'f' and 'control+f' are handled by tkinter keybindings (_on_tk_key_f and _on_tk_key_ctrl_f)
+        # Don't duplicate here to avoid double-triggering
     
     def _on_key_release(self, event):
         """Handle key release events"""
@@ -369,6 +378,260 @@ class InteractionHandler:
         if legend:
             legend.set_visible(not legend.get_visible())
         self.canvas.draw_idle()
+    
+    def _setup_tkinter_keybindings(self):
+        """Set up tkinter-level keybindings that work globally"""
+        # Get the root window - try multiple sources
+        root = None
+        
+        # First try: parent_frame's toplevel (most reliable during init)
+        if hasattr(self.plot_manager, 'parent_frame') and self.plot_manager.parent_frame:
+            try:
+                root = self.plot_manager.parent_frame.winfo_toplevel()
+            except Exception:
+                pass
+        
+        # Second try: GUI.master
+        if root is None and hasattr(self.islat, 'GUI') and self.islat.GUI:
+            if hasattr(self.islat.GUI, 'master'):
+                root = self.islat.GUI.master
+        
+        if root is None:
+            print("Warning: Could not set up tkinter keybindings - no root window found")
+            return
+        
+        # Store root reference for later
+        self._tk_root = root
+        
+        # debug print
+        #print(f"[DEBUG] Setting up tkinter keybindings on root: {root}")
+        
+        # Use bind_all for global keybindings that work regardless of focus
+        # Use KeyPress event with keysym check for more reliable handling
+        root.bind_all('<KeyPress>', self._on_tk_keypress)
+    
+    def _on_tk_keypress(self, event):
+        """Handle all key press events from tkinter"""
+        import platform
+        
+        keysym = event.keysym.lower()
+        
+        # Check if focus is on an entry widget - don't interfere with typing
+        widget_class = event.widget.winfo_class()
+        if widget_class in ('Entry', 'Text', 'TEntry', 'TCombobox'):
+            return  # Don't consume event, let typing work
+        
+        # Handle 'f' key for full spectrum
+        if keysym == 'f':
+            # Check if Ctrl or Command modifier is pressed
+            # On Windows/Linux: Control is state bit 2 (0x4)
+            # On Mac: Command is state bit 3 (0x8)
+            # Shift is state bit 0 (0x1)
+            ctrl_pressed = False
+            shift_pressed = bool(event.state & 0x1)
+            if platform.system() == "Darwin":
+                ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
+            else:
+                ctrl_pressed = bool(event.state & 0x4)
+            
+            if ctrl_pressed and shift_pressed:
+                # Ctrl+Shift+F / Cmd+Shift+F - output full spectrum (save to file)
+                #print("[DEBUG] Ctrl+Shift+F pressed, outputting full spectrum")
+                self._output_full_spectrum()
+            elif ctrl_pressed:
+                # Ctrl+F / Cmd+F - open full spectrum window
+                #print("[DEBUG] Ctrl+F pressed, opening full spectrum window")
+                self._open_full_spectrum_window()
+            else:
+                # Just 'f' - toggle full spectrum mode
+                #print(f"[DEBUG] 'f' key pressed alone, toggling full spectrum.")
+                self._toggle_full_spectrum()
+            
+            return 'break'  # Prevent event from propagating
+        
+        # Handle arrow keys for molecule selection
+        elif keysym == 'up':
+            self._select_previous_molecule()
+            return 'break'
+        elif keysym == 'down':
+            self._select_next_molecule()
+            return 'break'
+        
+        # Handle Ctrl+S for save parameters, plain 's' for toggle saved lines
+        elif keysym == 's':
+            ctrl_pressed = False
+            if platform.system() == "Darwin":
+                ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
+            else:
+                ctrl_pressed = bool(event.state & 0x4)
+            
+            if ctrl_pressed:
+                self._save_parameters()
+            else:
+                self._toggle_saved_lines()
+            return 'break'
+        
+        # Handle Ctrl+L for load parameters, plain 'l' for toggle legend
+        elif keysym == 'l':
+            ctrl_pressed = False
+            if platform.system() == "Darwin":
+                ctrl_pressed = bool(event.state & 0x8) or bool(event.state & 0x4)
+            else:
+                ctrl_pressed = bool(event.state & 0x4)
+            
+            if ctrl_pressed:
+                self._load_parameters()
+            else:
+                self._toggle_legend()
+            return 'break'
+        
+        # Handle left/right arrow keys for cycling through sample spectra
+        elif keysym == 'left':
+            self._cycle_spectrum_previous()
+            return 'break'
+        elif keysym == 'right':
+            self._cycle_spectrum_next()
+            return 'break'
+        
+        # Handle 'a' key for toggling atomic lines
+        elif keysym == 'a':
+            self._toggle_atomic_lines()
+            return 'break'
+        
+        # Handle 'm' key for toggling summed spectrum
+        elif keysym == 'm':
+            self._toggle_summed_spectrum()
+            return 'break'
+
+    def _cycle_spectrum_previous(self):
+        """Switch to the previous spectrum in the sample list."""
+        if hasattr(self.islat, 'sample_spectra') and self.islat.sample_spectra:
+            self.islat.cycle_spectrum(-1)
+            if hasattr(self.islat, 'GUI') and self.islat.GUI and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                self.islat.GUI.file_interaction_pane.update_sample_spectra_label()
+
+    def _cycle_spectrum_next(self):
+        """Switch to the next spectrum in the sample list."""
+        if hasattr(self.islat, 'sample_spectra') and self.islat.sample_spectra:
+            self.islat.cycle_spectrum(1)
+            if hasattr(self.islat, 'GUI') and self.islat.GUI and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                self.islat.GUI.file_interaction_pane.update_sample_spectra_label()
+
+    def _select_next_molecule(self):
+        """Select the next molecule in the list"""
+        if not hasattr(self.islat, 'molecules_dict') or not self.islat.molecules_dict:
+            return
+        
+        molecules = list(self.islat.molecules_dict.keys())
+        if not molecules:
+            return
+        
+        # Get current active molecule
+        current = None
+        if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+            if hasattr(self.islat.active_molecule, 'name'):
+                current = self.islat.active_molecule.name
+            else:
+                current = str(self.islat.active_molecule)
+        
+        # Find current index and get next
+        try:
+            current_idx = molecules.index(current)
+            next_idx = (current_idx + 1) % len(molecules)
+        except (ValueError, TypeError):
+            next_idx = 0
+        
+        next_mol = molecules[next_idx]
+        self._set_molecule_via_control_panel(next_mol)
+    
+    def _select_previous_molecule(self):
+        """Select the previous molecule in the list"""
+        if not hasattr(self.islat, 'molecules_dict') or not self.islat.molecules_dict:
+            return
+        
+        molecules = list(self.islat.molecules_dict.keys())
+        if not molecules:
+            return
+        
+        # Get current active molecule
+        current = None
+        if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+            if hasattr(self.islat.active_molecule, 'name'):
+                current = self.islat.active_molecule.name
+            else:
+                current = str(self.islat.active_molecule)
+        
+        # Find current index and get previous
+        try:
+            current_idx = molecules.index(current)
+            prev_idx = (current_idx - 1) % len(molecules)
+        except (ValueError, TypeError):
+            prev_idx = len(molecules) - 1
+        
+        prev_mol = molecules[prev_idx]
+        self._set_molecule_via_control_panel(prev_mol)
+    
+    def _set_molecule_via_control_panel(self, mol_name):
+        """Set the active molecule through the control panel to update UI properly"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'control_panel'):
+            control_panel = self.islat.GUI.control_panel
+            if hasattr(control_panel, '_on_molecule_selected'):
+                control_panel._on_molecule_selected(mol_name)
+        else:
+            # Fallback: set directly on islat
+            self.islat.active_molecule = mol_name
+
+    def _toggle_full_spectrum(self):
+        """Toggle full spectrum mode on the main plot"""
+        if hasattr(self.plot_manager, 'toggle_full_spectrum'):
+            self.plot_manager.toggle_full_spectrum()
+    
+    def _toggle_summed_spectrum(self):
+        """Toggle summed spectrum visibility on the main plot"""
+        if hasattr(self.plot_manager, 'toggle_summed_spectrum'):
+            self.plot_manager.toggle_summed_spectrum()
+    
+    def _toggle_atomic_lines(self):
+        """Toggle atomic lines visibility"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'top_bar'):
+            if hasattr(self.islat.GUI.top_bar, 'toggle_atomic_lines'):
+                self.islat.GUI.top_bar.toggle_atomic_lines()
+    
+    def _toggle_saved_lines(self):
+        """Toggle saved lines visibility"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'top_bar'):
+            if hasattr(self.islat.GUI.top_bar, 'toggle_saved_lines'):
+                self.islat.GUI.top_bar.toggle_saved_lines()
+    
+    def _toggle_legend(self):
+        """Toggle legend visibility on the main plot"""
+        if hasattr(self.plot_manager, 'toggle_legend'):
+            self.plot_manager.toggle_legend()
+    
+    def _open_full_spectrum_window(self):
+        """Open a separate full spectrum window"""
+        from iSLAT.Modules.GUI.FullSpectrumWindow import FullSpectrumWindow
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'master'):
+            FullSpectrumWindow(self.islat.GUI.master, self.islat)
+        else:
+            print("[DEBUG] Could not open FullSpectrumWindow - GUI.master not found")
+    
+    def _output_full_spectrum(self):
+        """Output full spectrum to file (same as menu command)"""
+        from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
+        output_full_spectrum(self.islat)
+    
+    def _save_parameters(self):
+        """Save parameters (same as menu command)"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'top_bar'):
+            if hasattr(self.islat.GUI.top_bar, 'save_parameters'):
+                self.islat.GUI.top_bar.save_parameters()
+    
+    def _load_parameters(self):
+        """Load parameters (same as menu command)"""
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'top_bar'):
+            if hasattr(self.islat.GUI.top_bar, 'load_parameters'):
+                self.islat.GUI.top_bar.load_parameters()
     
     # Callback management
     def add_selection_callback(self, name: str, callback: Callable):

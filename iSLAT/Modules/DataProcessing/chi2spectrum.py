@@ -45,9 +45,9 @@ class Chi2Spectrum:
     _Chi2Comparison = namedtuple("Chi2Comparison", ["lam_min", "lam_max", "flux", "flux_error", "flux_model", "chi2"])
 
     def __init__(self):
-        """Initialization of the Chi2Spectrum class
         """
-
+        Initialization of the Chi2Spectrum class
+        """
         # Spectrum object
         self._spectrum = None
 
@@ -61,18 +61,19 @@ class Chi2Spectrum:
         self._chi2_total = 0
 
     def add_measurement(self, measurement):
-        """Adds one individual flux measurement"
+        """
+        Adds one individual flux measurement
 
         Parameters
         ----------
         measurement: FluxMeasurement
             Measurment to add
         """
-
         self._measurements.append(measurement)
 
-    def load_file(self, fname):
-        """Reads a file with a list of flux measurments
+    def load_file(self, fname, flux_col_name="Flux_islat", error_col_name="Err_data"):
+        """
+        Reads a file with a list of flux measurments
 
         Parameters
         ----------
@@ -93,20 +94,20 @@ class Chi2Spectrum:
 
         The file is format free (spaces to separate columns)
         """
-
         #lam_min, lam_max, flux, flux_error = np.loadtxt(fname, unpack=True, usecols = (3,4,5,6))
         print(f"Loading flux measurements from {fname}")
-        measur = pd.read_csv(fname, sep=',', usecols=['xmin','xmax','Flux_fit','Err_fit'])
+        measur = pd.read_csv(fname, sep=',', usecols=['xmin','xmax', flux_col_name, error_col_name])
         lam_min = measur['xmin']
         lam_max = measur['xmax']
-        flux = measur['Flux_fit']
-        flux_error = measur['Err_fit']
-
+        flux = measur[flux_col_name]
+        flux_error = measur[error_col_name]
+        
         for d in zip(lam_min, lam_max, flux, flux_error):
             self.add_measurement(FluxMeasurement(*d))
 
     def evaluate_spectrum(self, spectrum, flux_unit="ergscm2"):
-        """Evaluates the Chi2 values for a spectrum
+        """
+        Evaluates the Chi2 values for a spectrum
 
         Parameters
         ----------
@@ -115,7 +116,6 @@ class Chi2Spectrum:
         flux_unit:
             Which units of the flux should be used for comparison? Either "ergscm2" for erg/s/cm**2 or "jy" for Jansky
         """
-
         # 1. get wavelength grid and select flux array
         lam = spectrum.lamgrid
         if flux_unit == "ergscm2":
@@ -133,7 +133,7 @@ class Chi2Spectrum:
 
             # integrate the model flux of the range of the measurement range
             integral_range = np.where(np.logical_and(lam > d.lam_min, lam < d.lam_max))
-            flux_model = np.trapz(flux[integral_range], x=lam[integral_range])
+            flux_model = np.trapezoid(flux[integral_range], x=lam[integral_range])
 
             # calculate the chi2 statistics
             chi2 = (d.flux - flux_model) ** 2 / d.flux_error ** 2
@@ -162,7 +162,6 @@ class Chi2Spectrum:
     @property
     def get_table(self):
         """pd.Dataframe: Pandas dataframe"""
-
         if pd is None:
             raise ImportError("Pandas required to create table")
 

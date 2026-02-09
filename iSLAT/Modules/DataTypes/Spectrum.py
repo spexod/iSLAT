@@ -42,11 +42,17 @@ class Spectrum:
     Implements lazy evaluation for convolution and caching for performance optimization.
     """
     
+    # Pre-computed class-level constants for performance
+    _FWHM_TO_SIGMA = 2.0 * np.sqrt(2.0 * np.log(2.0))  # ≈ 2.3548
+    _INV_SQRT_2PI = 1.0 / np.sqrt(2.0 * np.pi)  # ≈ 0.3989
+    _AU_PC_RATIO_SQ = (c.ASTRONOMICAL_UNIT_CM / c.PARSEC_CM) ** 2  # (AU/pc)²
+    _FLUX_JY_FACTOR = 1e19 / c.SPEED_OF_LIGHT_CGS  # Conversion factor for Jy
+    
     __slots__ = (
         '_lam_min', '_lam_max', '_dlambda', '_R', '_distance',
-        '_lamgrid', '_flux', '_flux_jy', '_I_list', '_lam_list', '_tau_list',
+        '_lamgrid', '_flux', '_flux_jy', '_I_arrays', '_lam_arrays', '_tau_arrays',
         '_components', '_flux_valid', '_convolution_cache',
-        '_kernel_cache', '_cache_stats'
+        '_kernel_cache', '_cache_stats', '_n_grid_points'
     )
     
     def __init__(self, lam_min: float = None, lam_max: float = None, 
@@ -81,15 +87,17 @@ class Spectrum:
         # create wavelength grid with pre-calculated size
         n_points = int(1 + (lam_max - lam_min) / dlambda)
         self._lamgrid = np.linspace(lam_min, lam_max, n_points)
+        self._n_grid_points = n_points  # Cache grid length
 
         # flux array (cached result)
         self._flux = None
         self._flux_jy = None
 
-        # Use lists for more efficient appending
-        self._I_list = []
-        self._lam_list = []
-        self._tau_list = []
+        # Use lists of numpy arrays for efficient accumulation
+        # (concatenating arrays at convolution time is faster than extending lists)
+        self._I_arrays = []
+        self._lam_arrays = []
+        self._tau_arrays = []
 
         # list with the different intensity components building up the spectrum
         self._components = []
@@ -139,10 +147,10 @@ class Spectrum:
         selected_wavelengths = lam_all[mask]
         selected_intensities = I_all[mask] * dA
 
-        # 4. append to lists efficiently
-        self._I_list.extend(selected_intensities)
-        self._lam_list.extend(selected_wavelengths)
-        self._tau_list.extend(intensity.tau[mask])
+        # 4. append numpy arrays directly (much faster than list.extend with numpy arrays)
+        self._I_arrays.append(selected_intensities)
+        self._lam_arrays.append(selected_wavelengths)
+        self._tau_arrays.append(intensity.tau[mask])
 
         # 5. append to components
         self._components.append({'name': intensity.molecule.name, 'fname': getattr(intensity.molecule, 'fname', ''),
@@ -166,14 +174,13 @@ class Spectrum:
         """
         
         # Check if we have any intensities to process
-        if len(self._I_list) == 0 or len(self._lam_list) == 0:
+        if len(self._I_arrays) == 0:
             # Return a zero flux array if no intensities were added
             return np.zeros_like(self._lamgrid)
 
-        # Convert to numpy arrays for vectorized operations
-        I_array = np.array(self._I_list, dtype=np.float32)  # Use float32 for memory efficiency
-        lam_array = np.array(self._lam_list, dtype=np.float32)
-        tau_array = np.array(self._tau_list, dtype=np.float32)
+        # Concatenate all accumulated arrays at once (much faster than list extend)
+        I_array = np.concatenate(self._I_arrays).astype(np.float32)
+        lam_array = np.concatenate(self._lam_arrays).astype(np.float32)
 
         # 1. summarize intensities at the (exactly) same wavelength, this improves performance, as only
         #    one convolution kernel needs to be evaluated per line of a molecule (independent of intensity components)
@@ -181,44 +188,55 @@ class Spectrum:
 
         intens = np.zeros(lam.shape[0], dtype=np.float32)
         np.add.at(intens, index_wavelength, I_array)
+        
+        n_lines = lam.shape[0]
+        n_grid = self._n_grid_points
 
-        # 2. calculate width and normalization of convolution kernel
+        # 2. calculate width and normalization of convolution kernel using pre-computed constants
         fwhm = lam / self._R
-        sigma = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
-        norm = 1.0 / (sigma * np.sqrt(2.0 * np.pi))
+        sigma = fwhm / self._FWHM_TO_SIGMA
+        
+        # Pre-compute terms that will be reused: norm * intens and 1/(2*sigma^2)
+        norm_intens = (self._INV_SQRT_2PI / sigma) * intens  # shape: (n_lines,)
+        inv_2sigma_sq = 0.5 / (sigma ** 2)  # shape: (n_lines,)
 
-        # 3. calculation mask (=range around the lines, where the kernel needs to be evaluated)
-        #    * index_lam contains the points of the wavelength grid that should be calculated
-        #    * index_line contains the index of the line
+        # 3. Calculate kernel range and grid positions
         max_sigma = np.nanmax(sigma)
         kernel_range_size = int(15 * max_sigma / self._dlambda)
         kernel_range = np.arange(-kernel_range_size, kernel_range_size + 1, dtype=np.int32)
-        lam_grid_position = (self._lamgrid.shape[0] * (lam - self._lam_min) /
-                             (self._lam_max - self._lam_min)).astype(np.int64)
-
-        index_lam = (kernel_range.reshape(1, -1) + lam_grid_position[:, np.newaxis]).reshape((-1,))
-        index_line = np.array(np.arange(lam.shape[0])).repeat(kernel_range.shape[0])
-
-        # filter out only allowed index range (>=0 and < number of points of wavelength grid)
-        allowed_index = np.logical_and(index_lam >= 0, index_lam < self._lamgrid.shape[0])
-        index_lam = index_lam[allowed_index]
-        index_line = index_line[allowed_index]
-
-        # 4. calculate kernel, Eq. A3 in Banzatti et al. 2012
-        kernel = norm[index_line] * intens[index_line] * \
-            np.exp(-(self._lamgrid[index_lam] - lam[index_line]) ** 2 / (2.0 * sigma[index_line] ** 2))
-
-        # 5. add up spectrum
-        flux = np.zeros_like(self._lamgrid, dtype=np.float32)
-        np.add.at(flux, index_lam, kernel)
-
-        # 6. scale for distance and correct units for the area
-        #    note that area scaling is already performed in add_intensity
-        scaled_flux = flux * (c.ASTRONOMICAL_UNIT_CM / c.PARSEC_CM) ** 2 * (1.0 / self._distance ** 2)
+        kernel_size = kernel_range.shape[0]
         
-        # 7. account for saturation effects using the tau values from the intensity components
-        #tau_array = tau_array.reshape(-1)
-        #scaled_flux = scaled_flux * (1 - np.exp(-tau_array))
+        lam_grid_position = (n_grid * (lam - self._lam_min) /
+                             (self._lam_max - self._lam_min)).astype(np.int32)
+
+        # 4. Use 2D broadcasting approach - compute all (line, offset) pairs as 2D arrays
+        # grid_indices shape: (n_lines, kernel_size)
+        grid_indices = lam_grid_position[:, np.newaxis] + kernel_range[np.newaxis, :]
+        
+        # Create validity mask for in-bounds indices
+        valid_mask = (grid_indices >= 0) & (grid_indices < n_grid)
+        
+        # Compute wavelength differences using broadcasting
+        # delta_lam shape: (n_lines, kernel_size)
+        # Use clip to avoid out-of-bounds access, masked values will be zeroed later
+        safe_indices = np.clip(grid_indices, 0, n_grid - 1)
+        delta_lam = self._lamgrid[safe_indices] - lam[:, np.newaxis]
+        
+        # 5. Compute Gaussian kernel using broadcasting
+        # kernel shape: (n_lines, kernel_size)
+        kernel = norm_intens[:, np.newaxis] * np.exp(-delta_lam ** 2 * inv_2sigma_sq[:, np.newaxis])
+        
+        # Zero out invalid positions
+        kernel = np.where(valid_mask, kernel, 0.0)
+
+        # 6. Scatter-add to flux array
+        # Flatten for np.add.at (still the most efficient way for sparse accumulation)
+        flux = np.zeros(n_grid, dtype=np.float32)
+        np.add.at(flux, safe_indices.ravel(), kernel.ravel())
+
+        # 7. scale for distance and correct units for the area using pre-computed constant
+        inv_dist_sq = 1.0 / (self._distance ** 2)
+        scaled_flux = flux * (self._AU_PC_RATIO_SQ * inv_dist_sq)
 
         return scaled_flux
 
@@ -238,9 +256,8 @@ class Spectrum:
         """np.ndarray: Flux density in Jy/micron"""
         if self._flux_jy is None:
             flux_data = self.flux  # This triggers flux calculation if needed
-            # Vectorized conversion
-            conversion_factor = 1e19 / c.SPEED_OF_LIGHT_CGS
-            self._flux_jy = flux_data * conversion_factor * (self._lamgrid ** 2)
+            # Use pre-computed conversion factor
+            self._flux_jy = flux_data * self._FLUX_JY_FACTOR * (self._lamgrid ** 2)
         return self._flux_jy
 
     @property

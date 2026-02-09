@@ -1,6 +1,7 @@
 #import traceback
 import tkinter as tk
 from tkinter import ttk, colorchooser
+import numpy as np
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
 from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorButton
@@ -22,10 +23,10 @@ class ControlPanel(ttk.Frame):
 
         self.mol_visibility = {}
         self.column_labels = {
-            "On": "turn on/off this\nmodel in the plot ",
+            "On": "Turn on/off this\nmodel in the plot ",
             "Molecule": "Select active molecule", 
-            "Del.": "remove this model\nfrom the GUI",
-            "Color": "change color\nfor this model"
+            "Del.": "Remove this model\nfrom the GUI",
+            "Color": "Change color\nfor this model"
             }
         
         self.label_frame = tk.LabelFrame(self, text="Spectrum and Models Control Panel", relief="solid", borderwidth=1)
@@ -256,6 +257,22 @@ class ControlPanel(ttk.Frame):
             if entry and var:
                 self._global_parameter_entries[field_config['property']] = (entry, var)
             
+            # Add "Match Spectral Sampling" button next to model_pixel_res field
+            if field_key == 'model_pixel_res':
+                self._match_sampling_btn = ttk.Button(
+                    parent, 
+                    text="Match Pix. Sampling", 
+                    command=self._toggle_match_spectral_sampling
+                )
+                self._match_sampling_btn.grid(row=row, column=col + 2, padx=1, sticky="w")
+                match_tip = ("Toggle matched spectral sampling.\n"
+                             "When enabled, model flux is interpolated\n"
+                             "pixel-by-pixel to match the spectrum's\n"
+                             "wavelength grid") #(for data-model subtraction).\n"
+                             #"MIRI and other spectra have uneven\n"
+                             #"pixel sampling that varies with wavelength.")
+                CreateToolTip(self._match_sampling_btn, match_tip)
+            
             col_offset += 1
 
     def _build_color_and_vis_controls(self, parent):
@@ -275,6 +292,10 @@ class ControlPanel(ttk.Frame):
                 CreateToolTip(label_widget, tip_text)    
             if label == "Del.":
                 padx = (7,0)
+            # Make the "On" label clickable to toggle all molecule visibility
+            if label == "On":
+                label_widget.config(cursor="hand2", fg="blue")
+                label_widget.bind("<Button-1>", lambda e: self._toggle_all_molecule_visibility())
             label_widget.grid(row=0, column=col, sticky="ew", padx=padx)
             header_frame.grid_columnconfigure(col, weight=1)
     
@@ -385,6 +406,37 @@ class ControlPanel(ttk.Frame):
         
         return self._create_simple_entry(parent, label_text, current_value, row, col, update_global_parameter, width, param_name=property_name, tip_text=tip_text)
 
+    def _toggle_match_spectral_sampling(self):
+        """Toggle matched spectral sampling mode.
+        
+        When enabled, model flux is interpolated pixel-by-pixel to match
+        the spectrum's wavelength grid. This is essential for accurate
+        data-model subtraction, especially for MIRI and other spectra
+        with uneven pixel sampling that varies with wavelength.
+        """
+        if not hasattr(self.islat, 'wave_data') or self.islat.wave_data is None:
+            self.data_field.insert_text("No spectrum loaded.")
+            return
+        
+        if not hasattr(self.islat, 'molecules_dict') or not self.islat.molecules_dict:
+            self.data_field.insert_text("No molecules loaded.")
+            return
+        
+        # Toggle the flag - this will trigger the callback that updates plots
+        current_state = self.islat.molecules_dict.match_spectral_sampling
+        new_state = not current_state
+        self.islat.molecules_dict.match_spectral_sampling = new_state
+        
+        # Update button appearance to indicate state
+        if hasattr(self, '_match_sampling_btn'):
+            if new_state:
+                self._match_sampling_btn.configure(text="✓ Match Pix. Sampling")
+            else:
+                self._match_sampling_btn.configure(text="Match Pix. Sampling")
+        
+        state_text = "enabled" if new_state else "disabled"
+        self.data_field.insert_text(f"Matched spectral sampling {state_text}.")
+
     def _create_molecule_specific_controls(self, parent, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""
         # Store references for later updates
@@ -448,6 +500,11 @@ class ControlPanel(ttk.Frame):
         self.mol_visibility.pop(mol_name, None)
         self.plot.plot_renderer.remove_molecule_lines(mol_name)
         del self.islat.molecules_dict[mol_name]
+
+        # Update summed spectrum to reflect molecule removal
+        self.plot.plot_renderer._update_summed_spectrum_with_molecules(
+            self.islat.molecules_dict, self.islat.wave_data
+        )
 
         self.plot.canvas.draw_idle()
 
@@ -668,6 +725,39 @@ class ControlPanel(ttk.Frame):
         if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot') and hasattr(self.islat.GUI.plot, 'on_molecule_visibility_changed'):
             self.islat.GUI.plot.on_molecule_visibility_changed(molecule_name, new_visibility)
             print(f"ControlPanel: Triggered selective plot refresh for visibility change")
+
+    def _toggle_all_molecule_visibility(self):
+        """Toggle the visibility of all molecules at once"""
+        if not (hasattr(self.islat, 'molecules_dict') and self.islat.molecules_dict):
+            return
+        
+        # Determine new visibility state: if any molecule is visible, turn all off; otherwise turn all on
+        any_visible = any(mol.is_visible for mol in self.islat.molecules_dict.values())
+        new_visibility = not any_visible
+        
+        # Get all molecule names
+        all_molecule_names = list(self.islat.molecules_dict.keys())
+        
+        # Update visibility for all molecules
+        self.islat.molecules_dict.bulk_set_visibility(new_visibility, all_molecule_names)
+        
+        # Update all visibility checkboxes in the UI
+        for mol_name in all_molecule_names:
+            if mol_name in self.mol_visibility:
+                self.mol_visibility[mol_name].set(new_visibility)
+        
+        # Trigger plot refresh - handle both normal and full spectrum modes
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot'):
+            plot = self.islat.GUI.plot
+            # Check if full spectrum mode is active
+            if hasattr(plot, 'is_full_spectrum') and plot.is_full_spectrum:
+                if hasattr(plot, 'full_spectrum_plot') and hasattr(plot, 'full_spectrum_plot_canvas'):
+                    plot.full_spectrum_plot.reload_data()
+                    plot.full_spectrum_plot_canvas.draw_idle()
+            else:
+                plot.update_model_plot()
+        
+        #print(f"ControlPanel: Toggled all molecules to visibility={new_visibility}")
 
     def _on_color_button_clicked(self, mol_name, btn):
         """Handle color button clicks to open color chooser"""
@@ -907,9 +997,24 @@ class ControlPanel(ttk.Frame):
         for property_name, (entry, var) in self._global_parameter_entries.items():
             try:
                 new_value = getattr(self.islat.molecules_dict, property_name, 0.0)
+                # Format the value properly using the field configuration
+                formatted_value = self._format_value(new_value, property_name)
                 current_value = var.get()
-                if str(current_value) != str(new_value):
-                    self._set_var(var, str(new_value))
+                if str(current_value) != str(formatted_value):
+                    self._set_var(var, formatted_value)
+                    # Reset entry styling to normal (not gray/italic)
+                    entry.configure(fg=self.fg_color, font=(self.font.cget("family"), self.font.cget("size"), "roman"))
+            except (AttributeError, TypeError):
+                pass
+        
+        # Also sync the match spectral sampling button state
+        if hasattr(self, '_match_sampling_btn'):
+            try:
+                is_matched = self.islat.molecules_dict.match_spectral_sampling
+                if is_matched:
+                    self._match_sampling_btn.configure(text="✓ Match Pix. Sampling")
+                else:
+                    self._match_sampling_btn.configure(text="Match Pix. Sampling")
             except (AttributeError, TypeError):
                 pass
 

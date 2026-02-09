@@ -1,12 +1,70 @@
-from typing import Dict, List, Optional, Tuple, Callable, Any, Union
+from typing import (
+    Dict, List, Optional, Sequence, Tuple, Callable, Any, Union,
+    Iterator, ItemsView, ValuesView, overload,
+)
 import numpy as np
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 import time
 import os
 
+# Performance logging
+from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
+
 from .Molecule import Molecule
 import iSLAT.Constants as default_parms
+
+def _ci_get(data: dict, key: str):
+    """Look up *key* in *data* with a case-insensitive fallback.
+
+    Tries an exact-case ``dict.get`` first (O(1)).  Only when that
+    returns ``None`` does it fall back to a linear scan over keys.
+    """
+    val = data.get(key)
+    if val is not None:
+        return val
+    key_lower = key.lower()
+    for dk, dv in data.items():
+        if dk.lower() == key_lower:
+            return dv
+    return None
+
+def _safe_float(data: dict, key: Union[str, List[str]], default=None,
+                case_insensitive: bool = True):
+    """Safely convert a dictionary value to float.
+
+    Parameters
+    ----------
+    data : dict
+        Source dictionary to look up.
+    key : str or list of str
+        A single key **or** an ordered list of keys to try.  The first
+        key that exists in *data* (with a non-``None`` value) is used.
+    default : optional
+        Value returned when no key matches or conversion fails.
+    case_insensitive : bool, default True
+        When ``True``, key matching ignores case.  An exact-case match is
+        always tried first; if that misses, a case-insensitive scan of
+        *data* keys is performed as a fallback.
+    """
+    _lookup = _ci_get if case_insensitive else dict.get
+
+    if isinstance(key, list):
+        value = None
+        for k in key:
+            value = _lookup(data, k)
+            if value is not None:
+                break
+        if value is None:
+            value = default
+    else:
+        value = _lookup(data, key)
+        if value is None:
+            value = default
+    try:
+        return float(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
 
 class MoleculeDict(dict):
     """
@@ -27,6 +85,7 @@ class MoleculeDict(dict):
             'model_line_width': kwargs.pop('global_model_line_width', default_parms.MODEL_LINE_WIDTH),
             'model_pixel_res': kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION),
             #'model_pixel_res': f"{kwargs.pop('global_model_pixel_res', default_parms.MODEL_PIXEL_RESOLUTION):.2e}",
+            'intensity_calculation_method': kwargs.pop('global_intensity_calculation_method', "curve_growth")
         }
         
         super().__init__(*args, **kwargs)
@@ -35,7 +94,11 @@ class MoleculeDict(dict):
         for param, value in self._global_parms.items():
             setattr(self, f'_global_{param}', value)
         
+        # Flag to enable matched spectral sampling (interpolate model to data wavelengths)
+        self._match_spectral_sampling = False
+        
         self._global_parameter_change_callbacks: List[Callable] = []
+        self._suppress_global_callbacks: bool = False
         
         from .Molecule import Molecule
         Molecule.add_molecule_parameter_change_callback(self._on_molecule_parameter_changed)
@@ -44,12 +107,47 @@ class MoleculeDict(dict):
         """Clear the dictionary of all molecules."""
         super().clear()
         self._clear_all_caches()
+        self._visible_molecules = set()  # Clear visibility cache
         print("MoleculeDict cleared.")
+
+    # ------------------------------------------------------------------
+    # Typed dict accessors — tell static analysis that values are Molecule
+    # ------------------------------------------------------------------
+    def __getitem__(self, key: str) -> Molecule:
+        return super().__getitem__(key)
+
+    def __setitem__(self, key: str, value: Molecule) -> None:
+        super().__setitem__(key, value)
+
+    @overload
+    def get(self, key: str) -> Optional[Molecule]: ...
+    @overload
+    def get(self, key: str, default: Molecule) -> Molecule: ...
+    @overload
+    def get(self, key: str, default: Any) -> Any: ...
+    def get(self, key: str, default: Any = None) -> Any:
+        return super().get(key, default)
+
+    def values(self) -> ValuesView[Molecule]:
+        return super().values()
+
+    def items(self) -> ItemsView[str, Molecule]:
+        return super().items()
+
+    def __iter__(self) -> Iterator[str]:
+        return super().__iter__()
+
+    def __contains__(self, key: object) -> bool:
+        return super().__contains__(key)
     
     def get_visible_molecules(self, return_objects: bool = False) -> Union[set, List['Molecule']]:
         """Get visible molecule names or objects."""
-        current_visible = {name for name, mol in self.items() if bool(mol.is_visible)}
-        self._visible_molecules = current_visible
+        # Build visible set - use property accessor for proper string-to-bool conversion
+        current_visible = {name for name, mol in self.items() if mol.is_visible}
+        
+        # Only update cache if changed
+        if current_visible != self._visible_molecules:
+            self._visible_molecules = current_visible
         
         if return_objects:
             return [self[name] for name in current_visible]
@@ -73,7 +171,8 @@ class MoleculeDict(dict):
         if changed_molecules:
             self._selective_cache_invalidation(changed_molecules)
             
-        print(f"Updated visibility for {len(molecule_set)} molecules ({len(changed_molecules)} changed)")
+        # debug print
+        #print(f"Updated visibility for {len(molecule_set)} molecules ({len(changed_molecules)} changed)")
     
     def get_summed_flux(self, wave_data: np.ndarray, visible_only: bool = True) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -82,14 +181,16 @@ class MoleculeDict(dict):
         Parameters
         ----------
         wave_data : np.ndarray
-            Input wavelength array (used for caching, not for interpolation)
+            Input wavelength array. When _match_spectral_sampling is True, the model
+            flux will be interpolated to match this wavelength grid pixel-by-pixel.
         visible_only : bool, default True
             Whether to include only visible molecules
             
         Returns
         -------
         Tuple[np.ndarray, np.ndarray]
-            Combined wavelengths and summed flux arrays
+            Combined wavelengths and summed flux arrays. When _match_spectral_sampling
+            is enabled, wavelengths will match wave_data exactly.
         """
         if wave_data is None:
             return np.array([]), np.array([])
@@ -98,8 +199,10 @@ class MoleculeDict(dict):
         if not molecules:
             return np.array([]), np.array([])
         
-        # Generate cache key and get current parameter hash
+        # Include match_spectral_sampling flag in cache key for proper invalidation
         cache_key = self._get_flux_cache_key(wave_data, molecules)
+        if self._match_spectral_sampling:
+            cache_key = hash((cache_key, 'matched_sampling', wave_data.tobytes() if hasattr(wave_data, 'tobytes') else str(wave_data)))
         current_param_hash = self._compute_molecules_parameter_hash(molecules)
         
         # Check cache validity
@@ -112,9 +215,18 @@ class MoleculeDict(dict):
                 # Return copies to prevent accidental modification
                 return cached_wavelengths.copy(), cached_flux.copy()
         
-        # All molecules should return identical wavelength grids, so we can directly sum fluxes
-        combined_wavelengths = None
-        combined_flux = None
+        # When match_spectral_sampling is enabled, interpolate each molecule's flux
+        # to the input wave_data grid before summing
+        use_interpolation = self._match_spectral_sampling
+        
+        # Initialize output arrays
+        if use_interpolation:
+            # Use input wavelength grid
+            combined_wavelengths = wave_data.copy()
+            combined_flux = np.zeros_like(wave_data, dtype=np.float64)
+        else:
+            combined_wavelengths = None
+            combined_flux = None
         
         for mol_name in molecules:
             if mol_name not in self:
@@ -125,25 +237,37 @@ class MoleculeDict(dict):
             molecule._wavelength_range = self._global_wavelength_range
             
             try:
-                mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
+                if use_interpolation:
+                    # Get flux interpolated to input wavelength array
+                    mol_wavelengths, mol_flux = molecule.get_flux(
+                        wavelength_array=wave_data,
+                        return_wavelengths=True, 
+                        interpolate_to_input=True
+                    )
+                else:
+                    # Get flux on native model grid
+                    mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
                 
                 if mol_wavelengths is not None and mol_flux is not None and len(mol_wavelengths) > 0:
                     # Ensure finite values
                     if not np.all(np.isfinite(mol_flux)):
                         mol_flux = np.nan_to_num(mol_flux, nan=0.0, posinf=0.0, neginf=0.0)
                     
-                    if combined_wavelengths is None:
-                        # First molecule - use its grid as the reference
-                        combined_wavelengths = mol_wavelengths.copy()
-                        combined_flux = mol_flux.copy()
-                    else:
-                        # All subsequent molecules should have identical grids - directly sum
-                        # Assert that grids are identical (this should never fail with our fixes)
-                        if len(mol_wavelengths) != len(combined_wavelengths):
-                            raise ValueError(f"Grid size mismatch for {mol_name}: {len(mol_wavelengths)} vs {len(combined_wavelengths)}. This should not happen with consistent spectrum calculation.")
-                        
-                        # Direct summation
+                    if use_interpolation:
+                        # Direct summation on matched grid
                         combined_flux += mol_flux
+                    else:
+                        if combined_wavelengths is None:
+                            # First molecule - use its grid as the reference
+                            combined_wavelengths = mol_wavelengths.copy()
+                            combined_flux = mol_flux.copy()
+                        else:
+                            # All subsequent molecules should have identical grids - directly sum
+                            if len(mol_wavelengths) != len(combined_wavelengths):
+                                raise ValueError(f"Grid size mismatch for {mol_name}: {len(mol_wavelengths)} vs {len(combined_wavelengths)}. This should not happen with consistent spectrum calculation.")
+                            
+                            # Direct summation
+                            combined_flux += mol_flux
                             
             except Exception as e:
                 print(f"Warning: Failed to get flux for molecule {mol_name}: {e}")
@@ -225,6 +349,271 @@ class MoleculeDict(dict):
             oldest_keys = list(self._summed_flux_cache.keys())[:-int(cache_limit * 0.75)]
             for key in oldest_keys:
                 del self._summed_flux_cache[key]
+
+    # ================================
+    # Parallel Intensity Calculations
+    # ================================
+    def calculate_intensities_parallel(self, molecule_names: Optional[List[str]] = None,
+                                       max_workers: Optional[int] = None,
+                                       show_progress: bool = False) -> Dict[str, Any]:
+        """
+        Calculate intensities for multiple molecules in parallel using threads.
+        
+        This method triggers lazy loading and intensity calculations for all 
+        specified molecules concurrently, significantly speeding up startup 
+        and recalculation operations.
+        
+        Note: Uses ThreadPoolExecutor because NumPy releases the GIL during
+        heavy computations, allowing true parallelism for numeric operations.
+        
+        Parameters
+        ----------
+        molecule_names : List[str], optional
+            List of molecule names to calculate. If None, calculates all visible molecules.
+        max_workers : int, optional
+            Maximum number of parallel workers. Defaults to min(CPU cores, 6).
+        show_progress : bool, default False
+            Whether to print progress information.
+            
+        Returns
+        -------
+        dict
+            Dictionary with 'success' count, 'failed' count, 'times' dict, and 'errors' list.
+        """
+        section = PerformanceSection("MoleculeDict.calculate_intensities_parallel")
+        section.start()
+        
+        if molecule_names is None:
+            molecule_names = list(self.get_visible_molecules())
+        
+        if not molecule_names:
+            section.end()
+            return {'success': 0, 'failed': 0, 'times': {}, 'errors': []}
+        
+        # Filter to existing molecules
+        valid_molecules = [name for name in molecule_names if name in self]
+        
+        if not valid_molecules:
+            section.end()
+            return {'success': 0, 'failed': 0, 'times': {}, 'errors': []}
+        
+        if show_progress:
+            print(f"[PARALLEL] Starting intensity calculations for {len(valid_molecules)} molecules...")
+        
+        # Determine worker count
+        if max_workers is None:
+            max_workers = min(os.cpu_count() or 4, 6, len(valid_molecules))
+        
+        results = {
+            'success': 0,
+            'failed': 0,
+            'times': {},
+            'errors': []
+        }
+        
+        section.mark("submit_jobs")
+        
+        def calculate_single_molecule(mol_name: str) -> Tuple[str, bool, float, Optional[str]]:
+            """Calculate intensity for a single molecule (runs in thread)."""
+            start = time.perf_counter()
+            try:
+                molecule = self[mol_name]
+                # Set wavelength range
+                molecule._wavelength_range = self._global_wavelength_range
+                # Trigger lazy calculation
+                molecule._ensure_intensity_calculated()
+                elapsed = time.perf_counter() - start
+                return (mol_name, True, elapsed, None)
+            except Exception as e:
+                elapsed = time.perf_counter() - start
+                return (mol_name, False, elapsed, str(e))
+        
+        # Execute in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(calculate_single_molecule, name): name 
+                      for name in valid_molecules}
+            
+            for future in as_completed(futures):
+                mol_name, success, elapsed, error = future.result()
+                results['times'][mol_name] = elapsed
+                
+                if success:
+                    results['success'] += 1
+                    if show_progress:
+                        print(f"  [DONE] {mol_name}: {elapsed:.3f}s")
+                else:
+                    results['failed'] += 1
+                    results['errors'].append(f"{mol_name}: {error}")
+                    if show_progress:
+                        print(f"  [FAIL] {mol_name}: {error}")
+        
+        section.mark("all_complete")
+        #elapsed = section.end()
+        
+        total_time = sum(results['times'].values())
+        if show_progress:
+            print(f"[PARALLEL] Complete: {results['success']} succeeded, {results['failed']} failed")
+            print(f"[PARALLEL] Total calculation time: {total_time:.2f}s (wall time: {elapsed:.2f}s)")
+            print(f"[PARALLEL] Speedup: {total_time / max(elapsed, 0.001):.1f}x")
+        
+        return results
+
+    def get_summed_flux_parallel(self, wave_data: np.ndarray, visible_only: bool = True,
+                                 max_workers: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get summed flux with parallel pre-calculation of intensities.
+        
+        This is an optimized version of get_summed_flux that first calculates
+        all molecule intensities in parallel before summing.
+        
+        Parameters
+        ----------
+        wave_data : np.ndarray
+            Input wavelength array. When _match_spectral_sampling is True, the model
+            flux will be interpolated to match this wavelength grid pixel-by-pixel.
+        visible_only : bool, default True
+            Whether to include only visible molecules
+        max_workers : int, optional
+            Maximum number of parallel workers
+            
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Combined wavelengths and summed flux arrays. When _match_spectral_sampling
+            is enabled, wavelengths will match wave_data exactly.
+        """
+        section = PerformanceSection("MoleculeDict.get_summed_flux_parallel")
+        section.start()
+        
+        if wave_data is None:
+            section.end()
+            return np.array([]), np.array([])
+        
+        molecules = list(self.get_visible_molecules() if visible_only else self.keys())
+        if not molecules:
+            section.end()
+            return np.array([]), np.array([])
+        
+        # Check cache first - include match_spectral_sampling flag in cache key
+        cache_key = self._get_flux_cache_key(wave_data, molecules)
+        if self._match_spectral_sampling:
+            cache_key = hash((cache_key, 'matched_sampling', wave_data.tobytes() if hasattr(wave_data, 'tobytes') else str(wave_data)))
+        current_param_hash = self._compute_molecules_parameter_hash(molecules)
+        
+        if cache_key in self._summed_flux_cache:
+            cached_wavelengths, cached_flux, cached_param_hash = self._summed_flux_cache[cache_key]
+            if (cached_param_hash == current_param_hash and
+                self._validate_summed_cache_entry(cached_wavelengths, cached_flux)):
+                section.mark("cache_hit")
+                section.end()
+                return cached_wavelengths.copy(), cached_flux.copy()
+        
+        section.mark("parallel_intensity_calc")
+        
+        # Pre-calculate all intensities in parallel
+        self.calculate_intensities_parallel(molecules, max_workers=max_workers)
+        
+        section.mark("sum_fluxes")
+        
+        # Check if we need to interpolate to input wavelengths
+        use_interpolation = self._match_spectral_sampling
+        
+        # Parallelize get_flux calls since spectrum convolution is CPU-intensive
+        # NumPy releases the GIL, so threads provide real parallelism here
+        def get_molecule_flux(mol_name: str) -> Tuple[str, Optional[np.ndarray], Optional[np.ndarray], float]:
+            """Get flux for a single molecule (runs in thread)."""
+            import time as _time
+            _start = _time.perf_counter()
+            
+            if mol_name not in self:
+                return (mol_name, None, None, 0.0)
+            
+            molecule = self[mol_name]
+            molecule._wavelength_range = self._global_wavelength_range
+            
+            try:
+                if use_interpolation:
+                    # Get flux interpolated to input wavelength array
+                    mol_wavelengths, mol_flux = molecule.get_flux(
+                        wavelength_array=wave_data,
+                        return_wavelengths=True, 
+                        interpolate_to_input=True
+                    )
+                else:
+                    mol_wavelengths, mol_flux = molecule.get_flux(return_wavelengths=True, interpolate_to_input=False)
+                _elapsed = _time.perf_counter() - _start
+                return (mol_name, mol_wavelengths, mol_flux, _elapsed)
+            except Exception as e:
+                print(f"Warning: Failed to get flux for molecule {mol_name}: {e}")
+                return (mol_name, None, None, _time.perf_counter() - _start)
+        
+        # Run get_flux in parallel
+        flux_results = {}
+        flux_times = {}
+        
+        if max_workers is None:
+            flux_workers = min(os.cpu_count() or 4, 6, len(molecules))
+        else:
+            flux_workers = max_workers
+        
+        with ThreadPoolExecutor(max_workers=flux_workers) as executor:
+            futures = {executor.submit(get_molecule_flux, name): name for name in molecules}
+            
+            for future in as_completed(futures):
+                mol_name, mol_wavelengths, mol_flux, elapsed = future.result()
+                flux_times[mol_name] = elapsed
+                if mol_wavelengths is not None and mol_flux is not None:
+                    flux_results[mol_name] = (mol_wavelengths, mol_flux)
+        
+        # Print timing info
+        #for mol_name, elapsed in sorted(flux_times.items(), key=lambda x: x[1]):
+            #print(f"  [SUM] get_flux({mol_name}): {elapsed*1000:.1f}ms")
+        
+        #total_flux_time = sum(flux_times.values())
+        #print(f"[SUM] Total get_flux time: {total_flux_time:.2f}s (parallel)")
+        
+        # Now combine the results (fast array operations)
+        if use_interpolation:
+            # Use input wavelength grid
+            combined_wavelengths = wave_data.copy()
+            combined_flux = np.zeros_like(wave_data, dtype=np.float64)
+        else:
+            combined_wavelengths = None
+            combined_flux = None
+        
+        for mol_name in molecules:
+            if mol_name not in flux_results:
+                continue
+            
+            mol_wavelengths, mol_flux = flux_results[mol_name]
+            
+            if len(mol_wavelengths) > 0:
+                if not np.all(np.isfinite(mol_flux)):
+                    mol_flux = np.nan_to_num(mol_flux, nan=0.0, posinf=0.0, neginf=0.0)
+                
+                if use_interpolation:
+                    # Direct summation on matched grid
+                    combined_flux += mol_flux
+                else:
+                    if combined_wavelengths is None:
+                        combined_wavelengths = mol_wavelengths.copy()
+                        combined_flux = mol_flux.copy()
+                    else:
+                        if len(mol_wavelengths) != len(combined_wavelengths):
+                            raise ValueError(f"Grid size mismatch for {mol_name}")
+                        combined_flux += mol_flux
+        
+        if combined_wavelengths is None:
+            section.end()
+            return np.array([]), np.array([])
+        
+        # Cache result
+        self._cache_summed_flux_result(cache_key, combined_wavelengths, combined_flux, current_param_hash)
+        
+        section.end()
+        section.get_breakdown(print_output=True)
+        
+        return combined_wavelengths, combined_flux
 
     def process_molecules(self, operation: str, molecule_names: Optional[List[str]] = None, 
                          use_parallel: bool = None, max_workers: Optional[int] = None, 
@@ -371,7 +760,7 @@ class MoleculeDict(dict):
             
         elif operation == 'batch_intensity':
             parameter_combinations = kwargs.get('parameter_combinations', [])
-            method = kwargs.get('method', 'curve_growth')
+            method = kwargs.get('method', self.global_intensity_calculation_method if hasattr(self, 'global_intensity_calculation_method') else "curve_growth")
             
             if not parameter_combinations:
                 return False
@@ -442,14 +831,39 @@ class MoleculeDict(dict):
                        update_global_parameters: bool = True, 
                        strategy: str = "auto",
                        max_workers: Optional[int] = None, 
-                       force_multiprocessing: bool = False) -> Dict[str, Any]:
-        """Unified molecule loading method with automatic strategy selection."""
+                       force_multiprocessing: bool = False,
+                       defer_calculations: bool = True) -> Dict[str, Any]:
+        """Unified molecule loading method with automatic strategy selection.
+        
+        Parameters
+        ----------
+        molecules_data : List[Dict[str, Any]]
+            List of molecule data dictionaries
+        initial_molecule_parameters : Dict[str, Dict[str, Any]]
+            Initial parameters for each molecule type
+        update_global_parameters : bool, default True
+            Whether to update global parameters from first molecule
+        strategy : str, default "auto"
+            Loading strategy: "auto", "sequential", or "parallel"
+        max_workers : Optional[int]
+            Maximum number of workers for parallel loading
+        force_multiprocessing : bool, default False
+            Force use of multiprocessing
+        defer_calculations : bool, default True
+            If True, defer intensity calculations until needed (faster startup).
+            If False, calculate intensities immediately after loading.
+        """
+        section = PerformanceSection("MoleculeDict.load_molecules")
+        section.start()
+        
         if not molecules_data:
             return {"success": 0, "failed": 0, "errors": [], "molecules": []}
         
-        print(f"Loading {len(molecules_data)} molecules...")
+        # debug print
+        #print(f"Loading {len(molecules_data)} molecules...")
         
         # Filter valid molecules
+        section.mark("filter_valid")
         valid_molecules_data = [
             mol_data for mol_data in molecules_data 
             if (mol_data.get("Molecule Name") or mol_data.get("name")) 
@@ -474,19 +888,30 @@ class MoleculeDict(dict):
             self._global_stellar_rv = float(valid_molecules_data[0].get("StellarRV", default_parms.DEFAULT_STELLAR_RV))
 
         # Execute loading
-        start_time = time.time()
+        section.mark("execute_loading")
+        #start_time = time.time()
         if strategy == "parallel":
             results = self._load_molecules_parallel(valid_molecules_data, initial_molecule_parameters, max_workers)
         else:
             results = self._load_molecules_sequential(valid_molecules_data, initial_molecule_parameters)
+        section.mark("loading_complete")
 
-        # Calculate intensities for loaded molecules
-        if results['success'] > 0:
+        # Calculate intensities for loaded molecules (unless deferred for faster startup)
+        section.mark("calculate_intensities")
+        if results['success'] > 0 and not defer_calculations:
+            print("Calculating intensities immediately (defer_calculations=False)...")
             intensity_results = self.bulk_calculate_intensities(results['molecules'])
             results['intensity_calculation'] = intensity_results
+        elif results['success'] > 0:
+            print(f"Deferring intensity calculations for {results['success']} molecules")
+            results['intensity_calculation'] = {'deferred': True, 'molecules': results['molecules']}
+        section.mark("intensities_complete")
         
-        elapsed_time = time.time() - start_time
-        print(f"Loading completed in {elapsed_time:.2f}s - Success: {results['success']}, Failed: {results['failed']}")
+        #elapsed_time = time.time() - start_time
+        #print(f"Loading completed in {elapsed_time:.2f}s - Success: {results['success']}, Failed: {results['failed']}")
+        
+        section.end()
+        section.get_breakdown(print_output=True)
         
         return results
     
@@ -573,30 +998,24 @@ class MoleculeDict(dict):
             # Extract parameters efficiently
             use_user_save_data = "Molecule Name" in mol_data
             
-            def safe_float(key, default=None):
-                value = mol_data.get(key, default)
-                try:
-                    return float(value) if value is not None else default
-                except (ValueError, TypeError):
-                    return default
-            
-            # Create molecule
+            # Create molecule using module-level _safe_float for performance
             molecule = Molecule(
                 user_save_data=mol_data if use_user_save_data else None,
                 hitran_data=mol_data.get("hitran_data"),
                 name=mol_name,
                 filepath=mol_data.get("file") or mol_data.get("File Path"),
-                displaylabel=mol_data.get("label") or mol_data.get("Molecule Label", mol_name),
-                temp=safe_float("Temp"),
-                radius=safe_float("Rad"),
-                n_mol=safe_float("N_Mol"),
-                color=mol_data.get("Color"),
+                displaylabel=mol_data.get("displaylabel") or mol_data.get("label") or mol_data.get("Molecule Label", mol_name),
+                temp=_safe_float(mol_data, "Temp"),
+                radius=_safe_float(mol_data, ["Radius", "Rad"], default=0.5),
+                n_mol=_safe_float(mol_data, "N_Mol"),
+                color=mol_data.get("Color") or mol_data.get("color"),
                 is_visible=mol_data.get("Vis", True),
                 wavelength_range=self._global_wavelength_range,
                 distance=self._global_dist,
-                fwhm=safe_float("FWHM"),
-                rv_shift=safe_float("RV Shift"),
-                broad=mol_data.get("Broad"),
+                intensity_calculation_method=self._global_intensity_calculation_method,
+                fwhm=_safe_float(mol_data, "FWHM"),
+                rv_shift=_safe_float(mol_data, "RV Shift"),
+                broad=_safe_float(mol_data, "Broad"),
                 model_pixel_res=self._global_model_pixel_res,
                 model_line_width=self._global_model_line_width,
                 initial_molecule_parameters=mol_initial_params
@@ -610,11 +1029,129 @@ class MoleculeDict(dict):
             print(f"Error loading molecule '{mol_name}': {e}")
             return False
 
-    def bulk_update_parameters(self, parameter_dict: Dict[str, Any], 
-                              molecule_names: Optional[List[str]] = None) -> None:
-        """Update parameters for multiple molecules efficiently."""
-        if molecule_names is None:
-            molecule_names = list(self.keys())
+    def _resolve_molecule_names(
+        self,
+        identifiers: Optional[Sequence[Union[str, int, 'Molecule']]] = None,
+    ) -> List[str]:
+        """Resolve a flexible collection of molecule identifiers to key names.
+
+        Parameters
+        ----------
+        identifiers : sequence of str | int | Molecule, optional
+            Each element may be:
+
+            - **str** — looked up directly as a dictionary key.
+            - **int** — treated as a positional index into the ordered
+              dictionary keys (supports negative indexing).
+            - **Molecule** — resolved via its ``molecule_name`` attribute.
+
+            When *None*, all keys in the dictionary are returned.
+
+        Returns
+        -------
+        List[str]
+            Resolved molecule-name strings (only those present in the dict).
+
+        Raises
+        ------
+        TypeError
+            If an element is not ``str``, ``int``, or ``Molecule``.
+        IndexError
+            If an integer index is out of range.
+        """
+        if identifiers is None:
+            return list(self.keys())
+
+        keys_list: Optional[List[str]] = None  # lazily built for index access
+        resolved: List[str] = []
+
+        for ident in identifiers:
+            if isinstance(ident, str):
+                if ident in self:
+                    resolved.append(ident)
+            elif isinstance(ident, int):
+                if keys_list is None:
+                    keys_list = list(self.keys())
+                # Allow negative indexing like a regular list
+                if -len(keys_list) <= ident < len(keys_list):
+                    resolved.append(keys_list[ident])
+                else:
+                    raise IndexError(
+                        f"Molecule index {ident} out of range for "
+                        f"MoleculeDict with {len(keys_list)} entries."
+                    )
+            elif isinstance(ident, Molecule):
+                name = getattr(ident, 'molecule_name', None)
+                if name and name in self:
+                    resolved.append(name)
+            else:
+                raise TypeError(
+                    f"Expected str, int, or Molecule, got {type(ident).__name__}"
+                )
+
+        return resolved
+
+    def bulk_update_parameters(
+        self,
+        parameter_dict: Dict[str, Any],
+        molecules: Optional[Sequence[Union[str, int, Molecule]]] = None,
+    ) -> None:
+        """
+        Update one or more physical parameters on many molecules in a single call.
+
+        Each molecule's :meth:`Molecule.bulk_update_parameters` is invoked with
+        ``skip_notification=True`` so that individual parameter-change callbacks
+        are suppressed. Cache invalidation is performed once at the end, only
+        for molecules whose parameters actually changed.
+
+        Parameters
+        ----------
+        parameter_dict : Dict[str, Any]
+            Mapping of parameter names to their new values.  Accepted keys
+            correspond to :class:`Molecule` properties, for example:
+
+            - ``'temp'`` — kinetic temperature (K)
+            - ``'n_mol'`` — column density (molecules)
+            - ``'radius'`` — emitting area radius (AU)
+            - ``'distance'`` — source distance (pc)
+            - ``'fwhm'`` — instrumental FWHM (km/s)
+            - ``'broad'`` — intrinsic line width / micro-turbulence (km/s)
+            - ``'rv_shift'`` — radial-velocity shift (km/s)
+            - ``'is_visible'`` — toggle molecule visibility (bool)
+
+            Values are automatically converted to the appropriate type
+            (usually ``float``) by the underlying ``Molecule`` setter.
+
+        molecules : sequence of str | int | Molecule, optional
+            Subset of molecules to update.  Each element may be:
+
+            - **str** — a molecule dictionary key (e.g. ``'H2O'``).
+            - **int** — a positional index into the dictionary keys
+              (supports negative indexing, e.g. ``-1`` for the last molecule).
+            - **Molecule** — a :class:`Molecule` instance already stored
+              in this dictionary (resolved via ``molecule_name``).
+
+            When *None* (default) **all** molecules are updated.
+
+        Examples
+        --------
+        >>> # Set every molecule to 900 K and 1e18 column density
+        >>> mol_dict.bulk_update_parameters({'temp': 900, 'n_mol': 1e18})
+
+        >>> # Update only H2O and CO by name
+        >>> mol_dict.bulk_update_parameters(
+        ...     {'temp': 700},
+        ...     molecules=['H2O', 'CO'],
+        ... )
+
+        >>> # Update the first two molecules by index
+        >>> mol_dict.bulk_update_parameters({'fwhm': 4.0}, molecules=[0, 1])
+
+        >>> # Pass Molecule objects directly
+        >>> h2o = mol_dict['H2O']
+        >>> mol_dict.bulk_update_parameters({'temp': 500}, molecules=[h2o])
+        """
+        molecule_names = self._resolve_molecule_names(molecules)
         
         affected_molecules = []
         for mol_name in molecule_names:
@@ -630,9 +1167,7 @@ class MoleculeDict(dict):
         # Only invalidate cache for molecules that actually changed
         if affected_molecules:
             self._selective_cache_invalidation(affected_molecules)
-        
-        print(f"Bulk updated parameters for {len(affected_molecules)} molecules (out of {len(molecule_names)} requested)")
-    
+            
     def _clear_all_caches(self) -> None:
         """Clear all caches."""
         self._summed_flux_cache.clear()
@@ -832,7 +1367,14 @@ class MoleculeDict(dict):
             self._global_parameter_change_callbacks.remove(callback)
 
     def _notify_global_parameter_change(self, parameter_name: str, old_value: Any, new_value: Any) -> None:
-        """Notify callbacks of global parameter changes."""
+        """Notify callbacks of global parameter changes.
+        
+        Callbacks are skipped when ``_suppress_global_callbacks`` is ``True``.
+        This is used during bulk operations like ``load_spectrum`` to avoid
+        redundant plot refreshes while multiple global parameters are set.
+        """
+        if self._suppress_global_callbacks:
+            return
         for callback in self._global_parameter_change_callbacks:
             try:
                 callback(parameter_name, old_value, new_value)
@@ -891,3 +1433,33 @@ class MoleculeDict(dict):
         self._global_model_pixel_res = value
         self.bulk_update_parameters({'model_pixel_res': value})
         self._notify_global_parameter_change('model_pixel_res', old_value, value)
+
+    @property
+    def global_intensity_calculation_method(self) -> Optional[str]:
+        return self._global_intensity_calculation_method
+    
+    @global_intensity_calculation_method.setter
+    def global_intensity_calculation_method(self, value: Optional[str]) -> None:
+        old_value = self._global_intensity_calculation_method
+        try:
+            value = str(value)
+        except Exception as e:
+            print(f"Error setting intensity_calculation_method: {e}\ndefaulting to 'curve_growth'")
+            value = "curve_growth"
+        self._global_intensity_calculation_method = value
+        self.bulk_update_parameters({'intensity_calculation_method': value})
+        self._notify_global_parameter_change('intensity_calculation_method', old_value, value)
+
+    @property
+    def match_spectral_sampling(self) -> bool:
+        """Whether to interpolate model flux to match data wavelengths pixel-by-pixel."""
+        return self._match_spectral_sampling
+    
+    @match_spectral_sampling.setter
+    def match_spectral_sampling(self, value: bool) -> None:
+        old_value = self._match_spectral_sampling
+        self._match_spectral_sampling = bool(value)
+        if old_value != value:
+            # Clear summed flux cache when this changes
+            self._summed_flux_cache.clear()
+            self._notify_global_parameter_change('match_spectral_sampling', old_value, value)

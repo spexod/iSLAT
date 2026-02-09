@@ -1,20 +1,25 @@
+from os.path import dirname
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.widgets import SpanSelector
 from pathlib import Path 
 from tkinter import filedialog
 
 from iSLAT.Modules.FileHandling import *
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 from iSLAT.Constants import SPEED_OF_LIGHT_KMS
+from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
+from iSLAT.Modules.Plotting.FullSpectrumPlot import FullSpectrumPlot as StandaloneFullSpectrumPlot
 
 from typing import Optional, Union, Literal, TYPE_CHECKING, Any, List, Dict, Tuple
 if TYPE_CHECKING:
     from iSLAT.iSLATClass import iSLAT
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
+    from matplotlib.legend import Legend
 
 class FullSpectrumPlot:
     """
@@ -35,11 +40,11 @@ class FullSpectrumPlot:
         """
         self.islat_ref = islat_ref
         
-        # Plot configuration
-        self.step = kwargs.get('step', 2.3)
-        self.xlim_start = kwargs.get('xlim_start', 4.9)
-        self.xlim_end = kwargs.get('xlim_end', 26)
-        self.xlim1 = np.arange(self.xlim_start, self.xlim_end, self.step)
+        # Plot configuration - these will be calculated dynamically from data
+        self.step = kwargs.get('step', None)  # Will be set in _update_wavelength_ranges()
+        self.xlim_start = kwargs.get('xlim_start', None)
+        self.xlim_end = kwargs.get('xlim_end', None)
+        self.xlim1 = None  # Will be set in _update_wavelength_ranges()
         self.offset_label = kwargs.get('offset_label', 0.003)
         self.ymax_factor = kwargs.get('ymax_factor', 0.2)
         #self.figsize = kwargs.get('figsize', (12, 16))
@@ -56,6 +61,7 @@ class FullSpectrumPlot:
         # Plot attributes
         self.fig: Optional["Figure"] = None
         self.subplots: Dict[int, "Axes"] = {}
+        self.span_selectors: Dict[int, SpanSelector] = {}  # Span selectors for each subplot
         self.mol_labels: List[str] = []
         self.mol_colors: List[str] = []
         if "figsize" in kwargs:
@@ -65,7 +71,30 @@ class FullSpectrumPlot:
 
         # Initialize data
         self._load_data()
+        self._update_wavelength_ranges()
         self._prepare_molecule_info()
+    
+    def _update_wavelength_ranges(self):
+        """Calculate wavelength panel ranges based on actual data."""
+        '''if self.wave is None or len(self.wave) == 0:
+            # Fallback to MIRI defaults if no data
+            self.xlim_start = 4.9
+            self.xlim_end = 26
+            self.step = 2.3
+        else:'''
+        wave_min = np.nanmin(self.wave)
+        wave_max = np.nanmax(self.wave)
+        
+        # Use exact wavelength values without rounding
+        self.xlim_start = wave_min
+        self.xlim_end = wave_max
+        
+        # Calculate step to produce ~10 panels
+        wavelength_range = self.xlim_end - self.xlim_start
+        target_panels = 10
+        self.step = wavelength_range / target_panels
+        
+        self.xlim1 = np.arange(self.xlim_start, self.xlim_end, self.step)
     
     def _load_data(self):
         """Load spectrum and line data from files."""
@@ -132,21 +161,29 @@ class FullSpectrumPlot:
             # Plot lines in the current wavelength range
             for i in range(len(svd_lamb)):
                 if xr[0] < svd_lamb[i] < xr[1]:
-                    ax.vlines(svd_lamb[i], ymin, ymax, linestyles='dotted', 
+                    line = ax.vlines(svd_lamb[i], ymin, ymax, linestyles='dotted', 
                             color='grey', linewidth=0.7)
+                    line._islat_saved_line = True  # Mark for easy removal
                     
                     # Position label
                     label_y = ymax
                     label_x = svd_lamb[i] + self.offset_label
                     
-                    ax.text(label_x, label_y, f"{svd_species[i]} {svd_lineID[i]}", 
+                    text = ax.text(label_x, label_y, f"{svd_species[i]} {svd_lineID[i]}", 
                         fontsize=6, rotation=90, va='top', ha='left', color='grey')
+                    text._islat_saved_line = True  # Mark for easy removal
         else:
             pass
             #print("No line data available for annotations.")
     
-    def generate_plot(self):
-        """Generate the full spectrum plot with multiple panels."""
+    def generate_plot(self, force_clear: bool = False):
+        """Generate the full spectrum plot with multiple panels.
+        
+        Parameters:
+        -----------
+        force_clear : bool
+            If True, forces clearing of axes even on updates
+        """
         # Create figure if it doesn't exist
         if not hasattr(self, 'fig') or self.fig is None:
             if hasattr(self, 'figsize'):
@@ -161,18 +198,28 @@ class FullSpectrumPlot:
 
         for n, xlim in enumerate(self.xlim1):
             # Create subplot for current wavelength range
-            xr = [self.xlim1[n], self.xlim1[n] + self.step]
+            # For the last panel, end at xlim_end instead of xlim + step
+            is_last_panel = (n == len(self.xlim1) - 1)
+            panel_end = self.xlim_end if is_last_panel else self.xlim1[n] + self.step
+            xr = [self.xlim1[n], panel_end]
             
             # Reuse existing subplot if available, otherwise create new one
             # This allows update-in-place optimization to work
             if n not in self.subplots or self.subplots[n] not in self.fig.axes:
                 self.subplots[n] = plt.subplot(len(self.xlim1), 1, n + 1)
+                # Add span selector for this subplot
+                self._setup_span_selector(n)
             
             # Calculate y-axis limits
             flux_mask = (self.wave > xr[0] - 0.02) & (self.wave < xr[1])
-            maxv = np.nanmax(self.flux[flux_mask])
-            ymax = maxv + maxv * self.ymax_factor
-            ymin = -0.005
+            if np.any(flux_mask):
+                maxv = np.nanmax(self.flux[flux_mask])
+                ymax = maxv + maxv * self.ymax_factor
+                ymin = -0.005
+            else:
+                # No data in this panel, use reasonable defaults
+                ymin = -0.005
+                ymax = 0.1
             
             # Set axis properties
             plt.xlim(xr)
@@ -182,16 +229,15 @@ class FullSpectrumPlot:
             
             #self.plot_renderer.clear_model_lines(ax=self.subplots[n], lines=self.plot_renderer.model_lines, do_clear_self=False)
 
-            # Plot line annotations
-            self._plot_line_list(self.subplots[n], xr, ymin, ymax)
-
             # Temporarily set render_out to use thinner lines for output
             original_render_out = self.plot_renderer.render_out
             self.plot_renderer.render_out = True
             
             # Determine if this is an update (subplots already exist) or initial render
             # For updates, don't clear axes to enable update-in-place optimization
+            # Unless force_clear is True (e.g., when toggling lines off)
             is_update = (n in self.subplots and self.subplots[n] in self.fig.axes)
+            should_clear = (not is_update) or force_clear
             
             # Render the spectrum and molecules without automatic legend. We'll add a custom legend at the end
             self.plot_renderer.render_main_spectrum_plot(
@@ -202,10 +248,28 @@ class FullSpectrumPlot:
                 summed_flux=summed_flux,
                 axes=self.subplots[n],
                 update_legend=False,  # Disable automatic legend - we'll add custom one
-                clear_axes=not is_update  # Don't clear on updates for faster rendering
+                clear_axes=should_clear  # Clear axes when needed
             )
+            
+            # Plot line annotations AFTER main plot (so they're not cleared)
             if self.islat_ref.GUI.top_bar.line_toggle:
-                self.plot_renderer.plot_saved_lines(self.line_data, self.saved_lines, fig = self.subplots[n])
+                self._plot_line_list(self.subplots[n], xr, ymin, ymax)
+
+            if self.islat_ref.GUI.top_bar.atomic_toggle:
+                atomic_lines = load_atomic_lines()
+
+                atomic_lines = atomic_lines[
+                    (atomic_lines['wave'] >= xr[0]) &
+                    (atomic_lines['wave'] <= xr[1])
+                ]
+
+                wavelengths = atomic_lines['wave'].values
+                species = atomic_lines['species'].values
+                line_ids = atomic_lines['line'].values
+
+                self.plot_renderer.render_atomic_lines(atomic_lines, self.subplots[n], 
+                wavelengths, species, line_ids, using_subplot=True)
+
             
             # Restore original setting
             self.plot_renderer.render_out = original_render_out
@@ -237,7 +301,7 @@ class FullSpectrumPlot:
                 self.mol_labels,
                 labelcolor=self.mol_colors,
                 loc='upper center',
-                ncols=9,
+                ncols=12,
                 handletextpad=0.2,
                 bbox_to_anchor=(0.5, 1.4),
                 handlelength=0,
@@ -251,11 +315,282 @@ class FullSpectrumPlot:
         self.fig.supylabel("Flux Density (Jy)", fontsize=10)
         self.fig.canvas.draw_idle()
     
-    def reload_data(self):
-        """Refresh the plot data with any updates from the molecules dictionary."""
+    def reload_data(self, force_clear: bool = False):
+        """Refresh the plot data with any updates from the molecules dictionary.
+        
+        Parameters:
+        -----------
+        force_clear : bool
+            If True, forces clearing of axes even on updates (needed for toggle off)
+        """
         self._load_data()
+        
+        # Capture the previous wavelength layout so we can detect changes
+        old_xlim_start = self.xlim_start
+        old_xlim_end = self.xlim_end
+        old_step = self.step
+        old_n_panels = len(self.xlim1) if self.xlim1 is not None else 0
+
+        self._update_wavelength_ranges()
+
+        new_n_panels = len(self.xlim1)
+        # Recreate the figure when the wavelength range or panel count changed
+        # (e.g. a new spectrum file covering a different wavelength region)
+        range_changed = (
+            old_n_panels != new_n_panels
+            or not np.isclose(old_xlim_start, self.xlim_start, atol=1e-6)
+            or not np.isclose(old_xlim_end, self.xlim_end, atol=1e-6)
+            or not np.isclose(old_step, self.step, atol=1e-6)
+        )
+
+        if range_changed:
+            # Clear old subplots and figure so they are rebuilt for the new range
+            self.subplots = {}
+            self.span_selectors = {}
+            # Reset legend reference — it pointed to a now-stale axes
+            if hasattr(self, 'legend_subplot'):
+                self.legend_subplot = None
+            if self.fig is not None:
+                self.fig.clear()
+                self.fig = None
+        
         self._prepare_molecule_info()
-        self.generate_plot()
+        self.generate_plot(force_clear=force_clear or range_changed)
+    
+    def toggle_saved_lines(self, show: bool):
+        """
+        Optimized toggle for saved lines - only adds/removes line artists.
+        Avoids full replot for better performance.
+        
+        Parameters:
+        -----------
+        show : bool
+            If True, show saved lines. If False, hide them.
+        """
+        if not hasattr(self, 'subplots') or not self.subplots:
+            return
+        
+        if show:
+            # Add saved lines to each subplot
+            for n, xlim in enumerate(self.xlim1):
+                if n not in self.subplots:
+                    continue
+                ax = self.subplots[n]
+                # For the last panel, end at xlim_end instead of xlim + step
+                is_last_panel = (n == len(self.xlim1) - 1)
+                panel_end = self.xlim_end if is_last_panel else self.xlim1[n] + self.step
+                xr = [self.xlim1[n], panel_end]
+                
+                # Calculate y limits
+                flux_mask = (self.wave > xr[0] - 0.02) & (self.wave < xr[1])
+                if np.any(flux_mask):
+                    ymax = np.nanmax(self.flux[flux_mask]) * (1 + self.ymax_factor)
+                    ymin = -0.01
+                else:
+                    ymin, ymax = -0.01, 0.15
+                
+                self._plot_line_list(ax, xr, ymin, ymax)
+        else:
+            # Remove saved lines from each subplot
+            self._remove_saved_line_artists()
+        
+        # Redraw canvas
+        if hasattr(self, 'fig') and self.fig is not None:
+            self.fig.canvas.draw_idle()
+    
+    def _remove_saved_line_artists(self):
+        """Remove all saved line artists from subplots."""
+        for n, ax in self.subplots.items():
+            # Remove marked line collections
+            for collection in ax.collections[:]:
+                if hasattr(collection, '_islat_saved_line'):
+                    collection.remove()
+            # Remove marked text annotations
+            for text in ax.texts[:]:
+                if hasattr(text, '_islat_saved_line'):
+                    text.remove()
+    
+    def toggle_atomic_lines(self, show: bool):
+        """
+        Optimized toggle for atomic lines - only adds/removes line artists.
+        Avoids full replot for better performance.
+        
+        Parameters:
+        -----------
+        show : bool
+            If True, show atomic lines. If False, hide them.
+        """
+        if not hasattr(self, 'subplots') or not self.subplots:
+            return
+        
+        if show:
+            # Add atomic lines to each subplot
+            atomic_lines_data = load_atomic_lines()
+            
+            for n, xlim in enumerate(self.xlim1):
+                if n not in self.subplots:
+                    continue
+                ax = self.subplots[n]
+                # For the last panel, end at xlim_end instead of xlim + step
+                is_last_panel = (n == len(self.xlim1) - 1)
+                panel_end = self.xlim_end if is_last_panel else self.xlim1[n] + self.step
+                xr = [self.xlim1[n], panel_end]
+                
+                # Filter atomic lines for this range
+                filtered_atomic = atomic_lines_data[
+                    (atomic_lines_data['wave'] >= xr[0]) &
+                    (atomic_lines_data['wave'] <= xr[1])
+                ]
+                
+                if len(filtered_atomic) > 0:
+                    wavelengths = filtered_atomic['wave'].values
+                    species = filtered_atomic['species'].values
+                    line_ids = filtered_atomic['line'].values
+                    
+                    self.plot_renderer.render_atomic_lines(
+                        filtered_atomic, ax, wavelengths, species, line_ids, using_subplot=True
+                    )
+        else:
+            # Remove atomic lines from each subplot
+            self._remove_atomic_line_artists()
+        
+        # Redraw canvas
+        if hasattr(self, 'fig') and self.fig is not None:
+            self.fig.canvas.draw_idle()
+    
+    def _remove_atomic_line_artists(self):
+        """Remove all atomic line artists from subplots."""
+        for n, ax in self.subplots.items():
+            # Remove marked lines
+            for line in ax.lines[:]:
+                if hasattr(line, '_islat_atomic_line'):
+                    line.remove()
+            # Remove marked text annotations
+            for text in ax.texts[:]:
+                if hasattr(text, '_islat_atomic_line'):
+                    text.remove()
+
+    def _setup_span_selector(self, subplot_index: int):
+        """
+        Set up a span selector for a specific subplot.
+        
+        Parameters:
+        -----------
+        subplot_index : int
+            Index of the subplot to add span selector to
+        """
+        if subplot_index not in self.subplots:
+            return
+        
+        ax = self.subplots[subplot_index]
+        
+        # Create span selector for this subplot
+        span = SpanSelector(
+            ax,
+            lambda xmin, xmax, idx=subplot_index: self._on_span_select(xmin, xmax, idx),
+            direction='horizontal',
+            useblit=True,
+            props=dict(alpha=0.3, facecolor='lime'),
+            interactive=True,
+            drag_from_anywhere=True
+        )
+        self.span_selectors[subplot_index] = span
+    
+    def _on_span_select(self, xmin: float, xmax: float, subplot_index: int):
+        """
+        Handle span selection on a subplot.
+        Switches back to regular plot mode and triggers line inspection.
+        
+        Parameters:
+        -----------
+        xmin : float
+            Minimum wavelength of selection
+        xmax : float
+            Maximum wavelength of selection
+        subplot_index : int
+            Index of the subplot where selection was made
+        """
+        # Ignore tiny selections (likely accidental clicks)
+        if abs(xmax - xmin) < 0.001:
+            return
+        
+        # Store the selection for the main plot to use
+        self._pending_selection = (xmin, xmax)
+        
+        # Get reference to main plot (it's GUI.plot, not GUI.main_plot)
+        main_plot = self.islat_ref.GUI.plot
+        
+        # Switch back to regular mode if in embedded full spectrum mode
+        if hasattr(main_plot, 'is_full_spectrum') and main_plot.is_full_spectrum:
+            # Toggle off full spectrum mode
+            main_plot.toggle_full_spectrum()
+            
+            # After switching back, trigger line inspection with the selected range
+            # Need to use after_idle to ensure the canvas is ready
+            if hasattr(self.islat_ref, 'root'):
+                self.islat_ref.root.after(100, lambda: self._apply_selection_to_main_plot(xmin, xmax))
+            else:
+                self._apply_selection_to_main_plot(xmin, xmax)
+        else:
+            # We're in a separate FullSpectrumWindow, just apply selection to main plot
+            self._apply_selection_to_main_plot(xmin, xmax)
+    
+    def _apply_selection_to_main_plot(self, xmin: float, xmax: float):
+        """
+        Apply the selection to the main plot after switching modes.
+        
+        Parameters:
+        -----------
+        xmin : float
+            Minimum wavelength of selection
+        xmax : float
+            Maximum wavelength of selection
+        """
+        main_plot = self.islat_ref.GUI.plot
+        
+        # Invalidate the population diagram cache to force a full redraw
+        # This is necessary because switching from full spectrum mode may leave
+        # the plot renderer's cached state out of sync
+        if hasattr(main_plot, 'plot_renderer'):
+            main_plot.plot_renderer._pop_diagram_molecule = None
+            main_plot.plot_renderer._pop_diagram_cache_key = None
+            # Also clear the active scatter collection reference
+            main_plot.plot_renderer._active_scatter_collection = None
+            main_plot.plot_renderer._active_scatter_count = 0
+        
+        # Set the current selection
+        main_plot.current_selection = (xmin, xmax)
+        
+        # Update the main plot's view to center on the selection
+        # Calculate a reasonable view range around the selection
+        selection_center = (xmin + xmax) / 2
+        selection_width = xmax - xmin
+        view_padding = max(selection_width * 2, 0.5)  # At least 0.5 um padding
+        
+        view_xmin = selection_center - view_padding
+        view_xmax = selection_center + view_padding
+        
+        # Set the x-axis limits on the main spectrum plot
+        main_plot.ax1.set_xlim(view_xmin, view_xmax)
+        
+        # Update the span selector's visual extents to show the selection
+        if hasattr(main_plot, 'interaction_handler') and hasattr(main_plot.interaction_handler, 'span_selector'):
+            span = main_plot.interaction_handler.span_selector
+            if span is not None:
+                try:
+                    # Set the span visible and update its extents
+                    span.set_visible(True)
+                    span.extents = (xmin, xmax)
+                    # Force update the span's visual
+                    span.update()
+                except Exception as e:
+                    print(f"[DEBUG] Could not set span extents: {e}")
+        
+        # Trigger the line inspection plot
+        main_plot.onselect(xmin, xmax)
+        
+        # Redraw the canvas
+        main_plot.canvas.draw_idle()
 
     def show(self):
         """Display the plot."""
@@ -263,7 +598,7 @@ class FullSpectrumPlot:
             self.generate_plot()
         plt.show(block=False)
     
-    def save_figure(self, save_path: Optional[str] = None):
+    def save_figure(self, save_path: Optional[str] = None, rasterized: bool = False):
         """
         Save the figure to a file.
         
@@ -284,9 +619,13 @@ class FullSpectrumPlot:
                 initialdir=absolute_data_files_path,
                 filetypes=[("PDF files", "*.pdf")]
             )
-        
+        if rasterized:
+            for ax in self.subplots.values():
+                ax.set_rasterized(True)
+            dpi=300
+
         if save_path:
-            plt.savefig(save_path, bbox_inches='tight', format='pdf')
+            plt.savefig(save_path, bbox_inches='tight', format='pdf', dpi=dpi if rasterized else None)
             self.islat_ref.GUI.data_field.insert_text(f"Spectrum output saved to: {save_path}")
             return save_path
         return None
@@ -296,16 +635,25 @@ class FullSpectrumPlot:
         if self.fig is not None:
             plt.close(self.fig)
             self.fig = None
+    
+    def get_legend(self) -> Optional["Legend"]:
+        """Return the legend object if it exists."""
+        return self.legend_subplot.legend_ if hasattr(self, 'legend_subplot') and self.legend_subplot is not None else None
 
 # Backward compatibility function
-def output_full_spectrum(islat_ref: "iSLAT"):
+def output_full_spectrum(islat_ref: "iSLAT", rasterized: bool = False):
     """
     Backward-compatible function that uses the new FullSpectrumPlot class.
     Maintains the same interface for existing code.
     """
     spectrum_plotter = FullSpectrumPlot(islat_ref)
+    spectrum_plotter.figsize = (12, 16)
     spectrum_plotter.generate_plot()
-    save_path = spectrum_plotter.save_figure()
+    save_path = spectrum_plotter.save_figure(rasterized=rasterized)
+    file_name = str(Path(save_path).with_suffix("")) + "_parameters.csv"
+    print(f"file name is: {file_name}\n")
+    ifh.write_molecules_to_csv(islat_ref.molecules_dict, file_path=dirname(save_path), file_name=file_name)
+    spectrum_plotter.figsize = None
     spectrum_plotter.close()
     return save_path
 

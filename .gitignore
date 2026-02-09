@@ -3,23 +3,10 @@ __pycache__/
 iSLAT/.DS_Store
 
 iSLAT/__pycache__/
-iSLAT/COMPONENTS/__pycache__/
-iSLAT/COMPONENTS/DataProcessing/__pycache__/
-iSLAT/COMPONENTS/DataTypes/__pycache__/
-iSLAT/COMPONENTS/DataTypes/ir_model/__pycache__/
-iSLAT/COMPONENTS/FileHandling/__pycache__/
-iSLAT/COMPONENTS/GUI/__pycache__/
-iSLAT/COMPONENTS/Debug/__pycache__/
-iSLAT/COMPONENTS/GUI/Widgets/__pycache__/
-iSLAT/COMPONENTS/GUI/Widgets/Plotting/__pycache__/
-iSLAT/COMPONENTS/DataProcessing/PlottingLogic/__pycache__/
 
-iSLATOld/__pycache__/
-iSLATOld/COMPONENTS/__pycache__/
-iSLATOld/COMPONENTS/GUI/__pycache__/
-iSLATOld/ir_model/__pycache__/
+iSLAT.egg-info/
 
-iSLAT/ir_model/__pycache__/
+iSLAT/DATAFILES/CONFIG/UserSettings.json
 
 iSLAT/DATAFILES/SAVES/
 iSLAT/DATAFILES/LINESAVES/
@@ -29,6 +16,20 @@ iSLAT/DATAFILES/HITRANdata/*
 !iSLAT/DATAFILES/HITRANdata/data_Arabhavi_*.par
 !iSLAT/DATAFILES/HITRANdata/data_HITEMP_*.par
 
+iSLAT/DATAFILES/EXAMPLE-data/
+!iSLAT/DATAFILES/EXAMPLE-data/CITau_IRS_Pontoppidan+2010.csv
+!iSLAT/DATAFILES/EXAMPLE-data/CITau_MIRI_Banzatti+2023b.csv
+!iSLAT/DATAFILES/EXAMPLE-data/FZTau_ISHELL_Banzatti+2023a.csv
+!iSLAT/DATAFILES/EXAMPLE-data/FZTau_MIRI_Pontoppidan+2024.csv
+
+iSLAT/DATAFILES/LINELISTS/
+!iSLAT/DATAFILES/LINELISTS/Atomic_lines.csv
+!iSLAT/DATAFILES/LINELISTS/cont_ranges_Banzatti+2025.csv
+!iSLAT/DATAFILES/LINELISTS/MIRI_general_Banzatti+2025.csv
+!iSLAT/DATAFILES/LINELISTS/MIRI_H2O_ortho-para-pairs.csv
+!iSLAT/DATAFILES/LINELISTS/MIRI_H2O_v0-0.csv
+!iSLAT/DATAFILES/LINELISTS/MIRI_H2O_v1-0.csv
+!iSLAT/DATAFILES/LINELISTS/MIRI_H2O_v1-1.csv
 
 .idea/
 .venv/

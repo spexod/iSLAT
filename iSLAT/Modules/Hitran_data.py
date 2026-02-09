@@ -6,9 +6,10 @@ import ssl
 #from .global_identifier import get_global_identifier
 from astropy import units as un
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Union
 import os
 import datetime
+from pathlib import Path
 #from .Hitran_data import get_Hitran_data
 from .FileHandling.partition_function_writer import write_partition_function
 from .FileHandling.line_data_writer import write_line_data
@@ -165,29 +166,140 @@ def get_Hitran_data(Molecule_name, isotopologue_number, min_vu, max_vu):
         print(f"Error: {error_msg}")
         raise RuntimeError(error_msg) from e
 
-def download_hitran_data(mols, basem, isot) -> List[Tuple]:
-    #mols = ["H2", "HD", "H2O", "H218O", "CO2", "13CO2", "CO", "13CO", "C18O", "CH4", "HCN", "H13CN", "NH3", "OH", "C2H2", "13CCH2", "C2H4", "C4H2", "C2H6", "HC3N"]
-    #basem = ["H2", "H2", "H2O", "H2O", "CO2", "CO2", "CO", "CO", "CO", "CH4", "HCN", "HCN", "NH3", "OH", "C2H2", "C2H2", "C2H4", "C4H2", "C2H6", "HC3N"]
-    #isot = [1, 2, 1, 2, 1, 2, 1, 2, 3, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1]
+def _parse_header_overrides(header: Optional[pd.DataFrame]) -> dict:
+    """Extract non-None values from a single-row header DataFrame into a plain dict."""
+    if header is None or header.empty:
+        return {}
+    return {
+        col: header[col].iloc[0]
+        for col in header.columns
+        if header[col].iloc[0] is not None
+    }
 
-    #mols = ["O2"]
-    #basem = ["O2", "O2"]
-    #isot = [1, 2]
+def write_par_file(
+    file_path: Union[str, Path],
+    mol: str,
+    base_mol: str,
+    isotopologue: int,
+    Htbl,
+    qdata: pd.DataFrame,
+    M: int,
+    G: int,
+    header: Optional[pd.DataFrame] = None,
+) -> None:
+    """Write HITRAN line data and partition function to a .par file.
 
-    missed_mols = []
+    Parameters
+    ----------
+    file_path : str or Path
+        Full path for the output .par file.
+    mol : str
+        Display name of the molecule (used in the default header).
+    base_mol : str
+        Base molecule name recognised by HITRAN (e.g. ``'H2O'``).
+    isotopologue : int
+        Isotopologue number.
+    Htbl : astropy.table.Table
+        HITRAN line-list table returned by ``get_Hitran_data``.
+    qdata : pandas.DataFrame
+        Partition-function data returned by ``get_Hitran_data``.
+    M : int
+        HITRAN molecule identifier number.
+    G : int
+        HITRAN global identifier number.
+    header : pandas.DataFrame, optional
+        A single-row DataFrame that can override any of the default
+        header fields.  Recognised columns (all optional):
 
-    min_wave = 0.3  # micron
-    max_wave = 1000  # micron
+        - ``'mol'`` - molecule display name (default: *mol* parameter)
+        - ``'M'`` - HITRAN molecule ID (default: *M* parameter)
+        - ``'isotopologue'`` - isotopologue number (default: *isotopologue* parameter)
+        - ``'G'`` - HITRAN global ID (default: *G* parameter)
+        - ``'molar_mass'`` - molar mass value (default: looked up via ``get_molar_mass``)
+        - ``'source'`` - source description (default: ``'Downloaded from the Hitran website'``)
+        - ``'date'`` - date string (default: today's date)
 
-    min_vu = 1 / (min_wave / 1E6) / 100.
-    max_vu = 1 / (max_wave / 1E6) / 100.
+        Any column not present (or whose value is ``None``) falls back
+        to the default.  Pass an empty DataFrame or ``None`` to use all
+        defaults.
+    """
+    file_path = Path(file_path)
+    os.makedirs(file_path.parent, exist_ok=True)
+
+    overrides = _parse_header_overrides(header)
+
+    h_mol = overrides.get('mol', mol)
+    h_M = overrides.get('M', M)
+    h_iso = overrides.get('isotopologue', isotopologue)
+    h_G = overrides.get('G', G)
+    h_mass = overrides.get('molar_mass', get_molar_mass(base_mol, isotopologue))
+    h_source = overrides.get('source', 'Downloaded from the Hitran website')
+    h_date = overrides.get('date', str(datetime.date.today()))
+
+    with open(file_path, 'w') as fh:
+        fh.write(f"# HITRAN {h_mol}; id:{h_M}; iso:{h_iso};gid:{h_G}\n")
+        fh.write(f"# Molar Mass: {h_mass}\n")
+        fh.write(f"# {h_source}\n")
+        fh.write(f"# {h_date}\n")
+        fh = write_partition_function(fh, qdata)
+        fh = write_line_data(fh, Htbl)
+
+def download_hitran_data(
+    mols: List[str],
+    basem: List[str],
+    isot: List[int],
+    save_folder: Optional[str] = None,
+    min_wave: float = 0.3,
+    max_wave: float = 1000.0,
+    min_vu: Optional[float] = None,
+    max_vu: Optional[float] = None,
+) -> List[Tuple]:
+    """Download HITRAN line data and write .par files for the requested molecules.
+
+    Parameters
+    ----------
+    mols : List[str]
+        Display names of the molecules (used in filenames and headers).
+    basem : List[str]
+        Base molecule names recognised by HITRAN (e.g. ``'H2O'``).
+    isot : List[int]
+        Isotopologue numbers corresponding to each molecule.
+    save_folder : str, optional
+        Directory in which to save the .par files.  When *None* the
+        default ``hitran_data_folder_path`` is used.
+    min_wave : float, optional
+        Minimum wavelength in microns (default 0.3).  Ignored when
+        *min_vu* is provided.
+    max_wave : float, optional
+        Maximum wavelength in microns (default 1000).  Ignored when
+        *max_vu* is provided.
+    min_vu : float, optional
+        Minimum wavenumber in cm⁻¹.  Overrides *min_wave* when given.
+    max_vu : float, optional
+        Maximum wavenumber in cm⁻¹.  Overrides *max_wave* when given.
+
+    Returns
+    -------
+    List[Tuple]
+        List of ``(base_mol, mol, isot)`` tuples for molecules that
+        could not be downloaded.
+    """
+    missed_mols: List[Tuple] = []
+
+    # Derive wavenumber bounds from wavelength when not explicitly given
+    if min_vu is None:
+        min_vu = 1.0 / (min_wave / 1E6) / 100.0
+    if max_vu is None:
+        max_vu = 1.0 / (max_wave / 1E6) / 100.0
 
     print(' ')
-    print ('Checking for HITRAN files: ...')
+    print('Checking for HITRAN files: ...')
+
+    if save_folder is None:
+        from .FileHandling import hitran_data_folder_path as save_folder
 
     for mol, bm, iso in zip(mols, basem, isot):
-        save_folder = 'DATAFILES/HITRANdata'
-        file_path = os.path.join(save_folder, "data_Hitran_2020_{:}.par".format(mol))
+        file_path: str = os.path.join(save_folder, "data_Hitran_{:}.par".format(mol))
 
         if os.path.exists(file_path):
             print("File already exists for mol: {:}. Skipping.".format(mol))
@@ -196,16 +308,7 @@ def download_hitran_data(mols, basem, isot) -> List[Tuple]:
         print("Downloading data for mol: {:}".format(mol))
         try:
             Htbl, qdata, M, G = get_Hitran_data(bm, iso, min_vu, max_vu)
-            os.makedirs(save_folder, exist_ok=True)  # Create the folder if it doesn't exist
-
-            with open(file_path, 'w') as fh:
-                fh.write("# HITRAN 2020 {:}; id:{:}; iso:{:};gid:{:}\n".format(mol, M, iso, G))
-                fh.write("# Molar Mass: {:}\n".format(get_molar_mass(bm, iso)))
-                fh.write("# Downloaded from the Hitran website\n")
-                fh.write("# {:s}\n".format(str(datetime.date.today())))
-                fh = write_partition_function(fh, qdata)
-                fh = write_line_data(fh, Htbl)
-
+            write_par_file(file_path, mol, bm, iso, Htbl, qdata, M, G)
             print("Data for Mol: {:} downloaded and saved.".format(mol))
             
         except (ValueError, RuntimeError) as e:

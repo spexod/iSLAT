@@ -1,25 +1,27 @@
-import numpy as np
+import os
 import platform
-import os 
-#import csv
+import traceback
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter import messagebox #, font
-import traceback
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from tkinter import messagebox, filedialog
+from typing import TYPE_CHECKING, Any, Dict
+
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
+import iSLAT.Constants as c
 from ..GUIFunctions import create_button, create_menu_btn
-from iSLAT.Modules.DataProcessing.Slabfit import SlabFit as SlabModel
-from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
-from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from .ResizableFrame import ResizableFrame
 from iSLAT.Modules.GUI.Widgets.ChartWindow import MoleculeSelector
 from iSLAT.Modules.GUI.PlotGridWindow import PlotGridWindow
 from iSLAT.Modules.GUI.FullSpectrumWindow import FullSpectrumWindow
-from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv, generate_csv
-from iSLAT.Modules.FileHandling.iSLATFileHandling import save_folder_path, molsave_file_name, line_saves_file_path, line_saves_file_name, fit_save_lines_file_name, example_data_folder_path
+from iSLAT.Modules.FileHandling.iSLATFileHandling import (
+    write_molecules_to_csv, generate_csv, line_saves_file_path,
+    line_saves_file_name, example_data_folder_path
+)
 from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
-import iSLAT.Constants as c
+from iSLAT.Modules.DataProcessing.Slabfit import SlabFit as SlabModel
+from iSLAT.Modules.DataProcessing.BatchFittingService import BatchFittingService
+from iSLAT.Modules.DataProcessing.DeblendingService import DeblendingService
+from iSLAT.Modules.DataProcessing.LineSaveService import LineSaveService
 
 if TYPE_CHECKING:
     from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
@@ -44,6 +46,11 @@ class TopBar(ResizableFrame):
         self.data_field = data_field
         self.config = config
         self.control_panel = control_panel
+
+        # Initialize services for non-GUI logic
+        self.batch_fitting_service = BatchFittingService(islat)
+        self.deblending_service = DeblendingService(islat)
+        self.line_save_service = LineSaveService(islat)
 
         self.button_frame = tk.Frame(self)
         self.button_frame.grid(row=0, column=1)
@@ -78,14 +85,14 @@ class TopBar(ResizableFrame):
         molecule_drpdwn.config(menu=molecule_menu)
 
         if os_name == "Darwin":
-            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters", 0, 1)
+            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters", 0, 1)
         else:
-            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Spectrum Parameters ▼", 0, 1)
+            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters ▼", 0, 1)
         spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
-        spectrum_menu.add_command(label="Save Parameters", command=self.save_parameters)
-        spectrum_menu.add_command(label="Load Parameters", command=self.load_parameters)
-        spectrum_menu.add_command(label="Output Full Spectrum", command=lambda: output_full_spectrum(self.islat))
-        spectrum_menu.add_command(label="Display Full Spectrum", command=lambda: FullSpectrumWindow(self.master, self.islat))
+        spectrum_menu.add_command(label="Save Parameters (Ctrl+S)", command=self.save_parameters)
+        spectrum_menu.add_command(label="Load Parameters (Ctrl+L)", command=self.load_parameters)
+        spectrum_menu.add_command(label="Output Full Spectrum (Ctrl+Shift+F)", command=lambda: output_full_spectrum(self.islat))
+        spectrum_menu.add_command(label="Display Full Spectrum (Ctrl+F)", command=lambda: FullSpectrumWindow(self.master, self.islat))
         spectrum_drpdwn.config(menu=spectrum_menu)
 
         if os_name == "Darwin":
@@ -100,90 +107,49 @@ class TopBar(ResizableFrame):
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
+        spec_functions_menu.add_separator()
+        spec_functions_menu.add_command(label="Subtract Models from Data", command=self.subtract_models_from_data)
         
         spec_functions_drpwn.config(menu=spec_functions_menu)
 
-        saved_lines_tip = "Show saved lines\nform the 'Input Line List'"
-        atomic_lines_tip = "Show atomic lines\nusing seperation threshold\nset in the 'Line Separ."
+        saved_lines_tip = "Show saved lines\nfrom the 'Input Line List'\nKeybind: S"
+        atomic_lines_tip = "Show atomic lines\nusing separation threshold\nset in the 'Line Separ.\nKeybind: A"
         #export_model_tip = "Export current\nmodels into csv files"
-        toggle_legend_tip = "Turn legend on/off"
-        toggle_full_spectrum_tip = "Turn full spectrum on/off"
+        toggle_legend_tip = "Turn legend on/off\nKeybind: L"
+        toggle_full_spectrum_tip = "Toggle full spectrum view on/off\nKeybind: F\n\nOpen in new window: Ctrl+F"
+        toggle_summed_tip = "Toggle summed model flux on/off\n(gray fill in plot)\nKeybind: M"
         create_button(self.button_frame, self.theme, "Toggle Saved Lines", self.toggle_saved_lines, 0, 3, tip_text=saved_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Atomic Lines", self.toggle_atomic_lines, 0, 4, tip_text=atomic_lines_tip)
         create_button(self.button_frame, self.theme, "Toggle Full Spectrum", self.toggle_full_spectrum, 0, 5, tip_text=toggle_full_spectrum_tip)
-        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 6, tip_text=toggle_legend_tip)
+        create_button(self.button_frame, self.theme, "Toggle Total Model", self.toggle_summed_spectrum, 0, 6, tip_text=toggle_summed_tip)
+        create_button(self.button_frame, self.theme, "Toggle Legend", self.main_plot.toggle_legend, 0, 7, tip_text=toggle_legend_tip)
 
     def save_line(self, save_type="selected"):
-        """Save the currently selected line to the line saves file using the new MoleculeLine approach."""
-        if not hasattr(self.main_plot, 'current_selection') or self.main_plot.current_selection is None:
-            self.data_field.insert_text("No region selected for saving.\n")
+        """Save the currently selected line to the line saves file."""
+        # Use service to extract line info
+        selected_line_info, error_msg = self.line_save_service.extract_line_info_from_selection(
+            self.main_plot, save_type
+        )
+        
+        if error_msg:
+            self.data_field.insert_text(f"{error_msg}\n")
             return
-
-        if save_type == "strongest":
-            # Get the strongest line information from the current selection using new approach
-            selected_line_info = self.main_plot.find_strongest_line_from_data()
-            if selected_line_info is None:
-                self.data_field.insert_text("No valid line found in selection.\n")
-                return
-        elif save_type == "selected":
-            # Use the currently selected region and find the strongest line in it
-            selected_line_info = self.main_plot.selected_line
-            if selected_line_info is None:
-                # Fallback: create basic line info from selection bounds
-                xmin, xmax = self.main_plot.current_selection
-                center_wave = (xmin + xmax) / 2.0
-                
-                # Calculate flux integral in the selected range
-                err_data = getattr(self.islat, 'err_data', None)
-                line_flux, line_err = self.main_plot.flux_integral(
-                    self.islat.wave_data, 
-                    self.islat.flux_data, 
-                    err_data, 
-                    xmin, 
-                    xmax
-                )
-                
-                selected_line_info = {
-                    'lam': center_wave,
-                    'wavelength': center_wave,
-                    'flux': line_flux,
-                    'intensity': line_flux,
-                    'e': 0.0,
-                    'a': 0.0,
-                    'g': 1.0,
-                    'inten': line_flux,
-                    'up_lev': 'Unknown',
-                    'low_lev': 'Unknown',
-                    'tau': 0.0
-                }
-        else:
-            self.data_field.insert_text("Invalid save type specified.\n")
-            return
-            
-        # Get selection bounds for xmin/xmax
-        if hasattr(self.main_plot, 'selected_wave') and self.main_plot.selected_wave is not None:
-            xmin = self.main_plot.selected_wave[0] if len(self.main_plot.selected_wave) > 0 else selected_line_info['lam'] - 0.01
-            xmax = self.main_plot.selected_wave[-1] if len(self.main_plot.selected_wave) > 1 else selected_line_info['lam'] + 0.01
-        else:
-            # Use current selection bounds
-            xmin, xmax = self.main_plot.current_selection
-            
-        # Create line info dictionary with the format expected by the file handler
-        line_info = {
-            'species': self.islat.active_molecule.name,
-            'lev_up': selected_line_info.get('up_lev', ''),
-            'lev_low': selected_line_info.get('low_lev', ''),
-            'lam': selected_line_info['lam'],
-            'tau': selected_line_info.get('tau', 0.0),
-            'intens': selected_line_info.get('inten', selected_line_info.get('intensity', 0.0)),
-            'a_stein': selected_line_info.get('a', 0.0),
-            'e_up': selected_line_info.get('e', 0.0),
-            'g_up': selected_line_info.get('g', 1.0),
-            'e_low': selected_line_info.get('e_low', 0.0),
-            'g_low': selected_line_info.get('g_low', 1.0),
-            'xmin': xmin,
-            'xmax': xmax,
-        }
+        
+        # Get selection bounds
+        selected_wave = getattr(self.main_plot, 'selected_wave', None)
+        xmin, xmax = self.line_save_service.get_selection_bounds(
+            selected_wave,
+            self.main_plot.current_selection,
+            selected_line_info['lam']
+        )
+        
+        # Format line info for saving
+        line_info = self.line_save_service.format_line_for_save(
+            selected_line_info,
+            self.islat.active_molecule.name,
+            xmin,
+            xmax
+        )
         
         try:
             if not self.islat.output_line_measurements:
@@ -196,23 +162,34 @@ class TopBar(ResizableFrame):
 
     def toggle_saved_lines(self):
         """Show saved lines as vertical dashed lines on the plot."""
+        loaded_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
+        if loaded_lines.empty:   
+            self.data_field.insert_text("No saved lines found.\n")
+            return
         try:
             self.line_toggle = not self.line_toggle
 
-            if self.line_toggle:
-                # Plot the saved lines on the main plot
-                self.main_plot.plot_saved_lines(data_field=self.data_field)
-            
+            # Check if full spectrum view is active
+            if hasattr(self.main_plot, 'is_full_spectrum') and self.main_plot.is_full_spectrum:
+                # Use optimized toggle method that only adds/removes line artists
+                if hasattr(self.main_plot, 'full_spectrum_plot'):
+                    self.main_plot.full_spectrum_plot.toggle_saved_lines(self.line_toggle)
+                    if hasattr(self.main_plot, 'full_spectrum_plot_canvas'):
+                        self.main_plot.full_spectrum_plot_canvas.draw_idle()
             else:
-                self.main_plot.remove_saved_lines()
-                # self.data_field.insert_text("Removed lines")
+                # Regular view - toggle on the main plot
+                if self.line_toggle:
+                    # Plot the saved lines on the main plot
+                    self.main_plot.plot_saved_lines(loaded_lines=loaded_lines, data_field=self.data_field)
+                else:
+                    self.main_plot.remove_saved_lines()
+                    # self.data_field.insert_text("Removed lines")
             
         except Exception as e:
             self.data_field.insert_text(f"Error loading saved lines: {e}\n")
 
     def fit_selected_line(self, deblend=False):
-        """Fit the currently selected line using LMFIT"""
-
+        """Fit the currently selected line using LMFIT."""
         if not hasattr(self.main_plot, 'current_selection') or self.main_plot.current_selection is None:
             self.data_field.insert_text("No region selected for fitting.\n")
             return
@@ -229,114 +206,9 @@ class TopBar(ResizableFrame):
                     line_params = self.main_plot.fitting_engine.extract_line_parameters()
                     
                     if deblend:
-                        # For deblending, show detailed results AND save lines automatically
-                        self.data_field.insert_text("\nDe-blended line fit results:\n", clear_after=False)
-                        
-                        selection = self.main_plot.current_selection
-                        if selection and len(selection) >= 2:
-                            xmin, xmax = selection[0], selection[-1]
-                        line_info = self.islat.active_molecule.intensity.get_lines_in_range_with_intensity(xmin, xmax)
-                        #print(line_info)
-
-                        # Handle multi-component fits - show detailed information
-                        component_idx = 0
-                        saved_components = 0
-
-                        spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
-                        
-                        spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
-                        #save_file = os.path.join(line_saves_file_path, f"{spectrum_base_name}-{line_saves_file_name}")
-                        save_file_name = f"{spectrum_base_name}-{line_saves_file_name}"
-
-                        while f'component_{component_idx}' in line_params:
-                            comp_params = line_params[f'component_{component_idx}']
-                            self.data_field.insert_text(f"\nComponent {component_idx+1}:\n", clear_after=False)
-                            
-                            # Handle None values in stderr parameters
-                            center_err = comp_params.get('center_stderr', 0)
-                            center_err_str = f"{center_err:.5f}" if center_err is not None else "0"
-                            
-                            # Convert FWHM to km/s
-                            fwhm_err = line_params.get('fwhm_stderr', 0)
-                            fwhm_err_kms = f"{fwhm_err:.1f}" if fwhm_err is not None else "0"
-                            
-                            area_err = comp_params.get('area_stderr', 0)
-                            area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
-                            
-                            self.data_field.insert_text(f"Centroid (μm) = {comp_params['center']:.5f} +/- {center_err_str}", clear_after=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {comp_params['fwhm']:.1f} +/- {fwhm_err_kms}", clear_after=False)
-                            self.data_field.insert_text(f"Area (erg/s/cm2) = {comp_params['area']:.3e} +/- {area_err_str}", clear_after=False)
-                            
-                            # Automatically save this component
-                            try:
-                                    current_tripple = line_info[component_idx]
-                                    current_line_info = current_tripple[0].get_dict()
-                                    current_intens = current_tripple[1]
-                                    current_tau = current_tripple[2]
-
-                                    doppler = ((comp_params['center'] - current_line_info["lam"]) / current_line_info["lam"] * c.SPEED_OF_LIGHT_KMS) if current_line_info["lam"] else np.nan
-
-                                    line_save_info = {
-                                        'species': self.islat.active_molecule.name,
-                                        'lev_up': current_line_info['lev_up'],
-                                        'lev_low': current_line_info['lev_low'],
-                                        'lam': current_line_info['lam'],
-                                        'tau': current_tau,
-                                        'intens': current_intens,
-                                        'a_stein': current_line_info['a_stein'],
-                                        'e_up': current_line_info['e_up'],
-                                        'g_up': current_line_info['g_up'],
-                                        'Flux_fit': comp_params['area'],
-                                        'Err_fit': comp_params['area_stderr'],
-                                        'FWHM_fit': comp_params['fwhm'],
-                                        'FWHM_err': comp_params['fwhm_stderr'],
-                                        'Centr_fit': comp_params['center'],
-                                        'Centr_err': comp_params['center_stderr'],
-                                        'Doppler': doppler
-                                    }
-
-                                    # Save this component
-                                    ifh.save_line(line_save_info, file_name=save_file_name)
-                                    saved_components += 1
-                                    
-                            except Exception as save_error:
-                                self.data_field.insert_text(f"Error saving component {component_idx+1}: {save_error}", clear_after=False)
-                            
-                            component_idx += 1
-                        
-                        if component_idx == 0:
-                            self.data_field.insert_text("No components found in fit result.\n", clear_after=False)
-                        else:
-                            # Show both detailed results
-                            self.data_field.insert_text(f"\nDe-blended line fit completed with {component_idx} components!", clear_after=False)
-                            fit_result_summary = self.main_plot.fitting_engine.get_fit_results_summary()
-                            fit_results_components = self.main_plot.fitting_engine.get_fit_results_components()
-                            ifh.save_deblended_fit_stats_and_models(deblended_data = fit_result_summary, components_data=fit_results_components, models_file_name=f"{spectrum_base_name}-deblend_models.csv", stats_file_name=f"{spectrum_base_name}-deblended_fit_statistics.json")
-                            figpath = os.path.join(line_saves_file_path, f"{spectrum_base_name}-deblend_plot.pdf")
-                            self.main_plot.save_fig(figpath, dpi=10)
-                            if saved_components > 0:
-                                self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_after=False)
-                            
+                        self._display_deblend_results(line_params)
                     else:
-                        # Single Gaussian fit - show detailed results
-                        self.data_field.insert_text("\nGaussian fit results:\n", clear_after=False)
-                        
-                        if 'center' in line_params:
-                            # Handle None values in stderr parameters
-                            center_err = line_params.get('center_stderr', 0)
-                            center_err_str = f"{center_err:.5f}" if center_err is not None else "0"
-                            
-                            fwhm_err = line_params.get('fwhm_stderr', 0)
-                            fwhm_err_kms = f"{fwhm_err:.5f}" if fwhm_err is not None else "0"
-                            
-                            area_err = line_params.get('area_stderr', 0)
-                            area_err_str = f"{area_err:.3e}" if area_err is not None else "0"
-                            
-                            self.data_field.insert_text(f"Centroid (μm) = {line_params['center']:.5f} +/- {center_err_str}", clear_after=False)
-                            self.data_field.insert_text(f"FWHM (km/s) = {line_params['fwhm']:.5f} +/- {fwhm_err_kms}", clear_after=False)
-                            self.data_field.insert_text(f"Area (erg/s/cm2) = {line_params['area']:.3e} +/- {area_err_str}", clear_after=False)
-                        else:
-                            self.data_field.insert_text("Could not extract fit parameters.\n", clear_after=False)
+                        self._display_single_gaussian_results(line_params)
                 else:
                     self.data_field.insert_text("Fit completed but no valid result object returned.\n", clear_after=False)
             else:
@@ -346,25 +218,105 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Error during fitting: {e}\n", clear_after=False)
             self.data_field.insert_text(f"Traceback: {traceback.format_exc()}\n", clear_after=False)
 
+    def _display_deblend_results(self, line_params):
+        """Display and save deblended line fit results."""
+        self.data_field.insert_text("\nDe-blended line fit results:\n", clear_after=False)
+        
+        selection = self.main_plot.current_selection
+        if selection and len(selection) >= 2:
+            xmin, xmax = selection[0], selection[-1]
+        else:
+            self.data_field.insert_text("Invalid selection for deblending.\n", clear_after=False)
+            return
+            
+        line_info = self.islat.active_molecule.intensity.get_lines_in_range_with_intensity(xmin, xmax)
+        
+        # Extract deblended components using service
+        components = self.deblending_service.extract_deblended_components(
+            line_params,
+            line_info,
+            self.islat.active_molecule.name
+        )
+        
+        spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+        spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
+        save_file_name = f"{spectrum_base_name}-{line_saves_file_name}"
+        
+        # Display each component
+        for component in components:
+            self.data_field.insert_text(f"\nComponent {component['index']+1}:\n", clear_after=False)
+            display_msgs = self.deblending_service.format_component_display(component)
+            for msg in display_msgs:
+                self.data_field.insert_text(msg, clear_after=False)
+        
+        # Save components using service
+        saved_count = self.deblending_service.save_deblended_components(components, save_file_name)
+        
+        if not components:
+            self.data_field.insert_text("No components found in fit result.\n", clear_after=False)
+        else:
+            self.data_field.insert_text(f"\nDe-blended line fit completed with {len(components)} components!", clear_after=False)
+            
+            # Save summary files
+            fit_result_summary = self.main_plot.fitting_engine.get_fit_results_summary()
+            fit_results_components = self.main_plot.fitting_engine.get_fit_results_components()
+            self.deblending_service.save_deblend_summary(
+                fit_result_summary,
+                fit_results_components,
+                spectrum_base_name,
+                line_saves_file_path
+            )
+            
+            # Save plot
+            figpath = os.path.join(line_saves_file_path, f"{spectrum_base_name}-deblend_plot.pdf")
+            self.main_plot.save_fig(figpath, dpi=10)
+            
+            if saved_count > 0:
+                self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_after=False)
+
+    def _display_single_gaussian_results(self, line_params):
+        """Display single Gaussian fit results."""
+        self.data_field.insert_text("\nGaussian fit results:\n", clear_after=False)
+        
+        display_msgs = self.deblending_service.format_single_gaussian_display(line_params)
+        for msg in display_msgs:
+            self.data_field.insert_text(msg, clear_after=False)
+
     def fit_saved_lines(self, multiple_files=False):
         """
-        Fit all saved lines using LineAnalyzer for comprehensive analysis.
+        Fit all saved lines using batch fitting service.
         
         Args:
             multiple_files (bool): If True, allows user to select multiple spectrum files.
                                  If False, fits saved lines to the currently loaded spectrum.
         """
         if not self.islat.input_line_list:
-            self.data_field.insert_text("No input line list file configured.\n")
-            return
+            # Prompt user to load a line list first
+            self.data_field.insert_text("No line list loaded. Please select a line list file.\n")
+            from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
+            result = load_input_line_list()
+            
+            if result is None:
+                self.data_field.insert_text("No line list selected. Operation cancelled.\n")
+                return
+            
+            file_path, file_name = result
+            self.islat.input_line_list = file_path
+            self.data_field.insert_text(f"Loaded line list: {file_name}\n")
+            
+            # Update the FileInteractionPane label if available
+            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_pane'):
+                self.islat.GUI.file_pane.update_file_labels()
         
         if not self.islat.output_line_measurements:
-            #self.data_field.insert_text("No output line measurements file configured.\n")
             self.data_field.insert_text("No output line measurements file configured. Using default\n")
+        
+        # Progress callback for GUI updates
+        def progress_callback(msg):
+            self.data_field.insert_text(msg, clear_after=False)
         
         if multiple_files:
             # Ask user to select multiple spectrum files
-            from tkinter import filedialog
             spectrum_files = filedialog.askopenfilenames(
                 title="Select Spectrum Files to Fit Saved Lines",
                 filetypes=[("All files", "*.*")],
@@ -375,137 +327,145 @@ class TopBar(ResizableFrame):
                 self.data_field.insert_text("No spectrum files selected.\n")
                 return
             
-            self.data_field.insert_text(f"Fitting saved lines to {len(spectrum_files)} spectrum files...\n")
-
-            plot_grid_list = []
-
-            for spectrum_file in spectrum_files:
-                #try:
-                    save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
-                    stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
-                    stellar_rv = float(stellar_rv)
-                    #print(f"Stellar RV for {os.path.basename(spectrum_file)}: {stellar_rv} km/s")
-
-                    try:
-                        # Load the spectrum data
-                        spectrum_df = ifh.read_spectral_data(spectrum_file)
-                        wavedata=np.array(spectrum_df['wave'].values)
-                        wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)  # Apply stellar RV correction
-                        fluxdata=np.array(spectrum_df['flux'].values)
-                        err_data=np.array(spectrum_df['err'].values) #if 'err' in spectrum_df.columns else None
-                        #print(f'Err data loaded: {err_data}')
-                        #print(f"Length of wave data: {len(wavedata)}, flux data: {len(fluxdata)}, err data: {len(err_data)}")
-                        # Fit the saved lines to the loaded spectrum
-                        plot = self._perform_saved_lines_fit(
-                            spectrum_name=os.path.basename(spectrum_file),
-                            wavedata=wavedata,
-                            fluxdata=fluxdata,
-                            err_data=err_data,
-                            plot_results=False,
-                            plot_grid=True
-                        )
-                        plot_grid_list.append(plot)
-
-                        self.data_field.insert_text(f"Completed fitting for: {os.path.basename(spectrum_file)}\n", clear_after=False)
-                    except Exception as load_error:
-                        self.data_field.insert_text(f"Error loading spectrum {os.path.basename(spectrum_file)}: {load_error}\n", clear_after=False)
-                        continue
-                    
-                #except Exception as e:
-                #    self.data_field.insert_text(f"Error processing {os.path.basename(spectrum_file)}: {e}\n", clear_after=False)
+            # Use batch fitting service for multiple files
+            plot_grid_list, output_folder = self.batch_fitting_service.fit_lines_to_multiple_spectra(
+                saved_lines_file=self.islat.input_line_list,
+                spectrum_files=list(spectrum_files),
+                config=self.config,
+                progress_callback=progress_callback,
+                base_output_path=line_saves_file_path
+            )
             
-            self.data_field.insert_text("Completed fitting saved lines to all selected spectra.\n")
-
             if plot_grid_list:
-                # Open a new window to display the plot grid
-                #grid_window = tk.Toplevel(self.master)
-                #grid_window.title("Fit Lines Plot Grid")
-                plot_grid_window = PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
-                #plot_grid_window.pack(fill="both", expand=True)
-
+                # Check user setting for direct PDF save
+                save_directly_to_pdf = self.config.get('save_fit_plot_grid_directly_to_PDF', False)
+                
+                if save_directly_to_pdf:
+                    # Use the output folder created during batch processing
+                    save_path = output_folder if output_folder else line_saves_file_path
+                    self.batch_fitting_service.save_plot_grids_to_pdf(
+                        plot_grid_list,
+                        save_path,
+                        progress_callback=progress_callback
+                    )
+                else:
+                    # Open a new window to display the plot grid
+                    PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
         else:
             # Fit saved lines to the currently loaded spectrum
             self._perform_saved_lines_fit()
 
     def _perform_saved_lines_fit(self, spectrum_name=None, wavedata=None, fluxdata=None, err_data=None, plot_results=True, plot_grid=False):
-        """
-        Internal method to perform the actual saved lines fitting.
-        """
+        """Internal method to perform saved lines fitting on a single spectrum."""
         saved_lines_file = self.islat.input_line_list
-        #output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
         
-        if spectrum_name is not None:
-            spectrum_base_name = os.path.splitext(spectrum_name)[0]
-            output_file = f"{spectrum_base_name}-{os.path.basename(saved_lines_file)}"
-            print(f"Output file for spectrum {spectrum_name}: {output_file}")
-        else:
-            output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
-
-        if spectrum_name is None:
-            spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
-
-        # Validate that files are properly configured
         if not saved_lines_file:
             self.data_field.insert_text("No input line list file configured.\n")
-            return
-
-        self.data_field.insert_text(f"Fitting saved lines from: {saved_lines_file} to spectrum: {spectrum_name}\n")
-
-        # Initialize LineAnalyzer and FittingEngine
-        line_analyzer = LineAnalyzer(self.islat)
-        fitting_engine = FittingEngine(self.islat)
+            return None
         
-        # Perform comprehensive line analysis
-        fit_data = line_analyzer.analyze_saved_lines(
-            saved_lines_file,
-            fitting_engine,
-            output_file,
+        # Progress callback for GUI updates
+        def progress_callback(msg):
+            self.data_field.insert_text(msg, clear_after=False)
+        
+        # Use batch fitting service
+        fit_data = self.batch_fitting_service.fit_lines_to_spectrum(
+            saved_lines_file=saved_lines_file,
+            spectrum_name=spectrum_name,
             wavedata=wavedata,
             fluxdata=fluxdata,
             err_data=err_data,
+            progress_callback=progress_callback
         )
         
         if fit_data:
             fit_results_csv_data, fit_results_data = fit_data
-            successful_fits = sum(1 for result in fit_results_csv_data if result.get('Fit_det', True))
-            total_lines = len(fit_results_csv_data)
-
-            self.data_field.insert_text(f"Completed fitting {successful_fits} out of {total_lines} lines.\n", clear_after=False)
-            self.data_field.insert_text(f"Results saved to: {self.islat.output_line_measurements}\n", clear_after=False)
-
-            # Update progress for each successful fit
-            for i, result in enumerate(fit_results_csv_data):
-                if result.get('Fit_det', True):
-                    center = result.get('Centr_fit', result.get('lam', 0))
-                    snr = result.get('Fit_SN', 0)
-                    self.data_field.insert_text(f"Line {i+1} at {center:.4f} μm: Fit successful", clear_after=False)
-                else:
-                    wavelength = result.get('lam', 0)
-                    self.data_field.insert_text(f"Line {i+1} at {wavelength:.4f} μm: Fit failed", clear_after=False)
-
+            
+            # Display summary
+            summary = self.batch_fitting_service.get_fit_summary(fit_results_csv_data)
+            self.data_field.insert_text(
+                f"Completed fitting {summary['successful_fits']} out of {summary['total_lines']} lines.\n",
+                clear_after=False
+            )
+            self.data_field.insert_text(
+                f"Results saved to: {self.islat.output_line_measurements}\n",
+                clear_after=False
+            )
+            
+            # Display progress for each line
+            progress_msgs = self.batch_fitting_service.format_fit_progress(fit_results_csv_data)
+            for msg in progress_msgs:
+                self.data_field.insert_text(msg, clear_after=False)
+            
             if plot_grid:
                 from iSLAT.Modules.Plotting.FitLinesPlotGrid import FitLinesPlotGrid
-                plot_grid = FitLinesPlotGrid(
+                if spectrum_name is None:
+                    spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+                
+                plot = FitLinesPlotGrid(
                     fit_data=fit_data,
-                    wave_data = wavedata,
-                    flux_data = fluxdata,
-                    err_data = err_data,
-                    fit_line_uncertainty = self.config.get('fit_line_uncertainty', 3.0),
+                    wave_data=wavedata,
+                    flux_data=fluxdata,
+                    err_data=err_data,
+                    fit_line_uncertainty=self.config.get('fit_line_uncertainty', 3.0),
                     spectrum_name=spectrum_name
                 )
-                plot_grid.generate_plot()
-                #plot_grid.plot()
-                return plot_grid
-
+                plot.generate_plot()
+                return plot
+            
             if plot_results:
                 self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)
-
         else:
             self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_after=False)
+        
+        return None
 
     def fit_saved_lines_to_sample(self):
-        """Fit saved line list to a number of spectrum files at once."""
-        self.fit_saved_lines(multiple_files=True)
+        """Fit saved line list to a number of spectrum files at once.
+        
+        If sample spectra have been added via the + button, those are used
+        automatically. Otherwise falls back to the file-selection dialog.
+        """
+        if hasattr(self.islat, 'sample_spectra') and len(self.islat.sample_spectra) > 1:
+            # Use the sample spectra list (already includes the primary)
+            self._fit_saved_lines_to_files(list(self.islat.sample_spectra))
+        else:
+            self.fit_saved_lines(multiple_files=True)
+
+    def _fit_saved_lines_to_files(self, spectrum_files):
+        """Fit saved lines to a given list of spectrum files."""
+        if not self.islat.input_line_list:
+            self.data_field.insert_text("No line list loaded. Please select a line list file.\n")
+            from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
+            result = load_input_line_list()
+            if result is None:
+                self.data_field.insert_text("No line list selected. Operation cancelled.\n")
+                return
+            file_path, file_name = result
+            self.islat.input_line_list = file_path
+            self.data_field.insert_text(f"Loaded line list: {file_name}\n")
+
+        def progress_callback(msg):
+            self.data_field.insert_text(msg, clear_after=False)
+
+        self.data_field.insert_text(f"Fitting saved lines to {len(spectrum_files)} spectra...\n")
+
+        plot_grid_list, output_folder = self.batch_fitting_service.fit_lines_to_multiple_spectra(
+            saved_lines_file=self.islat.input_line_list,
+            spectrum_files=spectrum_files,
+            config=self.config,
+            progress_callback=progress_callback,
+            base_output_path=line_saves_file_path
+        )
+
+        if plot_grid_list:
+            save_directly_to_pdf = self.config.get('save_fit_plot_grid_directly_to_PDF', False)
+            if save_directly_to_pdf:
+                save_path = output_folder if output_folder else line_saves_file_path
+                self.batch_fitting_service.save_plot_grids_to_pdf(
+                    plot_grid_list, save_path, progress_callback=progress_callback
+                )
+            else:
+                PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""
@@ -527,18 +487,46 @@ class TopBar(ResizableFrame):
         except Exception as e:
             self.data_field.insert_text(f"Error finding single lines: {e}\n")
 
-    def single_slab_fit(self):
-        """Run single slab fit analysis."""
-        self.data_field.insert_text("Running single slab fit analysis...\n")
+    def subtract_models_from_data(self):
+        """Subtract visible models from the data spectrum and save result."""
+        self.data_field.insert_text("Subtracting models from spectrum...\n", clear_after=True)
         
         try:
-            output_folder = os.path.dirname(self.islat.output_line_measurements)
+            result = self.islat.subtract_models_from_data(visible_only=True)
+            if result:
+                self.data_field.insert_text(f"Model subtraction complete.\n", clear_after=False)
+            else:
+                self.data_field.insert_text("Model subtraction failed. Check console for details.\n", clear_after=False)
+        except Exception as e:
+            self.data_field.insert_text(f"Error during model subtraction: {e}\n", clear_after=False)
+    
+    def single_slab_fit(self):
+        """Run single slab fit analysis."""        
+        if self.islat.input_line_list is None:
+            self.data_field.insert_text("No input line list specified. Cannot perform slab fit.\n", clear_after=True)
+            return
+
+        self.data_field.insert_text("Running single slab fit analysis...\n", clear_after=False)
+
+        try:
+            try:
+                if not self.islat.output_line_measurements:
+                    self.data_field.insert_text(f"No output line measurements file specified.\nUsing default folder: {line_saves_file_path}.", clear_after=False)
+                    output_folder = line_saves_file_path
+                else:
+                    output_folder = os.path.dirname(self.islat.output_line_measurements)
+            except Exception as e:
+                self.data_field.insert_text(f"Error determining output folder: {e}", clear_after=False)
+                self.data_field.insert_text(f"Using default folder: {line_saves_file_path}", clear_after=False)
+                output_folder = line_saves_file_path
             # Use the SlabModel class to perform the fit
             slab_model = SlabModel(
                 mol_object=self.islat.active_molecule,
                 output_folder=output_folder,
                 data_field=self.data_field,
                 input_file=self.islat.input_line_list,
+                flux_col_name=self.islat.user_settings.get("flux_col_name", "Flux_islat"),
+                error_col_name=self.islat.user_settings.get("error_col_name", "Err_data")
             )
                 
         except Exception as e:
@@ -595,13 +583,32 @@ class TopBar(ResizableFrame):
         try:
             self.atomic_toggle = not self.atomic_toggle
 
-            if self.atomic_toggle:
-                self.main_plot.plot_atomic_lines(data_field=self.data_field)
+            # Check if full spectrum view is active
+            if hasattr(self.main_plot, 'is_full_spectrum') and self.main_plot.is_full_spectrum:
+                # Use optimized toggle method that only adds/removes line artists
+                if hasattr(self.main_plot, 'full_spectrum_plot'):
+                    self.main_plot.full_spectrum_plot.toggle_atomic_lines(self.atomic_toggle)
+                    if hasattr(self.main_plot, 'full_spectrum_plot_canvas'):
+                        self.main_plot.full_spectrum_plot_canvas.draw_idle()
             else:
-                self.main_plot.remove_atomic_lines()
+                # Regular view
+                if self.atomic_toggle:
+                    self.main_plot.plot_atomic_lines(data_field=self.data_field)
+                else:
+                    self.main_plot.remove_atomic_lines()
 
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
+            traceback.print_exc()
+
+    def toggle_summed_spectrum(self):
+        """
+        Toggle the display of the summed spectral flux on the plot.
+        """
+        try:
+            self.main_plot.toggle_summed_spectrum()
+        except Exception as e:
+            self.data_field.insert_text(f"Error toggling summed spectrum: {e}\n")
             traceback.print_exc()
 
     def toggle_full_spectrum(self):
@@ -636,7 +643,7 @@ class TopBar(ResizableFrame):
     def add_molecule(self):
         self.islat.add_molecule_from_hitran()
 
-    def save_parameters(self):
+    def save_parameters(self, file_path = None, auto = False):
         """
         Save current molecule parameters to CSV file.
         """
@@ -660,7 +667,7 @@ class TopBar(ResizableFrame):
                 loaded_spectrum_name=spectrum_name,
                 file_name=molsave_file_name
             )
-            
+                
             # Also save to the general molecules list for session persistence
             #write_molecules_list_csv(self.islat.molecules_dict, loaded_spectrum_name=spectrum_name)
             
@@ -685,7 +692,8 @@ class TopBar(ResizableFrame):
     
     def load_parameters(self):
         """
-        Load molecule parameters from CSV file.
+        Load molecule parameters from CSV file for the current spectrum.
+        Uses the iSLAT class's _load_spectrum_parameters method.
         """
         # Display confirmation dialog
         confirmed = messagebox.askquestion(
@@ -695,61 +703,22 @@ class TopBar(ResizableFrame):
         if confirmed == "no":
             return
         
-        # Get the loaded spectrum name for filename
-        spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+        # Show loading message
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
+            self.islat.GUI.data_field.insert_text(
+                'Loading saved parameters, this may take a moment...',
+                clear_after=True
+            )
         
-        spectrum_base_name = os.path.splitext(spectrum_name)[0] if spectrum_name != "unknown" else "default"
-        save_file = os.path.join(save_folder_path, f"{spectrum_base_name}-{molsave_file_name}")
-
-        if not os.path.exists(save_file):
-            save_file = os.path.join(save_folder_path, f"{spectrum_base_name}.csv-{molsave_file_name}")
+        # Use the iSLAT class method to load parameters
+        self.islat._load_spectrum_parameters()
         
-        if not os.path.exists(save_file):
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
-                self.islat.GUI.data_field.insert_text(
-                    'No save file found for this spectrum.',
-                    clear_after=True
-                )
-            print(f"No save file found at: {save_file}")
-            return
-        
-        try:
-            # Show loading message
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
-                self.islat.GUI.data_field.insert_text(
-                    'Loading saved parameters, this may take a moment...',
-                    clear_after=True
-                )
-                
-            # Clear existing molecules
-            self.islat.molecules_dict.clear()
-            
-            mole_save_data = self.islat.get_mole_save_data()
-            
-            # Initialize molecules from loaded data
-            self.islat.init_molecules(mole_save_data)
-
-            # Update GUI components
-            if hasattr(self.islat, 'GUI'):
-                if hasattr(self.islat.GUI, 'plot'):
-                    self.main_plot.update_all_plots()
-                if hasattr(self.islat.GUI, 'control_panel'):
-                    self.islat.GUI.control_panel.refresh_from_molecules_dict()
-                if hasattr(self.islat.GUI, 'data_field'):
-                    self.islat.GUI.data_field.insert_text(
-                        f'Successfully loaded parameters from: {save_file}',
-                        clear_after=True
-                    )
-            
-            print(f"Successfully loaded {len(mole_save_data)} molecules from: {save_file}")
-            
-        except Exception as e:
-            print(f"Error loading parameters: {e}")
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'data_field'):
-                self.islat.GUI.data_field.insert_text(
-                    f'Error loading parameters: {str(e)}',
-                    clear_after=True
-                )
+        # Update GUI components
+        if hasattr(self.islat, 'GUI'):
+            if hasattr(self.islat.GUI, 'plot'):
+                self.main_plot.update_all_plots()
+            if hasattr(self.islat.GUI, 'control_panel'):
+                self.islat.GUI.control_panel.refresh_from_molecules_dict()
 
     def toggle_legend(self):
         #print("Toggled legend on plot")
