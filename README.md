@@ -1,5 +1,20 @@
 # iSLAT v5.02.02
 
+## **RECOMMENDED**
+If updating from version 4: clone the new iSLAT in a new folder on your machine, and copy over any save files you may have made with version 4 into the respective folders (e.g. SAVES/ or LINESAVES/ or LINELISTS/). 
+
+## Acknowledgements
+- McCaskill et al., in prep. (version 5) 
+- [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (version 4)
+- [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (version 4)
+- [Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract) (if you use the "MIRI_general" line list)
+- [LMFIT](https://lmfit.github.io/lmfit-py/index.html) (if you use any of the fitting functions in iSLAT), plus other packages as appropriate.
+
+Please see the new [wiki page](https://github.com/spexod/iSLAT/wiki) for more detailed information!
+
+## Past Updates
+
+**This is version v5.02.02 - beta release**
 ### Key updates from v5.01.00:
 - Further improvements in speed and computational efficiency
     - Particular improvements to the fit saved lines to sample function through batch processing
@@ -13,18 +28,6 @@
 - Created a CHANGELOG.MD file, which features a more detailed list of changes
 - Added a large number of example Juypter Notebooks showing some of the ways that you can use iSLAT functions without the GUI
 - Made the UserSettings file update when the version number is increased in the default user setting file
-
-## **RECOMMENDED**
-If updating from version 4: clone the new iSLAT in a new folder on your machine, and copy over any save files you may have made with version 4 into the respective folders (e.g. SAVES/ or LINESAVES/ or LINELISTS/). 
-
-## Acknowledgements
-- McCaskill et al., in prep. (version 5) 
-- [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (version 4)
-- [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (version 4)
-- [Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract) (if you use the "MIRI_general" line list)
-- [LMFIT](https://lmfit.github.io/lmfit-py/index.html) (if you use any of the fitting functions in iSLAT), plus other packages as appropriate.
-
-## Past Updates
 
 **This is version v5.01.00 - beta release**
 **Key updates from v5.00.00:**
