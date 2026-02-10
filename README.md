@@ -2,6 +2,8 @@
 
 **iSLAT** (the **i**nteractive **S**pectral-**L**ine **A**nalysis **T**ool) is a python package that provides an interactive interface for the visualization, exploration, and analysis of molecular spectra. Synthetic spectra are made using a simple slab model written by Simon Bruderer and originally described in [Banzatti et al. 2012](https://ui.adsabs.harvard.edu/abs/2012ApJ...745...90B/abstract); the code uses molecular data from [HITRAN](https://hitran.org/) ([Gordon et al. 2022](https://www.sciencedirect.com/science/article/pii/S0022407321004416), [Gordon et al. 2026](https://www.sciencedirect.com/science/article/pii/S0022407326000014?via%3Dihub)). iSLAT has been developed for and tested on spectra at infrared wavelengths as observed at different resolving powers (R = 700-90,000) with: JWST-MIRI, Spitzer-IRS, VLT-CRIRES, IRTF-ISHELL. Examples of these spectra are included for users to practice with the tool functionalities across a range of resolving powers. iSLAT has been built as a flexible tool that should work with one-dimensional molecular spectra observed with other instruments too, provided that some requirements are met (see below). The first public version of iSLAT (version 4) is presented and described in [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) and is still accessible in the branch version4-retired. This is the new version of iSLAT (version 5), which includes significant improvements and updates as described in the Wiki. 
 
+Please see the new [wiki page](https://github.com/spexod/iSLAT/wiki) for detailed information on installation, examples, and GUI functions and parameters.
+
 ## **RECOMMENDED**
 If updating from version 4: clone the new iSLAT in a new folder on your machine, and copy over any save files you may have made with version 4 into the respective folders (e.g. SAVES/ or LINESAVES/ or LINELISTS/). 
 
@@ -12,7 +14,6 @@ If updating from version 4: clone the new iSLAT in a new folder on your machine,
 - [Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract) (if you use the "MIRI_general" or other line lists provided)
 - [LMFIT](https://lmfit.github.io/lmfit-py/index.html) (if you use any of the fitting functions in iSLAT), plus other packages as appropriate.
 
-Please see the new [wiki page](https://github.com/spexod/iSLAT/wiki) for more detailed information!
 
 ## Past Updates
 
