@@ -11,7 +11,7 @@ If updating from version 4: clone the new iSLAT in a new folder on your machine,
 - McCaskill et al., in prep. (version 5) 
 - [Jellison et al. 2024](https://ui.adsabs.harvard.edu/abs/2024arXiv240204060J/abstract) (version 4)
 - [Johnson et al. 2024](https://doi.org/10.5281/zenodo.12167854) (version 4)
-- [Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract) (if you use the "MIRI_general" or other line lists provided)
+- [Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract) (if you use the "MIRI_general" or other line lists provided in LINELISTS/)
 - [LMFIT](https://lmfit.github.io/lmfit-py/index.html) (if you use any of the fitting functions in iSLAT), plus other packages as appropriate.
 
 
