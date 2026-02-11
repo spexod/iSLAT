@@ -31,7 +31,6 @@ If updating from version 4: clone the new iSLAT in a new folder on your machine,
 - Added a large number of example Juypter Notebooks showing some of the ways that you can use iSLAT functions without the GUI
 - Made the UserSettings file update when the version number is increased in the default user setting file
 
-**This is version v5.01.00 - beta release**
 **Key updates from v5.00.00:**
 - Further improvements in speed and computational efficiency.
 - The slab model now accounts for line opacity overlap and mutual saturation, which is particularly important in the case of water ortho-para lines that overlap (see Figure 5 in [Banzatti et al. 2025](https://ui.adsabs.harvard.edu/abs/2025AJ....169..165B/abstract)).
@@ -41,9 +40,6 @@ If updating from version 4: clone the new iSLAT in a new folder on your machine,
     - "Toggle full spectrum" in the main GUI toggles an interactive view of the full spectrum in the main window, by replacing the default zoomed-in plots.
 - The thermal broadening is calculated and displayed for reference for each molecule at the temperature set by the user.
 - The molar mass of each molecule is now saved in their respective Hitran Files.
-
-**This is version v5.00 - beta release**
-*We are in the process of releasing a new version of iSLAT, version 5; here you can start testing it before its official release (you may need to update the code from here more frequently until we officially release the new version). Please refer to the readme file in version 4 for a general description of the tool and its functions. Please let us know of any bugs you may find!*
 
 **Main updates from version 4:** 
 - Substantial speed improvement from global refactoring of the code and data architecture
