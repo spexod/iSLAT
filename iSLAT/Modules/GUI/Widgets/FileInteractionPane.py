@@ -134,7 +134,7 @@ class FileInteractionPane(ttk.Frame):
         
         self.input_line_list_clear_btn = ttk.Button(
             self.label_frame,
-            text="\u2715",
+            text="x",
             width=1,
             command=self._clear_input_line_list
         )
@@ -159,7 +159,7 @@ class FileInteractionPane(ttk.Frame):
         
         self.output_measurements_clear_btn = ttk.Button(
             self.label_frame,
-            text="\u2715",
+            text="x",
             width=1,
             command=self._clear_output_line_measurements
         )
