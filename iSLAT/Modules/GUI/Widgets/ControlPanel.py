@@ -261,10 +261,11 @@ class ControlPanel(ttk.Frame):
             if field_key == 'model_pixel_res':
                 self._match_sampling_btn = ttk.Button(
                     parent, 
-                    text="Match Pix. Sampling", 
+                    text="  Match Pix. Sampling", 
+                    width=22,
                     command=self._toggle_match_spectral_sampling
                 )
-                self._match_sampling_btn.grid(row=row, column=col + 2, padx=1, sticky="w")
+                self._match_sampling_btn.grid(row=row, column=start_col + 2, columnspan=2, padx=1, sticky="w")
                 match_tip = ("Toggle matched spectral sampling.\n"
                              "When enabled, model flux is interpolated\n"
                              "pixel-by-pixel to match the spectrum's\n"
@@ -434,7 +435,7 @@ class ControlPanel(ttk.Frame):
             if new_state:
                 self._match_sampling_btn.configure(text="✓ Match Pix. Sampling")
             else:
-                self._match_sampling_btn.configure(text="Match Pix. Sampling")
+                self._match_sampling_btn.configure(text="  Match Pix. Sampling")
         
         state_text = "enabled" if new_state else "disabled"
         stellar_rv = self.islat.molecules_dict.global_stellar_rv
@@ -1012,7 +1013,7 @@ class ControlPanel(ttk.Frame):
                 if is_matched:
                     self._match_sampling_btn.configure(text="✓ Match Pix. Sampling")
                 else:
-                    self._match_sampling_btn.configure(text="Match Pix. Sampling")
+                    self._match_sampling_btn.configure(text="  Match Pix. Sampling")
             except (AttributeError, TypeError):
                 pass
 

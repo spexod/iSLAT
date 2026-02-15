@@ -91,7 +91,7 @@ class FileInteractionPane(ttk.Frame):
             self.label_frame, 
             text="Load Spectrum"
         )
-        self.load_spectrum_btn.grid(row=0, column=1, sticky="e", padx=(5, 0), pady=2)
+        self.load_spectrum_btn.grid(row=0, column=1, sticky="e", padx=(2, 0), pady=2)
         self.load_spectrum_btn.bind('<Button-1>', self._handle_load_spectrum_click)
         CreateToolTip(
             self.load_spectrum_btn, 
@@ -102,10 +102,10 @@ class FileInteractionPane(ttk.Frame):
         self.add_sample_btn = ttk.Button(
             self.label_frame,
             text="+",
-            width=2,
+            width=1,
             command=self._add_sample_spectra
         )
-        self.add_sample_btn.grid(row=0, column=2, sticky="e", padx=(0, 5), pady=2)
+        self.add_sample_btn.grid(row=0, column=2, sticky="e", padx=(0, 0), pady=2)
         CreateToolTip(self.add_sample_btn, "Add spectra to sample list\n(for Fit Saved Lines To Sample\nand left/right arrow cycling)")
         
         # Row 1: Input line list
@@ -130,15 +130,15 @@ class FileInteractionPane(ttk.Frame):
             text="Load Line List",
             command=self._load_input_line_list
         )
-        self.input_line_list_btn.grid(row=1, column=1, sticky="ew", padx=(5, 0), pady=2)
+        self.input_line_list_btn.grid(row=1, column=1, sticky="ew", padx=(2, 0), pady=2)
         
         self.input_line_list_clear_btn = ttk.Button(
             self.label_frame,
             text="\u2715",
-            width=2,
+            width=1,
             command=self._clear_input_line_list
         )
-        self.input_line_list_clear_btn.grid(row=1, column=2, sticky="e", padx=(0, 5), pady=2)
+        self.input_line_list_clear_btn.grid(row=1, column=2, sticky="e", padx=(0, 0), pady=2)
         CreateToolTip(self.input_line_list_clear_btn, "Clear line list")
         
         # Row 2: Output line measurements
@@ -155,15 +155,15 @@ class FileInteractionPane(ttk.Frame):
             text="Set Output File",
             command=self._load_output_line_measurements
         )
-        self.output_line_measurements_btn.grid(row=2, column=1, sticky="ew", padx=(5, 0), pady=2)
+        self.output_line_measurements_btn.grid(row=2, column=1, sticky="ew", padx=(2, 0), pady=2)
         
         self.output_measurements_clear_btn = ttk.Button(
             self.label_frame,
             text="\u2715",
-            width=2,
+            width=1,
             command=self._clear_output_line_measurements
         )
-        self.output_measurements_clear_btn.grid(row=2, column=2, sticky="e", padx=(0, 5), pady=2)
+        self.output_measurements_clear_btn.grid(row=2, column=2, sticky="e", padx=(0, 0), pady=2)
         CreateToolTip(self.output_measurements_clear_btn, "Clear output file")
 
     def _handle_load_spectrum_click(self, event):
