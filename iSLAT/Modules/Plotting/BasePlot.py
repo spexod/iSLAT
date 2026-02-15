@@ -102,21 +102,47 @@ class BasePlot(ABC):
     def get_molecule_spectrum_data(
         molecule: "Molecule",
         wave_data: Optional[np.ndarray] = None,
+        interpolate_to_input: bool = False,
+        target_wavelengths: Optional[np.ndarray] = None,
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
         Retrieve ``(wavelength, flux)`` from a *Molecule* object.
 
         This delegates to ``molecule.get_flux()`` and works regardless of
         whether the molecule has already been computed or not.
+
+        Parameters
+        ----------
+        molecule : Molecule
+            The molecule to query.
+        wave_data : np.ndarray, optional
+            Wavelength array passed through to ``get_flux``.
+        interpolate_to_input : bool, default False
+            When True the model flux is resampled onto *target_wavelengths*
+            (or *wave_data* when *target_wavelengths* is None).  This is
+            used by the matched-spectral-sampling feature.
+        target_wavelengths : np.ndarray, optional
+            Rest-frame wavelength grid to interpolate onto.  When
+            *interpolate_to_input* is True and this is provided, the model
+            is resampled to these wavelengths (typically the data wavelengths
+            corrected for the global stellar RV) while the returned
+            wavelength array is *wave_data* (the observer-frame grid).
         """
         if molecule is None:
             return None, None
         try:
-            return molecule.get_flux(
-                wavelength_array=wave_data,
+            interp_wave = target_wavelengths if target_wavelengths is not None else wave_data
+            lam, flux = molecule.get_flux(
+                wavelength_array=interp_wave,
                 return_wavelengths=True,
-                interpolate_to_input=False,
+                interpolate_to_input=interpolate_to_input,
             )
+            # When we interpolated to rest-frame target wavelengths, return
+            # the observer-frame (wave_data) wavelengths so the line is plotted
+            # at the correct observed positions.
+            if interpolate_to_input and target_wavelengths is not None and wave_data is not None:
+                lam = wave_data
+            return lam, flux
         except Exception as exc:
             print(f"[BasePlot] Could not get flux for "
                   f"{BasePlot.get_molecule_display_name(molecule)}: {exc}")
@@ -232,9 +258,15 @@ class BasePlot(ABC):
         linewidth: float = 1,
         alpha: float = 0.8,
         linestyle: str = "--",
+        interpolate_to_input: bool = False,
+        target_wavelengths: Optional[np.ndarray] = None,
     ) -> Optional[Line2D]:
         """Plot a single molecule's model spectrum on *ax*."""
-        plot_lam, plot_flux = self.get_molecule_spectrum_data(molecule, wave_data)
+        plot_lam, plot_flux = self.get_molecule_spectrum_data(
+            molecule, wave_data,
+            interpolate_to_input=interpolate_to_input,
+            target_wavelengths=target_wavelengths,
+        )
         if plot_lam is None or plot_flux is None or len(plot_flux) == 0:
             return None
         (line,) = ax.plot(
@@ -258,11 +290,25 @@ class BasePlot(ABC):
         alpha: float = 0.8,
         update_legend: bool = True,
     ) -> None:
-        """Plot all visible molecules from a *MoleculeDict* on *ax*."""
+        """Plot all visible molecules from a *MoleculeDict* on *ax*.
+
+        When *molecules.match_spectral_sampling* is enabled, each molecule's
+        model flux is individually resampled to the data wavelength grid
+        (corrected for the global stellar RV) before plotting.
+        """
+        # Determine if we should interpolate to the data pixel grid
+        use_interp = False
+        target_wave = None
+        if wave_data is not None and hasattr(molecules, 'get_matched_sampling_wavelengths'):
+            use_interp, target_wave = molecules.get_matched_sampling_wavelengths(wave_data)
+            if not use_interp:
+                target_wave = None  # don't pass target wavelengths when not interpolating
+
         visible = molecules.get_visible_molecules(return_objects=True)
         for mol in visible:
             self._plot_molecule_spectrum(
-                ax, mol, wave_data=wave_data, linewidth=linewidth, alpha=alpha
+                ax, mol, wave_data=wave_data, linewidth=linewidth, alpha=alpha,
+                interpolate_to_input=use_interp, target_wavelengths=target_wave,
             )
         if update_legend:
             self._update_legend(ax)

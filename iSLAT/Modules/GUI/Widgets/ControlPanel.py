@@ -409,10 +409,12 @@ class ControlPanel(ttk.Frame):
     def _toggle_match_spectral_sampling(self):
         """Toggle matched spectral sampling mode.
         
-        When enabled, model flux is interpolated pixel-by-pixel to match
-        the spectrum's wavelength grid. This is essential for accurate
-        data-model subtraction, especially for MIRI and other spectra
-        with uneven pixel sampling that varies with wavelength.
+        When enabled, each molecule's rest-frame model flux is individually
+        interpolated onto the data wavelength grid (accounting for the global
+        stellar RV) and then the resampled models are summed.  This is
+        essential for accurate data-model subtraction, especially for MIRI
+        and other spectra with uneven pixel sampling that varies with
+        wavelength.
         """
         if not hasattr(self.islat, 'wave_data') or self.islat.wave_data is None:
             self.data_field.insert_text("No spectrum loaded.")
@@ -435,7 +437,9 @@ class ControlPanel(ttk.Frame):
                 self._match_sampling_btn.configure(text="Match Pix. Sampling")
         
         state_text = "enabled" if new_state else "disabled"
-        self.data_field.insert_text(f"Matched spectral sampling {state_text}.")
+        stellar_rv = self.islat.molecules_dict.global_stellar_rv
+        rv_info = f" (stellar RV = {stellar_rv:.2f} km/s)" if stellar_rv != 0 else ""
+        self.data_field.insert_text(f"Matched spectral sampling {state_text}{rv_info}.")
 
     def _create_molecule_specific_controls(self, parent, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""

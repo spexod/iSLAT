@@ -1336,7 +1336,10 @@ class PlotRenderer:
 
         return picked_value
     
-    def get_molecule_spectrum_data(self, molecule: 'Molecule', wave_data: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def get_molecule_spectrum_data(self, molecule: 'Molecule', wave_data: np.ndarray,
+                                    interpolate_to_input: bool = False,
+                                    target_wavelengths: Optional[np.ndarray] = None,
+                                    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
         Get spectrum data from molecule's caching system.
         
@@ -1349,6 +1352,11 @@ class PlotRenderer:
             Molecule with internal flux caching
         wave_data : np.ndarray
             Wavelength array (passed through to molecule's get_flux)
+        interpolate_to_input : bool, default False
+            When True, resample the model flux onto *target_wavelengths*.
+        target_wavelengths : np.ndarray, optional
+            Rest-frame wavelength grid to resample to (stellar-RV corrected
+            data grid).  Returned wavelengths will be *wave_data*.
             
         Returns
         -------
@@ -1358,7 +1366,11 @@ class PlotRenderer:
         if molecule is None or wave_data is None:
             return None, None
         
-        result_wavelengths, result_flux = BasePlot.get_molecule_spectrum_data(molecule, wave_data)
+        result_wavelengths, result_flux = BasePlot.get_molecule_spectrum_data(
+            molecule, wave_data,
+            interpolate_to_input=interpolate_to_input,
+            target_wavelengths=target_wavelengths,
+        )
         
         if result_wavelengths is not None and result_flux is not None and len(result_flux) > 0:
             debug_config.verbose("plot_renderer",
@@ -1463,8 +1475,23 @@ class PlotRenderer:
                     existing_line = line
                     break
             
+            # When match_spectral_sampling is enabled, resample each molecule's
+            # model onto the data pixel grid (corrected for stellar RV).
+            use_interp = False
+            target_wave = None
+            if hasattr(self, 'islat') and hasattr(self.islat, 'molecules_dict'):
+                mol_dict = self.islat.molecules_dict
+                if hasattr(mol_dict, 'get_matched_sampling_wavelengths') and wave_data is not None:
+                    use_interp, target_wave = mol_dict.get_matched_sampling_wavelengths(wave_data)
+                    if not use_interp:
+                        target_wave = None
+
             # Get spectrum data directly from molecule's caching system
-            plot_lam, plot_flux = self.get_molecule_spectrum_data(molecule, wave_data)
+            plot_lam, plot_flux = self.get_molecule_spectrum_data(
+                molecule, wave_data,
+                interpolate_to_input=use_interp,
+                target_wavelengths=target_wave,
+            )
             
             if plot_lam is None or plot_flux is None:
                 print(f"No spectrum data available for {molecule_name}")
