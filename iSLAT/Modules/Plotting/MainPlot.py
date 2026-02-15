@@ -712,7 +712,6 @@ class iSLATPlot:
         """
         self.plot_renderer.highlight_line_selection(xmin, xmax)
         self.canvas.draw_idle()
-
     
     def remove_atomic_lines(self):
         self.plot_renderer.remove_atomic_lines(self.atomic_lines)

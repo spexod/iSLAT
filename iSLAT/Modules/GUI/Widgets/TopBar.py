@@ -617,7 +617,7 @@ class TopBar(ResizableFrame):
         try:
             # Use the root window from the islat class for the MoleculeSelector
             root_window = getattr(self.islat, 'root', self.master)
-            MoleculeSelector(root_window, self.data_field)
+            MoleculeSelector(root_window, self.data_field, user_settings=self.islat.user_settings)
         except Exception as e:
             print(f"Error opening HITRAN query: {e}")
             if self.data_field:

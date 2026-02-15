@@ -1,5 +1,5 @@
 {
-    "user_settings_version": 1.1,
+    "user_settings_version": 1.2,
     "first_startup": true,
     "reload_default_files": false,
     "fit_line_uncertainty": 3,
@@ -22,6 +22,8 @@
     "intensity_opacity_overlap_setting": true,
     "default_spectra_file_to_load": null,
     "default_line_list_to_load": null,
+    "hitran_min_wave": 0.3,
+    "hitran_max_wave": 2000.0,
     "save_fit_plot_grid_directly_to_PDF": true,
     "update_save_file_names_in_save_csv": true,
     "flux_col_name": "Flux_islat",
