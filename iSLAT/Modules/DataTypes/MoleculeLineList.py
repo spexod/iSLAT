@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import time
 import os
@@ -10,6 +11,7 @@ if TYPE_CHECKING:
 
 # Performance logging
 from iSLAT.Modules.Debug.PerformanceLogger import perf_log, log_timing, PerformanceSection
+from iSLAT.Modules.Debug.DebugConfig import debug_config
 
 #from .MoleculeLine import MoleculeLine
 
@@ -78,10 +80,12 @@ class MoleculeLineList:
                  '_lines_type', '_lines_cache', '_lines_cache_valid', '_wavelengths_cache',
                  '_frequencies_cache', '_a_stein_cache', '_e_up_cache', '_e_low_cache',
                  '_g_up_cache', '_g_low_cache', '_data_loaded', '_filename', '_raw_lines_data',
-                 '_pandas_df_cache', '_molar_mass')
+                 '_pandas_df_cache', '_molar_mass', '_wavelength_range', '_filtered_raw_data',
+                 '_lev_up_cache', '_lev_low_cache')
     
-    def __init__(self, molecule_id: Optional[str] = None, filename: Optional[str] = None, 
-                 lines_data: Optional[List[dict]] = None):
+    def __init__(self, molecule_id: Optional[str] = None, filename: Optional[str | Path] = None, 
+                 lines_data: Optional[List[dict]] = None,
+                 wavelength_range: Optional[tuple] = None):
         """
         Initialize a MoleculeLineList object.
 
@@ -91,8 +95,11 @@ class MoleculeLineList:
             Identifier for the molecule.
         lines_data : list of dict, optional
             List of dictionaries containing line data with keys like 'frequency', 'wavelength', 'intensity', etc.
-        filename : str, optional
+        filename : str | Path, optional
             Path to a .par file to read molecular data from.
+        wavelength_range : tuple of (float, float), optional
+            Wavelength range ``(lam_min, lam_max)`` in microns.  When set,
+            all data accessors return only lines within this range.
         """
         self.molecule_id = molecule_id
         self.lines: List[Any] = []
@@ -102,6 +109,8 @@ class MoleculeLineList:
         self._raw_lines_data = None
         self._pandas_df_cache = None
         self._molar_mass = None
+        self._wavelength_range = wavelength_range
+        self._filtered_raw_data = None
         
         # Define namedtuple types for data structure
         self._partition_type = namedtuple('partition', ['t', 'q'])
@@ -119,6 +128,8 @@ class MoleculeLineList:
         self._e_low_cache = None
         self._g_up_cache = None
         self._g_low_cache = None
+        self._lev_up_cache = None
+        self._lev_low_cache = None
         
         # Lazy loading - only load data when needed
         if filename:
@@ -131,6 +142,46 @@ class MoleculeLineList:
         if not self._data_loaded and self._filename is not None:
             self._load_from_file(self._filename)
             self._data_loaded = True
+
+    # ================================
+    # Wavelength Range Filtering
+    # ================================
+    @property
+    def wavelength_range(self):
+        """Active wavelength range filter, or ``None`` for all lines."""
+        return self._wavelength_range
+
+    @wavelength_range.setter
+    def wavelength_range(self, value):
+        """Set the wavelength range filter.  Invalidates all caches."""
+        if value != self._wavelength_range:
+            self._wavelength_range = value
+            self._filtered_raw_data = None
+            self.lines = None  # Force recreation of line objects
+            self._invalidate_caches()
+
+    def _get_active_raw_data(self):
+        """Return raw line data filtered by *wavelength_range* (if set).
+
+        When ``wavelength_range`` is ``None`` the full array is returned.
+        The filtered view is cached and rebuilt only when the range
+        changes (via the setter which invalidates all caches).
+        """
+        self._ensure_data_loaded()
+        if self._raw_lines_data is None or len(self._raw_lines_data) == 0:
+            return self._raw_lines_data
+
+        if self._wavelength_range is None:
+            return self._raw_lines_data
+
+        if self._filtered_raw_data is not None:
+            return self._filtered_raw_data
+
+        lam_min, lam_max = self._wavelength_range
+        lam_values = self._raw_lines_data['lam']
+        mask = (lam_values >= lam_min) & (lam_values <= lam_max)
+        self._filtered_raw_data = self._raw_lines_data[mask]
+        return self._filtered_raw_data
 
     def _load_from_data(self, lines_data: List[dict]):
         """Load from provided line data with optimized batch processing."""
@@ -315,13 +366,13 @@ class MoleculeLineList:
             print(f"Failed to save cache: {e}")
             return False
 
-    def _load_from_file(self, filename: str):
+    def _load_from_file(self, filename: str | Path):
         """
         Load molecular data from a .par file, using binary cache if available.
         
         Parameters
         ----------
-        filename : str
+        filename : str | Path
             Path to the .par file
         """
         section = PerformanceSection(f"MoleculeLineList._load_from_file({self.molecule_id})")
@@ -345,7 +396,7 @@ class MoleculeLineList:
         if self._is_cache_valid(source_filepath, cache_filepath):
             section.mark("load_from_cache")
             if self._load_from_cache(cache_filepath):
-                print(f"[CACHE HIT] Loaded {self.molecule_id} from binary cache")
+                debug_config.info('molecule_dict', f"[CACHE HIT] Loaded {self.molecule_id} from binary cache")
                 section.mark("cache_load_complete")
                 section.end()
                 section.get_breakdown(print_output=True)
@@ -401,8 +452,9 @@ class MoleculeLineList:
         section.get_breakdown(print_output=True)
         
     def _ensure_lines_created(self):
-        """Ensure MoleculeLine objects are created from raw data."""
-        if self.lines is None and self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
+        """Ensure MoleculeLine objects are created from (filtered) raw data."""
+        active_data = self._get_active_raw_data()
+        if self.lines is None and active_data is not None and len(active_data) > 0:
             from iSLAT.Modules.DataTypes.MoleculeLine import MoleculeLine
             # Create MoleculeLine objects from structured array
             self.lines = [
@@ -418,7 +470,7 @@ class MoleculeLineList:
                     'g_up': int(row['g_up']),
                     'g_low': int(row['g_low'])
                 })
-                for row in self._raw_lines_data
+                for row in active_data
             ]
 
     def _invalidate_caches(self):
@@ -432,7 +484,10 @@ class MoleculeLineList:
         self._e_low_cache = None
         self._g_up_cache = None
         self._g_low_cache = None
+        self._lev_up_cache = None
+        self._lev_low_cache = None
         self._pandas_df_cache = None  # Invalidate DataFrame cache too
+        self._filtered_raw_data = None  # Force re-filter on next access
 
     def get_ndarray(self) -> np.ndarray:
         """
@@ -465,8 +520,9 @@ class MoleculeLineList:
         self._ensure_data_loaded()
         
         # Create DataFrame directly from structured numpy array if available
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            return pd.DataFrame(self._raw_lines_data)
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            return pd.DataFrame(active_data)
         
         self._ensure_lines_created()
         if not self.lines:
@@ -504,13 +560,18 @@ class MoleculeLineList:
         self._ensure_data_loaded()
         return self.partition_function
     
+    def __len__(self) -> int:
+        """Return the number of lines in the list."""
+        return self.num_lines
+    
     @property
     def num_lines(self):
-        """Number of lines in the list"""
+        """Number of lines in the list (respects wavelength_range filter)."""
         self._ensure_data_loaded()
         # Use structured array if available for faster count
-        if self._raw_lines_data is not None:
-            return len(self._raw_lines_data)
+        active_data = self._get_active_raw_data()
+        if active_data is not None:
+            return len(active_data)
         elif self.lines is not None:
             return len(self.lines)
         return 0
@@ -526,19 +587,20 @@ class MoleculeLineList:
             return self._lines_cache
         
         # Use structured array for fast column access (O(1) slicing)
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
             # Direct column access from structured array - no list comprehension needed
             self._lines_cache = self._lines_type(
-                self._raw_lines_data['nr'],
-                self._raw_lines_data['lev_up'],
-                self._raw_lines_data['lev_low'],
-                self._raw_lines_data['lam'],
-                self._raw_lines_data['freq'],
-                self._raw_lines_data['a_stein'],
-                self._raw_lines_data['e_up'],
-                self._raw_lines_data['e_low'],
-                self._raw_lines_data['g_up'],
-                self._raw_lines_data['g_low']
+                active_data['nr'],
+                active_data['lev_up'],
+                active_data['lev_low'],
+                active_data['lam'],
+                active_data['freq'],
+                active_data['a_stein'],
+                active_data['e_up'],
+                active_data['e_low'],
+                active_data['g_up'],
+                active_data['g_low']
             )
         else:
             # Fallback to using MoleculeLine objects
@@ -576,8 +638,9 @@ class MoleculeLineList:
             return self._wavelengths_cache
         
         # Use direct structured array column access (O(1) slice)
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            self._wavelengths_cache = self._raw_lines_data['lam'].copy()
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._wavelengths_cache = active_data['lam'].copy()
         else:
             self._ensure_lines_created()
             if not self.lines:
@@ -603,8 +666,9 @@ class MoleculeLineList:
             return self._frequencies_cache
         
         # Use direct structured array column access (O(1) slice)
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            self._frequencies_cache = self._raw_lines_data['freq'].copy()
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._frequencies_cache = active_data['freq'].copy()
         else:
             self._ensure_lines_created()
             if not self.lines:
@@ -630,8 +694,9 @@ class MoleculeLineList:
             return self._a_stein_cache
         
         # Use direct structured array column access (O(1) slice)
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            self._a_stein_cache = self._raw_lines_data['a_stein'].copy()
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._a_stein_cache = active_data['a_stein'].copy()
         else:
             self._ensure_lines_created()
             if not self.lines:
@@ -657,8 +722,9 @@ class MoleculeLineList:
             return self._e_up_cache
         
         # Use direct structured array column access (O(1) slice)
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            self._e_up_cache = self._raw_lines_data['e_up'].copy()
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._e_up_cache = active_data['e_up'].copy()
         else:
             self._ensure_lines_created()
             if not self.lines:
@@ -684,8 +750,9 @@ class MoleculeLineList:
             return self._e_low_cache
         
         # Use direct structured array column access (O(1) slice)
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            self._e_low_cache = self._raw_lines_data['e_low'].copy()
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._e_low_cache = active_data['e_low'].copy()
         else:
             self._ensure_lines_created()
             if not self.lines:
@@ -711,8 +778,9 @@ class MoleculeLineList:
             return self._g_up_cache
         
         # Use direct structured array column access (O(1) slice)
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            self._g_up_cache = self._raw_lines_data['g_up'].copy()
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._g_up_cache = active_data['g_up'].copy()
         else:
             self._ensure_lines_created()
             if not self.lines:
@@ -738,8 +806,9 @@ class MoleculeLineList:
             return self._g_low_cache
         
         # Use direct structured array column access (O(1) slice)
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            self._g_low_cache = self._raw_lines_data['g_low'].copy()
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._g_low_cache = active_data['g_low'].copy()
         else:
             self._ensure_lines_created()
             if not self.lines:
@@ -768,11 +837,12 @@ class MoleculeLineList:
         self._ensure_data_loaded()
         
         # Use structured array boolean mask for efficient filtering
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
             # Boolean mask indexing is O(n) but very fast with numpy
-            lam_values = self._raw_lines_data['lam']
+            lam_values = active_data['lam']
             mask = (lam_values >= lam_min) & (lam_values <= lam_max)
-            filtered_raw = self._raw_lines_data[mask]
+            filtered_raw = active_data[mask]
             
             # Create MoleculeLine objects from filtered structured array
             from iSLAT.Modules.DataTypes.MoleculeLine import MoleculeLine
@@ -817,9 +887,10 @@ class MoleculeLineList:
         self._ensure_data_loaded()
         
         # Use structured array column access if the attribute is a field
-        if self._raw_lines_data is not None and len(self._raw_lines_data) > 0:
-            if attribute_name in self._raw_lines_data.dtype.names:
-                return self._raw_lines_data[attribute_name].copy()
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            if attribute_name in active_data.dtype.names:
+                return active_data[attribute_name].copy()
         
         # Fallback to line objects
         self._ensure_lines_created()
@@ -887,7 +958,8 @@ class MoleculeLineList:
             return self._pandas_df_cache
         
         # Check if we have raw data to convert
-        if self._raw_lines_data is None or len(self._raw_lines_data) == 0:
+        active_data = self._get_active_raw_data()
+        if active_data is None or len(active_data) == 0:
             return None
         
         pd = _get_pandas()
@@ -895,7 +967,7 @@ class MoleculeLineList:
             return None
         
         # Create DataFrame directly from structured numpy array - very efficient
-        self._pandas_df_cache = pd.DataFrame(self._raw_lines_data)
+        self._pandas_df_cache = pd.DataFrame(active_data)
         
         return self._pandas_df_cache
     
@@ -904,3 +976,190 @@ class MoleculeLineList:
         """Get the molar mass of the molecule."""
         self._ensure_data_loaded()
         return self._molar_mass
+    
+    def get_upper_levels(self) -> np.ndarray:
+        """
+        Get all upper level energies from the lines.
+        
+        Returns
+        -------
+        np.ndarray
+            Array of upper level energies
+        """
+        self._ensure_data_loaded()
+        
+        # Use cached values if available
+        if self._lev_up_cache is not None:
+            return self._lev_up_cache
+        
+        # Use direct structured array column access (O(1) slice)
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._lev_up_cache = active_data['lev_up'].copy()
+        else:
+            self._ensure_lines_created()
+            if not self.lines:
+                self._lev_up_cache = np.array([])
+            else:
+                self._lev_up_cache = np.array([line.lev_up for line in self.lines])
+                
+        return self._lev_up_cache
+    
+    def get_lower_levels(self) -> np.ndarray:
+        """
+        Get all lower level energies from the lines.
+        
+        Returns
+        -------
+        np.ndarray
+            Array of lower level energies
+        """
+        self._ensure_data_loaded()
+        
+        # Use cached values if available
+        if self._lev_low_cache is not None:
+            return self._lev_low_cache
+        
+        # Use direct structured array column access (O(1) slice)
+        active_data = self._get_active_raw_data()
+        if active_data is not None and len(active_data) > 0:
+            self._lev_low_cache = active_data['lev_low'].copy()
+        else:
+            self._ensure_lines_created()
+            if not self.lines:
+                self._lev_low_cache = np.array([])
+            else:
+                self._lev_low_cache = np.array([line.lev_low for line in self.lines])
+                
+        return self._lev_low_cache
+
+    # ================================
+    # .par File Writing
+    # ================================
+
+    def _write_line_data(self, fh, lines_df: Optional["pandas.DataFrame"] = None):
+        """Write line data to an open file handle in .par format.
+
+        Writes directly from the internal structured array or from an
+        externally supplied DataFrame (e.g. a filtered subset).
+
+        Parameters
+        ----------
+        fh : file handle
+            Writable file handle.
+        lines_df : pandas.DataFrame, optional
+            A DataFrame with the same columns as ``get_pandas_table()``.
+            When provided, these rows are written instead of the full
+            internal line list.
+
+        Returns
+        -------
+        fh : file handle
+            The same handle, for chaining.
+        """
+        if lines_df is not None:
+            raw = lines_df.to_records(index=False)
+        else:
+            self._ensure_data_loaded()
+            raw = self._raw_lines_data
+
+        numlines = len(raw) if raw is not None else 0
+
+        fh.write("Number of lines\n")
+        fh.write(str(numlines) + '\n')
+
+        fh.write("#    Nr                        Lev_up                       Lev_low   Lambda    Frequency")
+        fh.write("       Einstein-A     E_up           E_low        g_up   g_low\n")
+        fh.write("#                                                                    [micron]  [GHz]    ")
+        fh.write("       [s**-1]        [K]            [K]        \n")
+
+        if raw is not None:
+            for row in raw:
+                # freq is stored in Hz internally; .par format expects GHz
+                freq_ghz = float(row['freq']) / 1e9
+                fh.write(
+                    "{:6d}{:>30s}{:>30s}{:11.5f}{:15.8f}{:13.4e}{:15.5f}{:15.5f}{:7.1f}{:7.1f}\n".format(
+                        int(row['nr']),
+                        str(row['lev_up']),
+                        str(row['lev_low']),
+                        float(row['lam']),
+                        freq_ghz,
+                        float(row['a_stein']),
+                        float(row['e_up']),
+                        float(row['e_low']),
+                        float(row['g_up']),
+                        float(row['g_low']),
+                    )
+                )
+
+        return fh
+
+    def write_par_file(
+        self,
+        file_path: str | Path,
+        header: Optional["pandas.DataFrame"] = None,
+        lines_df: Optional["pandas.DataFrame"] = None,
+    ) -> None:
+        """Write the line list to a .par file.
+
+        Reuses the existing ``write_partition_function`` writer for the
+        partition-function block and writes line data directly from the
+        internal structured array (or from *lines_df* when supplied).
+
+        Parameters
+        ----------
+        file_path : str or Path
+            Output path for the .par file.
+        header : pandas.DataFrame, optional
+            Single-row DataFrame that can override default header fields.
+            Recognised columns (all optional): ``'mol'``, ``'M'``,
+            ``'isotopologue'``, ``'G'``, ``'molar_mass'``, ``'source'``,
+            ``'date'``.  Missing or ``None`` values fall back to defaults
+            derived from the line list's own metadata.
+        lines_df : pandas.DataFrame, optional
+            A filtered DataFrame (same columns as ``get_pandas_table()``).
+            When provided, only these rows are written.  The partition
+            function is still taken from the line list itself.
+        """
+        import datetime
+        from pathlib import Path as _Path
+        from iSLAT.Modules.FileHandling.partition_function_writer import write_partition_function
+
+        self._ensure_data_loaded()
+        file_path = _Path(file_path)
+        os.makedirs(file_path.parent, exist_ok=True)
+
+        # Build header overrides dict
+        overrides: dict = {}
+        if header is not None and not header.empty:
+            overrides = {
+                col: header[col].iloc[0]
+                for col in header.columns
+                if header[col].iloc[0] is not None
+            }
+
+        h_mol = overrides.get('mol', self.molecule_id or '')
+        h_M = overrides.get('M', '')
+        h_iso = overrides.get('isotopologue', '')
+        h_G = overrides.get('G', '')
+        h_mass = overrides.get('molar_mass', self._molar_mass or '')
+        h_source = overrides.get('source', 'Written from MoleculeLineList')
+        h_date = overrides.get('date', str(datetime.date.today()))
+
+        with open(file_path, 'w') as fh:
+            fh.write(f"# HITRAN {h_mol}; id:{h_M}; iso:{h_iso};gid:{h_G}\n")
+            fh.write(f"# Molar Mass: {h_mass}\n")
+            fh.write(f"# {h_source}\n")
+            fh.write(f"# {h_date}\n")
+
+            # Partition function — normalise column names to temp/q
+            if self.partition_function is not None:
+                pd = _get_pandas()
+                if pd is not None:
+                    qdata = pd.DataFrame({
+                        'temp': self.partition_function.t,
+                        'q': self.partition_function.q,
+                    })
+                    fh = write_partition_function(fh, qdata)
+
+            fh = self._write_line_data(fh, lines_df=lines_df)

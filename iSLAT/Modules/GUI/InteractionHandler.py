@@ -485,6 +485,14 @@ class InteractionHandler:
                 self._toggle_legend()
             return 'break'
         
+        # Handle left/right arrow keys for cycling through sample spectra
+        elif keysym == 'left':
+            self._cycle_spectrum_previous()
+            return 'break'
+        elif keysym == 'right':
+            self._cycle_spectrum_next()
+            return 'break'
+        
         # Handle 'a' key for toggling atomic lines
         elif keysym == 'a':
             self._toggle_atomic_lines()
@@ -494,6 +502,20 @@ class InteractionHandler:
         elif keysym == 'm':
             self._toggle_summed_spectrum()
             return 'break'
+
+    def _cycle_spectrum_previous(self):
+        """Switch to the previous spectrum in the sample list."""
+        if hasattr(self.islat, 'sample_spectra') and self.islat.sample_spectra:
+            self.islat.cycle_spectrum(-1)
+            if hasattr(self.islat, 'GUI') and self.islat.GUI and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                self.islat.GUI.file_interaction_pane.update_sample_spectra_label()
+
+    def _cycle_spectrum_next(self):
+        """Switch to the next spectrum in the sample list."""
+        if hasattr(self.islat, 'sample_spectra') and self.islat.sample_spectra:
+            self.islat.cycle_spectrum(1)
+            if hasattr(self.islat, 'GUI') and self.islat.GUI and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                self.islat.GUI.file_interaction_pane.update_sample_spectra_label()
 
     def _select_next_molecule(self):
         """Select the next molecule in the list"""

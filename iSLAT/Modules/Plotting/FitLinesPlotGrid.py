@@ -3,6 +3,9 @@ import numpy as np
 #import pandas as pd
 
 from typing import Dict, List, Optional, Tuple, Callable, Any, Union, TYPE_CHECKING
+
+from .BasePlot import BasePlot
+
 if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.Molecule import Molecule
@@ -10,7 +13,7 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from lmfit.model import ModelResult
 
-class FitLinesPlotGrid:
+class FitLinesPlotGrid(BasePlot):
     def __init__(self, #files : List[str], 
                  #molecules_dict: 'MoleculeDict', 
                  fit_data: Dict[str, Any] = None,
@@ -40,6 +43,10 @@ class FitLinesPlotGrid:
 
         self.spectrum_name = kwargs.get('spectrum_name', 'Spectrum')
         self.figsize = kwargs.get('figsize', (2.5 * self.cols, 2 * self.rows))
+
+        # Initialize BasePlot with computed figsize
+        super().__init__(figsize=self.figsize, **kwargs)
+
         self.fig: Figure
         self.axs: np.ndarray[Axes]
         self.fig = plt.figure(figsize=self.figsize)
@@ -123,4 +130,4 @@ class FitLinesPlotGrid:
     
     def plot(self):
         self.generate_plot()
-        plt.show(block=False)
+        self.show(block=False)
