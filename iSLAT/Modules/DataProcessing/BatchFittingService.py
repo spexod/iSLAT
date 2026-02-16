@@ -150,8 +150,7 @@ def _fit_task_worker(task_data: Dict[str, Any]) -> Tuple[int, int, Dict, Any, An
         lam_range = wave_data[wavelength_mask]
         flux_range = flux_data[wavelength_mask]
         if len(lam_range) >= 2:
-            SPEED_OF_LIGHT_MICRONS = 2.99792458e14  # μm/s
-            freq_range = SPEED_OF_LIGHT_MICRONS / lam_range[::-1]
+            freq_range = c.SPEED_OF_LIGHT_MICRONS / lam_range[::-1]
             flux_data_integral = -np.trapezoid(flux_range[::-1], x=freq_range[::-1]) * 1e-23
             if err_data is not None:
                 err_range = err_data[wavelength_mask]
@@ -404,18 +403,12 @@ class BatchFittingService:
     BATCH_FITTING_MAX_WORKERS: int = None  # None uses CPU count - 1
     USE_PROCESS_POOL: bool = True  # True = ProcessPoolExecutor (true parallelism), False = ThreadPoolExecutor (shared memory)
     
-    def __init__(self, islat_instance):
+    def __init__(self):
         """
         Initialize the batch fitting service.
-        
-        Parameters
-        ----------
-        islat_instance : iSLAT
-            Reference to the main iSLAT instance for accessing data and configuration
         """
-        self.islat = islat_instance
-        self.line_analyzer = LineAnalyzer(islat_instance)
-        self.fitting_engine = FittingEngine(islat_instance)
+        self.line_analyzer = LineAnalyzer()
+        self.fitting_engine = FittingEngine()
         # Cache for saved lines to avoid re-reading
         self._saved_lines_cache: Dict[str, pd.DataFrame] = {}
         # Thread-safe printing lock
@@ -532,12 +525,12 @@ class BatchFittingService:
             Path to the saved lines CSV file
         spectrum_name : str, optional
             Name of the spectrum being fitted
-        wavedata : np.ndarray, optional
-            Wavelength data. If None, uses islat.wave_data
-        fluxdata : np.ndarray, optional
-            Flux data. If None, uses islat.flux_data
-        err_data : np.ndarray, optional
-            Error data. If None, uses islat.err_data
+        wavedata : np.ndarray
+            Wavelength data
+        fluxdata : np.ndarray
+            Flux data
+        err_data : np.ndarray
+            Error data
         output_file : str, optional
             Output file name for fit results
         progress_callback : callable, optional
@@ -564,10 +557,10 @@ class BatchFittingService:
                 spectrum_base_name = os.path.splitext(spectrum_name)[0]
                 output_file = f"{spectrum_base_name}-{os.path.basename(saved_lines_file)}"
             else:
-                output_file = self.islat.output_line_measurements if self.islat.output_line_measurements else "fit_results.csv"
+                output_file = "fit_results.csv"
         
         if spectrum_name is None:
-            spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+            spectrum_name = 'unknown'
         
         if progress_callback:
             progress_callback(f"Fitting saved lines from: {saved_lines_file} to spectrum: {spectrum_name}\n")
@@ -596,7 +589,8 @@ class BatchFittingService:
         parallel: Optional[bool] = None,
         max_workers: Optional[int] = None,
         defer_plots: bool = True,
-        base_output_path: Optional[str] = None
+        base_output_path: Optional[str] = None,
+        get_mole_save_data: Optional[Callable] = None
     ) -> Tuple[List[Any], Optional[str]]:
         """
         Fit saved lines to multiple spectrum files with optional parallel processing.
@@ -619,6 +613,8 @@ class BatchFittingService:
             If True, generate plots after all fitting is complete (default: True)
         base_output_path : str, optional
             Base directory for output. If provided, creates a unique subfolder.
+        get_mole_save_data : callable, optional
+            Function that accepts a spectrum filename and returns molecule save data dict.
             
         Returns
         -------
@@ -657,7 +653,8 @@ class BatchFittingService:
         # Use the flattened work queue approach for optimal parallelism
         if parallel:
             fit_results = self._fit_multiple_spectra_flattened(
-                spectrum_files, saved_lines_file, saved_lines_df, config, max_workers, progress_callback
+                spectrum_files, saved_lines_file, saved_lines_df, config, max_workers, progress_callback,
+                get_mole_save_data=get_mole_save_data
             )
         else:
             # Sequential processing
@@ -668,7 +665,8 @@ class BatchFittingService:
                         spectrum_file,
                         saved_lines_file,
                         saved_lines_df,
-                        config
+                        config,
+                        get_mole_save_data=get_mole_save_data
                     )
                     if result:
                         fit_results.append(result)
@@ -716,7 +714,8 @@ class BatchFittingService:
         saved_lines_df: pd.DataFrame,
         config: Dict[str, Any],
         max_workers: Optional[int],
-        progress_callback: Optional[Callable[[str], None]] = None
+        progress_callback: Optional[Callable[[str], None]] = None,
+        get_mole_save_data: Optional[Callable] = None
     ) -> List[Dict[str, Any]]:
         """
         Fit multiple spectra using a flattened work queue for optimal CPU utilization.
@@ -758,9 +757,11 @@ class BatchFittingService:
         
         for spectrum_idx, spectrum_file in enumerate(spectrum_files):
             try:
-                save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
-                stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
-                stellar_rv = float(stellar_rv)
+                stellar_rv = 0.0
+                if get_mole_save_data is not None:
+                    save_info = get_mole_save_data(os.path.basename(spectrum_file))
+                    stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
+                    stellar_rv = float(stellar_rv)
                 
                 spectrum_df = ifh.read_spectral_data(spectrum_file)
                 wavedata = spectrum_df['wave'].to_numpy()
@@ -952,7 +953,8 @@ class BatchFittingService:
         saved_lines_file: str,
         saved_lines_df: pd.DataFrame,
         config: Dict[str, Any],
-        progress_callback: Optional[Callable[[str], None]] = None
+        progress_callback: Optional[Callable[[str], None]] = None,
+        get_mole_save_data: Optional[Callable] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Fit saved lines to a single spectrum file.
@@ -971,6 +973,8 @@ class BatchFittingService:
             Configuration dictionary
         progress_callback : callable, optional
             Callback for progress updates
+        get_mole_save_data : callable, optional
+            Function that accepts a spectrum filename and returns molecule save data dict.
         
         Returns
         -------
@@ -979,9 +983,11 @@ class BatchFittingService:
         """
         try:
             # Get stellar RV for this spectrum
-            save_info = self.islat.get_mole_save_data(os.path.basename(spectrum_file))
-            stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
-            stellar_rv = float(stellar_rv)
+            stellar_rv = 0.0
+            if get_mole_save_data is not None:
+                save_info = get_mole_save_data(os.path.basename(spectrum_file))
+                stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
+                stellar_rv = float(stellar_rv)
             
             # Load the spectrum data
             spectrum_df = ifh.read_spectral_data(spectrum_file)

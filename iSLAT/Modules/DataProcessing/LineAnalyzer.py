@@ -22,16 +22,10 @@ class LineAnalyzer:
     PARALLEL_LINE_FITTING: bool = True
     LINE_FITTING_MAX_WORKERS: int = None  # None uses CPU count - 1
     
-    def __init__(self, islat_instance):
+    def __init__(self):
         """
         Initialize the line analyzer.
-        
-        Parameters
-        ----------
-        islat_instance : iSLAT
-            Reference to the main iSLAT instance for accessing data and configuration
         """
-        self.islat = islat_instance
         self.detected_lines = []
         self.line_measurements = {}
         
@@ -376,6 +370,12 @@ class LineAnalyzer:
             Fitting engine instance to use for formatting results
         output_file : str, optional
             Output file name for results
+        wavedata : np.ndarray
+            Wavelength data array (required)
+        fluxdata : np.ndarray
+            Flux data array (required)
+        err_data : np.ndarray
+            Error data array (required)
         output_path : str, optional
             Output directory path for results. If None, uses default.
         progress_callback : callable, optional
@@ -407,9 +407,9 @@ class LineAnalyzer:
         
         sig_det_lim = 2  # Detection limit for signal-to-noise ratio
 
-        calc_wave_data = self.islat.wave_data if wavedata is None else wavedata
-        calc_flux_data = self.islat.flux_data if fluxdata is None else fluxdata
-        calc_err_data = self.islat.err_data if err_data is None else err_data
+        calc_wave_data = wavedata
+        calc_flux_data = fluxdata
+        calc_err_data = err_data
         
         total_lines = len(saved_lines)
         

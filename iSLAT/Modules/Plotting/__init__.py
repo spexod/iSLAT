@@ -23,6 +23,10 @@ Class hierarchy::
     ├── FullSpectrumPlot       — multi-panel full spectrum overview
     ├── MainPlotGrid           — 3-panel composite (spectrum + inspection + pop-diagram)
     └── FitLinesPlotGrid       — grid of individual line-fit results
+
+    PlotView (ABC)             — switchable view interface (GUI only)
+    ├── ThreePanelView         — standard 3-panel GUI layout
+    └── FullSpectrumView       — multi-panel full spectrum GUI layout
 """
 
 from .BasePlot import BasePlot, DEFAULT_THEME
@@ -31,6 +35,9 @@ from .PopulationDiagramPlot import PopulationDiagramPlot
 from .FullSpectrumPlot import FullSpectrumPlot
 from .MainPlotGrid import MainPlotGrid
 from .FitLinesPlotGrid import FitLinesPlotGrid
+from .PlotView import PlotView
+from .ThreePanelView import ThreePanelView
+from .FullSpectrumView import FullSpectrumView
 
 __all__ = [
     "BasePlot",
@@ -40,4 +47,7 @@ __all__ = [
     "FullSpectrumPlot",
     "MainPlotGrid",
     "FitLinesPlotGrid",
+    "PlotView",
+    "ThreePanelView",
+    "FullSpectrumView",
 ]

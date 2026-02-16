@@ -11,6 +11,9 @@ import iSLAT.Constants as c
 
 from .PlotRenderer import PlotRenderer
 from .BasePlot import BasePlot
+from .PlotView import PlotView
+from .ThreePanelView import ThreePanelView
+from .FullSpectrumView import FullSpectrumView
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
@@ -94,8 +97,17 @@ class iSLATPlot:
         # Initialize the modular classes
         self.plot_renderer = PlotRenderer(self)
         self.interaction_handler = InteractionHandler(self)
-        self.fitting_engine = FittingEngine(self.islat)
-        self.line_analyzer = LineAnalyzer(self.islat)
+        self.fitting_engine = FittingEngine()
+        self.line_analyzer = LineAnalyzer()
+
+        # --- View strategy pattern ---
+        # The active_view is the current rendering strategy.
+        # ThreePanelView delegates to the existing axes + PlotRenderer.
+        # FullSpectrumView wraps the multi-panel OutputFullSpectrum.
+        self._three_panel_view: PlotView = ThreePanelView(self)
+        self._full_spectrum_view: PlotView = FullSpectrumView(self)
+        self.active_view: PlotView = self._three_panel_view
+        self.is_full_spectrum: bool = False
 
         # Set up interaction handler callbacks
         self.interaction_handler.set_span_select_callback(self.onselect)
@@ -193,6 +205,20 @@ class iSLATPlot:
         """Get display name for a molecule (delegates to :class:`BasePlot`)."""
         return BasePlot.get_molecule_display_name(molecule)
 
+    # ------------------------------------------------------------------
+    # Backward-compatibility properties for external code that still
+    # references full_spectrum_plot / full_spectrum_plot_canvas directly.
+    # ------------------------------------------------------------------
+    @property
+    def full_spectrum_plot(self):
+        """Return the underlying FullSpectrumPlot if it exists."""
+        return self._full_spectrum_view._fsp
+
+    @property
+    def full_spectrum_plot_canvas(self):
+        """Return the full-spectrum canvas if it exists."""
+        return self._full_spectrum_view._canvas
+
     @property
     def line_inspection_plot(self):
         """Access the reusable :class:`LineInspectionPlot` delegate."""
@@ -222,15 +248,10 @@ class iSLATPlot:
         """Handle global parameter changes that affect all molecules"""
         # For match_spectral_sampling, update plots but preserve line inspection
         if parameter_name == 'match_spectral_sampling':
-            # Handle full spectrum mode
-            if hasattr(self, 'is_full_spectrum') and self.is_full_spectrum:
-                if hasattr(self, 'full_spectrum_plot') and hasattr(self, 'full_spectrum_plot_canvas'):
-                    self.full_spectrum_plot.reload_data()
-                    self.full_spectrum_plot_canvas.draw_idle()
-            else:
-                # Normal mode
-                self.update_model_plot()
-                # If there's an active line inspection selection, refresh it too
+            # Delegate to active view for model update
+            self.active_view.update_model_plot()
+            # If there's an active line inspection selection in 3-panel mode, refresh it
+            if not self.is_full_spectrum:
                 if hasattr(self, 'current_selection') and self.current_selection:
                     xmin, xmax = self.current_selection
                     self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
@@ -338,77 +359,18 @@ class iSLATPlot:
     def update_model_plot(self):
         """
         Updates the main spectrum plot with observed data, model spectra, and summed flux.
-        Uses molecules' built-in caching and hashing for optimal performance.
-        
-        If the full spectrum view is currently active, refreshes that instead of
-        (or in addition to) the regular three-panel canvas so the UI stays current
-        when a new spectrum is loaded or molecule parameters change.
+
+        Delegates to the active view so the correct panel layout is refreshed.
+        The three-panel view also keeps the underlying axes current so a switch
+        back from full-spectrum mode will be up-to-date.
         """
-        # If full spectrum mode is active, refresh it so the visible view stays current
-        if getattr(self, 'is_full_spectrum', False) and hasattr(self, 'full_spectrum_plot'):
-            try:
-                old_fig = self.full_spectrum_plot.fig
-                self.full_spectrum_plot.reload_data()
-                # If reload_data rebuilt the figure (wavelength range changed),
-                # the canvas still references the old figure — recreate it.
-                if self.full_spectrum_plot.fig is not old_fig and hasattr(self, 'full_spectrum_plot_canvas'):
-                    self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
-                    self.full_spectrum_plot_canvas.get_tk_widget().destroy()
-                    self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
-                        self.full_spectrum_plot.fig,
-                        master=self.parent_frame
-                    )
-                    self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
-                if hasattr(self, 'full_spectrum_plot_canvas'):
-                    self.full_spectrum_plot_canvas.draw_idle()
-            except Exception as e:
-                debug_config.warning("main_plot", f"Failed to update full spectrum plot: {e}")
-            # Still update the underlying regular plot data so it's ready when
-            # the user switches back — but skip the canvas.draw_idle() at the end
-            # since the regular canvas is hidden.
+        # Always update the active view
+        self.active_view.update_model_plot()
 
-        if not hasattr(self.islat, 'molecules_dict') or len(self.islat.molecules_dict) == 0:
-            self.plot_renderer.clear_model_lines()
-            self.canvas.draw_idle()
-            return
-        
-        wave_data = self.islat.wave_data_original
-        
-        try:
-            if hasattr(self.islat.molecules_dict, 'get_summed_flux'):
-                debug_config.trace("main_plot", "Using MoleculeDict.get_summed_flux() for model plot")
-                summed_wavelengths, summed_flux = self.islat.molecules_dict.get_summed_flux(wave_data, visible_only=True)
-        except Exception as e:
-                #mol_name = self._get_molecule_display_name(molecule)
-                debug_config.warning("main_plot", f"Could not get flux form molecule dict: {e}")
-    
-        wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * self.islat.molecules_dict.global_stellar_rv)
-        self.islat.wave_data = wave_data # Update islat wave_data to match adjusted grid
-
-        self.atomic_lines.clear()
-        self.saved_lines.clear()
-
-        self.plot_renderer.render_main_spectrum_plot(
-            wave_data=wave_data,
-            flux_data=self.islat.flux_data,
-            molecules=self.islat.molecules_dict,
-            summed_wavelengths=summed_wavelengths,
-            summed_flux=summed_flux,
-            error_data=getattr(self.islat, 'err_data', None)
-        )
-
-        # Respect summed_toggle state after rendering
-        if not self.summed_toggle:
-            self.plot_renderer.set_summed_spectrum_visibility(False)
-
-        if self.islat.GUI.top_bar.atomic_toggle:
-            self.plot_atomic_lines()
-
-        if self.islat.GUI.top_bar.line_toggle:
-            self.plot_saved_lines()
-        # Recreate span selector and redraw
-        self.make_span_selector()
-        self.canvas.draw_idle()
+        # If full-spectrum mode is active, also silently update the 3-panel
+        # data (axes, renderer state) so it's ready when the user switches back.
+        if self.is_full_spectrum:
+            self._three_panel_view._do_update_model_plot()
 
     def onselect(self, xmin, xmax):
         self.current_selection = (xmin, xmax)
@@ -696,22 +658,7 @@ class iSLATPlot:
         # Don't call canvas.draw_idle() here - let caller batch it
 
     def toggle_legend(self):
-        if hasattr(self, 'is_full_spectrum') and self.is_full_spectrum:
-            full_spectrum_leg = self.full_spectrum_plot.get_legend()
-            if full_spectrum_leg is not None:
-                vis = not full_spectrum_leg.get_visible()
-                full_spectrum_leg.set_visible(vis)
-            self.full_spectrum_plot_canvas.draw_idle()
-        else:
-            ax1_leg = self.ax1.get_legend()
-            ax2_leg = self.ax2.get_legend()
-            if ax1_leg is not None:
-                vis = not ax1_leg.get_visible()
-                ax1_leg.set_visible(vis)
-            if ax2_leg is not None:
-                vis = not ax2_leg.get_visible()
-                ax2_leg.set_visible(vis)
-            self.canvas.draw_idle()
+        self.active_view.toggle_legend()
 
     def flux_integral(self, lam, flux, err, lam_min, lam_max):
         """
@@ -765,7 +712,6 @@ class iSLATPlot:
         """
         self.plot_renderer.highlight_line_selection(xmin, xmax)
         self.canvas.draw_idle()
-
     
     def remove_atomic_lines(self):
         self.plot_renderer.remove_atomic_lines(self.atomic_lines)
@@ -835,12 +781,6 @@ class iSLATPlot:
         """
         debug_config.info("main_plot", f"Parameter change: {molecule_name}.{parameter_name}: {old_value} → {new_value}")
         
-        # Debug cache status before and after parameter change
-        if (hasattr(self.islat, 'molecules_dict') and 
-            molecule_name in self.islat.molecules_dict):
-            
-            molecule = self.islat.molecules_dict[molecule_name]
-        
         # Check if this molecule is visible - if so, we need to update plots
         if (hasattr(self.islat, 'molecules_dict') and 
             molecule_name in self.islat.molecules_dict):
@@ -849,16 +789,8 @@ class iSLATPlot:
             
             # Only update plots if the molecule is visible
             if molecule.is_visible:
-                # Check if full spectrum plot is currently visible
-                if (hasattr(self, 'full_spectrum_plot') and 
-                    hasattr(self, 'full_spectrum_plot_canvas') and
-                    self.full_spectrum_plot_canvas.get_tk_widget().winfo_viewable()):
-                    # Update full spectrum plot
-                    self.full_spectrum_plot.reload_data()
-                    self.full_spectrum_plot_canvas.draw_idle()
-                else:
-                    # Update main spectrum plot
-                    self.update_model_plot()
+                # Delegate to the active view
+                self.active_view.update_model_plot()
         
         # Check if the changed molecule is the active one for additional updates
         if (hasattr(self.islat, 'active_molecule') and 
@@ -899,8 +831,11 @@ class iSLATPlot:
     
     def on_molecule_visibility_changed(self, molecule_name, is_visible):
         """
-        Handle molecule visibility changes by delegating to PlotRenderer.
-        Minimal logic here - PlotRenderer handles all the complexity and caching.
+        Handle molecule visibility changes by delegating to the active view.
+
+        The active view handles the rendering update (lightweight artist
+        toggling in full-spectrum mode, or PlotRenderer-based update in
+        three-panel mode).
         
         Parameters
         ----------
@@ -912,23 +847,17 @@ class iSLATPlot:
         if not hasattr(self.islat, 'molecules_dict'):
             return
         
-        # Get current selection for potential line inspection update
         current_selection = getattr(self, 'current_selection', None)
         active_molecule = getattr(self.islat, 'active_molecule', None)
         
-        # Delegate everything to PlotRenderer's comprehensive method
-        self.plot_renderer.handle_molecule_visibility_change(
+        self.active_view.on_molecule_visibility_changed(
             molecule_name=molecule_name,
             is_visible=is_visible,
             molecules_dict=self.islat.molecules_dict,
             wave_data=self.islat.wave_data,
             active_molecule=active_molecule,
             current_selection=current_selection,
-            is_full_spectrum=getattr(self, 'is_full_spectrum', False)
         )
-        
-        # Only canvas update needed in MainPlot
-        self.canvas.draw_idle()
     
     def compute_fit_line(self, xmin=None, xmax=None, deblend=False, update_plot=True):
         """
@@ -961,8 +890,27 @@ class iSLATPlot:
             return None
         
         try:
+            # Build extra kwargs for deblend mode
+            fit_kwargs = dict(xmin=xmin, xmax=xmax, deblend=deblend)
+            if deblend:
+                fit_kwargs.update(
+                    wave_data_full=self.islat.wave_data,
+                    err_data_full=self.islat.err_data,
+                    user_settings=getattr(self.islat, 'user_settings', {}),
+                    active_molecule_fwhm=getattr(self.islat.active_molecule, 'fwhm', None) if getattr(self.islat, 'active_molecule', None) else None,
+                    lines_with_intensity=(
+                        self.islat.active_molecule.intensity.get_lines_in_range_with_intensity(xmin, xmax)
+                        if getattr(self.islat, 'active_molecule', None) and hasattr(self.islat.active_molecule, 'intensity')
+                        else None
+                    ),
+                    line_threshold=(
+                        self.islat.user_settings.get('line_threshold', 0.03)
+                        if getattr(self.islat, 'user_settings', None) else 0.03
+                    )
+                )
+            
             fit_result, fitted_wave, fitted_flux = self.fitting_engine.fit_gaussian_line(
-                x_fit, y_fit, xmin=xmin, xmax=xmax, deblend=deblend
+                x_fit, y_fit, **fit_kwargs
             )
             self.fit_result = fit_result, fitted_wave, fitted_flux
             if update_plot:
@@ -1072,82 +1020,25 @@ class iSLATPlot:
                 self.update_all_plots()
     
     def load_full_spectrum(self):
-        # Switch to full spectrum view
-        # Hide the original canvas
-        self.canvas.get_tk_widget().pack_forget()
-        
-        # Import the full spectrum plot class
-        from iSLAT.Modules.FileHandling.OutputFullSpectrum import FullSpectrumPlot
-
-        if hasattr(self, 'full_spectrum_plot_canvas'):
-                self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
-                #self.full_spectrum_plot_canvas.get_tk_widget().destroy()
-
-        if hasattr(self, 'full_spectrum_plot'):
-            old_fig = self.full_spectrum_plot.fig
-            self.full_spectrum_plot.reload_data()
-            # If the figure was recreated (wavelength range changed), destroy
-            # the old canvas so a fresh one is built below.
-            if self.full_spectrum_plot.fig is not old_fig and hasattr(self, 'full_spectrum_plot_canvas'):
-                self.full_spectrum_plot_canvas.get_tk_widget().destroy()
-                del self.full_spectrum_plot_canvas
-        else:
-            # Create a new full spectrum plot
-            self.full_spectrum_plot = FullSpectrumPlot(self.islat)
-            self.full_spectrum_plot.generate_plot()
-
-        if not hasattr(self, 'full_spectrum_plot_canvas'):
-            # Create and pack the full spectrum canvas
-            self.full_spectrum_plot_canvas = FigureCanvasTkAgg(
-                self.full_spectrum_plot.fig, 
-                master=self.parent_frame
-            )
-        self.full_spectrum_plot_canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
-        self.full_spectrum_plot_canvas.draw_idle()
+        """Activate the full-spectrum view (called by toggle_full_spectrum)."""
+        self._three_panel_view.deactivate()
+        self._full_spectrum_view.activate(self.parent_frame)
+        self.active_view = self._full_spectrum_view
 
     def toggle_summed_spectrum(self):
         """Toggle visibility of the summed spectral flux."""
         self.summed_toggle = not self.summed_toggle
-        
-        # Handle full spectrum mode
-        if hasattr(self, 'is_full_spectrum') and self.is_full_spectrum:
-            if hasattr(self, 'full_spectrum_plot') and hasattr(self, 'full_spectrum_plot_canvas'):
-                # Toggle summed spectrum in all subplots of full spectrum view
-                for ax in self.full_spectrum_plot.subplots.values():
-                    for collection in ax.collections[:]:
-                        if hasattr(collection, '_islat_summed'):
-                            collection.set_visible(self.summed_toggle)
-                self.full_spectrum_plot_canvas.draw_idle()
-        else:
-            # Normal mode
-            self.plot_renderer.set_summed_spectrum_visibility(self.summed_toggle)
-            self.canvas.draw_idle()
+        self.active_view.toggle_summed_spectrum(self.summed_toggle)
 
     def toggle_full_spectrum(self):
-        """Toggle between the regular three plots and a full spectrum view."""
-        if not hasattr(self, 'is_full_spectrum'):
-            self.is_full_spectrum = False
-        
+        """Toggle between the regular three-panel view and the full spectrum view."""
         self.is_full_spectrum = not self.is_full_spectrum
-        print(f"[DEBUG] toggle_full_spectrum called. is_full_spectrum = {self.is_full_spectrum}")
+        debug_config.info("main_plot", f"toggle_full_spectrum: is_full_spectrum = {self.is_full_spectrum}")
 
         if self.is_full_spectrum:
             self.load_full_spectrum()
         else:
-            # Switch back to regular three-plot view
-            # Destroy the full spectrum plot
-            if hasattr(self, 'full_spectrum_plot_canvas'):
-                self.full_spectrum_plot_canvas.get_tk_widget().pack_forget()
-                self.full_spectrum_plot_canvas.get_tk_widget().destroy()
-                
-            if hasattr(self, 'full_spectrum_plot'):
-                self.full_spectrum_plot.close()
-                del self.full_spectrum_plot
-                del self.full_spectrum_plot_canvas
-
-            # Restore the original canvas
-            self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
-            
-            # Refresh the main plot to reflect any molecule changes that occurred
-            # during full spectrum mode (visibility toggles, new molecules, etc.)
-            self.update_model_plot()
+            # Switch back to three-panel view
+            self._full_spectrum_view.deactivate()
+            self.active_view = self._three_panel_view
+            self._three_panel_view.activate(self.parent_frame)

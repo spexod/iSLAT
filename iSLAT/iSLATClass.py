@@ -341,7 +341,11 @@ class iSLAT:
                 if not os.path.exists(hitran_file):
                     print(f"WARNING: HITRAN file for {mol} not found at {hitran_file}")
                     try:
-                        missed_mols = download_hitran_data([bm], [mol], [iso])
+                        missed_mols = download_hitran_data(
+                            [bm], [mol], [iso],
+                            min_wave=self.user_settings.get("hitran_min_wave", 0.3),
+                            max_wave=self.user_settings.get("hitran_max_wave", 1000.0),
+                        )
                     except Exception as e:
                         print(f"ERROR: Failed to load HITRAN file for {mol}: {e}")
                     continue

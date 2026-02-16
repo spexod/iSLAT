@@ -174,6 +174,36 @@ class MoleculeDict(dict):
         # debug print
         #print(f"Updated visibility for {len(molecule_set)} molecules ({len(changed_molecules)} changed)")
     
+    def get_matched_sampling_wavelengths(self, wave_data: np.ndarray) -> Tuple[bool, np.ndarray]:
+        """Return the interpolation flag and rest-frame target wavelengths.
+
+        When ``match_spectral_sampling`` is enabled the observed *wave_data*
+        (in the observer frame) is converted to the rest frame using the
+        global stellar RV so that each molecule's model can be resampled
+        onto the correct wavelength positions.
+
+        Parameters
+        ----------
+        wave_data : np.ndarray
+            Observed-frame wavelength array.
+
+        Returns
+        -------
+        use_interpolation : bool
+            True when matched spectral sampling is active.
+        rest_frame_wave : np.ndarray
+            Rest-frame wavelength grid to pass to ``molecule.get_flux()``.
+            Equal to *wave_data* when interpolation is off or no stellar RV
+            correction is needed.
+        """
+        if not self._match_spectral_sampling:
+            return False, wave_data
+        if self._global_stellar_rv != 0:
+            rest_frame_wave = wave_data / (1.0 + self._global_stellar_rv / default_parms.SPEED_OF_LIGHT_KMS)
+        else:
+            rest_frame_wave = wave_data
+        return True, rest_frame_wave
+
     def get_summed_flux(self, wave_data: np.ndarray, visible_only: bool = True) -> Tuple[np.ndarray, np.ndarray]:
         """
         Get summed flux from molecules with consistent wavelength grids.
@@ -199,10 +229,12 @@ class MoleculeDict(dict):
         if not molecules:
             return np.array([]), np.array([])
         
-        # Include match_spectral_sampling flag in cache key for proper invalidation
+        # Include match_spectral_sampling flag and stellar RV in cache key for proper invalidation
         cache_key = self._get_flux_cache_key(wave_data, molecules)
         if self._match_spectral_sampling:
-            cache_key = hash((cache_key, 'matched_sampling', wave_data.tobytes() if hasattr(wave_data, 'tobytes') else str(wave_data)))
+            cache_key = hash((cache_key, 'matched_sampling',
+                              wave_data.tobytes() if hasattr(wave_data, 'tobytes') else str(wave_data),
+                              self._global_stellar_rv))
         current_param_hash = self._compute_molecules_parameter_hash(molecules)
         
         # Check cache validity
@@ -215,13 +247,13 @@ class MoleculeDict(dict):
                 # Return copies to prevent accidental modification
                 return cached_wavelengths.copy(), cached_flux.copy()
         
-        # When match_spectral_sampling is enabled, interpolate each molecule's flux
-        # to the input wave_data grid before summing
-        use_interpolation = self._match_spectral_sampling
+        # When match_spectral_sampling is enabled, interpolate each molecule's
+        # rest-frame flux onto the data pixel grid (corrected for stellar RV).
+        use_interpolation, rest_frame_wave = self.get_matched_sampling_wavelengths(wave_data)
         
         # Initialize output arrays
         if use_interpolation:
-            # Use input wavelength grid
+            # Use input wavelength grid (observer frame) for the output
             combined_wavelengths = wave_data.copy()
             combined_flux = np.zeros_like(wave_data, dtype=np.float64)
         else:
@@ -238,9 +270,12 @@ class MoleculeDict(dict):
             
             try:
                 if use_interpolation:
-                    # Get flux interpolated to input wavelength array
+                    # Interpolate each molecule's rest-frame model flux onto the
+                    # rest-frame wavelengths corresponding to each data pixel.
+                    # This ensures the stellar RV is properly accounted for
+                    # before the individual models are summed.
                     mol_wavelengths, mol_flux = molecule.get_flux(
-                        wavelength_array=wave_data,
+                        wavelength_array=rest_frame_wave,
                         return_wavelengths=True, 
                         interpolate_to_input=True
                     )
@@ -494,10 +529,12 @@ class MoleculeDict(dict):
             section.end()
             return np.array([]), np.array([])
         
-        # Check cache first - include match_spectral_sampling flag in cache key
+        # Check cache first - include match_spectral_sampling flag and stellar RV in cache key
         cache_key = self._get_flux_cache_key(wave_data, molecules)
         if self._match_spectral_sampling:
-            cache_key = hash((cache_key, 'matched_sampling', wave_data.tobytes() if hasattr(wave_data, 'tobytes') else str(wave_data)))
+            cache_key = hash((cache_key, 'matched_sampling',
+                              wave_data.tobytes() if hasattr(wave_data, 'tobytes') else str(wave_data),
+                              self._global_stellar_rv))
         current_param_hash = self._compute_molecules_parameter_hash(molecules)
         
         if cache_key in self._summed_flux_cache:
@@ -515,8 +552,9 @@ class MoleculeDict(dict):
         
         section.mark("sum_fluxes")
         
-        # Check if we need to interpolate to input wavelengths
-        use_interpolation = self._match_spectral_sampling
+        # When match_spectral_sampling is enabled, resample each molecule's
+        # rest-frame flux onto the data pixel grid (corrected for stellar RV).
+        use_interpolation, rest_frame_wave = self.get_matched_sampling_wavelengths(wave_data)
         
         # Parallelize get_flux calls since spectrum convolution is CPU-intensive
         # NumPy releases the GIL, so threads provide real parallelism here
@@ -533,9 +571,11 @@ class MoleculeDict(dict):
             
             try:
                 if use_interpolation:
-                    # Get flux interpolated to input wavelength array
+                    # Interpolate each molecule's rest-frame model flux onto the
+                    # rest-frame wavelengths corresponding to each data pixel,
+                    # accounting for the global stellar RV.
                     mol_wavelengths, mol_flux = molecule.get_flux(
-                        wavelength_array=wave_data,
+                        wavelength_array=rest_frame_wave,
                         return_wavelengths=True, 
                         interpolate_to_input=True
                     )
@@ -1419,6 +1459,11 @@ class MoleculeDict(dict):
     def global_stellar_rv(self, value: float) -> None:
         old_value = self._global_stellar_rv
         self._global_stellar_rv = value
+        # When match_spectral_sampling is active the stellar RV affects the
+        # rest-frame wavelength grid used for resampling, so the summed flux
+        # cache must be invalidated.
+        if self._match_spectral_sampling and old_value != value:
+            self._summed_flux_cache.clear()
         self._notify_global_parameter_change('stellar_rv', old_value, value)
 
     @property

@@ -20,21 +20,18 @@ class FittingEngine:
     # Class-level setting to control verbose fit output
     VERBOSE_FIT_OUTPUT: bool = False
     
-    def __init__(self, islat_instance):
+    def __init__(self):
         """
         Initialize the fitting engine.
-        
-        Parameters
-        ----------
-        islat_instance : iSLAT
-            Reference to the main iSLAT instance for accessing data and configuration
         """
-        self.islat = islat_instance
         self.last_fit_result = None
         self.last_fit_params = None
     
     def fit_gaussian_line(self, wave_data, flux_data, xmin=None, xmax=None, 
-                         initial_guess=None, deblend=False, err_data=None):
+                         initial_guess=None, deblend=False, err_data=None,
+                         wave_data_full=None, err_data_full=None,
+                         user_settings=None, active_molecule_fwhm=None,
+                         lines_with_intensity=None, line_threshold=None):
         """
         Fit a Gaussian model to spectral line data.
         
@@ -50,6 +47,22 @@ class FittingEngine:
             Initial parameter guesses {'center': float, 'amplitude': float, 'sigma': float}
         deblend : bool, optional
             If True, attempt to fit multiple components
+        err_data : array_like, optional
+            Error data (filtered to same range as wave/flux) for single Gaussian
+        wave_data_full : array_like, optional
+            Full (unfiltered) wavelength array. Required for deblend=True.
+        err_data_full : array_like, optional
+            Full (unfiltered) error array. Required for deblend=True.
+        user_settings : dict, optional
+            User settings dict with 'centrtolerance', 'fwhmtolerance', 'line_threshold'.
+            Required for deblend=True.
+        active_molecule_fwhm : float, optional
+            Active molecule FWHM in km/s. Required for deblend=True.
+        lines_with_intensity : list, optional
+            List of (MoleculeLine, intensity, extra) tuples for component estimation.
+            Required for deblend=True.
+        line_threshold : float, optional
+            Threshold fraction for filtering weak lines (default from user_settings or 0.03).
             
         Returns
         -------
@@ -74,7 +87,12 @@ class FittingEngine:
             xmax = fit_wave.max()
         
         if deblend:
-            return self._fit_multi_gaussian(fit_wave, fit_flux, initial_guess, xmin, xmax)
+            return self._fit_multi_gaussian(
+                fit_wave, fit_flux, initial_guess, xmin, xmax,
+                wave_data_full=wave_data_full, err_data_full=err_data_full,
+                user_settings=user_settings, active_molecule_fwhm=active_molecule_fwhm,
+                lines_with_intensity=lines_with_intensity, line_threshold=line_threshold
+            )
         else:
             return self._fit_single_gaussian(fit_wave, fit_flux, initial_guess, xmin, xmax, err_data)
 
@@ -128,10 +146,41 @@ class FittingEngine:
                 print(f"Error during single Gaussian fit: {e}")
             return None, None, None
 
-    def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None):
-        """Fit multiple Gaussian components for deblending"""
+    def _fit_multi_gaussian(self, wave_data, flux_data, initial_guess=None, xmin=None, xmax=None,
+                            wave_data_full=None, err_data_full=None,
+                            user_settings=None, active_molecule_fwhm=None,
+                            lines_with_intensity=None, line_threshold=None):
+        """Fit multiple Gaussian components for deblending.
+        
+        Parameters
+        ----------
+        wave_data : array_like
+            Wavelength data (filtered to fit range)
+        flux_data : array_like
+            Flux data (filtered to fit range)
+        initial_guess : dict, optional
+            Initial parameter guesses
+        xmin, xmax : float, optional
+            Wavelength range boundaries
+        wave_data_full : array_like, optional
+            Full (unfiltered) wavelength array for error masking
+        err_data_full : array_like, optional
+            Full (unfiltered) error array
+        user_settings : dict, optional
+            User settings with 'centrtolerance', 'fwhmtolerance', 'line_threshold'
+        active_molecule_fwhm : float, optional
+            Active molecule FWHM in km/s
+        lines_with_intensity : list, optional
+            List of (MoleculeLine, intensity, extra) tuples
+        line_threshold : float, optional
+            Threshold fraction for filtering weak lines
+        """
         # Estimate number of components and line centers based on detection strategy
-        n_components, line_centers = self._estimate_components_from_user_selection(wave_data, flux_data, xmin, xmax)
+        n_components, line_centers = self._estimate_components_from_user_selection(
+            wave_data, flux_data, xmin, xmax,
+            lines_with_intensity=lines_with_intensity,
+            line_threshold=line_threshold
+        )
         print(f"Detected {n_components} components")
         
         if n_components == 1:
@@ -140,19 +189,13 @@ class FittingEngine:
         
         # Get error data for weights
         weights = None
-        if hasattr(self.islat, 'err_data') and self.islat.err_data is not None:
+        if err_data_full is not None and wave_data_full is not None:
             if xmin is not None and xmax is not None:
-                err_mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
-                err_fit = self.islat.err_data[err_mask]
+                err_mask = (wave_data_full >= xmin) & (wave_data_full <= xmax)
+                err_fit = err_data_full[err_mask]
                 if len(err_fit) == len(flux_data) and len(err_fit) > 0:
                     # Avoid division by zero - replace zero or negative errors with a small value
                     max_err = np.max(err_fit)
-                    '''if max_err <= 0:
-                        # If all errors are zero or negative, don't use weights
-                        weights = np.ones_like(flux_data)
-                    else:
-                        err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
-                        weights = 1.0 / err_fit_safe'''
                     err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
                     weights = 1.0 / err_fit_safe
         
@@ -161,12 +204,13 @@ class FittingEngine:
             weights = 1.0 / err_fit_safe
         
         # Get tolerance settings from user_settings
-        centrtolerance = self.islat.user_settings.get('centrtolerance', 0.0001)
-        fwhmtolerance = self.islat.user_settings.get('fwhmtolerance', 5)
+        if user_settings is None:
+            user_settings = {}
+        centrtolerance = user_settings.get('centrtolerance', 0.0001)
+        fwhmtolerance = user_settings.get('fwhmtolerance', 5)
         
-        # Get FWHM from the molecule dict (can be updated at runtime)
-        #fwhm = self.islat.molecules_dict.global_fwhm  # km/s
-        fwhm = self.islat.active_molecule.fwhm  # km/s
+        # Get FWHM from the active molecule (can be updated at runtime)
+        fwhm = active_molecule_fwhm if active_molecule_fwhm is not None else 10.0  # km/s default
         print(f"Using FWHM: {fwhm} km/s")
         mean_wavelength = np.mean([xmin or wave_data.min(), xmax or wave_data.max()])
         #fwhm_um = mean_wavelength / 299792.458 * fwhm  # Convert km/s to μm
@@ -257,37 +301,44 @@ class FittingEngine:
             return
         return self.fit_results_components
 
-    def _estimate_components_from_user_selection(self, wave_data, flux_data, xmin=None, xmax=None):
+    def _estimate_components_from_user_selection(self, wave_data, flux_data, xmin=None, xmax=None,
+                                                  lines_with_intensity=None, line_threshold=None):
         """
-        Use pre-selected line positions
+        Use pre-selected line positions to estimate components.
+        
+        Parameters
+        ----------
+        wave_data : array_like
+            Wavelength data
+        flux_data : array_like
+            Flux data
+        xmin, xmax : float, optional
+            Wavelength range boundaries
+        lines_with_intensity : list, optional
+            List of (MoleculeLine, intensity, extra) tuples from active molecule
+        line_threshold : float, optional
+            Threshold fraction for filtering weak lines (default: 0.03)
         """
         # Use molecular line data from the selected region (like onselect_lines['lam'])
         try:
-            if hasattr(self.islat, 'active_molecule') and self.islat.active_molecule:
+            if lines_with_intensity is not None:
                 if xmin is None:
                     xmin = wave_data.min()
                 if xmax is None:
                     xmax = wave_data.max()
                 
-                # Try the new MoleculeLine approach first
+                # Convert to arrays
                 line_data = None
                 try:
-                    lines_with_intensity = self.islat.active_molecule.intensity.get_lines_in_range_with_intensity(xmin, xmax)
-                    if lines_with_intensity:
-                        # Convert to DataFrame-like format for compatibility
-                        line_centers = np.array([line.lam for line, _, _ in lines_with_intensity])
-                        intensities = np.array([intensity for _, intensity, _ in lines_with_intensity])
-                        line_data = {'lam': line_centers, 'intens': intensities}
+                    line_centers = np.array([line.lam for line, _, _ in lines_with_intensity])
+                    intensities = np.array([intensity for _, intensity, _ in lines_with_intensity])
+                    line_data = {'lam': line_centers, 'intens': intensities}
                 except Exception as e:
-                    print(f"Warning: Could not use new MoleculeLine approach: {e}")
+                    print(f"Warning: Could not process lines_with_intensity: {e}")
                 
                 if line_data is not None:
-                    line_threshold = 0.03 # default
-                    try:
-                        if hasattr(self.islat, 'user_settings') and self.islat.user_settings:
-                            line_threshold = self.islat.user_settings.get('line_threshold', 0.03)
-                    except:
-                        pass
+                    if line_threshold is None:
+                        line_threshold = 0.03  # default
                     
                     # Filter lines above threshold
                     line_centers = np.array(line_data['lam'])
@@ -307,7 +358,9 @@ class FittingEngine:
             print(f"Warning: Could not use user selection detection: {e}")
     
     def perform_slab_fit(self, target_file, molecule_name, 
-                        start_temp=500, start_n_mol=1e17, start_radius=1.0):
+                        start_temp=500, start_n_mol=1e17, start_radius=1.0,
+                        mol_data=None, dist=None, fwhm=None,
+                        wavelength_range=None, broad=None, data_field=None):
         """
         Perform slab model fitting for a given target spectrum.
         
@@ -323,6 +376,18 @@ class FittingEngine:
             Initial column density guess (cm^-2)
         start_radius : float, optional
             Initial radius guess (AU)
+        mol_data : dict, optional
+            Molecule info dict with 'file' key for the data path
+        dist : float, optional
+            Distance in pc
+        fwhm : float, optional
+            FWHM in km/s
+        wavelength_range : tuple, optional
+            (min_lamb, max_lamb) wavelength range
+        broad : float, optional
+            Intrinsic line width
+        data_field : object, optional
+            GUI data field widget
             
         Returns
         -------
@@ -330,15 +395,11 @@ class FittingEngine:
             Dictionary containing fitted parameters and statistics
         """
         try:
-            # Get molecule data path
-            mol_data = None
-            for mol_info in self.islat.default_molecule_csv_data():
-                if mol_info['name'] == molecule_name:
-                    mol_data = mol_info
-                    break
-            
             if mol_data is None:
-                raise ValueError(f"Molecule {molecule_name} not found in available molecules")
+                raise ValueError(f"mol_data must be provided for molecule {molecule_name}")
+            
+            if wavelength_range is None:
+                wavelength_range = (0, 100)  # fallback
             
             # Create slab fit instance
             slab_fitter = SlabFit(
@@ -346,14 +407,14 @@ class FittingEngine:
                 save_folder="EXAMPLE-data",
                 mol=molecule_name,
                 molpath=mol_data['file'],
-                dist=self.islat.active_molecule.dist,
-                fwhm=self.islat.active_molecule.fwhm,
-                min_lamb=self.islat.molecules_dict.wavelength_range[0],
-                max_lamb=self.islat.molecules_dict.wavelength_range[1],
+                dist=dist,
+                fwhm=fwhm,
+                min_lamb=wavelength_range[0],
+                max_lamb=wavelength_range[1],
                 pix_per_fwhm=10,
-                intrinsic_line_width=self.islat.active_molecule.broad,
+                intrinsic_line_width=broad,
                 cc=3e8,
-                data_field=getattr(self.islat.gui, 'data_field', None)
+                data_field=data_field
             )
             
             # Initialize and perform fit

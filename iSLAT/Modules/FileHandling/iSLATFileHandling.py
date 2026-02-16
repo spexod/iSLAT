@@ -902,13 +902,19 @@ def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, data_field, outp
                     csv_writer.writerow([wave, flux])
             
             print(f'SUM model exported to {output_dir}')
+            data_field.insert_text(f'SUM model exported to {output_dir}')
             
         except Exception as e:
             print(f"Error generating summed spectrum: {e}")
 
     elif mol_name == "ALL":
-        # Generate all molecule CSVs
-        generate_all_csv(molecules_data, output_dir, wave_data)
+        try:
+            # Generate all molecule CSVs
+            generate_all_csv(molecules_data, output_dir, wave_data)
+            print(f'All models exported to {output_dir}')
+            data_field.insert_text(f'All models exported to {output_dir}')
+        except Exception as e:
+            print(f"Error generating all molecule spectra: {e}")
 
     else:
         # Generate CSV for specific molecule
@@ -960,7 +966,6 @@ def generate_csv(molecules_data: 'MoleculeDict', mol_name: str, data_field, outp
                             print(f"Exported line parameters for {mol_name}")
                     except Exception as e:
                         print(f"Error exporting line parameters for {mol_name}: {e}")
-
 
             data_field.insert_text(f'{mol_name} model exported to {output_dir}')
             print(f'{mol_name} model exported to {output_dir}')

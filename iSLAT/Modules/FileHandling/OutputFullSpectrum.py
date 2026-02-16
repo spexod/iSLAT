@@ -223,7 +223,10 @@ class FullSpectrumPlot:
             
             # Set axis properties
             plt.xlim(xr)
-            plt.xticks(np.arange(xr[0], xr[1], 0.25))
+            # Use dynamic tick spacing based on panel width instead of hardcoded 0.25 µm
+            #panel_width = xr[1] - xr[0]
+            from matplotlib.ticker import MaxNLocator
+            self.subplots[n].xaxis.set_major_locator(MaxNLocator(nbins=6, prune='both'))
             plt.ylim([ymin, ymax])
             #plt.ylabel("Flux dens. (Jy)")
             
@@ -274,40 +277,42 @@ class FullSpectrumPlot:
             # Restore original setting
             self.plot_renderer.render_out = original_render_out
 
+        # Respect summed_toggle: hide summed spectrum if toggled off or no visible molecules
+        summed_hidden = False
+        if hasattr(self.islat_ref, 'GUI') and hasattr(self.islat_ref.GUI, 'plot'):
+            plot_ref = self.islat_ref.GUI.plot
+            if (hasattr(plot_ref, 'summed_toggle') and not plot_ref.summed_toggle) or not self.visible_molecules:
+                summed_hidden = True
+                for ax in self.subplots.values():
+                    for collection in ax.collections[:]:
+                        if hasattr(collection, '_islat_summed'):
+                            collection.set_visible(False)
+
         if hasattr(self, 'legend_subplot') and self.legend_subplot is not None:
-            #self.legend.update()
             pass
-            '''handles, labels = self.legend_subplot.get_legend_handles_labels()
-            if handles:
-                self.legend_subplot.legend()'''
         else:
             # Add legend to first panel
             self.legend_subplot = self.subplots[0]
-            '''self.legend_subplot.legend(
-                self.mol_labels,
-                labelcolor=self.mol_colors,
-                loc='upper center',
-                ncols=9,
-                handletextpad=0.2,
-                bbox_to_anchor=(0.5, 1.4),
-                handlelength=0,
-                fontsize=10,
-                prop={'weight': 'bold'},
-            )'''
         
-        handles, labels = self.legend_subplot.get_legend_handles_labels()
-        if handles:
-            self.legend_subplot.legend(
-                self.mol_labels,
-                labelcolor=self.mol_colors,
-                loc='upper center',
-                ncols=12,
-                handletextpad=0.2,
-                bbox_to_anchor=(0.5, 1.4),
-                handlelength=0,
-                fontsize=10,
-                prop={'weight': 'bold'},
-            )
+        if self.mol_labels:
+            handles, labels = self.legend_subplot.get_legend_handles_labels()
+            if handles:
+                self.legend_subplot.legend(
+                    self.mol_labels,
+                    labelcolor=self.mol_colors,
+                    loc='upper center',
+                    ncols=12,
+                    handletextpad=0.2,
+                    bbox_to_anchor=(0.5, 1.4),
+                    handlelength=0,
+                    fontsize=10,
+                    prop={'weight': 'bold'},
+                )
+        else:
+            # No visible molecules — remove the legend
+            legend = self.legend_subplot.get_legend()
+            if legend is not None:
+                legend.remove()
 
         # Add x-axis label to last panel
         self.subplots[len(self.xlim1) - 1].set_xlabel("Wavelength (μm)")
@@ -565,7 +570,11 @@ class FullSpectrumPlot:
         # Calculate a reasonable view range around the selection
         selection_center = (xmin + xmax) / 2
         selection_width = xmax - xmin
-        view_padding = max(selection_width * 2, 0.5)  # At least 0.5 um padding
+        # Scale the minimum padding to ~2.5% of the total wavelength range
+        # so it works for both narrow-band (iSHELL) and wide-band (MIRI) data
+        total_range = self.xlim_end - self.xlim_start
+        min_padding = total_range * 0.025
+        view_padding = max(selection_width * 2, min_padding)
         
         view_xmin = selection_center - view_padding
         view_xmax = selection_center + view_padding

@@ -48,9 +48,9 @@ class TopBar(ResizableFrame):
         self.control_panel = control_panel
 
         # Initialize services for non-GUI logic
-        self.batch_fitting_service = BatchFittingService(islat)
-        self.deblending_service = DeblendingService(islat)
-        self.line_save_service = LineSaveService(islat)
+        self.batch_fitting_service = BatchFittingService()
+        self.deblending_service = DeblendingService()
+        self.line_save_service = LineSaveService()
 
         self.button_frame = tk.Frame(self)
         self.button_frame.grid(row=0, column=1)
@@ -128,7 +128,10 @@ class TopBar(ResizableFrame):
         """Save the currently selected line to the line saves file."""
         # Use service to extract line info
         selected_line_info, error_msg = self.line_save_service.extract_line_info_from_selection(
-            self.main_plot, save_type
+            self.main_plot, save_type,
+            wave_data=self.islat.wave_data,
+            flux_data=self.islat.flux_data,
+            err_data=self.islat.err_data
         )
         
         if error_msg:
@@ -168,22 +171,8 @@ class TopBar(ResizableFrame):
             return
         try:
             self.line_toggle = not self.line_toggle
-
-            # Check if full spectrum view is active
-            if hasattr(self.main_plot, 'is_full_spectrum') and self.main_plot.is_full_spectrum:
-                # Use optimized toggle method that only adds/removes line artists
-                if hasattr(self.main_plot, 'full_spectrum_plot'):
-                    self.main_plot.full_spectrum_plot.toggle_saved_lines(self.line_toggle)
-                    if hasattr(self.main_plot, 'full_spectrum_plot_canvas'):
-                        self.main_plot.full_spectrum_plot_canvas.draw_idle()
-            else:
-                # Regular view - toggle on the main plot
-                if self.line_toggle:
-                    # Plot the saved lines on the main plot
-                    self.main_plot.plot_saved_lines(loaded_lines=loaded_lines, data_field=self.data_field)
-                else:
-                    self.main_plot.remove_saved_lines()
-                    # self.data_field.insert_text("Removed lines")
+            # Delegate to MainPlot's active view via the unified API
+            self.main_plot.active_view.toggle_saved_lines(self.line_toggle, loaded_lines=loaded_lines)
             
         except Exception as e:
             self.data_field.insert_text(f"Error loading saved lines: {e}\n")
@@ -333,7 +322,8 @@ class TopBar(ResizableFrame):
                 spectrum_files=list(spectrum_files),
                 config=self.config,
                 progress_callback=progress_callback,
-                base_output_path=line_saves_file_path
+                base_output_path=line_saves_file_path,
+                get_mole_save_data=self.islat.get_mole_save_data
             )
             
             if plot_grid_list:
@@ -362,6 +352,16 @@ class TopBar(ResizableFrame):
         if not saved_lines_file:
             self.data_field.insert_text("No input line list file configured.\n")
             return None
+        
+        # Default to islat data when not explicitly provided
+        if spectrum_name is None:
+            spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+        if wavedata is None:
+            wavedata = self.islat.wave_data
+        if fluxdata is None:
+            fluxdata = self.islat.flux_data
+        if err_data is None:
+            err_data = getattr(self.islat, 'err_data', None)
         
         # Progress callback for GUI updates
         def progress_callback(msg):
@@ -454,7 +454,8 @@ class TopBar(ResizableFrame):
             spectrum_files=spectrum_files,
             config=self.config,
             progress_callback=progress_callback,
-            base_output_path=line_saves_file_path
+            base_output_path=line_saves_file_path,
+            get_mole_save_data=self.islat.get_mole_save_data
         )
 
         if plot_grid_list:
@@ -557,7 +558,7 @@ class TopBar(ResizableFrame):
         
         # Create a new window for exporting the spectrum
         export_window = tk.Toplevel(self.master)
-        export_window.title("Export Spectrum")
+        export_window.title("Export Models")
         # Always on top
         export_window.attributes("-topmost", True)
 
@@ -582,20 +583,8 @@ class TopBar(ResizableFrame):
         """
         try:
             self.atomic_toggle = not self.atomic_toggle
-
-            # Check if full spectrum view is active
-            if hasattr(self.main_plot, 'is_full_spectrum') and self.main_plot.is_full_spectrum:
-                # Use optimized toggle method that only adds/removes line artists
-                if hasattr(self.main_plot, 'full_spectrum_plot'):
-                    self.main_plot.full_spectrum_plot.toggle_atomic_lines(self.atomic_toggle)
-                    if hasattr(self.main_plot, 'full_spectrum_plot_canvas'):
-                        self.main_plot.full_spectrum_plot_canvas.draw_idle()
-            else:
-                # Regular view
-                if self.atomic_toggle:
-                    self.main_plot.plot_atomic_lines(data_field=self.data_field)
-                else:
-                    self.main_plot.remove_atomic_lines()
+            # Delegate to MainPlot's active view via the unified API
+            self.main_plot.active_view.toggle_atomic_lines(self.atomic_toggle)
 
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
@@ -628,7 +617,7 @@ class TopBar(ResizableFrame):
         try:
             # Use the root window from the islat class for the MoleculeSelector
             root_window = getattr(self.islat, 'root', self.master)
-            MoleculeSelector(root_window, self.data_field)
+            MoleculeSelector(root_window, self.data_field, user_settings=self.islat.user_settings)
         except Exception as e:
             print(f"Error opening HITRAN query: {e}")
             if self.data_field:

@@ -20,16 +20,11 @@ class DeblendingService:
     spectral lines and extracting/saving the individual component information.
     """
 
-    def __init__(self, islat_instance):
+    def __init__(self):
         """
         Initialize the deblending service.
-        
-        Parameters
-        ----------
-        islat_instance : iSLAT
-            Reference to the main iSLAT instance for accessing data and configuration
         """
-        self.islat = islat_instance
+        pass
     
     def extract_deblended_components(
         self,

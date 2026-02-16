@@ -143,11 +143,20 @@ class PlotRenderer:
         return self._get_theme_value('default_molecule_color', 'blue')
     
     def set_summed_spectrum_visibility(self, visible: bool) -> None:
-        """Toggle visibility of the summed spectrum (gray fill)."""
+        """Toggle visibility of the summed spectrum (gray fill) and update legend."""
         for collection in self.ax1.collections[:]:
             if hasattr(collection, '_islat_summed'):
                 collection.set_visible(visible)
+        
+        # Rebuild the legend to include/exclude the 'Sum' entry
+        self._update_legend(self.ax1)
     
+    def _update_legend(self, ax: "Axes" = None) -> None:
+        """Rebuild the legend, excluding invisible artists.  Delegates to :class:`BasePlot`."""
+        if ax is None:
+            ax = self.ax1
+        BasePlot._update_legend(ax)
+
     def clear_all_plots(self) -> None:
         """Clear all plots and reset stats"""
         self.ax1.clear()
@@ -844,6 +853,10 @@ class PlotRenderer:
         Handle molecule visibility changes with comprehensive PlotRenderer logic.
         Leverages MoleculeDict's advanced caching and visibility management.
         
+        Note: This is called by the *ThreePanelView* for the standard 3-panel
+        layout.  The FullSpectrumView handles visibility changes on its own
+        without going through this method.
+        
         Parameters
         ----------
         molecule_name : str
@@ -858,6 +871,8 @@ class PlotRenderer:
             Currently active molecule for line inspection
         current_selection : Tuple[float, float], optional
             Current wavelength selection range (xmin, xmax)
+        is_full_spectrum : bool
+            Deprecated/ignored — kept for backward compatibility.
         """
         if molecule_name not in molecules_dict:
             debug_config.warning("plot_renderer", f"Molecule {molecule_name} not found in molecules_dict")
@@ -866,9 +881,6 @@ class PlotRenderer:
         #molecule = molecules_dict[molecule_name]
         #print(f"changing plotting of: {molecule}")
         
-        if is_full_spectrum:
-            # For full spectrum output, simply re-render everything
-            self.plot_manager.load_full_spectrum()
         # Handle visibility change using PlotRenderer methods
         if is_visible:
             pass
@@ -891,6 +903,15 @@ class PlotRenderer:
         
         # Update summed spectrum using MoleculeDict's optimized caching system
         self._update_summed_spectrum_with_molecules(molecules_dict, wave_data)
+        
+        # If the summed toggle is off, ensure the newly created summed spectrum is hidden
+        if hasattr(self.plot_manager, 'summed_toggle') and not self.plot_manager.summed_toggle:
+            for collection in self.ax1.collections[:]:
+                if hasattr(collection, '_islat_summed'):
+                    collection.set_visible(False)
+        
+        # Rebuild legend to reflect current visibility state
+        self._update_legend(self.ax1)
 
         # Handle active molecule line inspection update if needed
         if (active_molecule and 
@@ -1315,7 +1336,10 @@ class PlotRenderer:
 
         return picked_value
     
-    def get_molecule_spectrum_data(self, molecule: 'Molecule', wave_data: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def get_molecule_spectrum_data(self, molecule: 'Molecule', wave_data: np.ndarray,
+                                    interpolate_to_input: bool = False,
+                                    target_wavelengths: Optional[np.ndarray] = None,
+                                    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
         Get spectrum data from molecule's caching system.
         
@@ -1328,6 +1352,11 @@ class PlotRenderer:
             Molecule with internal flux caching
         wave_data : np.ndarray
             Wavelength array (passed through to molecule's get_flux)
+        interpolate_to_input : bool, default False
+            When True, resample the model flux onto *target_wavelengths*.
+        target_wavelengths : np.ndarray, optional
+            Rest-frame wavelength grid to resample to (stellar-RV corrected
+            data grid).  Returned wavelengths will be *wave_data*.
             
         Returns
         -------
@@ -1337,7 +1366,11 @@ class PlotRenderer:
         if molecule is None or wave_data is None:
             return None, None
         
-        result_wavelengths, result_flux = BasePlot.get_molecule_spectrum_data(molecule, wave_data)
+        result_wavelengths, result_flux = BasePlot.get_molecule_spectrum_data(
+            molecule, wave_data,
+            interpolate_to_input=interpolate_to_input,
+            target_wavelengths=target_wavelengths,
+        )
         
         if result_wavelengths is not None and result_flux is not None and len(result_flux) > 0:
             debug_config.verbose("plot_renderer",
@@ -1442,8 +1475,23 @@ class PlotRenderer:
                     existing_line = line
                     break
             
+            # When match_spectral_sampling is enabled, resample each molecule's
+            # model onto the data pixel grid (corrected for stellar RV).
+            use_interp = False
+            target_wave = None
+            if hasattr(self, 'islat') and hasattr(self.islat, 'molecules_dict'):
+                mol_dict = self.islat.molecules_dict
+                if hasattr(mol_dict, 'get_matched_sampling_wavelengths') and wave_data is not None:
+                    use_interp, target_wave = mol_dict.get_matched_sampling_wavelengths(wave_data)
+                    if not use_interp:
+                        target_wave = None
+
             # Get spectrum data directly from molecule's caching system
-            plot_lam, plot_flux = self.get_molecule_spectrum_data(molecule, wave_data)
+            plot_lam, plot_flux = self.get_molecule_spectrum_data(
+                molecule, wave_data,
+                interpolate_to_input=use_interp,
+                target_wavelengths=target_wave,
+            )
             
             if plot_lam is None or plot_flux is None:
                 print(f"No spectrum data available for {molecule_name}")
@@ -1628,10 +1676,9 @@ class PlotRenderer:
         
         # Iterate through each fit
         for i, (gauss_fit, fitted_wave, fitted_flux) in enumerate(zip(gauss_fits, fitted_waves, fitted_fluxes)):
-            #line = gauss_fit
-            #print(f"Line: {line}")
-            #print(f"Fitted wave: {fitted_wave}")
-            #print(f"Fitted flux: {fitted_flux}")
+            # Skip failed fits where results are None
+            if gauss_fit is None or fitted_wave is None or fitted_flux is None:
+                continue
             
             lam_min = np.min(fitted_wave)
             lam_max = np.max(fitted_wave)

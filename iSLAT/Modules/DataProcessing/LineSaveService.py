@@ -16,16 +16,11 @@ class LineSaveService:
     selections and formatting it for saving.
     """
     
-    def __init__(self, islat_instance):
+    def __init__(self):
         """
         Initialize the line save service.
-        
-        Parameters
-        ----------
-        islat_instance : iSLAT
-            Reference to the main iSLAT instance for accessing data and configuration
         """
-        self.islat = islat_instance
+        pass
     
     def create_default_line_info(
         self,
@@ -97,9 +92,9 @@ class LineSaveService:
             'lam': selected_line_info['lam'],
             'tau': selected_line_info.get('tau', 0.0),
             'intens': selected_line_info.get('inten', selected_line_info.get('intensity', 0.0)),
-            'a_stein': selected_line_info.get('a', 0.0),
-            'e_up': selected_line_info.get('e', 0.0),
-            'g_up': selected_line_info.get('g', 1.0),
+            'a_stein': selected_line_info.get('a_stein', 0.0),
+            'e_up': selected_line_info.get('e_up', 0.0),
+            'g_up': selected_line_info.get('g_up', 1.0),
             'e_low': selected_line_info.get('e_low', 0.0),
             'g_low': selected_line_info.get('g_low', 1.0),
             'xmin': xmin,
@@ -140,7 +135,10 @@ class LineSaveService:
     def extract_line_info_from_selection(
         self,
         main_plot: Any,
-        save_type: str = "selected"
+        save_type: str = "selected",
+        wave_data: Optional[np.ndarray] = None,
+        flux_data: Optional[np.ndarray] = None,
+        err_data: Optional[np.ndarray] = None
     ) -> Tuple[Optional[Dict[str, Any]], str]:
         """
         Extract line information from the current plot selection.
@@ -151,6 +149,12 @@ class LineSaveService:
             Reference to the main plot instance
         save_type : str
             Type of save: "selected" or "strongest"
+        wave_data : np.ndarray
+            Wavelength data array
+        flux_data : np.ndarray
+            Flux data array
+        err_data : np.ndarray, optional
+            Error data array
             
         Returns
         -------
@@ -173,10 +177,9 @@ class LineSaveService:
                 center_wave = (xmin + xmax) / 2.0
                 
                 # Calculate flux integral in the selected range
-                err_data = getattr(self.islat, 'err_data', None)
                 line_flux, line_err = main_plot.flux_integral(
-                    self.islat.wave_data,
-                    self.islat.flux_data,
+                    wave_data,
+                    flux_data,
                     err_data,
                     xmin,
                     xmax
