@@ -294,8 +294,8 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Loaded line list: {file_name}\n")
             
             # Update the FileInteractionPane label if available
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_pane'):
-                self.islat.GUI.file_pane.update_file_labels()
+            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                self.islat.GUI.file_interaction_pane.refresh()
         
         if not self.islat.output_line_measurements:
             self.data_field.insert_text("No output line measurements file configured. Using default\n")
@@ -367,6 +367,17 @@ class TopBar(ResizableFrame):
         def progress_callback(msg):
             self.data_field.insert_text(msg, clear_after=False)
         
+        # Determine the output file and path from the user's selection
+        output_file = None
+        output_path = None
+        if self.islat.output_line_measurements:
+            output_file = os.path.basename(self.islat.output_line_measurements)
+            output_path = os.path.dirname(self.islat.output_line_measurements)
+        
+        # Set the output folder before calling fit so LineAnalyzer uses it
+        if output_path:
+            self.batch_fitting_service._current_output_folder = output_path
+        
         # Use batch fitting service
         fit_data = self.batch_fitting_service.fit_lines_to_spectrum(
             saved_lines_file=saved_lines_file,
@@ -374,6 +385,7 @@ class TopBar(ResizableFrame):
             wavedata=wavedata,
             fluxdata=fluxdata,
             err_data=err_data,
+            output_file=output_file,
             progress_callback=progress_callback
         )
         
@@ -443,6 +455,10 @@ class TopBar(ResizableFrame):
             file_path, file_name = result
             self.islat.input_line_list = file_path
             self.data_field.insert_text(f"Loaded line list: {file_name}\n")
+            
+            # Update the FileInteractionPane label if available
+            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                self.islat.GUI.file_interaction_pane.refresh()
 
         def progress_callback(msg):
             self.data_field.insert_text(msg, clear_after=False)

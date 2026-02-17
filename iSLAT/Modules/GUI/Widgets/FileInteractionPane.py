@@ -236,23 +236,22 @@ class FileInteractionPane(ttk.Frame):
         """
         self.update_file_label()
         self._update_status_labels()
-        self.apply_theme()
     
     def _update_status_labels(self):
         """Update all status labels to reflect current loaded files."""
         # Update input line list label
         input_filename = self.get_input_line_list_filename()
         if input_filename:
-            self.input_line_list_label.configure(text=f"Input Line List: {input_filename}")
+            self.update_label(self.input_line_list_label, input_filename)
         else:
-            self.input_line_list_label.configure(text="Input Line List: None")
+            self.update_label(self.input_line_list_label, "None")
         
         # Update output measurements label
         output_filename = self.get_output_line_measurements_filename()
         if output_filename:
-            self.output_measurements_label.configure(text=f"Output Measurements: {output_filename}")
+            self.update_label(self.output_measurements_label, output_filename)
         else:
-            self.output_measurements_label.configure(text="Output Measurements: None")
+            self.update_label(self.output_measurements_label, "None")
     
     def get_loaded_filename(self):
         """
