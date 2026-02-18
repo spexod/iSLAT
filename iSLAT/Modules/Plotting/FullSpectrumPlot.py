@@ -212,6 +212,13 @@ class FullSpectrumPlot(BasePlot):
                 if np.any(s_mask):
                     self._plot_summed_spectrum(ax, summed_wave[s_mask], summed_flux[s_mask])
 
+            # --- axes config (set BEFORE annotations so they read
+            #     correct ylim / xlim for label positioning) -------------
+            ax.set_xlim(*xr)
+            ax.set_ylim(ymin, ymax)
+            ax.tick_params(axis="x", labelsize=7)
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=6, prune="both"))
+
             # --- line annotations ---------------------------------------
             if self.line_list is not None and len(self.line_list) > 0:
                 self._plot_line_annotations(ax, self.line_list, xr, ymin, ymax)
@@ -219,12 +226,6 @@ class FullSpectrumPlot(BasePlot):
             # --- atomic lines -------------------------------------------
             if self.atomic_lines is not None and len(self.atomic_lines) > 0:
                 self._plot_atomic_lines(ax, self.atomic_lines, xr=xr)
-
-            # --- axes config --------------------------------------------
-            ax.set_xlim(*xr)
-            ax.set_ylim(ymin, ymax)
-            ax.tick_params(axis="x", labelsize=7)
-            ax.xaxis.set_major_locator(MaxNLocator(nbins=6, prune="both"))
 
         # --- global labels & legend ------------------------------------
         if self.subplots:

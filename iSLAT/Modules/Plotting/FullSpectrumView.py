@@ -403,6 +403,8 @@ class FullSpectrumView(PlotView):
         # Saved lines
         self._remove_saved_line_artists()
         if toggle_state.get("saved_lines", False):
+            # Refresh line data from disk so we always reflect the latest file
+            self.line_data = self._load_line_data()
             self._add_saved_line_artists()
 
         # Summed spectrum
@@ -435,6 +437,11 @@ class FullSpectrumView(PlotView):
         if not self._initialised:
             return
         if show:
+            # Accept caller-provided data or refresh from disk
+            if loaded_lines is not None:
+                self.line_data = loaded_lines
+            else:
+                self.line_data = self._load_line_data()
             self._add_saved_line_artists()
         else:
             self._remove_saved_line_artists()
@@ -454,8 +461,15 @@ class FullSpectrumView(PlotView):
     # ==================================================================
     def _add_saved_line_artists(self) -> None:
         """Add saved-line annotations to every subplot."""
-        if self.line_data is None or self._plot is None:
+        if self._plot is None:
             return
+
+        # Reload line data from disk so we always have the latest
+        if self.line_data is None:
+            self.line_data = self._load_line_data()
+        if self.line_data is None:
+            return
+
         col = "wave" if "wave" in self.line_data.columns else "lam"
         if col not in self.line_data.columns:
             return
@@ -471,12 +485,8 @@ class FullSpectrumView(PlotView):
             panel_end = self._plot._xlim_end if is_last else panel_start + self._plot._step
             xr = (panel_start, panel_end)
 
-            flux_mask = (self._plot.wave_data > xr[0] - 0.02) & (self._plot.wave_data < xr[1])
-            if np.any(flux_mask):
-                ymax = float(np.nanmax(self._plot.flux_data[flux_mask])) * (1 + self._plot.ymax_factor)
-                ymin = -0.01
-            else:
-                ymin, ymax = -0.01, 0.15
+            # Use the axes' actual limits so annotations align with the plot
+            ymin, ymax = ax.get_ylim()
 
             for i in range(len(svd_lamb)):
                 if xr[0] < svd_lamb[i] < xr[1]:
