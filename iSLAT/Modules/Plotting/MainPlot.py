@@ -112,7 +112,7 @@ class iSLATPlot:
         # --- View strategy pattern ---
         # The active_view is the current rendering strategy.
         # ThreePanelView delegates to the existing axes + PlotRenderer.
-        # FullSpectrumView wraps the multi-panel OutputFullSpectrum.
+        # FullSpectrumView provides the self-contained multi-panel full spectrum layout.
         self._three_panel_view: PlotView = ThreePanelView(self)
         self._full_spectrum_view: PlotView = FullSpectrumView(self)
         self.active_view: PlotView = self._three_panel_view
@@ -244,11 +244,12 @@ class iSLATPlot:
     # ------------------------------------------------------------------
     # Backward-compatibility properties for external code that still
     # references full_spectrum_plot / full_spectrum_plot_canvas directly.
+    # Now the FullSpectrumView *is* the plot (no inner _fsp wrapper).
     # ------------------------------------------------------------------
     @property
     def full_spectrum_plot(self):
-        """Return the underlying FullSpectrumPlot if it exists."""
-        return self._full_spectrum_view._fsp
+        """Return the FullSpectrumView (replaces the old FullSpectrumPlot)."""
+        return self._full_spectrum_view
 
     @property
     def full_spectrum_plot_canvas(self):

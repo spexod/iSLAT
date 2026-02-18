@@ -618,7 +618,7 @@ class InteractionHandler:
     
     def _output_full_spectrum(self):
         """Output full spectrum to file (same as menu command)"""
-        from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
+        from iSLAT.Modules.Plotting.FullSpectrumView import output_full_spectrum
         output_full_spectrum(self.islat)
     
     def _save_parameters(self):

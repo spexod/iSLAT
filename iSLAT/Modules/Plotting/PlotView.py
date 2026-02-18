@@ -5,10 +5,6 @@ The iSLATPlot controller owns one *active_view* at a time.  Every user-facing
 action (toggle molecule, toggle summed spectrum, toggle legend, …) is
 forwarded to the active view's implementation, eliminating scattered
 ``if is_full_spectrum`` checks throughout the codebase.
-
-Concrete implementations:
-    - :class:`ThreePanelView`  — the standard spectrum + inspection + pop-diagram
-    - :class:`FullSpectrumView` — multi-panel full spectrum overview
 """
 
 from __future__ import annotations
@@ -126,6 +122,73 @@ class PlotView(ABC):
     def toggle_atomic_lines(self, show: bool) -> None:
         """Add or remove atomic line annotations."""
         ...
+
+    # ------------------------------------------------------------------
+    # File output
+    # ------------------------------------------------------------------
+    def save_figure(
+        self,
+        save_path: str | None = None,
+        file_format: str = "pdf",
+        dpi: int | None = None,
+        rasterized: bool = False,
+        **kwargs,
+    ) -> str | None:
+        """
+        Save the current view's figure to a file.
+
+        The default implementation saves the figure returned by
+        :meth:`get_figure`.  Subclasses may override this to produce a
+        *different* figure for export (e.g. with toggle state baked in).
+
+        Parameters
+        ----------
+        save_path : str or None
+            Destination path.  If *None* a file dialog is opened.
+        file_format : str
+            File format extension (``"pdf"``, ``"png"``, …).
+        dpi : int or None
+            Resolution.  *None* uses matplotlib's default.
+        rasterized : bool
+            If *True* axes are rasterized before saving (useful for PDFs
+            with very dense data).
+        **kwargs
+            Extra keyword arguments forwarded to ``fig.savefig()``.
+
+        Returns
+        -------
+        str or None
+            The path that was saved to, or *None* if the user cancelled.
+        """
+        from pathlib import Path
+        from tkinter import filedialog
+
+        fig = self.get_figure()
+        if fig is None:
+            return None
+
+        if save_path is None:
+            save_path = filedialog.asksaveasfilename(
+                title="Save Figure",
+                defaultextension=f".{file_format}",
+                filetypes=[(f"{file_format.upper()} files", f"*.{file_format}")],
+            )
+        if not save_path:
+            return None
+
+        if rasterized:
+            for ax in fig.axes:
+                ax.set_rasterized(True)
+
+        save_kw = {"bbox_inches": "tight", "format": file_format}
+        if dpi is not None:
+            save_kw["dpi"] = dpi
+        elif rasterized:
+            save_kw["dpi"] = 300
+        save_kw.update(kwargs)
+
+        fig.savefig(save_path, **save_kw)
+        return save_path
 
     # ------------------------------------------------------------------
     # Canvas / drawing
