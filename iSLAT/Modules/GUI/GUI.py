@@ -172,7 +172,29 @@ class GUI:
                 )
             except Exception as e:
                 print("Error", f"Failed to save molecule parameters: {str(e)}")
-        self.window.destroy()
+
+        # Close all matplotlib figures to release resources
+        try:
+            import matplotlib.pyplot as plt
+            plt.close("all")
+        except Exception:
+            pass
+
+        # Destroy the full-spectrum view's figure (non-pyplot managed)
+        try:
+            if hasattr(self, 'plot') and hasattr(self.plot, '_full_spectrum_view'):
+                self.plot._full_spectrum_view.destroy()
+        except Exception:
+            pass
+
+        try:
+            self.window.destroy()
+        except Exception:
+            pass
+
+        # Force-exit the process so no background threads keep it alive
+        import os
+        os._exit(0)
 
     def get_plot_renderer(self):
         return self.plot.plot_renderer

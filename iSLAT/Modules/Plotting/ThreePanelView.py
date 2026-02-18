@@ -62,6 +62,7 @@ class ThreePanelView(PlotView):
         self._pm = plot_manager  # short alias for the controller
         self.atomic_lines: List = []  # artists created by _plot_atomic_lines
         self.saved_lines: List = []   # artists created by _plot_saved_lines
+        self._needs_refresh: bool = True  # Set True when data changes; cleared after re-render
 
     # ------------------------------------------------------------------
     # Helpers (private, short-hand access to controller state)
@@ -96,10 +97,17 @@ class ThreePanelView(PlotView):
     def activate(self, parent_frame: Any) -> None:
         """Show the original 3-panel canvas and refresh."""
         self._canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
-        # Full re-render reads toggle_state via the backward-compat
-        # properties (_pm.atomic_toggle, _pm.line_toggle, …).
-        self._do_update_model_plot()
-        self.sync_toggle_state(self._pm.toggle_state)
+
+        if self._needs_refresh:
+            # Data changed while we were inactive — full re-render
+            self._do_update_model_plot()
+            self._needs_refresh = False
+        else:
+            # Simple view toggle — just sync overlay state
+            self.sync_toggle_state(self._pm.toggle_state)
+
+        # Restore the span selector and active line selection
+        self._restore_line_selection()
 
     def deactivate(self) -> None:
         """Hide the original canvas."""
@@ -117,6 +125,7 @@ class ThreePanelView(PlotView):
         **kwargs: Any,
     ) -> None:
         self._do_update_model_plot()
+        self._needs_refresh = False
 
     def _do_update_model_plot(self) -> None:
         """Internal full re-render mirroring the old ``iSLATPlot.update_model_plot`` logic."""
@@ -204,14 +213,30 @@ class ThreePanelView(PlotView):
         """
         Reconcile visual state with the controller's toggle_state dict.
 
-        For the three-panel view this is already handled by
-        ``_do_update_model_plot`` which is called from ``activate``.
-        We just need to make sure _do_update_model_plot was already called
-        (it is — see ``activate``).
+        Ensures overlays match the canonical state without a full re-render.
         """
-        # _do_update_model_plot already reads _pm.toggle_state via
-        # _pm.atomic_toggle / _pm.line_toggle / _pm.summed_toggle.
-        pass
+        # Atomic lines
+        if toggle_state.get("atomic_lines", False):
+            if not self.atomic_lines:
+                self._plot_atomic_lines()
+        else:
+            if self.atomic_lines:
+                self._remove_atomic_lines()
+
+        # Saved lines
+        if toggle_state.get("saved_lines", False):
+            if not self.saved_lines:
+                self._plot_saved_lines()
+        else:
+            if self.saved_lines:
+                self._remove_saved_lines()
+
+        # Summed spectrum
+        self._renderer.set_summed_spectrum_visibility(
+            toggle_state.get("summed", True)
+        )
+
+        self._canvas.draw_idle()
 
     def toggle_summed_spectrum(self, visible: bool) -> None:
         self._renderer.set_summed_spectrum_visibility(visible)
@@ -271,6 +296,30 @@ class ThreePanelView(PlotView):
     def _remove_saved_lines(self) -> None:
         """Remove previously plotted saved line artists from ax1."""
         self._renderer.remove_saved_lines(self.saved_lines)
+
+    # ------------------------------------------------------------------
+    # Selection restoration
+    # ------------------------------------------------------------------
+    def _restore_line_selection(self) -> None:
+        """Restore the span selector and line inspection from toggle_state."""
+        sel = self._pm.toggle_state.get("current_selection")
+        if sel is not None:
+            xmin, xmax = sel
+            # Rebuild span selector so it exists on the (possibly-cleared) axes
+            self._pm.make_span_selector()
+            # Restore the visual span extents
+            if hasattr(self._pm, 'interaction_handler'):
+                span = getattr(self._pm.interaction_handler, 'span_selector', None)
+                if span is not None:
+                    try:
+                        span.set_visible(True)
+                        span.extents = (xmin, xmax)
+                        span.update()
+                    except Exception:
+                        pass
+            # Re-run the line inspection / population diagram
+            self._pm.onselect(xmin, xmax)
+        self._canvas.draw_idle()
 
     # ------------------------------------------------------------------
     # Canvas / drawing

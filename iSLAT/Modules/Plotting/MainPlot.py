@@ -74,11 +74,12 @@ class iSLATPlot:
 
         # Single source of truth for every overlay toggle.
         # Views read this dict on activate() to reconcile their visual state.
-        self.toggle_state: dict[str, bool] = {
+        self.toggle_state: dict = {
             "atomic_lines": False,
             "saved_lines":  False,
             "summed":       True,
             "legend":       True,
+            "current_selection": None,   # (xmin, xmax) or None
         }
 
         #self.fig = plt.Figure(figsize=(15, 8.5))
@@ -398,19 +399,21 @@ class iSLATPlot:
         Updates the main spectrum plot with observed data, model spectra, and summed flux.
 
         Delegates to the active view so the correct panel layout is refreshed.
-        The three-panel view also keeps the underlying axes current so a switch
-        back from full-spectrum mode will be up-to-date.
+        The inactive view is marked stale so it re-renders on the next activate().
         """
         # Always update the active view
         self.active_view.update_model_plot()
 
-        # If full-spectrum mode is active, also silently update the 3-panel
-        # data (axes, renderer state) so it's ready when the user switches back.
+        # Mark the *other* view as needing a refresh next time it's activated,
+        # instead of doing an expensive silent update now.
         if self.is_full_spectrum:
-            self._three_panel_view._do_update_model_plot()
+            self._three_panel_view._needs_refresh = True
+        else:
+            self._full_spectrum_view._needs_refresh = True
 
     def onselect(self, xmin, xmax):
         self.current_selection = (xmin, xmax)
+        self.toggle_state["current_selection"] = (xmin, xmax)
         mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
         self.selected_wave = self.islat.wave_data[mask]
         self.selected_flux = self.islat.flux_data[mask]
@@ -593,6 +596,7 @@ class iSLATPlot:
 
     def clear_selection(self):
         self.current_selection = None
+        self.toggle_state["current_selection"] = None
         self.clear_active_lines()
         self.ax2.clear()
         # Refresh population diagram without active line dots

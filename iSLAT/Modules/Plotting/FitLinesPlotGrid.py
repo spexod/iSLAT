@@ -1,8 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
 #import pandas as pd
 
 from typing import Dict, List, Optional, Tuple, Callable, Any, Union, TYPE_CHECKING
+from matplotlib.ticker import MaxNLocator
 
 from .BasePlot import BasePlot
 
@@ -47,9 +47,8 @@ class FitLinesPlotGrid(BasePlot):
         # Initialize BasePlot with computed figsize
         super().__init__(figsize=self.figsize, **kwargs)
 
-        self.fig: Figure
-        self.axs: np.ndarray[Axes]
-        self.fig = plt.figure(figsize=self.figsize)
+        # Use _ensure_figure() from BasePlot (creates a non-pyplot Figure)
+        self._ensure_figure()
         self.axs = self.fig.subplots(self.rows, self.cols)
         # Ensure axs is always 2D array even for single row/column
         if self.rows == 1 and self.cols == 1:
@@ -122,8 +121,8 @@ class FitLinesPlotGrid(BasePlot):
             ax.tick_params(axis='both', labelsize=6, pad=1)
             ax.tick_params(axis='x', rotation=30)
             # Limit number of tick marks to reduce clutter
-            ax.xaxis.set_major_locator(plt.MaxNLocator(nbins=4, prune='both'))
-            ax.yaxis.set_major_locator(plt.MaxNLocator(nbins=4, prune='both'))
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=4, prune='both'))
+            ax.yaxis.set_major_locator(MaxNLocator(nbins=4, prune='both'))
 
             # Only show x-tick labels on the last row that has plots
             last_used_row = min(n_plots - 1, self.rows * self.cols - 1) // self.cols

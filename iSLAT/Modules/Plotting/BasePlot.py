@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure as MplFigure
 from matplotlib.lines import Line2D
 
 import iSLAT.Constants as c
@@ -69,12 +69,12 @@ class BasePlot(ABC):
         self,
         figsize: Optional[Tuple[float, float]] = None,
         theme: Optional[Dict[str, Any]] = None,
-        fig: Optional[Figure] = None,
+        fig: Optional[MplFigure] = None,
         **kwargs,
     ):
         self._figsize = figsize
         self.theme: Dict[str, Any] = theme if theme is not None else DEFAULT_THEME.copy()
-        self.fig: Optional[Figure] = fig
+        self.fig: Optional[MplFigure] = fig
         self._owns_figure = fig is None  # True when we create the figure ourselves
 
     # ------------------------------------------------------------------
@@ -178,13 +178,20 @@ class BasePlot(ABC):
     # ------------------------------------------------------------------
     # Figure lifecycle helpers
     # ------------------------------------------------------------------
-    def _ensure_figure(self, **subplot_kw) -> Figure:
-        """Create the figure if it doesn't already exist."""
+    def _ensure_figure(self, **subplot_kw) -> MplFigure:
+        """Create the figure if it doesn't already exist.
+
+        Uses :class:`matplotlib.figure.Figure` directly (not
+        ``plt.figure()``) so the figure is **not** registered with the
+        pyplot state machine.  This prevents the TkAgg backend from
+        creating a hidden figure-manager window that would steal the
+        application's taskbar icon.
+        """
         if self.fig is None:
             kw: Dict[str, Any] = {"layout": "constrained"}
             if self._figsize is not None:
                 kw["figsize"] = self._figsize
-            self.fig = plt.figure(**kw)
+            self.fig = MplFigure(**kw)
             self._owns_figure = True
         return self.fig
 
@@ -240,7 +247,7 @@ class BasePlot(ABC):
         if not np.any(summed_flux > 0):
             return
         fill_color = color or self._get_theme_value("summed_spectra_color", "lightgray")
-        ax.fill_between(
+        fill = ax.fill_between(
             wave_data,
             0,
             summed_flux,
@@ -249,6 +256,7 @@ class BasePlot(ABC):
             label=label,
             zorder=self._get_theme_value("zorder_summed", 1),
         )
+        fill._islat_summed = True  # Tag for toggle-state-aware export
 
     def _plot_molecule_spectrum(
         self,
@@ -279,6 +287,8 @@ class BasePlot(ABC):
             label=self.get_molecule_display_name(molecule),
             zorder=self._get_theme_value("zorder_model", 3),
         )
+        # Tag with molecule identity so set_molecule_visibility() can find it
+        line._molecule_name = getattr(molecule, "name", "unknown")
         return line
 
     def _plot_visible_molecules(
@@ -442,9 +452,18 @@ class BasePlot(ABC):
     def close(self) -> None:
         """Close the figure and free memory."""
         if self.fig is not None and self._owns_figure:
-            plt.close(self.fig)
+            try:
+                # Try pyplot close first (works for pyplot-managed figs)
+                plt.close(self.fig)
+            except Exception:
+                # Figure was created with MplFigure() — not in pyplot,
+                # just clear it directly.
+                try:
+                    self.fig.clear()
+                except Exception:
+                    pass
         self.fig = None
 
-    def get_figure(self) -> Optional[Figure]:
+    def get_figure(self) -> Optional[MplFigure]:
         """Return the underlying matplotlib *Figure*."""
         return self.fig
