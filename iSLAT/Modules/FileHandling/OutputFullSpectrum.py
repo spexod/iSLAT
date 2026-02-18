@@ -255,10 +255,16 @@ class FullSpectrumPlot:
             )
             
             # Plot line annotations AFTER main plot (so they're not cleared)
-            if self.islat_ref.GUI.top_bar.line_toggle:
+            # Read toggle state from MainPlot's canonical dict
+            _plot_ref = getattr(self.islat_ref.GUI, 'plot', None)
+            _ts = getattr(_plot_ref, 'toggle_state', {}) if _plot_ref else {}
+            _line_on = _ts.get('saved_lines', False)
+            _atomic_on = _ts.get('atomic_lines', False)
+
+            if _line_on:
                 self._plot_line_list(self.subplots[n], xr, ymin, ymax)
 
-            if self.islat_ref.GUI.top_bar.atomic_toggle:
+            if _atomic_on:
                 atomic_lines = load_atomic_lines()
 
                 atomic_lines = atomic_lines[
@@ -281,7 +287,8 @@ class FullSpectrumPlot:
         summed_hidden = False
         if hasattr(self.islat_ref, 'GUI') and hasattr(self.islat_ref.GUI, 'plot'):
             plot_ref = self.islat_ref.GUI.plot
-            if (hasattr(plot_ref, 'summed_toggle') and not plot_ref.summed_toggle) or not self.visible_molecules:
+            _ts = getattr(plot_ref, 'toggle_state', {})
+            if (not _ts.get('summed', True)) or not self.visible_molecules:
                 summed_hidden = True
                 for ax in self.subplots.values():
                     for collection in ax.collections[:]:

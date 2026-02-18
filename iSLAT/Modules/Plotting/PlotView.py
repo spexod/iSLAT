@@ -14,7 +14,7 @@ Concrete implementations:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 if TYPE_CHECKING:
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -95,6 +95,18 @@ class PlotView(ABC):
     # ------------------------------------------------------------------
     # Toggle helpers
     # ------------------------------------------------------------------
+    @abstractmethod
+    def sync_toggle_state(self, toggle_state: dict) -> None:
+        """
+        Reconcile the view's visual state with the canonical *toggle_state*
+        dict from the controller.
+
+        Called by the controller when this view is **activated** so that
+        overlays (atomic lines, saved lines, summed spectrum, legend) match
+        the state the user set while a different view was visible.
+        """
+        ...
+
     @abstractmethod
     def toggle_summed_spectrum(self, visible: bool) -> None:
         """Show or hide the summed model fill across all relevant axes."""

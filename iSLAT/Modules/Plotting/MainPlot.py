@@ -7,6 +7,8 @@ from matplotlib.gridspec import GridSpec
 
 import numpy as np
 
+from typing import Optional
+
 import iSLAT.Constants as c
 
 from .PlotRenderer import PlotRenderer
@@ -69,8 +71,15 @@ class iSLATPlot:
         self.active_lines = []  # List of (line, text, scatter, values) tuples for active molecular lines
         self.atomic_lines = []
         self.saved_lines = []
-        self.atomic_toggle: bool = False
-        self.summed_toggle: bool = True  # Summed spectrum visible by default
+
+        # Single source of truth for every overlay toggle.
+        # Views read this dict on activate() to reconcile their visual state.
+        self.toggle_state: dict[str, bool] = {
+            "atomic_lines": False,
+            "saved_lines":  False,
+            "summed":       True,
+            "legend":       True,
+        }
 
         #self.fig = plt.Figure(figsize=(15, 8.5))
         self.fig = plt.Figure(constrained_layout=True)
@@ -132,6 +141,33 @@ class iSLATPlot:
         # This prevents triggering molecule calculations before window is visible
         # self._set_initial_zoom_range()
     
+    # ------------------------------------------------------------------
+    # Backward-compatible properties — read / write the toggle_state dict
+    # ------------------------------------------------------------------
+    @property
+    def atomic_toggle(self) -> bool:
+        return self.toggle_state["atomic_lines"]
+
+    @atomic_toggle.setter
+    def atomic_toggle(self, value: bool) -> None:
+        self.toggle_state["atomic_lines"] = value
+
+    @property
+    def line_toggle(self) -> bool:
+        return self.toggle_state["saved_lines"]
+
+    @line_toggle.setter
+    def line_toggle(self, value: bool) -> None:
+        self.toggle_state["saved_lines"] = value
+
+    @property
+    def summed_toggle(self) -> bool:
+        return self.toggle_state["summed"]
+
+    @summed_toggle.setter
+    def summed_toggle(self, value: bool) -> None:
+        self.toggle_state["summed"] = value
+
     def initialize_data(self):
         """
         Initialize data-dependent plot elements.
@@ -657,6 +693,40 @@ class iSLATPlot:
         )
         # Don't call canvas.draw_idle() here - let caller batch it
 
+    def toggle_atomic_lines(self, show: Optional[bool] = None) -> None:
+        """
+        Toggle atomic line annotations on the active view.
+
+        Parameters
+        ----------
+        show : bool or None
+            If *None* the toggle is flipped; otherwise the explicit state
+            is forwarded.
+        """
+        if show is None:
+            self.atomic_toggle = not self.atomic_toggle
+        else:
+            self.atomic_toggle = show
+        self.active_view.toggle_atomic_lines(self.atomic_toggle)
+
+    def toggle_saved_lines(self, show: Optional[bool] = None, loaded_lines=None) -> None:
+        """
+        Toggle saved-line annotations on the active view.
+
+        Parameters
+        ----------
+        show : bool or None
+            If *None* the toggle is flipped; otherwise the explicit state
+            is forwarded.
+        loaded_lines : DataFrame or None
+            Pre-loaded line data.  If *None* the view will load from disk.
+        """
+        if show is None:
+            self.line_toggle = not self.line_toggle
+        else:
+            self.line_toggle = show
+        self.active_view.toggle_saved_lines(self.line_toggle, loaded_lines=loaded_lines)
+
     def toggle_legend(self):
         self.active_view.toggle_legend()
 
@@ -714,25 +784,14 @@ class iSLATPlot:
         self.canvas.draw_idle()
     
     def remove_atomic_lines(self):
-        self.plot_renderer.remove_atomic_lines(self.atomic_lines)
-        self.canvas.draw()
+        """Remove atomic lines — delegates to the active view."""
+        self.atomic_toggle = False
+        self.active_view.toggle_atomic_lines(False)
 
-    def plot_atomic_lines(self, data_field = None, atomic_lines = load_atomic_lines()):
-        if atomic_lines.empty:
-                if data_field: 
-                    self.data_field.insert_text("No atomic lines data found.\n")
-                return
-        
-        # Get wavelength and other data from the atomic lines DataFrame 
-        wavelengths = atomic_lines['wave'].values
-        species = atomic_lines['species'].values
-        line_ids = atomic_lines['line'].values
-                
-        self.plot_renderer.render_atomic_lines(self.atomic_lines, self.ax1, 
-        wavelengths, species, line_ids)
-
-        self.canvas.draw()
-        return wavelengths
+    def plot_atomic_lines(self, data_field=None, atomic_lines=None):
+        """Plot atomic lines — delegates to the active view."""
+        self.atomic_toggle = True
+        self.active_view.toggle_atomic_lines(True)
 
     def plot_vertical_lines(self, wavelengths, heights=None, colors=None, labels=None):
         """
@@ -990,21 +1049,15 @@ class iSLATPlot:
         # Delegate to PlotRenderer for plotting
         self.plot_renderer.plot_single_lines(wavelengths)
     
-    def plot_saved_lines(self, loaded_lines = None, data_field = None):
-        """Plot saved lines using PlotRenderer with delegation."""
-        # Load saved lines from file
-        if loaded_lines is None:
-            loaded_lines = ifh.read_line_saves(file_name=self.islat.input_line_list)
-            if loaded_lines.empty:    
-                if data_field:
-                    data_field.insert_text("No saved lines found.\n")
-                return
-        
-        self.plot_renderer.plot_saved_lines(loaded_lines, self.saved_lines)
-        #data_field.insert_text(f"Displayed {len(self.saved_lines)} saved lines on plot.\n")
-    
+    def plot_saved_lines(self, loaded_lines=None, data_field=None):
+        """Plot saved lines — delegates to the active view."""
+        self.line_toggle = True
+        self.active_view.toggle_saved_lines(True, loaded_lines=loaded_lines)
+
     def remove_saved_lines(self):
-        self.plot_renderer.remove_saved_lines(self.saved_lines)
+        """Remove saved lines — delegates to the active view."""
+        self.line_toggle = False
+        self.active_view.toggle_saved_lines(False)
 
     def apply_theme(self, theme=None):
         """Apply theme to the plot and update colors"""

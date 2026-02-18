@@ -81,7 +81,7 @@ class FullSpectrumView(PlotView):
             return
 
         from iSLAT.Modules.FileHandling.OutputFullSpectrum import FullSpectrumPlot
-        self._fsp = FullSpectrumPlot(self._islat)
+        self._fsp: FullSpectrumPlot = FullSpectrumPlot(self._islat)
         self._fsp.generate_plot()
 
     def _ensure_canvas(self) -> None:
@@ -121,6 +121,12 @@ class FullSpectrumView(PlotView):
 
         if self._canvas is not None:
             self._canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
+
+        # Reconcile overlays (atomic lines, saved lines, summed) with
+        # the controller's single-source-of-truth toggle dict.
+        self.sync_toggle_state(self._pm.toggle_state)
+
+        if self._canvas is not None:
             self._canvas.draw_idle()
 
     def deactivate(self) -> None:
@@ -236,6 +242,38 @@ class FullSpectrumView(PlotView):
     # ------------------------------------------------------------------
     # Toggle helpers
     # ------------------------------------------------------------------
+    def sync_toggle_state(self, toggle_state: dict) -> None:
+        """
+        Reconcile the full-spectrum view's visual state with the
+        controller's canonical *toggle_state* dict.
+
+        This is called on every ``activate()`` so overlays correctly
+        reflect changes the user made while the 3-panel view was active.
+        """
+        if self._fsp is None:
+            return
+
+        # --- Atomic lines ------------------------------------------------
+        # Always remove first, then re-add only if the toggle is on.
+        self._fsp._remove_atomic_line_artists()
+        if toggle_state.get("atomic_lines", False):
+            self._fsp.toggle_atomic_lines(True)
+        # (toggle_atomic_lines(True) adds them; we already removed stale ones)
+
+        # --- Saved lines -------------------------------------------------
+        self._fsp._remove_saved_line_artists()
+        if toggle_state.get("saved_lines", False):
+            self._fsp.toggle_saved_lines(True)
+
+        # --- Summed spectrum ---------------------------------------------
+        summed_on = toggle_state.get("summed", True)
+        for ax in self._fsp.subplots.values():
+            for coll in ax.collections[:]:
+                if hasattr(coll, '_islat_summed'):
+                    coll.set_visible(summed_on)
+
+        self.draw()
+
     def toggle_summed_spectrum(self, visible: bool) -> None:
         if self._fsp is None:
             return

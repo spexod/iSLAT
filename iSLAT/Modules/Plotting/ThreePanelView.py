@@ -60,6 +60,8 @@ class ThreePanelView(PlotView):
             The main controller that owns fig, canvas, ax1-3, and PlotRenderer.
         """
         self._pm = plot_manager  # short alias for the controller
+        self.atomic_lines: List = []  # artists created by _plot_atomic_lines
+        self.saved_lines: List = []   # artists created by _plot_saved_lines
 
     # ------------------------------------------------------------------
     # Helpers (private, short-hand access to controller state)
@@ -94,9 +96,10 @@ class ThreePanelView(PlotView):
     def activate(self, parent_frame: Any) -> None:
         """Show the original 3-panel canvas and refresh."""
         self._canvas.get_tk_widget().pack(fill="both", expand=True, padx=0, pady=0)
-        # Refresh the main plot so it reflects any changes made while the
-        # view was inactive (molecules toggled in full-spectrum mode, etc.)
+        # Full re-render reads toggle_state via the backward-compat
+        # properties (_pm.atomic_toggle, _pm.line_toggle, …).
         self._do_update_model_plot()
+        self.sync_toggle_state(self._pm.toggle_state)
 
     def deactivate(self) -> None:
         """Hide the original canvas."""
@@ -140,8 +143,8 @@ class ThreePanelView(PlotView):
         wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * islat.molecules_dict.global_stellar_rv)
         islat.wave_data = wave_data
 
-        self._pm.atomic_lines.clear()
-        self._pm.saved_lines.clear()
+        self.atomic_lines.clear()
+        self.saved_lines.clear()
 
         self._renderer.render_main_spectrum_plot(
             wave_data=wave_data,
@@ -157,11 +160,11 @@ class ThreePanelView(PlotView):
             self._renderer.set_summed_spectrum_visibility(False)
 
         # Overlay saved / atomic lines if their toggles are on
-        if islat.GUI.top_bar.atomic_toggle:
-            self._pm.plot_atomic_lines()
+        if self._pm.atomic_toggle:
+            self._plot_atomic_lines()
 
-        if islat.GUI.top_bar.line_toggle:
-            self._pm.plot_saved_lines()
+        if self._pm.line_toggle:
+            self._plot_saved_lines()
 
         # Recreate span selector and redraw
         self._pm.make_span_selector()
@@ -197,6 +200,19 @@ class ThreePanelView(PlotView):
     # ------------------------------------------------------------------
     # Toggle helpers
     # ------------------------------------------------------------------
+    def sync_toggle_state(self, toggle_state: dict) -> None:
+        """
+        Reconcile visual state with the controller's toggle_state dict.
+
+        For the three-panel view this is already handled by
+        ``_do_update_model_plot`` which is called from ``activate``.
+        We just need to make sure _do_update_model_plot was already called
+        (it is — see ``activate``).
+        """
+        # _do_update_model_plot already reads _pm.toggle_state via
+        # _pm.atomic_toggle / _pm.line_toggle / _pm.summed_toggle.
+        pass
+
     def toggle_summed_spectrum(self, visible: bool) -> None:
         self._renderer.set_summed_spectrum_visibility(visible)
         self._canvas.draw_idle()
@@ -212,15 +228,49 @@ class ThreePanelView(PlotView):
 
     def toggle_saved_lines(self, show: bool, loaded_lines: Any = None) -> None:
         if show:
-            self._pm.plot_saved_lines(loaded_lines=loaded_lines)
+            self._plot_saved_lines(loaded_lines=loaded_lines)
         else:
-            self._pm.remove_saved_lines()
+            self._remove_saved_lines()
 
     def toggle_atomic_lines(self, show: bool) -> None:
         if show:
-            self._pm.plot_atomic_lines()
+            self._plot_atomic_lines()
         else:
-            self._pm.remove_atomic_lines()
+            self._remove_atomic_lines()
+
+    # ------------------------------------------------------------------
+    # Atomic / saved line helpers (self-contained)
+    # ------------------------------------------------------------------
+    def _plot_atomic_lines(self) -> None:
+        """Render atomic lines on ax1, storing artists in *self.atomic_lines*."""
+        atomic_data = load_atomic_lines()
+        if atomic_data.empty:
+            return
+        wavelengths = atomic_data['wave'].values
+        species = atomic_data['species'].values
+        line_ids = atomic_data['line'].values
+        self._renderer.render_atomic_lines(
+            self.atomic_lines, self.ax1, wavelengths, species, line_ids,
+        )
+        self._canvas.draw_idle()
+
+    def _remove_atomic_lines(self) -> None:
+        """Remove previously plotted atomic line artists from ax1."""
+        self._renderer.remove_atomic_lines(self.atomic_lines)
+        self._canvas.draw_idle()
+
+    def _plot_saved_lines(self, loaded_lines: Any = None) -> None:
+        """Render saved lines on ax1, storing artists in *self.saved_lines*."""
+        import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
+        if loaded_lines is None:
+            loaded_lines = ifh.read_line_saves(file_name=self._islat.input_line_list)
+            if loaded_lines.empty:
+                return
+        self._renderer.plot_saved_lines(loaded_lines, self.saved_lines)
+
+    def _remove_saved_lines(self) -> None:
+        """Remove previously plotted saved line artists from ax1."""
+        self._renderer.remove_saved_lines(self.saved_lines)
 
     # ------------------------------------------------------------------
     # Canvas / drawing

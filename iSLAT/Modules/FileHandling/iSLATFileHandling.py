@@ -614,20 +614,34 @@ def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name
         print(f"Error saving molecule parameters: {e}")
         return None
 
-def load_atomic_lines(file_path=atomic_lines_file_name):
+# Module-level cache for atomic lines so the CSV is read at most once.
+_atomic_lines_cache: pd.DataFrame | None = None
+
+def load_atomic_lines(file_path=atomic_lines_file_name, *, force_reload: bool = False):
     """
     Load atomic line database from CSV file.
+
+    The result is cached after the first successful read so that repeated
+    calls (e.g. toggling atomic lines on/off, switching views) do **not**
+    re-read the file from disk.
     
     Parameters
     ----------
     file_path : str
         Path to the atomic lines CSV file
+    force_reload : bool
+        If *True*, bypass the cache and re-read from disk.
         
     Returns
     -------
     pandas.DataFrame
         DataFrame containing atomic line data with columns: wave, species, line
     """
+    global _atomic_lines_cache
+
+    if _atomic_lines_cache is not None and not force_reload:
+        return _atomic_lines_cache
+
     try:
         # Try to find the atomic lines file relative to the current working directory
         if not os.path.exists(file_path):
@@ -648,6 +662,7 @@ def load_atomic_lines(file_path=atomic_lines_file_name):
         
         atomic_lines = pd.read_csv(file_path)
         print(f"Loaded {len(atomic_lines)} atomic lines from {file_path}")
+        _atomic_lines_cache = atomic_lines
         return atomic_lines
         
     except Exception as e:
