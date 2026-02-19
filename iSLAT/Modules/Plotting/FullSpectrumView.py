@@ -8,12 +8,6 @@ subclass) for all rendering, then adds interactive features on top:
 * Span selectors on every panel (click-to-inspect)
 * Dynamic overlay toggles (atomic / saved lines, summed spectrum)
 * Canvas lifecycle management for the Tk GUI
-
-Performance contract:
-    - ``on_molecule_visibility_changed``  →  O(panels × molecules) artist toggle
-    - ``toggle_summed_spectrum``          →  O(panels) collection toggle
-    - ``toggle_legend``                   →  O(1) legend visibility toggle
-    - ``update_model_plot``               →  full regeneration (only when really needed)
 """
 
 from __future__ import annotations
@@ -67,7 +61,6 @@ except ImportError:
         def error(self, *a, **k): print(f"ERROR: {a}")
         def trace(self, *a, **k): pass
     debug_config = _Fallback()
-
 
 class FullSpectrumView(PlotView):
     """
@@ -689,7 +682,6 @@ class FullSpectrumView(PlotView):
             self._plot = None
         self._initialised = False
         self._needs_refresh = True
-
 
 # ======================================================================
 # Backward-compatible top-level function

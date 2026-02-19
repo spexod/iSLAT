@@ -187,10 +187,10 @@ class FileInteractionPane(ttk.Frame):
         
         if ctrl_pressed:
             # Ctrl/Command click - load spectrum with saved parameters
-            self.islat_class.load_spectrum(load_parameters=True)
+            self.islat_class.load_spectrum(load_parameters=True, force_dialog=True)
         else:
             # Normal click
-            self.islat_class.load_spectrum()
+            self.islat_class.load_spectrum(force_dialog=True)
     
     def update_label(self, widget, text = None):
         widget.configure(text=text)
