@@ -312,7 +312,7 @@ class PlotRenderer:
         obs_wave_for_plotting = wave_data
         
         # Plot observed spectrum using appropriate wavelength grid
-        self._plot_observed_spectrum(obs_wave_for_plotting, flux_data, error_data, subplot=axes)
+        BasePlot._plot_observed_spectrum(self, axes, obs_wave_for_plotting, flux_data, error_data, deduplicate=True)
 
         # Plot individual molecule spectra
         if molecules:
@@ -320,7 +320,7 @@ class PlotRenderer:
             
         # Plot summed spectrum
         if summed_flux is not None and len(summed_flux) > 0:
-            self._plot_summed_spectrum(summed_wavelengths, summed_flux, subplot=axes)
+            BasePlot._plot_summed_spectrum(self, axes, summed_wavelengths, summed_flux, deduplicate=True)
         
         # Configure plot appearance
         self._configure_main_plot_appearance()
@@ -333,79 +333,25 @@ class PlotRenderer:
         
     def _plot_observed_spectrum(self, wave_data: np.ndarray, flux_data: np.ndarray, 
                                error_data: Optional[np.ndarray] = None, subplot: Optional[Axes] = None) -> None:
-        """Plot the observed spectrum data"""
-        #print("plotting spectrum")
-        
-        plot = subplot if subplot else self.ax1 # Use subplot for output if given.
-        #alpha = 0.8 if self.render_out else 1
-        
-        # Remove existing observed spectrum lines to avoid duplicates
-        for line in plot.lines[:]:  # Use slice to avoid modification during iteration
-            if hasattr(line, '_islat_observed'):
-                line.remove()
-        for collection in plot.collections[:]:
-            if hasattr(collection, '_islat_observed'):
-                collection.remove()
-        
-        if flux_data is not None and len(flux_data) > 0:
-            if error_data is not None and len(error_data) == len(flux_data):
-                # Plot with error bars
-                errorbar_container = plot.errorbar(
-                    wave_data, 
-                    flux_data,
-                    yerr=error_data,
-                    fmt='-', 
-                    color="black", # self._get_theme_value("foreground", "black")
-                    linewidth=1,
-                    label='Data',
-                    zorder=self._get_theme_value("zorder_observed", 2),
-                    elinewidth=0.5,
-                    capsize=0,
-                )
-                # Mark all parts of errorbar for identification
-                # errorbar_container is a tuple: (data_line, caplines, barlinecols)
-                # Mark the data line
-                errorbar_container[0]._islat_observed = True
-                # Mark caplines (list of lines for caps)
-                for line in errorbar_container[1]:
-                    line._islat_observed = True
-                # Mark the error bar line collection
-                for collection in errorbar_container[2]:
-                    collection._islat_observed = True
-            else:
-                # Plot without error bars
-                line, = plot.plot(
-                    wave_data, 
-                    flux_data,
-                    color=self._get_theme_value("foreground", "black"),
-                    linewidth=1,
-                    label='Data',
-                    zorder=self._get_theme_value("zorder_observed", 2)
-                )
-                line._islat_observed = True
+        """Plot the observed spectrum data.
+
+        Delegates to :meth:`BasePlot._plot_observed_spectrum` with
+        ``deduplicate=True`` so that previously tagged ``_islat_observed``
+        artists are removed before new ones are drawn.
+        """
+        plot = subplot if subplot else self.ax1
+        BasePlot._plot_observed_spectrum(self, plot, wave_data, flux_data, error_data, deduplicate=True)
     
     def _plot_summed_spectrum(self, wave_data: np.ndarray, summed_flux: np.ndarray, subplot: Optional[Axes] = None) -> None:
-        """Plot the summed model spectrum"""
+        """Plot the summed model spectrum.
+
+        Delegates to :meth:`BasePlot._plot_summed_spectrum` with
+        ``deduplicate=True`` so that previously tagged ``_islat_summed``
+        collections are removed before the new fill is drawn.
+        """
         if subplot is None:
             subplot = self.ax1
-        
-        # Remove existing summed spectrum to avoid duplicates
-        for collection in subplot.collections[:]:
-            if hasattr(collection, '_islat_summed'):
-                collection.remove()
-        
-        if len(summed_flux) > 0 and np.any(summed_flux > 0):
-            fill = subplot.fill_between(
-                wave_data,
-                0,
-                summed_flux,
-                color=self._get_theme_value("summed_spectra_color", "lightgray"),
-                alpha=1.0,
-                label='Sum',
-                zorder=self._get_theme_value("zorder_summed", 1)
-            )
-            # Mark for identification
-            fill._islat_summed = True
+        BasePlot._plot_summed_spectrum(self, subplot, wave_data, summed_flux, deduplicate=True)
     
     def _configure_main_plot_appearance(self) -> None:
         """Configure the appearance of the main plot"""
@@ -416,28 +362,6 @@ class PlotRenderer:
         # Only show legend if there are labeled items
         BasePlot._update_legend(self.ax1)
         
-    def render_line_inspection_plot(self, line_wave: Optional[np.ndarray], 
-                                   line_flux: Optional[np.ndarray], 
-                                   line_label: Optional[str] = None) -> None:
-        """Render a simple line inspection subplot (observed data only).
-        
-        Delegates to :class:`LineInspectionPlot` for consistent appearance.
-        """
-        self.ax2.clear()
-        
-        if line_wave is not None and line_flux is not None and len(line_wave) > 0:
-            xmin, xmax = float(np.min(line_wave)), float(np.max(line_wave))
-            lip = LineInspectionPlot(
-                wave_data=line_wave,
-                flux_data=line_flux,
-                xmin=xmin,
-                xmax=xmax,
-                ax=self.ax2,
-                fig=self.fig,
-                theme=self.theme,
-            )
-            lip.generate_plot()
-    
     def render_complete_line_inspection_plot(self, wave_data: np.ndarray, flux_data: np.ndarray,
                                            xmin: float, xmax: float, active_molecule: Optional['Molecule'] = None,
                                            fit_result: Optional[Any] = None) -> None:
@@ -665,45 +589,6 @@ class PlotRenderer:
             self.ax3.clear()
             mol_label = BasePlot.get_molecule_display_name(molecule) if molecule else "Unknown"
             self.ax3.set_title(f"{mol_label} - Error in calculation", color=self._get_theme_value("foreground", "black"))
-
-    def plot_saved_lines(self, loaded_lines: pd.DataFrame, saved_lines, fig = None) -> None:
-        """Plot saved lines on given plot (defaults main plot)"""
-        if not fig: 
-            fig = self.ax1
-
-        for index, line in loaded_lines.iterrows():
-            # Plot vertical lines at saved positions
-            if 'lam' in line:
-                saved_lines.append(fig.axvline(
-                    line['lam'], 
-                    color=self._get_theme_value("saved_line_color", self._get_theme_value("saved_line_color_one", "red")),
-                    alpha=0.7, 
-                    linestyle=':', 
-                    # label=f"Saved: {line.get('label', 'Line')}"
-                ))
-            
-            if 'xmin' in line and 'xmax' in line:
-                # Plot wavelength range
-                saved_lines.append(fig.axvline(
-                    line['xmin'],
-                    color=self._get_theme_value("saved_line_color_two", "orange"),
-                    alpha=0.7,
-                ))
-                saved_lines.append(fig.axvline(
-                    line['xmax'],
-                    color=self._get_theme_value("saved_line_color_two", "orange"),
-                    alpha=0.7,
-                ))
-        # Note: caller is responsible for calling canvas.draw_idle()
-
-    def remove_saved_lines(self, saved_lines) -> None:
-        for line in saved_lines:
-            try:
-                line.remove()
-            except ValueError:
-                pass
-        
-        # Note: caller is responsible for calling canvas.draw_idle()
     
     def highlight_line_selection(self, xmin: float, xmax: float) -> None:
         """Highlight a selected wavelength range"""
@@ -834,7 +719,8 @@ class PlotRenderer:
                                         wave_data: np.ndarray,
                                         active_molecule: Optional['Molecule'] = None,
                                         current_selection: Optional[Tuple[float, float]] = None,
-                                        is_full_spectrum: bool = False) -> None:
+                                        is_full_spectrum: bool = False,
+                                        force_rerender: bool = False) -> None:
         """
         Handle molecule visibility changes with comprehensive PlotRenderer logic.
         Leverages MoleculeDict's advanced caching and visibility management.
@@ -859,24 +745,29 @@ class PlotRenderer:
             Current wavelength selection range (xmin, xmax)
         is_full_spectrum : bool
             Deprecated/ignored — kept for backward compatibility.
+        force_rerender : bool
+            When *True*, stale artists are removed before toggling so that
+            ``render_individual_molecule_spectrum`` recreates them with
+            current parameters (e.g. after a parameter edit while hidden).
         """
         if molecule_name not in molecules_dict:
             debug_config.warning("plot_renderer", f"Molecule {molecule_name} not found in molecules_dict")
             return
         
-        #molecule = molecules_dict[molecule_name]
-        #print(f"changing plotting of: {molecule}")
+        molecule = molecules_dict[molecule_name]
         
-        # Handle visibility change using PlotRenderer methods
-        if is_visible:
-            pass
-            # Add molecule spectrum using PlotRenderer
-            #success = self.render_individual_molecule_spectrum(molecule, wave_data)
-            #if not success:
-            #    debug_config.warning("plot_renderer", f"Failed to render molecule {molecule_name}")
-        else:
-            # Remove molecule spectrum using PlotRenderer
-            self.remove_molecule_lines(molecule_name)
+        # If parameters changed while the molecule was hidden, destroy the
+        # stale artists so they will be recreated with fresh data below.
+        if force_rerender and is_visible:
+            self.remove_molecule_lines(molecule_name, update_legend=False)
+
+        # Try fast visibility toggle first (just show/hide existing artists).
+        # This preserves the Line2D objects so the legend can see them.
+        toggled = self.set_molecule_visibility(molecule_name, is_visible)
+        
+        if is_visible and not toggled:
+            # Artists were previously removed or never plotted — need to create them.
+            self.render_individual_molecule_spectrum(molecule, wave_data, update_legend=False)
         
         '''# Optional: Clear MoleculeDict's flux caches if needed after visibility change
         if hasattr(molecules_dict, '_clear_flux_caches'):
@@ -912,25 +803,12 @@ class PlotRenderer:
                 self.plot_manager.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
     
     def update_summed_spectrum_only(self, wave_data: np.ndarray, summed_flux: np.ndarray) -> None:
-        """Update only the summed spectrum without affecting individual molecule plots"""
-        # Remove existing summed spectrum
-        for collection in self.ax1.collections:
-            if hasattr(collection, '_islat_summed'):
-                collection.remove()
-        
-        # Add new summed spectrum
-        if len(summed_flux) > 0 and np.any(summed_flux > 0):
-            fill = self.ax1.fill_between(
-                wave_data,
-                0,
-                summed_flux,
-                color=self._get_theme_value("summed_spectra_color", "lightgray"),
-                alpha=1.0,
-                label='Sum',
-                zorder=self._get_theme_value("zorder_summed", 1)
-            )
-            # Mark as summed spectrum for future removal
-            fill._islat_summed = True
+        """Update only the summed spectrum without affecting individual molecule plots.
+
+        Delegates to :meth:`BasePlot._plot_summed_spectrum` with
+        ``deduplicate=True`` to handle removal of the previous fill.
+        """
+        BasePlot._plot_summed_spectrum(self, self.ax1, wave_data, summed_flux, deduplicate=True)
 
     def _update_summed_spectrum_with_molecules(self, molecules_dict: Union['MoleculeDict', Dict], 
                                              wave_data: np.ndarray) -> None:
@@ -952,39 +830,6 @@ class PlotRenderer:
         # Update summed spectrum using PlotRenderer
         self.update_summed_spectrum_only(wave_data, summed_flux)
     
-    def render_atomic_lines(self, atomic_lines, axis: Axes, wavelengths, species, line_ids, using_subplot = False):
-        if using_subplot:
-            pass
-
-        for i in range(len(wavelengths)):
-            line = axis.axvline(wavelengths[i], linestyle='--', color='tomato', alpha=0.7)
-            line._islat_atomic_line = True  # Mark for easy removal
-            
-            # Adjust the y-coordinate to place labels within the plot borders
-            ylim = axis.get_ylim()
-            label_y = ylim[1]
-            
-            # Adjust the x-coordinate to place labels just to the right of the line
-            xlim = axis.get_xlim()
-            label_x = wavelengths[i] + 0.006 * (xlim[1] - xlim[0])
-
-            # Add text label for the line
-            label_text = f"{species[i]} {line_ids[i]}"
-            label = axis.text(label_x, label_y, label_text, fontsize=8, rotation=90, 
-                                                va='top', ha='left', color='tomato')
-            label._islat_atomic_line = True  # Mark for easy removal
-            if using_subplot is False:
-                atomic_lines.append((line, label))
-
-    def remove_atomic_lines(self, lines):
-        for (line, text) in lines:
-            try:
-                line.remove()
-                text.remove()
-            except ValueError:
-                pass
-        lines.clear()
-
     def clear_active_lines(self, active_lines_list: List[Any]) -> None:
         """
         Properly clear active lines by removing matplotlib artists first.

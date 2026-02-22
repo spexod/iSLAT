@@ -79,12 +79,22 @@ class PlotView(ABC):
         wave_data: Any,
         active_molecule: Optional["Molecule"] = None,
         current_selection: Optional[Tuple[float, float]] = None,
+        force_rerender: bool = False,
     ) -> None:
         """
         Lightweight update after a single molecule's visibility is toggled.
 
         Implementations should **not** reload data from disk — only update
         the artists that changed.
+
+        Parameters
+        ----------
+        force_rerender : bool
+            When *True* the molecule's artists must be re-rendered from
+            current parameters (e.g. because parameters changed while the
+            molecule was hidden).  Implementations should remove the stale
+            artists and create fresh ones instead of just toggling
+            visibility.
         """
         ...
 

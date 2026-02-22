@@ -60,13 +60,17 @@ class ThreePanelView(PlotView):
             The main controller that owns fig, canvas, ax1-3, and PlotRenderer.
         """
         self._pm = plot_manager  # short alias for the controller
-        self.atomic_lines: List = []  # artists created by _plot_atomic_lines
-        self.saved_lines: List = []   # artists created by _plot_saved_lines
         self._needs_refresh: bool = True  # Set True when data changes; cleared after re-render
 
     # ------------------------------------------------------------------
     # Helpers (private, short-hand access to controller state)
     # ------------------------------------------------------------------
+    def _has_tagged_artists(self, tag: str) -> bool:
+        """Return True if *ax1* contains any artist with the given tag."""
+        for artist in list(self.ax1.lines) + list(self.ax1.texts):
+            if hasattr(artist, tag):
+                return True
+        return False
     @property
     def _renderer(self) -> "PlotRenderer":
         return self._pm.plot_renderer
@@ -152,9 +156,6 @@ class ThreePanelView(PlotView):
         wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * islat.molecules_dict.global_stellar_rv)
         islat.wave_data = wave_data
 
-        self.atomic_lines.clear()
-        self.saved_lines.clear()
-
         self._renderer.render_main_spectrum_plot(
             wave_data=wave_data,
             flux_data=islat.flux_data,
@@ -188,6 +189,7 @@ class ThreePanelView(PlotView):
         wave_data: Any,
         active_molecule: Optional["Molecule"] = None,
         current_selection: Optional[Tuple[float, float]] = None,
+        force_rerender: bool = False,
     ) -> None:
         """
         Fast incremental update — toggle one molecule's artists on ax1.
@@ -203,6 +205,7 @@ class ThreePanelView(PlotView):
             active_molecule=active_molecule,
             current_selection=current_selection,
             is_full_spectrum=False,  # We are the three-panel view
+            force_rerender=force_rerender,
         )
         self._canvas.draw_idle()
 
@@ -217,18 +220,18 @@ class ThreePanelView(PlotView):
         """
         # Atomic lines
         if toggle_state.get("atomic_lines", False):
-            if not self.atomic_lines:
+            if not self._has_tagged_artists("_islat_atomic_line"):
                 self._plot_atomic_lines()
         else:
-            if self.atomic_lines:
+            if self._has_tagged_artists("_islat_atomic_line"):
                 self._remove_atomic_lines()
 
         # Saved lines
         if toggle_state.get("saved_lines", False):
-            if not self.saved_lines:
+            if not self._has_tagged_artists("_islat_saved_line"):
                 self._plot_saved_lines()
         else:
-            if self.saved_lines:
+            if self._has_tagged_artists("_islat_saved_line"):
                 self._remove_saved_lines()
 
         # Summed spectrum
@@ -264,38 +267,46 @@ class ThreePanelView(PlotView):
             self._remove_atomic_lines()
 
     # ------------------------------------------------------------------
-    # Atomic / saved line helpers (self-contained)
+    # Atomic / saved line helpers (self-contained via BasePlot)
     # ------------------------------------------------------------------
     def _plot_atomic_lines(self) -> None:
-        """Render atomic lines on ax1, storing artists in *self.atomic_lines*."""
+        """Render atomic lines on ax1 using BasePlot helpers."""
         atomic_data = load_atomic_lines()
         if atomic_data.empty:
             return
-        wavelengths = atomic_data['wave'].values
-        species = atomic_data['species'].values
-        line_ids = atomic_data['line'].values
-        self._renderer.render_atomic_lines(
-            self.atomic_lines, self.ax1, wavelengths, species, line_ids,
-        )
+        BasePlot._plot_atomic_lines(self.ax1, atomic_data, tag="_islat_atomic_line")
         self._canvas.draw_idle()
 
     def _remove_atomic_lines(self) -> None:
         """Remove previously plotted atomic line artists from ax1."""
-        self._renderer.remove_atomic_lines(self.atomic_lines)
+        BasePlot._clear_tagged_artists(
+            self.ax1, "_islat_atomic_line", lines=True, collections=False, texts=True,
+        )
         self._canvas.draw_idle()
 
     def _plot_saved_lines(self, loaded_lines: Any = None) -> None:
-        """Render saved lines on ax1, storing artists in *self.saved_lines*."""
+        """Render saved lines on ax1 using BasePlot helpers."""
         import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
         if loaded_lines is None:
             loaded_lines = ifh.read_line_saves(file_name=self._islat.input_line_list)
             if loaded_lines.empty:
                 return
-        self._renderer.plot_saved_lines(loaded_lines, self.saved_lines)
+        theme = self._pm.theme
+        BasePlot._plot_saved_line_markers(
+            self.ax1,
+            loaded_lines,
+            tag="_islat_saved_line",
+            lam_color=theme.get("saved_line_color", theme.get("saved_line_color_one", "red")),
+            range_color=theme.get("saved_line_color_two", "orange"),
+        )
+        self._canvas.draw_idle()
 
     def _remove_saved_lines(self) -> None:
         """Remove previously plotted saved line artists from ax1."""
-        self._renderer.remove_saved_lines(self.saved_lines)
+        BasePlot._clear_tagged_artists(
+            self.ax1, "_islat_saved_line", lines=True, collections=False, texts=False,
+        )
+        self._canvas.draw_idle()
 
     # ------------------------------------------------------------------
     # Selection restoration

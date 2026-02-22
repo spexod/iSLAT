@@ -122,6 +122,11 @@ class iSLATPlot:
         self.active_view: PlotView = self._three_panel_view
         self.is_full_spectrum: bool = False
 
+        # Molecules whose parameters changed while they were hidden.
+        # Consumed by on_molecule_visibility_changed to force a re-render
+        # instead of simply toggling the (now stale) artists.
+        self._stale_molecules: set = set()
+
         # Set up interaction handler callbacks
         self.interaction_handler.set_span_select_callback(self.onselect)
         self.interaction_handler.set_click_callback(self.on_click)
@@ -1017,6 +1022,12 @@ class iSLATPlot:
         Called when any molecule parameter changes.
         """
         debug_config.info("main_plot", f"Parameter change: {molecule_name}.{parameter_name}: {old_value} → {new_value}")
+
+        # Visibility changes are handled by on_molecule_visibility_changed
+        # (called explicitly from ControlPanel) — skip here to avoid
+        # double-rendering.
+        if parameter_name == 'is_visible':
+            return
         
         # Check if this molecule is visible - if so, we need to update plots
         if (hasattr(self.islat, 'molecules_dict') and 
@@ -1024,10 +1035,16 @@ class iSLATPlot:
             
             molecule = self.islat.molecules_dict[molecule_name]
             
-            # Only update plots if the molecule is visible
             if molecule.is_visible:
-                # Delegate to the active view
-                self.active_view.update_model_plot()
+                # Delegate to update_model_plot so the inactive view is
+                # also marked stale and refreshes on next activate().
+                self.update_model_plot()
+            else:
+                # Molecule is hidden — record it as stale so that when it
+                # is next made visible we re-render from fresh data rather
+                # than just toggling the old (now outdated) artists.
+                self._stale_molecules.add(molecule_name)
+                debug_config.trace("main_plot", f"{molecule_name} parameter changed while hidden — marked stale")
         
         # Check if the changed molecule is the active one for additional updates
         if (hasattr(self.islat, 'active_molecule') and 
@@ -1072,7 +1089,8 @@ class iSLATPlot:
 
         The active view handles the rendering update (lightweight artist
         toggling in full-spectrum mode, or PlotRenderer-based update in
-        three-panel mode).
+        three-panel mode).  The inactive view is marked stale so it
+        re-renders with the correct visibility on next activate().
         
         Parameters
         ----------
@@ -1086,7 +1104,15 @@ class iSLATPlot:
         
         current_selection = getattr(self, 'current_selection', None)
         active_molecule = getattr(self.islat, 'active_molecule', None)
-        
+
+        # If the molecule had its parameters changed while hidden, we need
+        # to force a full re-render (not just an artist toggle) so the
+        # displayed spectrum reflects the updated parameters.
+        force_rerender = is_visible and molecule_name in self._stale_molecules
+        if force_rerender:
+            self._stale_molecules.discard(molecule_name)
+            debug_config.trace("main_plot", f"{molecule_name} was stale — forcing re-render on visibility toggle")
+
         self.active_view.on_molecule_visibility_changed(
             molecule_name=molecule_name,
             is_visible=is_visible,
@@ -1094,7 +1120,15 @@ class iSLATPlot:
             wave_data=self.islat.wave_data,
             active_molecule=active_molecule,
             current_selection=current_selection,
+            force_rerender=force_rerender,
         )
+
+        # Mark the *other* view as needing a full refresh next time it is
+        # activated, so molecule visibility stays consistent across views.
+        if self.is_full_spectrum:
+            self._three_panel_view._needs_refresh = True
+        else:
+            self._full_spectrum_view._needs_refresh = True
     
     def compute_fit_line(self, xmin=None, xmax=None, deblend=False, update_plot=True):
         """

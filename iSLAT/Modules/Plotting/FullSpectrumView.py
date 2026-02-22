@@ -27,6 +27,7 @@ from matplotlib.widgets import SpanSelector
 
 from .PlotView import PlotView
 from .FullSpectrumPlot import FullSpectrumPlot
+from .BasePlot import BasePlot
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -337,15 +338,29 @@ class FullSpectrumView(PlotView):
         wave_data: Any,
         active_molecule: Optional["Molecule"] = None,
         current_selection: Optional[Tuple[float, float]] = None,
+        force_rerender: bool = False,
     ) -> None:
         if not self._initialised or not self.subplots:
             return
 
-        # 1. Toggle molecule line visibility per subplot
-        for ax in self.subplots.values():
-            self._renderer.set_molecule_visibility(
-                molecule_name, is_visible, ax=ax, lines=ax.lines,
-            )
+        # 1. Toggle molecule line visibility per subplot.
+        #    When force_rerender is True (parameters changed while hidden),
+        #    destroy the stale artists and re-create them from fresh data.
+        if force_rerender and is_visible:
+            molecule = molecules_dict.get(molecule_name)
+            for ax in self.subplots.values():
+                self._renderer.remove_molecule_lines(
+                    molecule_name, ax=ax, lines=list(ax.lines), update_legend=False,
+                )
+                if molecule is not None:
+                    self._renderer.render_individual_molecule_spectrum(
+                        molecule, wave_data, subplot=ax, update_legend=False,
+                    )
+        else:
+            for ax in self.subplots.values():
+                self._renderer.set_molecule_visibility(
+                    molecule_name, is_visible, ax=ax, lines=ax.lines,
+                )
 
         # 2. Recompute summed spectrum
         try:
@@ -453,7 +468,11 @@ class FullSpectrumView(PlotView):
     # Overlay artist helpers (interactive-only)
     # ==================================================================
     def _add_saved_line_artists(self) -> None:
-        """Add saved-line annotations to every subplot."""
+        """Add saved-line annotations to every subplot.
+
+        Delegates to :meth:`BasePlot._plot_line_annotations` with
+        ``tag='_islat_saved_line'`` so artists can be removed later.
+        """
         if self._plot is None:
             return
 
@@ -463,77 +482,52 @@ class FullSpectrumView(PlotView):
         if self.line_data is None:
             return
 
-        col = "wave" if "wave" in self.line_data.columns else "lam"
-        if col not in self.line_data.columns:
-            return
-        svd_lamb = np.array(self.line_data[col])
-        svd_species = self.line_data["species"]
+        # Ensure the 'line' column exists (BasePlot expects it)
         if "line" not in self.line_data.columns:
             self.line_data["line"] = [""] * len(self.line_data)
-        svd_lineID = np.array(self.line_data["line"])
 
         for n, ax in self.subplots.items():
             is_last = n == len(self._plot._panel_edges) - 1
             panel_start = self._plot._panel_edges[n]
             panel_end = self._plot._xlim_end if is_last else panel_start + self._plot._step
             xr = (panel_start, panel_end)
-
-            # Use the axes' actual limits so annotations align with the plot
             ymin, ymax = ax.get_ylim()
 
-            for i in range(len(svd_lamb)):
-                if xr[0] < svd_lamb[i] < xr[1]:
-                    line = ax.vlines(
-                        svd_lamb[i], ymin, ymax,
-                        linestyles="dotted", color="grey", linewidth=0.7,
-                    )
-                    line._islat_saved_line = True
-                    text = ax.text(
-                        svd_lamb[i] + 0.003, ymax,
-                        f"{svd_species[i]} {svd_lineID[i]}",
-                        fontsize=6, rotation=90, va="top", ha="left", color="grey",
-                    )
-                    text._islat_saved_line = True
+            BasePlot._plot_line_annotations(
+                ax, self.line_data, xr, ymin, ymax,
+                tag="_islat_saved_line",
+            )
 
     def _remove_saved_line_artists(self) -> None:
         """Remove all ``_islat_saved_line`` artists."""
         for ax in self.subplots.values():
-            for coll in ax.collections[:]:
-                if hasattr(coll, "_islat_saved_line"):
-                    coll.remove()
-            for txt in ax.texts[:]:
-                if hasattr(txt, "_islat_saved_line"):
-                    txt.remove()
+            BasePlot._clear_tagged_artists(
+                ax, "_islat_saved_line", lines=True, collections=True, texts=True,
+            )
 
     def _add_atomic_line_artists(self) -> None:
-        """Add atomic-line annotations to every subplot."""
+        """Add atomic-line annotations to every subplot.
+
+        Delegates to :meth:`BasePlot._plot_atomic_lines` with
+        ``tag='_islat_atomic_line'`` so artists can be removed later.
+        No dependency on :class:`PlotRenderer` is needed.
+        """
         atomic_data = load_atomic_lines()
         for n, ax in self.subplots.items():
             is_last = n == len(self._plot._panel_edges) - 1
             panel_start = self._plot._panel_edges[n]
             panel_end = self._plot._xlim_end if is_last else panel_start + self._plot._step
             xr = (panel_start, panel_end)
-            filtered = atomic_data[
-                (atomic_data["wave"] >= xr[0]) & (atomic_data["wave"] <= xr[1])
-            ]
-            if len(filtered) > 0:
-                self._renderer.render_atomic_lines(
-                    filtered, ax,
-                    filtered["wave"].values,
-                    filtered["species"].values,
-                    filtered["line"].values,
-                    using_subplot=True,
-                )
+            BasePlot._plot_atomic_lines(
+                ax, atomic_data, xr=xr, tag="_islat_atomic_line",
+            )
 
     def _remove_atomic_line_artists(self) -> None:
         """Remove all ``_islat_atomic_line`` artists."""
         for ax in self.subplots.values():
-            for line in ax.lines[:]:
-                if hasattr(line, "_islat_atomic_line"):
-                    line.remove()
-            for txt in ax.texts[:]:
-                if hasattr(txt, "_islat_atomic_line"):
-                    txt.remove()
+            BasePlot._clear_tagged_artists(
+                ax, "_islat_atomic_line", lines=True, collections=False, texts=True,
+            )
 
     # ==================================================================
     # File output  (overrides PlotView.save_figure)
