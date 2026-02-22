@@ -91,7 +91,7 @@ class FitLinesPlotGrid(BasePlot):
             
             # plot the fit result
             if fitted_wave is None or fitted_flux is None:
-                ax.set_title(f"Line {idx+1}: Fit Error", fontsize=7, pad=2)
+                ax.set_title(f"Line {idx+1}: Fit Error", fontsize=9, pad=2)
                 continue
 
             # get color based on fit det
@@ -108,30 +108,27 @@ class FitLinesPlotGrid(BasePlot):
                 # plot the xmin and xmax for each line
                 #ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
             
-                ax.set_title(f"{self.fit_csv_dict[idx]['species']} {self.fit_csv_dict[idx]['lam']:.2f}", fontsize=7, pad=2)
+                ax.set_title(f"{self.fit_csv_dict[idx]['species']} {self.fit_csv_dict[idx]['lam']:.2f}", fontsize=9, pad=2)
                 # set y lim to 10% above and below the observed flux in the fit range
                 y_min = np.min(spectrum_flux) - 0.1 * np.abs(np.min(spectrum_flux))
                 y_max = np.max(spectrum_flux) + 0.1 * np.abs(np.max(spectrum_flux))
                 ax.set_ylim(y_min, y_max)
             except Exception as e:
-                ax.set_title(f"Plot Error", fontsize=7, pad=2)
+                ax.set_title(f"Plot Error", fontsize=9, pad=2)
                 print(f"Error plotting line {idx+1}: {e}")       
 
             # Compact tick labels to prevent overlap
-            ax.tick_params(axis='both', labelsize=6, pad=1)
-            ax.tick_params(axis='x', rotation=30)
+            ax.tick_params(axis='both', labelsize=7, pad=1)
             # Limit number of tick marks to reduce clutter
             ax.xaxis.set_major_locator(MaxNLocator(nbins=4, prune='both'))
             ax.yaxis.set_major_locator(MaxNLocator(nbins=4, prune='both'))
 
-            # Only show x-tick labels on the last row that has plots
-            last_used_row = min(n_plots - 1, self.rows * self.cols - 1) // self.cols
-            if row < last_used_row:
-                ax.set_xticklabels([])
+            # Show wavelength labels on all rows (each line has a different range)
+            ax.set_xlabel("Wavelength (μm)", fontsize=7, labelpad=1)
 
             # add a y label to only the first column
             if col == 0:
-                ax.set_ylabel("Flux (Jy)", fontsize=6, labelpad=1)
+                ax.set_ylabel("Flux (Jy)", fontsize=7, labelpad=1)
 
             self.axs[row, col] = ax
 
@@ -142,7 +139,7 @@ class FitLinesPlotGrid(BasePlot):
             self.axs[row, col].set_visible(False)
 
         # Apply tight layout to prevent label/title overlap
-        self.fig.tight_layout(pad=0.5, h_pad=1.2, w_pad=0.8)
+        self.fig.tight_layout(pad=0.5, h_pad=1.5, w_pad=0.8)
     
     def plot(self):
         self.generate_plot()
