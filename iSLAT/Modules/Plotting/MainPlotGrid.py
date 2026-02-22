@@ -45,10 +45,23 @@ class MainPlotGrid(BasePlot):
         in the inspection panel.
     error_data : np.ndarray, optional
         Flux uncertainties.
+    spectrum_range : tuple[float, float], optional
+        ``(xmin, xmax)`` wavelength limits for the top spectrum panel.
+        When *None* the full data range is used.  Can be updated later
+        via :meth:`set_spectrum_range`.
     inspection_range : tuple[float, float], optional
         ``(xmin, xmax)`` for the line inspection sub-plot. If *None* the
         inspection and population panels are left empty until
         :meth:`set_inspection_range` is called.
+    inspection_molecules : list[str] or bool, optional
+        Controls which molecules appear in the line-inspection panel:
+
+        - *None* or ``False`` (default) -- only the **active molecule** is
+          shown.
+        - ``True`` -- all visible molecules from the *MoleculeDict* are shown
+          (same behaviour as standalone ``LineInspectionPlot``).
+        - A list of molecule name strings (e.g. ``["H2O", "CO"]``) -- only
+          those molecules are shown.
     line_data : list, optional
         List of ``(MoleculeLine, intensity, tau)`` tuples for line markers
         in the inspection panel.
@@ -69,7 +82,9 @@ class MainPlotGrid(BasePlot):
         molecules: Optional["MoleculeDict"] = None,
         active_molecule: Optional["Molecule"] = None,
         error_data: Optional[np.ndarray] = None,
+        spectrum_range: Optional[Tuple[float, float]] = None,
         inspection_range: Optional[Tuple[float, float]] = None,
+        inspection_molecules: Optional[Union[bool, List[str]]] = None,
         line_data: Optional[List[Tuple["MoleculeLine", float, Any]]] = None,
         line_list: Optional[pd.DataFrame] = None,
         atomic_lines: Optional[pd.DataFrame] = None,
@@ -82,7 +97,9 @@ class MainPlotGrid(BasePlot):
         self.error_data = np.asarray(error_data) if error_data is not None else None
         self.molecules = molecules
         self.active_molecule = active_molecule
+        self.spectrum_range = spectrum_range
         self.inspection_range = inspection_range
+        self.inspection_molecules = inspection_molecules
         self.line_data = line_data
         self.line_list = line_list
         self.atomic_lines = atomic_lines
@@ -145,8 +162,14 @@ class MainPlotGrid(BasePlot):
             except Exception:
                 pass
 
+        # Apply spectrum_range if set, otherwise use full data range
+        if self.spectrum_range is not None:
+            ax.set_xlim(*self.spectrum_range)
+            xr = self.spectrum_range
+        else:
+            xr = (float(np.nanmin(self.wave_data)), float(np.nanmax(self.wave_data)))
+
         # Line annotations
-        xr = (float(np.nanmin(self.wave_data)), float(np.nanmax(self.wave_data)))
         ymin = float(ax.get_ylim()[0]) if ax.get_ylim()[0] != 0 else -0.005
         ymax = float(ax.get_ylim()[1])
 
@@ -166,10 +189,42 @@ class MainPlotGrid(BasePlot):
         ax.clear()
 
         if self.inspection_range is None:
-            ax.set_title("Line Inspection — select a range")
+            ax.set_title("Line Inspection -- select a range")
             return
 
         xmin, xmax = self.inspection_range
+
+        # Resolve which molecule(s) to show in the inspection panel.
+        # Default: only the active molecule.
+        lip_molecule = None
+        lip_molecules = None
+
+        if self.inspection_molecules is True:
+            # Show all visible molecules
+            lip_molecules = self.molecules
+        elif isinstance(self.inspection_molecules, (list, tuple)):
+            # Show a specific subset by name — build a lightweight copy
+            if self.molecules is not None:
+                from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict as _MD
+                lip_molecules = _MD.__new__(_MD)
+                dict.__init__(lip_molecules)
+                # Initialise the internal caches that MoleculeDict.__init__
+                # normally creates — without these, get_visible_molecules()
+                # and other helpers will raise AttributeError.
+                lip_molecules._visible_molecules = set()
+                lip_molecules._summed_flux_cache = {}
+                lip_molecules._global_parms = getattr(
+                    self.molecules, "_global_parms", {}
+                )
+                for name in self.inspection_molecules:
+                    if name in self.molecules:
+                        lip_molecules[name] = self.molecules[name]
+            if not lip_molecules:
+                lip_molecule = self.active_molecule
+                lip_molecules = None
+        else:
+            # Default (None / False): only the active molecule
+            lip_molecule = self.active_molecule
 
         # Use a temporary LineInspectionPlot (renders onto our axes)
         lip = LineInspectionPlot(
@@ -178,8 +233,8 @@ class MainPlotGrid(BasePlot):
             xmin=xmin,
             xmax=xmax,
             error_data=self.error_data,
-            molecule=self.active_molecule,
-            molecules=self.molecules,
+            molecule=lip_molecule,
+            molecules=lip_molecules,
             line_data=self.line_data,
             ax=ax,
             theme=self.theme,
@@ -192,7 +247,7 @@ class MainPlotGrid(BasePlot):
         ax.clear()
 
         if self.active_molecule is None:
-            ax.set_title("Population Diagram — no molecule selected")
+            ax.set_title("Population Diagram -- no molecule selected")
             return
 
         pdp = PopulationDiagramPlot(
@@ -213,6 +268,40 @@ class MainPlotGrid(BasePlot):
             self._render_inspection_panel()
         if self.ax_popdiagram is not None:
             self._render_population_panel()
+
+    def set_spectrum_range(
+        self,
+        xmin: Optional[float] = None,
+        xmax: Optional[float] = None,
+    ) -> None:
+        """Set the wavelength range for the top spectrum panel.
+
+        Pass *None* for both to reset to the full data range.
+        """
+        if xmin is None and xmax is None:
+            self.spectrum_range = None
+        else:
+            lo = xmin if xmin is not None else float(np.nanmin(self.wave_data))
+            hi = xmax if xmax is not None else float(np.nanmax(self.wave_data))
+            self.spectrum_range = (lo, hi)
+        if self.ax_spectrum is not None:
+            self._render_spectrum_panel()
+
+    def set_inspection_molecules(
+        self, molecules: Optional[Union[bool, List[str]]] = None,
+    ) -> None:
+        """Control which molecules appear in the inspection panel.
+
+        Parameters
+        ----------
+        molecules : None | False | True | list[str]
+            *None* / *False* -- only the active molecule (default).
+            *True* -- all visible molecules.
+            A list of name strings -- only those molecules.
+        """
+        self.inspection_molecules = molecules
+        if self.ax_inspection is not None:
+            self._render_inspection_panel()
 
     def set_active_molecule(self, molecule: "Molecule") -> None:
         """Switch the active molecule and refresh bottom panels."""

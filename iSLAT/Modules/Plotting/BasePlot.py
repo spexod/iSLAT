@@ -630,11 +630,54 @@ class BasePlot(ABC):
     # ------------------------------------------------------------------
     # Public convenience methods
     # ------------------------------------------------------------------
+    @staticmethod
+    def _in_notebook() -> bool:
+        """Return *True* when running inside a Jupyter / IPython kernel.
+
+        Safe to call even when IPython is not installed.
+        """
+        try:
+            from IPython import get_ipython  # noqa: F811
+        except ImportError:
+            return False
+        try:
+            shell = get_ipython()
+            if shell is None:
+                return False
+            return type(shell).__name__ == "ZMQInteractiveShell"
+        except Exception:
+            return False
+
     def show(self, block: bool = False) -> None:
-        """Display the plot interactively."""
+        """Display the plot interactively.
+
+        In a Jupyter notebook the figure is rendered inline via
+        ``IPython.display.display``.  Outside of a notebook, the figure
+        is temporarily registered with pyplot so ``plt.show()`` can
+        display it in a window.
+        """
         if self.fig is None:
             self.generate_plot()
-        plt.show(block=block)
+
+        if self._in_notebook():
+            try:
+                from IPython.display import display as ipy_display  # noqa: F811
+                ipy_display(self.fig)
+            except ImportError:
+                plt.show(block=block)
+            return
+
+        # Non-notebook: register the figure with pyplot so plt.show()
+        # can display it in a GUI window.
+        try:
+            num = id(self.fig)
+            if num not in [m.num for m in plt._pylab_helpers.Gcf.get_all_fig_managers()]:
+                manager = plt._backend_mod.new_figure_manager_given_figure(num, self.fig)
+                plt._pylab_helpers.Gcf.set_active(manager)
+            plt.show(block=block)
+        except Exception:
+            # Last-resort fallback
+            plt.show(block=block)
 
     def save(
         self,
