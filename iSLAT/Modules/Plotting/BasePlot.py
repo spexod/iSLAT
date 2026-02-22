@@ -348,6 +348,61 @@ class BasePlot(ABC):
             if legend is not None:
                 legend.remove()
 
+    @staticmethod
+    def _plot_gaussian_fit(
+        ax: Axes,
+        gauss_fit: Any,
+        fitted_wave: np.ndarray,
+        fitted_flux: np.ndarray,
+        color: str = "lime",
+        linewidth: float = 2,
+        zorder: int = 10,
+        uncertainty_sigma: float = 3.0,
+        fill_alpha: float = 0.3,
+    ) -> None:
+        """Plot a Gaussian fit result with uncertainty band on *ax*.
+
+        Parameters
+        ----------
+        ax : Axes
+            Target matplotlib Axes.
+        gauss_fit : lmfit.model.ModelResult
+            The fitted model result (must support ``eval_uncertainty``).
+        fitted_wave, fitted_flux : np.ndarray
+            Wavelength / flux arrays produced by the fit.
+        color : str
+            Line and fill colour.
+        linewidth : float
+            Width of the fit curve.
+        zorder : int
+            Drawing order for the fit curve.
+        uncertainty_sigma : float
+            Number of sigma for the uncertainty envelope.
+        fill_alpha : float
+            Transparency of the uncertainty band.
+        """
+        if gauss_fit is None or fitted_wave is None or fitted_flux is None:
+            return
+        ax.plot(
+            fitted_wave,
+            fitted_flux,
+            color=color,
+            linewidth=linewidth,
+            zorder=zorder,
+            linestyle="--",
+        )
+        try:
+            dely = gauss_fit.eval_uncertainty(sigma=uncertainty_sigma)
+            ax.fill_between(
+                fitted_wave,
+                fitted_flux - dely,
+                fitted_flux + dely,
+                color=color,
+                alpha=fill_alpha,
+            )
+        except Exception:
+            pass  # Uncertainty evaluation may fail for some fits
+
     def _plot_line_annotations(
         self,
         ax: Axes,

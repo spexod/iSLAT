@@ -7,7 +7,7 @@ from matplotlib.gridspec import GridSpec
 
 import numpy as np
 
-from typing import Optional
+from typing import Optional, List, Tuple, Any, TYPE_CHECKING
 
 import iSLAT.Constants as c
 
@@ -21,6 +21,9 @@ from iSLAT.Modules.GUI.InteractionHandler import InteractionHandler
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
+
+if TYPE_CHECKING:
+    from iSLAT.Modules.DataTypes.MoleculeLine import MoleculeLine
 
 # Import debug configuration with fallback
 try:
@@ -437,8 +440,7 @@ class iSLATPlot:
         
         # Get lines in range using the molecule's built-in line caching
         try:
-            # Use PlotRenderer which leverages molecule's internal caching
-            line_data = self.plot_renderer.get_molecule_line_data(self.islat.active_molecule, xmin, xmax)
+            line_data = self.get_molecule_line_data(self.islat.active_molecule, xmin, xmax)
             if not line_data:
                 self.islat.GUI.data_field.insert_text(f"No transitions found for {self.islat.active_molecule.name} in the selected range")
                 # Clear active lines and update population diagram even if no lines in range
@@ -474,8 +476,8 @@ class iSLATPlot:
         debug_config.verbose("line_inspection", "plot_spectrum_around_line completed")
     
     def on_pick_line(self, event):
-        """Handle line pick events by delegating to PlotRenderer."""
-        picked_value = self.plot_renderer.handle_line_pick_event(event, self.active_lines)
+        """Handle line pick events — interaction logic owned by the controller."""
+        picked_value = self._handle_line_pick_event(event, self.active_lines)
         if picked_value:
             self.selected_line = picked_value
             self._display_line_info(picked_value)
@@ -483,10 +485,10 @@ class iSLATPlot:
 
     def highlight_strongest_line(self):
         """
-        Highlight the strongest line by delegating to PlotRenderer.
-        Note: Does NOT call canvas.draw_idle() - caller is responsible for batching.
+        Highlight the strongest line — interaction logic owned by the controller.
+        Note: Does NOT call canvas.draw_idle() — caller is responsible for batching.
         """
-        strongest = self.plot_renderer.highlight_strongest_line(self.active_lines)
+        strongest = self._highlight_strongest_line(self.active_lines)
         if strongest is not None:
             # Display strongest line information in data field
             line, text, scatter, value = strongest
@@ -494,6 +496,187 @@ class iSLATPlot:
             if value:
                 self._display_line_info(value)
         # Don't call canvas.draw_idle() here - let caller batch it
+
+    # ------------------------------------------------------------------
+    # Data-access & interaction helpers (moved from PlotRenderer)
+    # ------------------------------------------------------------------
+
+    def get_molecule_line_data(
+        self, molecule: 'Molecule', xmin: float, xmax: float,
+    ) -> List[Tuple['MoleculeLine', float, Optional[float]]]:
+        """
+        Get molecule lines in a wavelength range.
+
+        This is a data-access operation and belongs in the controller
+        rather than the renderer.
+
+        Parameters
+        ----------
+        molecule : Molecule
+            Molecule object
+        xmin, xmax : float
+            Wavelength range
+
+        Returns
+        -------
+        List[Tuple[MoleculeLine, float, Optional[float]]]
+            List of (MoleculeLine, intensity, tau) tuples
+        """
+        try:
+            # Method 1: Use intensity API
+            if hasattr(molecule, 'intensity') and molecule.intensity is not None:
+                intensity_obj = molecule.intensity
+                if hasattr(intensity_obj, 'get_lines_in_range_with_intensity'):
+                    return intensity_obj.get_lines_in_range_with_intensity(xmin, xmax)
+
+            # Method 2: Use MoleculeLineList directly
+            if hasattr(molecule, 'lines') and molecule.lines is not None:
+                lines = molecule.lines
+                if hasattr(lines, 'get_lines_in_range'):
+                    lines_in_range = lines.get_lines_in_range(xmin, xmax)
+                    # Try to get corresponding intensities
+                    if hasattr(molecule, 'intensity') and molecule.intensity is not None:
+                        intensity_obj = molecule.intensity
+                        if hasattr(intensity_obj, 'intensity') and intensity_obj.intensity is not None:
+                            intensities = intensity_obj.intensity
+                            tau_values = getattr(intensity_obj, 'tau', None)
+
+                            result = []
+                            for i, line in enumerate(lines_in_range):
+                                intensity = intensities[i] if i < len(intensities) else 0.0
+                                tau = tau_values[i] if tau_values is not None and i < len(tau_values) else None
+                                result.append((line, intensity, tau))
+                            return result
+                    else:
+                        return [(line, 0.0, None) for line in lines_in_range]
+            return []
+
+        except Exception as e:
+            print(f"Error getting molecule lines: {e}")
+            return []
+
+    def _handle_line_pick_event(
+        self, event: Any, active_lines_list: List[Any],
+    ) -> Any:
+        """
+        Handle line pick events and highlight the selected line.
+
+        Parameters
+        ----------
+        event : Any
+            The matplotlib pick event
+        active_lines_list : List[Any]
+            List of [line_artist, text_obj, scatter_artist, value_data] tuples
+
+        Returns
+        -------
+        Any
+            The value data of the picked line or None
+        """
+        picked_value = None
+        picked_scatter_idx = None
+        picked_artist = event.artist
+
+        # Get the active scatter collection and count from the renderer
+        scatter_collection = getattr(self.plot_renderer, '_active_scatter_collection', None)
+        scatter_count = getattr(self.plot_renderer, '_active_scatter_count', 0)
+        active_color = self.plot_renderer._get_theme_value("active_scatter_line_color", 'green')
+
+        # Check if the picked artist is the scatter collection
+        scatter_point_clicked = None
+        if picked_artist is scatter_collection and hasattr(event, 'ind') and len(event.ind) > 0:
+            scatter_point_clicked = event.ind[0]
+
+        # Find which entry in active_lines was picked and reset line inspection colors
+        for line, text_obj, scatter, value in active_lines_list:
+            is_line_picked = (picked_artist is line)
+            point_idx = value.get('_scatter_point_index', None) if value else None
+            is_scatter_picked = (scatter_point_clicked is not None and point_idx == scatter_point_clicked)
+            is_picked = is_line_picked or is_scatter_picked
+
+            if line is not None:
+                line.set_color(active_color)
+            if text_obj is not None:
+                text_obj.set_color(active_color)
+
+            if is_picked:
+                picked_value = value
+                picked_scatter_idx = point_idx
+                if line is not None:
+                    line.set_color('orange')
+                if text_obj is not None:
+                    text_obj.set_color('orange')
+
+        # Update scatter collection colors
+        if scatter_collection is not None and scatter_count > 0:
+            import matplotlib.colors as mcolors
+            colors = [mcolors.to_rgba(active_color)] * scatter_count
+            if picked_scatter_idx is not None and picked_scatter_idx < scatter_count:
+                colors[picked_scatter_idx] = mcolors.to_rgba('orange')
+            scatter_collection.set_facecolors(colors)
+
+        return picked_value
+
+    def _highlight_strongest_line(
+        self, active_lines_list: List[Any],
+    ) -> Any:
+        """
+        Find and highlight the strongest line in the active lines.
+
+        Parameters
+        ----------
+        active_lines_list : List[Any]
+            List of [line_artist, text_obj, scatter_artist, value_data] tuples
+
+        Returns
+        -------
+        Any
+            The strongest line quadruplet or None
+        """
+        if not active_lines_list:
+            return None
+
+        scatter_collection = getattr(self.plot_renderer, '_active_scatter_collection', None)
+        scatter_count = getattr(self.plot_renderer, '_active_scatter_count', 0)
+        active_color = self.plot_renderer._get_theme_value("active_scatter_line_color", 'green')
+
+        # Reset all line inspection lines to green first
+        for line, text_obj, scatter, value in active_lines_list:
+            if line is not None:
+                line.set_color(active_color)
+            if text_obj is not None:
+                text_obj.set_color(active_color)
+
+        # Find the line with the highest intensity
+        highest_intensity = -float('inf')
+        strongest_triplet = None
+        strongest_scatter_idx = None
+
+        for line, text_obj, scatter, value in active_lines_list:
+            intensity = value.get('intensity', 0) if value else 0
+            if intensity > highest_intensity:
+                highest_intensity = intensity
+                strongest_triplet = [line, text_obj, scatter, value]
+                strongest_scatter_idx = value.get('_scatter_point_index', None) if value else None
+
+        # Reset scatter collection to all green, then highlight strongest in orange
+        if scatter_collection is not None and scatter_count > 0:
+            import matplotlib.colors as mcolors
+            colors = [mcolors.to_rgba(active_color)] * scatter_count
+            if strongest_scatter_idx is not None and strongest_scatter_idx < scatter_count:
+                colors[strongest_scatter_idx] = mcolors.to_rgba('orange')
+            scatter_collection.set_facecolors(colors)
+            scatter_collection.set_zorder(1)
+
+        # Highlight the strongest line inspection elements in orange
+        if strongest_triplet is not None:
+            line, text_obj, scatter, value = strongest_triplet
+            if line is not None:
+                line.set_color('orange')
+            if text_obj is not None:
+                text_obj.set_color('orange')
+
+        return strongest_triplet
 
     def _display_line_info(self, value, clear_data_field=True):
         """
@@ -609,7 +792,7 @@ class iSLATPlot:
         # Get line data using the molecular line API
         if line_data is None:
             try:
-                line_data = self.plot_renderer.get_molecule_line_data(self.islat.active_molecule, xmin, xmax)
+                line_data = self.get_molecule_line_data(self.islat.active_molecule, xmin, xmax)
                 if not line_data:
                     self.clear_active_lines()
                     self.ax2.clear()

@@ -85,9 +85,11 @@ class FitLinesPlotGrid(BasePlot):
             #fit_wave = fitted_wave[fit_mask]
             #fit_flux = fitted_flux[fit_mask]
 
-            # Plot the spectrum
-            ax.plot(spectrum_wave, spectrum_flux, color='black', linewidth=1, zorder=5)
-            ax.errorbar(spectrum_wave, spectrum_flux, yerr=spectrum_err, fmt='-', color='black')
+            # Plot the observed spectrum using BasePlot helper
+            self._plot_observed_spectrum(
+                ax, spectrum_wave, spectrum_flux,
+                error_data=spectrum_err, color='black', label='',
+            )
             
             # plot the fit result
             if fitted_wave is None or fitted_flux is None:
@@ -95,18 +97,13 @@ class FitLinesPlotGrid(BasePlot):
                 continue
 
             # get color based on fit det
-            if self.fit_csv_dict[idx]['Fit_det'] == True:
-                line_color = 'lime'
-            else:
-                line_color = 'red'
+            line_color = 'lime' if self.fit_csv_dict[idx]['Fit_det'] else 'red'
             try:
-                ax.plot(fitted_wave, fitted_flux, color=line_color, linewidth=2, zorder=10, linestyle='--')[0]#, label=f'Gauss Fit {i}')[0]
-                dely = gauss_fit.eval_uncertainty(sigma = self.fit_line_uncertainty)
-                ax.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
-                                        color=line_color, alpha=0.3)#, label=r'3-$\sigma$ uncertainty band')
-
-                # plot the xmin and xmax for each line
-                #ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
+                # Plot Gaussian fit + uncertainty using BasePlot helper
+                self._plot_gaussian_fit(
+                    ax, gauss_fit, fitted_wave, fitted_flux,
+                    color=line_color, uncertainty_sigma=self.fit_line_uncertainty,
+                )
             
                 ax.set_title(f"{self.fit_csv_dict[idx]['species']} {self.fit_csv_dict[idx]['lam']:.2f}", fontsize=9, pad=2)
                 # set y lim to 10% above and below the observed flux in the fit range
