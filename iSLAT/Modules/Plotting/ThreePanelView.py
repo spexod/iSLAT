@@ -259,33 +259,45 @@ class ThreePanelView(PlotView):
             self._plot_saved_lines(loaded_lines=loaded_lines)
         else:
             self._remove_saved_lines()
+        self._canvas.draw_idle()
 
     def toggle_atomic_lines(self, show: bool) -> None:
         if show:
             self._plot_atomic_lines()
         else:
             self._remove_atomic_lines()
+        self._canvas.draw_idle()
 
     # ------------------------------------------------------------------
     # Atomic / saved line helpers (self-contained via BasePlot)
     # ------------------------------------------------------------------
     def _plot_atomic_lines(self) -> None:
-        """Render atomic lines on ax1 using BasePlot helpers."""
+        """Render atomic lines on ax1 using BasePlot helpers.
+
+        Note: does **not** call ``draw_idle()`` — the caller is responsible
+        for batching a single draw after all artist mutations are done.
+        """
         atomic_data = load_atomic_lines()
         if atomic_data.empty:
             return
         BasePlot._plot_atomic_lines(self.ax1, atomic_data, tag="_islat_atomic_line")
-        self._canvas.draw_idle()
 
     def _remove_atomic_lines(self) -> None:
-        """Remove previously plotted atomic line artists from ax1."""
+        """Remove previously plotted atomic line artists from ax1.
+
+        Note: does **not** call ``draw_idle()`` — the caller is responsible
+        for batching a single draw after all artist mutations are done.
+        """
         BasePlot._clear_tagged_artists(
             self.ax1, "_islat_atomic_line", lines=True, collections=False, texts=True,
         )
-        self._canvas.draw_idle()
 
     def _plot_saved_lines(self, loaded_lines: Any = None) -> None:
-        """Render saved lines on ax1 using BasePlot helpers."""
+        """Render saved lines on ax1 using BasePlot helpers.
+
+        Note: does **not** call ``draw_idle()`` — the caller is responsible
+        for batching a single draw after all artist mutations are done.
+        """
         import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
         if loaded_lines is None:
             loaded_lines = ifh.read_line_saves(file_name=self._islat.input_line_list)
@@ -299,14 +311,16 @@ class ThreePanelView(PlotView):
             lam_color=theme.get("saved_line_color", theme.get("saved_line_color_one", "red")),
             range_color=theme.get("saved_line_color_two", "orange"),
         )
-        self._canvas.draw_idle()
 
     def _remove_saved_lines(self) -> None:
-        """Remove previously plotted saved line artists from ax1."""
+        """Remove previously plotted saved line artists from ax1.
+
+        Note: does **not** call ``draw_idle()`` — the caller is responsible
+        for batching a single draw after all artist mutations are done.
+        """
         BasePlot._clear_tagged_artists(
             self.ax1, "_islat_saved_line", lines=True, collections=False, texts=False,
         )
-        self._canvas.draw_idle()
 
     # ------------------------------------------------------------------
     # Selection restoration

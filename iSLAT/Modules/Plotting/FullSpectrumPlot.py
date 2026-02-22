@@ -176,6 +176,34 @@ class FullSpectrumPlot(BasePlot):
             mol_labels = [self.get_molecule_display_name(m) for m in visible]
             mol_colors = [self.get_molecule_color(m) for m in visible]
 
+        # --- Pre-compute molecule flux arrays ONCE (Item 3) -------------
+        # Each entry is (wavelength, flux, color, label, mol_name).
+        # Slicing per panel is a cheap NumPy mask, avoiding N*M get_flux()
+        # calls (N panels x M molecules).
+        mol_cache: List[tuple] = []
+        if self.molecules is not None:
+            # Determine interpolation settings once
+            use_interp = False
+            target_wave = None
+            if self.wave_data is not None and hasattr(self.molecules, 'get_matched_sampling_wavelengths'):
+                use_interp, target_wave = self.molecules.get_matched_sampling_wavelengths(self.wave_data)
+                if not use_interp:
+                    target_wave = None
+
+            for mol in visible:
+                lam, flux = self.get_molecule_spectrum_data(
+                    mol, self.wave_data,
+                    interpolate_to_input=use_interp,
+                    target_wavelengths=target_wave,
+                )
+                if lam is not None and flux is not None and len(flux) > 0:
+                    mol_cache.append((
+                        lam, flux,
+                        self.get_molecule_color(mol),
+                        self.get_molecule_display_name(mol),
+                        getattr(mol, "name", "unknown"),
+                    ))
+
         for idx, xlim_start in enumerate(self._panel_edges):
             is_last = idx == n - 1
             panel_end = self._xlim_end if is_last else xlim_start + self._step
@@ -200,11 +228,17 @@ class FullSpectrumPlot(BasePlot):
             else:
                 ymin, ymax = -0.005, 0.1
 
-            # --- molecule models ----------------------------------------
-            if self.molecules is not None:
-                self._plot_visible_molecules(
-                    ax, self.molecules, wave_data=self.wave_data, linewidth=0.8, update_legend=False
-                )
+            # --- molecule models (slice pre-computed data) ---------------
+            for m_lam, m_flux, m_color, m_label, m_name in mol_cache:
+                m_mask = (m_lam >= xr[0]) & (m_lam <= xr[1])
+                if np.any(m_mask):
+                    line, = ax.plot(
+                        m_lam[m_mask], m_flux[m_mask],
+                        linestyle="--", color=m_color, alpha=0.8,
+                        linewidth=0.8, label=m_label,
+                        zorder=self._get_theme_value("zorder_model", 3),
+                    )
+                    line._molecule_name = m_name
 
             # --- summed spectrum ----------------------------------------
             if summed_wave is not None and summed_flux is not None:
@@ -236,6 +270,153 @@ class FullSpectrumPlot(BasePlot):
         # Custom colour-legend on the first panel
         if mol_labels and 0 in self.subplots:
             self.subplots[0].legend(
+                mol_labels,
+                labelcolor=mol_colors,
+                loc="upper center",
+                ncols=min(12, len(mol_labels)),
+                handletextpad=0.2,
+                bbox_to_anchor=(0.5, 1.4),
+                handlelength=0,
+                fontsize=10,
+                prop={"weight": "bold"},
+            )
+
+    # ------------------------------------------------------------------
+    def update_panels_inplace(self) -> None:
+        """Fast in-place update of existing subplot data without fig.clf().
+
+        This is the fast-path used by :class:`FullSpectrumView` when the
+        panel layout (edges/count) hasn't changed.  Instead of destroying
+        and re-creating every axes object, we update the data on existing
+        ``Line2D`` artists and ``PolyCollection`` fills.
+
+        Falls back to a full :meth:`generate_plot` if the subplot dict is
+        empty (first render) or structurally mismatched.
+        """
+        n = len(self._panel_edges)
+        if not self.subplots or len(self.subplots) != n:
+            # Structural mismatch — fall back to full rebuild
+            self.generate_plot()
+            return
+
+        # --- Pre-compute molecule data once (same as generate_plot) ------
+        summed_wave: Optional[np.ndarray] = None
+        summed_flux: Optional[np.ndarray] = None
+        if self.molecules is not None:
+            try:
+                summed_wave, summed_flux = self.molecules.get_summed_flux(
+                    self.wave_data, visible_only=True
+                )
+            except Exception:
+                pass
+
+        visible = []
+        mol_cache: List[tuple] = []
+        if self.molecules is not None:
+            visible = self.molecules.get_visible_molecules(return_objects=True)
+            use_interp = False
+            target_wave = None
+            if self.wave_data is not None and hasattr(self.molecules, 'get_matched_sampling_wavelengths'):
+                use_interp, target_wave = self.molecules.get_matched_sampling_wavelengths(self.wave_data)
+                if not use_interp:
+                    target_wave = None
+            for mol in visible:
+                lam, flux = self.get_molecule_spectrum_data(
+                    mol, self.wave_data,
+                    interpolate_to_input=use_interp,
+                    target_wavelengths=target_wave,
+                )
+                if lam is not None and flux is not None and len(flux) > 0:
+                    mol_cache.append((
+                        lam, flux,
+                        self.get_molecule_color(mol),
+                        self.get_molecule_display_name(mol),
+                        getattr(mol, "name", "unknown"),
+                    ))
+
+        visible_names = {getattr(m, "name", None) for m in visible}
+
+        # --- Update each panel in place ---------------------------------
+        for idx, xlim_start in enumerate(self._panel_edges):
+            is_last = idx == n - 1
+            panel_end = self._xlim_end if is_last else xlim_start + self._step
+            xr = (xlim_start, panel_end)
+            ax = self.subplots[idx]
+
+            # Update observed spectrum (tagged with _islat_observed)
+            obs_mask = (self.wave_data >= xr[0]) & (self.wave_data <= xr[1])
+            panel_wave = self.wave_data[obs_mask]
+            panel_flux = self.flux_data[obs_mask]
+            obs_updated = False
+            for art in ax.lines[:]:
+                if hasattr(art, "_islat_observed"):
+                    art.set_data(panel_wave, panel_flux)
+                    obs_updated = True
+                    break
+            if not obs_updated:
+                # Fallback: create from scratch
+                self._plot_observed_spectrum(ax, panel_wave, panel_flux, deduplicate=True)
+
+            # y-limits
+            if np.any(obs_mask):
+                ymax = float(np.nanmax(self.flux_data[obs_mask]))
+                ymax += ymax * self.ymax_factor
+                ymin = -0.005
+            else:
+                ymin, ymax = -0.005, 0.1
+            ax.set_ylim(ymin, ymax)
+
+            # Update molecule lines in place
+            existing_mol_lines = {}
+            for art in ax.lines[:]:
+                if hasattr(art, "_molecule_name"):
+                    existing_mol_lines[art._molecule_name] = art
+
+            rendered_names = set()
+            for m_lam, m_flux, m_color, m_label, m_name in mol_cache:
+                m_mask = (m_lam >= xr[0]) & (m_lam <= xr[1])
+                rendered_names.add(m_name)
+                if m_name in existing_mol_lines:
+                    line = existing_mol_lines[m_name]
+                    if np.any(m_mask):
+                        line.set_data(m_lam[m_mask], m_flux[m_mask])
+                        line.set_color(m_color)
+                        line.set_visible(True)
+                    else:
+                        line.set_data([], [])
+                else:
+                    if np.any(m_mask):
+                        new_line, = ax.plot(
+                            m_lam[m_mask], m_flux[m_mask],
+                            linestyle="--", color=m_color, alpha=0.8,
+                            linewidth=0.8, label=m_label,
+                            zorder=self._get_theme_value("zorder_model", 3),
+                        )
+                        new_line._molecule_name = m_name
+
+            # Remove stale molecule lines (molecule deleted or hidden)
+            for m_name, art in existing_mol_lines.items():
+                if m_name not in rendered_names:
+                    art.remove()
+
+            # Update summed spectrum fill
+            for coll in ax.collections[:]:
+                if hasattr(coll, "_islat_summed"):
+                    coll.remove()
+            if summed_wave is not None and summed_flux is not None:
+                s_mask = (summed_wave >= xr[0]) & (summed_wave <= xr[1])
+                if np.any(s_mask):
+                    self._plot_summed_spectrum(ax, summed_wave[s_mask], summed_flux[s_mask])
+
+        # --- Update legend on first panel -------------------------------
+        if visible and 0 in self.subplots:
+            mol_labels = [self.get_molecule_display_name(m) for m in visible]
+            mol_colors = [self.get_molecule_color(m) for m in visible]
+            legend_ax = self.subplots[0]
+            old_legend = legend_ax.get_legend()
+            if old_legend is not None:
+                old_legend.remove()
+            legend_ax.legend(
                 mol_labels,
                 labelcolor=mol_colors,
                 loc="upper center",

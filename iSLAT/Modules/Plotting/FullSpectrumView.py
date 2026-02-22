@@ -113,12 +113,16 @@ class FullSpectrumView(PlotView):
     # Data loading
     # ==================================================================
     def _load_spectrum_data(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Load and RV-correct the observed spectrum. Returns (wave, flux)."""
-        spectrum_data = pd.read_csv(self._islat.loaded_spectrum_file, sep=",")
+        """Return RV-corrected observed spectrum from in-memory iSLAT data.
+
+        Uses the already-loaded arrays on the iSLAT class instead of
+        re-reading the CSV from disk, which is a significant speed-up on
+        every call to ``_rebuild_plot`` / ``_create_plot``.
+        """
         rv = self._islat.molecules_dict.global_stellar_rv
-        wave = spectrum_data["wave"].values
+        wave = np.array(self._islat.wave_data_original, copy=True)
         wave = wave - (wave / SPEED_OF_LIGHT_KMS * rv)
-        flux = spectrum_data["flux"].values
+        flux = np.array(self._islat.flux_data, copy=True)
         return wave, flux
 
     def _load_line_data(self) -> Optional[pd.DataFrame]:
@@ -150,6 +154,9 @@ class FullSpectrumView(PlotView):
         """Refresh data and regenerate the composed plot.
 
         If the panel layout changed, the figure is rebuilt from scratch.
+        If only data/molecules changed, existing axes are updated in-place
+        via :meth:`FullSpectrumPlot.update_panels_inplace` for a significant
+        speed-up (avoids ``fig.clf()`` and re-creating all subplot objects).
         """
         wave, flux = self._load_spectrum_data()
         self.line_data = self._load_line_data()
@@ -172,10 +179,8 @@ class FullSpectrumView(PlotView):
             self._plot.generate_plot()
             self._install_span_selectors()
         else:
-            # Data changed but layout is the same — regenerate into existing fig
-            self.span_selectors.clear()
-            self._plot.generate_plot()
-            self._install_span_selectors()
+            # Layout unchanged — fast in-place update of existing axes
+            self._plot.update_panels_inplace()
 
     # ==================================================================
     # Span selector (interactive-only feature)
@@ -577,7 +582,7 @@ class FullSpectrumView(PlotView):
             atomic_lines_df = load_atomic_lines()
 
         # Create standalone figure — uses BasePlot._ensure_figure (non-pyplot)
-        wave, flux = self._load_spectrum_data()
+        wave, flux = self._load_spectrum_data()  # now reads from memory, not disk
         standalone = FullSpectrumPlot(
             wave_data=wave,
             flux_data=flux,
@@ -687,12 +692,11 @@ def output_full_spectrum(islat_ref: Any, rasterized: bool = False) -> str | None
     This is the backward-compatible replacement for the function that
     previously lived in ``OutputFullSpectrum.py``.
     """
-    # Load spectrum data
-    spectrum_data = pd.read_csv(islat_ref.loaded_spectrum_file, sep=",")
+    # Use in-memory data instead of re-reading the CSV from disk
     rv = islat_ref.molecules_dict.global_stellar_rv
-    wave = spectrum_data["wave"].values
+    wave = np.array(islat_ref.wave_data_original, copy=True)
     wave = wave - (wave / SPEED_OF_LIGHT_KMS * rv)
-    flux = spectrum_data["flux"].values
+    flux = np.array(islat_ref.flux_data, copy=True)
 
     # Read toggle state if available
     ts: dict = {}
