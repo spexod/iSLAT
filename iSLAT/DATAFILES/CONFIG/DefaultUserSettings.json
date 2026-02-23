@@ -1,5 +1,5 @@
 {
-    "user_settings_version": 1.2,
+    "user_settings_version": 1.3,
     "first_startup": true,
     "reload_default_files": false,
     "fit_line_uncertainty": 3,
@@ -28,5 +28,5 @@
     "update_save_file_names_in_save_csv": true,
     "flux_col_name": "Flux_islat",
     "error_col_name": "Err_data",
-    "theme": "LightTheme"
+    "theme": "auto"
 }
