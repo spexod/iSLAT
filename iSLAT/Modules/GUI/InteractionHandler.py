@@ -503,9 +503,14 @@ class InteractionHandler:
             self._toggle_summed_spectrum()
             return 'break'
 
-        # Handle 'v' key for toggling active molecule visibility
+        # Handle 'v' key for toggling molecule visibility
+        # Shift+V = toggle ALL molecules, plain v = toggle active molecule
         elif keysym == 'v':
-            self._toggle_active_molecule_visibility()
+            shift_pressed = bool(event.state & 0x1)
+            if shift_pressed:
+                self._toggle_all_molecule_visibility()
+            else:
+                self._toggle_active_molecule_visibility()
             return 'break'
 
     def _cycle_spectrum_previous(self):
@@ -637,6 +642,33 @@ class InteractionHandler:
         if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot'):
             self.islat.GUI.plot.on_molecule_visibility_changed(mol_name, new_vis)
     
+    def _toggle_all_molecule_visibility(self):
+        """Toggle visibility of ALL molecules (Shift+V).
+        
+        If any molecule is visible, hides all. Otherwise shows all.
+        """
+        if not hasattr(self.islat, 'molecules_dict') or not self.islat.molecules_dict:
+            return
+
+        any_visible = any(mol.is_visible for mol in self.islat.molecules_dict.values())
+        new_visibility = not any_visible
+        all_names = list(self.islat.molecules_dict.keys())
+
+        # Update the model
+        self.islat.molecules_dict.bulk_set_visibility(new_visibility, all_names)
+
+        # Keep all ControlPanel checkboxes in sync
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'control_panel'):
+            cp = self.islat.GUI.control_panel
+            if hasattr(cp, 'mol_visibility'):
+                for mol_name in all_names:
+                    if mol_name in cp.mol_visibility:
+                        cp.mol_visibility[mol_name].set(new_visibility)
+
+        # Trigger full plot update
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot'):
+            self.islat.GUI.plot.update_model_plot()
+
     def _open_full_spectrum_window(self):
         """Open a separate full spectrum window"""
         from iSLAT.Modules.GUI.FullSpectrumWindow import FullSpectrumWindow
