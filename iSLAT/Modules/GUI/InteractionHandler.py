@@ -503,6 +503,11 @@ class InteractionHandler:
             self._toggle_summed_spectrum()
             return 'break'
 
+        # Handle 'v' key for toggling active molecule visibility
+        elif keysym == 'v':
+            self._toggle_active_molecule_visibility()
+            return 'break'
+
     def _cycle_spectrum_previous(self):
         """Switch to the previous spectrum in the sample list."""
         if hasattr(self.islat, 'sample_spectra') and self.islat.sample_spectra:
@@ -607,6 +612,30 @@ class InteractionHandler:
         """Toggle legend visibility on the main plot"""
         if hasattr(self.plot_manager, 'toggle_legend'):
             self.plot_manager.toggle_legend()
+
+    def _toggle_active_molecule_visibility(self):
+        """Toggle visibility of the currently active molecule."""
+        if not hasattr(self.islat, 'active_molecule') or self.islat.active_molecule is None:
+            return
+        mol = self.islat.active_molecule
+        mol_name = getattr(mol, 'name', None)
+        if mol_name is None or mol_name not in self.islat.molecules_dict:
+            return
+
+        new_vis = not mol.is_visible
+
+        # Update the model
+        self.islat.molecules_dict.bulk_set_visibility(new_vis, [mol_name])
+
+        # Keep the ControlPanel checkbox in sync
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'control_panel'):
+            cp = self.islat.GUI.control_panel
+            if hasattr(cp, 'mol_visibility') and mol_name in cp.mol_visibility:
+                cp.mol_visibility[mol_name].set(new_vis)
+
+        # Trigger the plot update
+        if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot'):
+            self.islat.GUI.plot.on_molecule_visibility_changed(mol_name, new_vis)
     
     def _open_full_spectrum_window(self):
         """Open a separate full spectrum window"""
