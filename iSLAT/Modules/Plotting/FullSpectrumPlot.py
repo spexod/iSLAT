@@ -234,8 +234,10 @@ class FullSpectrumPlot(BasePlot):
                 if np.any(m_mask):
                     line, = ax.plot(
                         m_lam[m_mask], m_flux[m_mask],
-                        linestyle="--", color=m_color, alpha=0.8,
-                        linewidth=0.8, label=m_label,
+                        linestyle="--", color=m_color,
+                        alpha=self._get_theme_value("full_spectrum_model_alpha", 0.8),
+                        linewidth=self._get_theme_value("full_spectrum_model_linewidth", 0.8),
+                        label=m_label,
                         zorder=self._get_theme_value("zorder_model", 3),
                     )
                     line._molecule_name = m_name
@@ -268,19 +270,9 @@ class FullSpectrumPlot(BasePlot):
             last_ax.set_xlabel("Wavelength (μm)", color=fg)
         self.fig.supylabel("Flux Density (Jy)", fontsize=10, color=fg)
 
-        # Custom colour-legend on the first panel
-        if mol_labels and 0 in self.subplots:
-            self.subplots[0].legend(
-                mol_labels,
-                labelcolor=mol_colors,
-                loc="upper center",
-                ncols=min(12, len(mol_labels)),
-                handletextpad=0.2,
-                bbox_to_anchor=(0.5, 1.4),
-                handlelength=0,
-                fontsize=10,
-                prop={"weight": "bold"},
-            )
+        # Colour-legend on the first panel (handles removal when empty).
+        if 0 in self.subplots:
+            BasePlot.build_molecule_legend(self.subplots[0], mol_labels, mol_colors)
 
         # Apply full theme (backgrounds, spines, etc.) to the figure
         self.apply_theme_to_figure()
@@ -392,8 +384,10 @@ class FullSpectrumPlot(BasePlot):
                     if np.any(m_mask):
                         new_line, = ax.plot(
                             m_lam[m_mask], m_flux[m_mask],
-                            linestyle="--", color=m_color, alpha=0.8,
-                            linewidth=0.8, label=m_label,
+                            linestyle="--", color=m_color,
+                            alpha=self._get_theme_value("full_spectrum_model_alpha", 0.8),
+                            linewidth=self._get_theme_value("full_spectrum_model_linewidth", 0.8),
+                            label=m_label,
                             zorder=self._get_theme_value("zorder_model", 3),
                         )
                         new_line._molecule_name = m_name
@@ -413,24 +407,10 @@ class FullSpectrumPlot(BasePlot):
                     self._plot_summed_spectrum(ax, summed_wave[s_mask], summed_flux[s_mask])
 
         # --- Update legend on first panel -------------------------------
-        if visible and 0 in self.subplots:
-            mol_labels = [self.get_molecule_display_name(m) for m in visible]
-            mol_colors = [self.get_molecule_color(m) for m in visible]
-            legend_ax = self.subplots[0]
-            old_legend = legend_ax.get_legend()
-            if old_legend is not None:
-                old_legend.remove()
-            legend_ax.legend(
-                mol_labels,
-                labelcolor=mol_colors,
-                loc="upper center",
-                ncols=min(12, len(mol_labels)),
-                handletextpad=0.2,
-                bbox_to_anchor=(0.5, 1.4),
-                handlelength=0,
-                fontsize=10,
-                prop={"weight": "bold"},
-            )
+        if 0 in self.subplots:
+            mol_labels = [self.get_molecule_display_name(m) for m in visible] if visible else []
+            mol_colors = [self.get_molecule_color(m) for m in visible] if visible else []
+            BasePlot.build_molecule_legend(self.subplots[0], mol_labels, mol_colors)
 
     # ------------------------------------------------------------------
     # Convenience helpers

@@ -348,6 +348,9 @@ class FullSpectrumView(PlotView):
         if not self._initialised or not self.subplots:
             return
 
+        # Use the same RV-corrected wavelengths as the rendered panels.
+        rv_wave = self._plot.wave_data if self._plot is not None else wave_data
+
         # 1. Toggle molecule line visibility per subplot.
         #    When force_rerender is True (parameters changed while hidden),
         #    destroy the stale artists and re-create them from fresh data.
@@ -359,22 +362,36 @@ class FullSpectrumView(PlotView):
                 )
                 if molecule is not None:
                     self._renderer.render_individual_molecule_spectrum(
-                        molecule, wave_data, subplot=ax, update_legend=False,
+                        molecule, rv_wave, subplot=ax, update_legend=False,
                     )
         else:
+            # Try fast artist-toggle first.
+            toggled = False
             for ax in self.subplots.values():
-                self._renderer.set_molecule_visibility(
+                if self._renderer.set_molecule_visibility(
                     molecule_name, is_visible, ax=ax, lines=ax.lines,
-                )
+                ):
+                    toggled = True
 
-        # 2. Recompute summed spectrum
+            # If turning ON but no artists exist (e.g. after a full rebuild
+            # while the molecule was hidden), create them from scratch.
+            if is_visible and not toggled:
+                molecule = molecules_dict.get(molecule_name)
+                if molecule is not None:
+                    for ax in self.subplots.values():
+                        self._renderer.render_individual_molecule_spectrum(
+                            molecule, rv_wave, subplot=ax, update_legend=False,
+                        )
+
+        # 2. Recompute summed spectrum using RV-corrected wavelengths
+        #    so the fill aligns with the plotted panel x-limits.
         try:
             summed_wavelengths, summed_flux = molecules_dict.get_summed_flux(
-                self._islat.wave_data_original, visible_only=True,
+                rv_wave, visible_only=True,
             )
         except Exception as exc:
             debug_config.warning("full_spectrum_view", f"Could not compute summed flux: {exc}")
-            summed_wavelengths = self._plot.wave_data if self._plot else np.array([])
+            summed_wavelengths = rv_wave if rv_wave is not None else np.array([])
             summed_flux = np.zeros_like(summed_wavelengths)
 
         summed_visible = self._pm.summed_toggle and bool(
@@ -643,29 +660,14 @@ class FullSpectrumView(PlotView):
 
     def _update_full_spectrum_legend(self, molecules_dict: "MoleculeDict") -> None:
         visible_mols = molecules_dict.get_visible_molecules(return_objects=True)
-        mol_labels = [mol.displaylabel for mol in visible_mols]
-        mol_colors = [mol.color for mol in visible_mols]
+        mol_labels = [BasePlot.get_molecule_display_name(mol) for mol in visible_mols]
+        mol_colors = [BasePlot.get_molecule_color(mol) for mol in visible_mols]
 
         legend_ax = self.subplots.get(0)
         if legend_ax is None:
             return
 
-        old_legend = legend_ax.get_legend()
-        if old_legend is not None:
-            old_legend.remove()
-
-        if mol_labels:
-            legend_ax.legend(
-                mol_labels,
-                labelcolor=mol_colors,
-                loc="upper center",
-                ncols=12,
-                handletextpad=0.2,
-                bbox_to_anchor=(0.5, 1.4),
-                handlelength=0,
-                fontsize=10,
-                prop={"weight": "bold"},
-            )
+        BasePlot.build_molecule_legend(legend_ax, mol_labels, mol_colors)
 
     # ==================================================================
     # Cleanup

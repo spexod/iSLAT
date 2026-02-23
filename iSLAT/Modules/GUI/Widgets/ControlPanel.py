@@ -5,6 +5,7 @@ from tkinter import ttk, colorchooser
 import numpy as np
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
+from iSLAT.Modules.Debug import debug_config
 from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorButton
 #from .RegularFrame import RegularFrame
 from ..Tooltips import CreateToolTip
@@ -746,13 +747,12 @@ class ControlPanel(ttk.Frame):
         # Simply toggle this molecule's visibility - don't affect other molecules
         self.islat.molecules_dict.bulk_set_visibility(new_visibility, [molecule_name])
         
-        # Debug: Verify the visibility was actually set
-        print(f"ControlPanel: Set {molecule_name} visibility to {new_visibility}, actual value: {getattr(selected_mol, 'is_visible', 'UNDEFINED')}")
+        debug_config.trace("control_panel", f"Set {molecule_name} visibility to {new_visibility}, actual value: {getattr(selected_mol, 'is_visible', 'UNDEFINED')}")
         
         # Trigger selective plot refresh to show/hide the molecule
         if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot') and hasattr(self.islat.GUI.plot, 'on_molecule_visibility_changed'):
             self.islat.GUI.plot.on_molecule_visibility_changed(molecule_name, new_visibility)
-            print(f"ControlPanel: Triggered selective plot refresh for visibility change")
+            debug_config.trace("control_panel", f"Triggered selective plot refresh for visibility change")
 
     def _toggle_all_molecule_visibility(self):
         """Toggle the visibility of all molecules at once"""

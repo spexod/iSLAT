@@ -78,6 +78,10 @@ DEFAULT_THEME: Dict[str, Any] = {
     "saved_line_color_one": "red",
     "saved_line_color_two": "orange",
     "default_molecule_color": "blue",
+    "model_linewidth": 2,
+    "model_alpha": 1,
+    "full_spectrum_model_linewidth": 0.8,
+    "full_spectrum_model_alpha": 0.8,
     "zorder_observed": 2,
     "zorder_summed": 1,
     "zorder_model": 3,
@@ -153,10 +157,14 @@ class BasePlot(ABC):
             # Theme the legend text if one exists
             legend = ax.get_legend()
             if legend is not None:
-                legend.get_frame().set_facecolor(graph_bg)
-                legend.get_frame().set_edgecolor(fg)
+                frame = legend.get_frame()
+                if legend.get_visible() and frame.get_visible():
+                    frame.set_facecolor(graph_bg)
+                    frame.set_edgecolor(fg)
                 for text in legend.get_texts():
-                    text.set_color(fg)
+                    # Skip texts that carry per-molecule colour
+                    if not getattr(text, '_islat_mol_color', False):
+                        text.set_color(fg)
 
     @staticmethod
     def load_theme(name: str = "auto") -> Dict[str, Any]:
@@ -203,6 +211,52 @@ class BasePlot(ABC):
         """Return the colour associated with a molecule."""
         color = getattr(molecule, "color", None)
         return color if color else "blue"
+
+    @staticmethod
+    def build_molecule_legend(
+        ax: Axes,
+        mol_labels: List[str],
+        mol_colors: List[str],
+        *,
+        ncols: int = 12,
+        fontsize: int = 10,
+        bbox_to_anchor: Tuple[float, float] = (0.5, 1.4),
+    ) -> None:
+        """Create (or replace) a text-only, per-molecule-coloured legend.
+
+        Each entry is shown as bold coloured text with no visible handle
+        patch, giving a compact colour key above the plot.  The legend
+        texts are tagged with ``_islat_mol_color = True`` so that
+        :meth:`apply_theme_to_figure` will not overwrite them with the
+        foreground colour.
+
+        When *mol_labels* is empty the existing legend (if any) is
+        removed and no new one is created.
+        """
+        old = ax.get_legend()
+        if old is not None:
+            old.remove()
+
+        if not mol_labels:
+            return
+
+        from matplotlib.patches import Patch
+        handles = [Patch(facecolor='none', edgecolor='none') for _ in mol_colors]
+        leg = ax.legend(
+            handles,
+            mol_labels,
+            loc="upper center",
+            ncols=min(ncols, len(mol_labels)),
+            handlelength=0,
+            handletextpad=0,
+            bbox_to_anchor=bbox_to_anchor,
+            fontsize=fontsize,
+            prop={"weight": "bold"},
+            frameon=False,
+        )
+        for txt, col in zip(leg.get_texts(), mol_colors):
+            txt.set_color(col)
+            txt._islat_mol_color = True
 
     @staticmethod
     def get_molecule_spectrum_data(
@@ -417,13 +471,17 @@ class BasePlot(ABC):
         ax: Axes,
         molecule: "Molecule",
         wave_data: Optional[np.ndarray] = None,
-        linewidth: float = 1,
-        alpha: float = 0.8,
+        linewidth: Optional[float] = None,
+        alpha: Optional[float] = None,
         linestyle: str = "--",
         interpolate_to_input: bool = False,
         target_wavelengths: Optional[np.ndarray] = None,
     ) -> Optional[Line2D]:
         """Plot a single molecule's model spectrum on *ax*."""
+        if linewidth is None:
+            linewidth = self._get_theme_value("model_linewidth", 0.8)
+        if alpha is None:
+            alpha = self._get_theme_value("model_alpha", 0.8)
         plot_lam, plot_flux = self.get_molecule_spectrum_data(
             molecule, wave_data,
             interpolate_to_input=interpolate_to_input,

@@ -302,6 +302,11 @@ class PlotRenderer:
         # When clear_axes=False, existing molecule lines will be updated in place
         if clear_axes:
             axes.clear()
+            # Clear stale references — the Line2D objects are now destroyed.
+            # Without this, set_molecule_visibility finds the dead objects in
+            # self.model_lines, returns True, and skips re-creation.
+            if axes is self.ax1:
+                self.model_lines.clear()
         
         # Early return if no data
         if wave_data is None or len(wave_data) == 0:
@@ -818,14 +823,24 @@ class PlotRenderer:
         """
         if not molecules_dict or len(molecules_dict) == 0:
             # Clear summed spectrum if no molecules
-            self.update_summed_spectrum_only(wave_data, np.zeros_like(wave_data))
+            BasePlot._clear_tagged_artists(self.ax1, "_islat_summed", lines=False)
             return
+
+        # Check if any molecules are actually visible
+        visible = (molecules_dict.get_visible_molecules()
+                   if hasattr(molecules_dict, 'get_visible_molecules') else [])
+        if not visible:
+            # No visible molecules — remove existing summed fill and return
+            BasePlot._clear_tagged_artists(self.ax1, "_islat_summed", lines=False)
+            return
+
         try:
             debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux() with caching")
             summed_wavelengths, summed_flux = molecules_dict.get_summed_flux(wave_data, visible_only=True)
             wave_data = summed_wavelengths  # Use the combined wavelength grid
         except Exception as e:
             debug_config.warning("plot_renderer", f"Error in summed flux calculation: {e}")
+            return
         
         # Update summed spectrum using PlotRenderer
         self.update_summed_spectrum_only(wave_data, summed_flux)
@@ -1155,8 +1170,8 @@ class PlotRenderer:
             color = self._get_molecule_color(molecule)
             label = getattr(molecule, 'displaylabel', molecule_name)
             
-            lw = 1 if self.render_out else 2
-            alpha = 1 if self.render_out else 0.8
+            lw = self._get_theme_value("model_linewidth", 1)
+            alpha = self._get_theme_value("model_alpha", 1)
             
             # Update existing line if found, otherwise create new
             if existing_line is not None:
