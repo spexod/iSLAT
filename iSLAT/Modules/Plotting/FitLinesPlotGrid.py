@@ -137,6 +137,9 @@ class FitLinesPlotGrid(BasePlot):
 
         # Apply tight layout to prevent label/title overlap
         self.fig.tight_layout(pad=0.5, h_pad=1.5, w_pad=0.8)
+
+        # Apply full theme (backgrounds, spines, etc.) to the figure
+        self.apply_theme_to_figure()
     
     def plot(self):
         self.generate_plot()

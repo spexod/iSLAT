@@ -26,6 +26,43 @@ if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.MoleculeLine import MoleculeLine
 
+
+def _detect_system_theme() -> str:
+    """Return ``'DarkTheme'`` or ``'LightTheme'`` based on the OS appearance.
+
+    Works on macOS (via ``defaults``), Windows (via registry), and falls
+    back to ``'LightTheme'`` on other platforms or on error.
+    """
+    import platform
+    import subprocess
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            result = subprocess.run(
+                ["defaults", "read", "-g", "AppleInterfaceStyle"],
+                capture_output=True, text=True, timeout=2,
+            )
+            # "Dark" is returned when dark mode is active; command
+            # *fails* when light mode is active (key doesn't exist).
+            if result.returncode == 0 and "dark" in result.stdout.strip().lower():
+                return "DarkTheme"
+            return "LightTheme"
+        elif system == "Windows":
+            import winreg  # available only on Windows
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            )
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            winreg.CloseKey(key)
+            return "LightTheme" if value == 1 else "DarkTheme"
+        else:
+            # Linux / other — no universal API; default to light.
+            return "LightTheme"
+    except Exception:
+        return "LightTheme"
+
+
 # ---------------------------------------------------------------------------
 # Default theme (used when no GUI theme is supplied)
 # ---------------------------------------------------------------------------
@@ -83,6 +120,75 @@ class BasePlot(ABC):
     def _get_theme_value(self, key: str, default: Any = None) -> Any:
         """Return a value from the theme dict, or *default*."""
         return self.theme.get(key, default)
+
+    def apply_theme_to_figure(self, fig: Optional[MplFigure] = None) -> None:
+        """Apply theme background / foreground colours to a figure and all its axes.
+
+        This sets the figure face colour, axes face colour, tick colours,
+        label colours, title colours, and spine colours from the theme
+        dictionary.  Call this after ``generate_plot()`` (or at the end
+        of it) to get a fully themed figure without manual per-axes work.
+
+        Parameters
+        ----------
+        fig : Figure, optional
+            The figure to style.  Defaults to ``self.fig``.
+        """
+        target = fig if fig is not None else self.fig
+        if target is None:
+            return
+        fg = self._get_theme_value("foreground", "black")
+        bg = self._get_theme_value("background", "white")
+        graph_bg = self._get_theme_value("graph_fill_color", bg)
+
+        target.set_facecolor(bg)
+        for ax in target.axes:
+            ax.set_facecolor(graph_bg)
+            ax.tick_params(colors=fg, which="both")
+            ax.xaxis.label.set_color(fg)
+            ax.yaxis.label.set_color(fg)
+            ax.title.set_color(fg)
+            for spine in ax.spines.values():
+                spine.set_color(fg)
+            # Theme the legend text if one exists
+            legend = ax.get_legend()
+            if legend is not None:
+                legend.get_frame().set_facecolor(graph_bg)
+                legend.get_frame().set_edgecolor(fg)
+                for text in legend.get_texts():
+                    text.set_color(fg)
+
+    @staticmethod
+    def load_theme(name: str = "auto") -> Dict[str, Any]:
+        """Load a theme dictionary from the bundled JSON theme files.
+
+        Parameters
+        ----------
+        name : str
+            Theme name (e.g. ``"DarkTheme"``, ``"LightTheme"``,
+            ``"PastelBlue"``).  The special value ``"auto"`` selects
+            ``"DarkTheme"`` or ``"LightTheme"`` depending on the
+            operating system's current appearance setting.
+
+        Returns
+        -------
+        dict
+            The parsed theme dictionary, or :data:`DEFAULT_THEME` if the
+            file cannot be found.
+        """
+        if name == "auto":
+            name = _detect_system_theme()
+
+        import json
+        try:
+            from iSLAT.Modules.FileHandling import theme_file_path
+            theme_json = Path(str(theme_file_path)) / f"{name}.json"
+            if theme_json.exists():
+                with open(theme_json, "r") as fh:
+                    return json.load(fh)
+        except Exception:
+            pass
+        return DEFAULT_THEME.copy()
 
     # ------------------------------------------------------------------
     # Molecule helpers (shared across all plot types)
@@ -204,7 +310,7 @@ class BasePlot(ABC):
         wave_data: np.ndarray,
         flux_data: np.ndarray,
         error_data: Optional[np.ndarray] = None,
-        color: str = "black",
+        color: Optional[str] = None,
         label: str = "Data",
         deduplicate: bool = False,
     ) -> None:
@@ -230,6 +336,9 @@ class BasePlot(ABC):
         """
         if flux_data is None or len(flux_data) == 0:
             return
+
+        if color is None:
+            color = self._get_theme_value("foreground", "black")
 
         if deduplicate:
             BasePlot._clear_tagged_artists(ax, "_islat_observed")

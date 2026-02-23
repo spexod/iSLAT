@@ -135,6 +135,10 @@ class LineInspectionPlot(BasePlot):
         ax.set_title("Line inspection plot", color=fg)
         self._update_legend(ax)
 
+        # Apply full theme (backgrounds, spines, etc.) to the figure
+        if self.fig is not None:
+            self.apply_theme_to_figure()
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

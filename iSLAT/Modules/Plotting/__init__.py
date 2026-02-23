@@ -29,7 +29,9 @@ Class hierarchy::
     └── FullSpectrumView       — multi-panel full spectrum GUI layout
 """
 
-from .BasePlot import BasePlot, DEFAULT_THEME
+from .BasePlot import BasePlot, DEFAULT_THEME, _detect_system_theme
+from .BasePlot import BasePlot as _BP
+load_theme = _BP.load_theme  # Convenience alias at package level
 from .LineInspectionPlot import LineInspectionPlot
 from .PopulationDiagramPlot import PopulationDiagramPlot
 from .FullSpectrumPlot import FullSpectrumPlot
@@ -42,6 +44,7 @@ from .FullSpectrumView import FullSpectrumView
 __all__ = [
     "BasePlot",
     "DEFAULT_THEME",
+    "load_theme",
     "LineInspectionPlot",
     "PopulationDiagramPlot",
     "FullSpectrumPlot",

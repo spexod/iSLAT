@@ -12,6 +12,7 @@ from .Widgets.DataField import DataField
 from .Widgets.ControlPanel import ControlPanel
 from .Widgets.TopBar import TopBar
 from .Widgets.FileInteractionPane import FileInteractionPane
+from .Tooltips import set_tooltip_theme
 
 class GUI:
     def __init__(self, master, molecule_data, wave_data, flux_data, config, islat_class_ref):
@@ -37,6 +38,10 @@ class GUI:
         self.theme = config["theme"]
         self.islat_class = islat_class_ref
         self.default_font = font.nametofont("TkDefaultFont")
+
+        # Set module-level tooltip theme so every tooltip picks up
+        # the current theme's colours automatically.
+        set_tooltip_theme(self.theme)
         
         # Apply theme to root window
         # self._apply_theme_to_widget(self.master)

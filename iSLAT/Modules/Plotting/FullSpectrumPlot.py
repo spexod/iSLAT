@@ -262,10 +262,11 @@ class FullSpectrumPlot(BasePlot):
                 self._plot_atomic_lines(ax, self.atomic_lines, xr=xr)
 
         # --- global labels & legend ------------------------------------
+        fg = self._get_theme_value("foreground", "black")
         if self.subplots:
             last_ax = self.subplots[n - 1]
-            last_ax.set_xlabel("Wavelength (μm)")
-        self.fig.supylabel("Flux Density (Jy)", fontsize=10)
+            last_ax.set_xlabel("Wavelength (μm)", color=fg)
+        self.fig.supylabel("Flux Density (Jy)", fontsize=10, color=fg)
 
         # Custom colour-legend on the first panel
         if mol_labels and 0 in self.subplots:
@@ -280,6 +281,9 @@ class FullSpectrumPlot(BasePlot):
                 fontsize=10,
                 prop={"weight": "bold"},
             )
+
+        # Apply full theme (backgrounds, spines, etc.) to the figure
+        self.apply_theme_to_figure()
 
     # ------------------------------------------------------------------
     def update_panels_inplace(self) -> None:

@@ -106,9 +106,16 @@ def load_user_settings(file_path=user_configuration_file_path, file_name=user_co
 
     # append theme information to the user settings dictonary
     theme_key = user_settings.get('theme', 'LightTheme')  # e.g. "LightTheme"
-    theme_file = f"{theme_file_path}/{theme_key}.json"
-    # Stash the file-stem key so save_user_settings can recover it
+
+    # Stash the original user-facing key (may be "auto") for save_user_settings
     user_settings["_theme_key"] = theme_key
+
+    # Resolve "auto" to the system appearance (dark / light)
+    if theme_key.lower() == "auto":
+        from iSLAT.Modules.Plotting.BasePlot import _detect_system_theme
+        theme_key = _detect_system_theme()
+
+    theme_file = f"{theme_file_path}/{theme_key}.json"
     if os.path.exists(theme_file):
         with open(theme_file, 'r') as f:
             theme_settings = json.load(f)

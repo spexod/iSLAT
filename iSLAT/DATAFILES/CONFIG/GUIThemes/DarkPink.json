@@ -26,6 +26,8 @@
     "delete_button_bg_color": "#DC143C",
     "delete_button_fg_color": "#FFFFFF",
     "data_field_background": "#1A0F1F",
+    "tooltip_background": "#2D1B35",
+    "tooltip_foreground": "#FFFFFF",
     "buttons": {
         "DefaultBotton": {
             "background": "#1A0F1F",

@@ -135,6 +135,9 @@ class MainPlotGrid(BasePlot):
         # --- Bottom-right: population diagram ----------------------------
         self._render_population_panel()
 
+        # Apply full theme (backgrounds, spines, etc.) to the figure
+        self.apply_theme_to_figure()
+
     # ------------------------------------------------------------------
     # Panel renderers
     # ------------------------------------------------------------------

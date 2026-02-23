@@ -26,6 +26,8 @@
     "delete_button_bg_color": "red",
     "delete_button_fg_color": "red",
     "data_field_background": "red",
+    "tooltip_background": "red",
+    "tooltip_foreground": "red",
     "buttons": {
         "DefaultBotton": {
             "background": "red",

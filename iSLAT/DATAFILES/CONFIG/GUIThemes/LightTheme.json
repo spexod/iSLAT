@@ -27,6 +27,8 @@
     "highlighted_line_color": "yellow",
     "delete_button_bg_color": "#a38d89",
     "delete_button_fg_color": "#000000",
+    "tooltip_background": "#FFFDE7",
+    "tooltip_foreground": "#000000",
     "ax1_grid": false,
     "ax2_grid": false,
     "ax3_grid": false,
