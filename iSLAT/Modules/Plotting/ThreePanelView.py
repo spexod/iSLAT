@@ -239,19 +239,27 @@ class ThreePanelView(PlotView):
             toggle_state.get("summed", True)
         )
 
+        # Legend
+        legend_on = toggle_state.get("legend", True)
+        for ax in (self.ax1, self.ax2, self.ax3):
+            leg = ax.get_legend()
+            if leg is not None:
+                leg.set_visible(legend_on)
+
         self._canvas.draw_idle()
 
     def toggle_summed_spectrum(self, visible: bool) -> None:
         self._renderer.set_summed_spectrum_visibility(visible)
         self._canvas.draw_idle()
 
-    def toggle_legend(self) -> None:
-        ax1_leg = self.ax1.get_legend()
-        ax2_leg = self.ax2.get_legend()
-        if ax1_leg is not None:
-            ax1_leg.set_visible(not ax1_leg.get_visible())
-        if ax2_leg is not None:
-            ax2_leg.set_visible(not ax2_leg.get_visible())
+    def toggle_legend(self, visible: Optional[bool] = None) -> None:
+        for ax in (self.ax1, self.ax2, self.ax3):
+            leg = ax.get_legend()
+            if leg is not None:
+                if visible is not None:
+                    leg.set_visible(visible)
+                else:
+                    leg.set_visible(not leg.get_visible())
         self._canvas.draw_idle()
 
     def toggle_saved_lines(self, show: bool, loaded_lines: Any = None) -> None:

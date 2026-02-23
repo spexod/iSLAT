@@ -177,6 +177,14 @@ class iSLATPlot:
     def summed_toggle(self, value: bool) -> None:
         self.toggle_state["summed"] = value
 
+    @property
+    def legend_toggle(self) -> bool:
+        return self.toggle_state["legend"]
+
+    @legend_toggle.setter
+    def legend_toggle(self, value: bool) -> None:
+        self.toggle_state["legend"] = value
+
     def initialize_data(self):
         """
         Initialize data-dependent plot elements.
@@ -910,7 +918,8 @@ class iSLATPlot:
         self.active_view.toggle_saved_lines(self.line_toggle, loaded_lines=loaded_lines)
 
     def toggle_legend(self):
-        self.active_view.toggle_legend()
+        self.legend_toggle = not self.legend_toggle
+        self.active_view.toggle_legend(self.legend_toggle)
 
     def flux_integral(self, lam, flux, err, lam_min, lam_max):
         """

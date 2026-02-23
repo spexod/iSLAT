@@ -444,6 +444,12 @@ class FullSpectrumView(PlotView):
                 if hasattr(coll, "_islat_summed"):
                     coll.set_visible(summed_on)
 
+        # Legend
+        legend_on = toggle_state.get("legend", True)
+        legend = self._get_legend()
+        if legend is not None:
+            legend.set_visible(legend_on)
+
         self.draw()
 
     def toggle_summed_spectrum(self, visible: bool) -> None:
@@ -455,12 +461,15 @@ class FullSpectrumView(PlotView):
                     coll.set_visible(visible)
         self.draw()
 
-    def toggle_legend(self) -> None:
+    def toggle_legend(self, visible: Optional[bool] = None) -> None:
         if not self._initialised:
             return
         legend = self._get_legend()
         if legend is not None:
-            legend.set_visible(not legend.get_visible())
+            if visible is not None:
+                legend.set_visible(visible)
+            else:
+                legend.set_visible(not legend.get_visible())
         self.draw()
 
     def toggle_saved_lines(self, show: bool, loaded_lines: Any = None) -> None:

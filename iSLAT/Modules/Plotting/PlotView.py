@@ -119,7 +119,7 @@ class PlotView(ABC):
         ...
 
     @abstractmethod
-    def toggle_legend(self) -> None:
+    def toggle_legend(self, visible: Optional[bool] = None) -> None:
         """Toggle the legend visibility on all relevant axes."""
         ...
 
