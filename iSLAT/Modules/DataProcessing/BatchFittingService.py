@@ -675,37 +675,100 @@ class BatchFittingService:
                     if progress_callback:
                         progress_callback(f"Error: {os.path.basename(spectrum_file)}: {e}\n")
         
-        # Generate plots (can be parallelized or deferred)
-        plot_grid_list = []
-        
-        for result in fit_results:
-            try:
-                plot_grid = FitLinesPlotGrid(
-                    fit_data=result['fit_data'],
-                    wave_data=result['wavedata'],
-                    flux_data=result['fluxdata'],
-                    err_data=result['err_data'],
-                    fit_line_uncertainty=config.get('fit_line_uncertainty', 3.0),
-                    spectrum_name=result['spectrum_name']
+        # -----------------------------------------------------------------
+        # Generate plots.  When the caller intends to save straight to PDF
+        # (the common batch path), we can generate each plot in a worker
+        # thread, write the PDF, and immediately free the figure.  This
+        # avoids holding all figures in memory simultaneously and lets
+        # the I/O-heavy savefig calls overlap.
+        # -----------------------------------------------------------------
+        save_directly = config.get('save_fit_plot_grid_directly_to_PDF', False)
+        output_folder = self._current_output_folder
+
+        if save_directly and output_folder:
+            import matplotlib.pyplot as plt
+
+            save_path = output_folder
+            os.makedirs(save_path, exist_ok=True)
+
+            def _generate_and_save(result: Dict[str, Any]) -> Optional[str]:
+                """Build one plot grid, save it to PDF, free the figure."""
+                try:
+                    pg = FitLinesPlotGrid(
+                        fit_data=result['fit_data'],
+                        wave_data=result['wavedata'],
+                        flux_data=result['fluxdata'],
+                        err_data=result['err_data'],
+                        fit_line_uncertainty=config.get('fit_line_uncertainty', 3.0),
+                        spectrum_name=result['spectrum_name'],
+                    )
+                    pg.generate_plot()
+                    pdf_filename = f"{pg.spectrum_name}_fit_grid.pdf"
+                    pdf_path = os.path.join(save_path, pdf_filename)
+                    pg.fig.savefig(pdf_path, dpi=100)
+                    return pdf_path
+                except Exception as exc:
+                    if progress_callback:
+                        progress_callback(
+                            f"Error generating/saving plot for {result['spectrum_name']}: {exc}\n"
+                        )
+                    return None
+                finally:
+                    try:
+                        plt.close(pg.fig)
+                    except Exception:
+                        pass
+
+            workers = min(len(fit_results), max(1, os.cpu_count() or 1))
+            saved_count = 0
+
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(_generate_and_save, r): r for r in fit_results
+                }
+                for future in as_completed(futures):
+                    pdf_path = future.result()
+                    if pdf_path:
+                        saved_count += 1
+                        print(f"Saved fit plot grid to: {pdf_path}")
+                        if progress_callback:
+                            progress_callback(f"Saved fit plot grid to: {pdf_path}\n")
+
+            if progress_callback:
+                progress_callback(
+                    f"Completed: {len(fit_results)}/{len(spectrum_files)} spectra fitted, "
+                    f"{saved_count} PDFs saved.\n"
                 )
-                plot_grid.generate_plot()
-                plot_grid_list.append(plot_grid)
-            except Exception as e:
-                if progress_callback:
-                    progress_callback(f"Error generating plot for {result['spectrum_name']}: {e}\n")
-        
-        if progress_callback:
-            progress_callback(f"Completed: {len(fit_results)}/{len(spectrum_files)} spectra fitted.\n")
-        
+            # No plot grids to return — they've already been saved & freed.
+            plot_grid_list: List[Any] = []
+        else:
+            # Build plot grids in memory (for GUI display or non-PDF path)
+            plot_grid_list = []
+            for result in fit_results:
+                try:
+                    plot_grid = FitLinesPlotGrid(
+                        fit_data=result['fit_data'],
+                        wave_data=result['wavedata'],
+                        flux_data=result['fluxdata'],
+                        err_data=result['err_data'],
+                        fit_line_uncertainty=config.get('fit_line_uncertainty', 3.0),
+                        spectrum_name=result['spectrum_name']
+                    )
+                    plot_grid.generate_plot()
+                    plot_grid_list.append(plot_grid)
+                except Exception as e:
+                    if progress_callback:
+                        progress_callback(f"Error generating plot for {result['spectrum_name']}: {e}\n")
+
+            if progress_callback:
+                progress_callback(f"Completed: {len(fit_results)}/{len(spectrum_files)} spectra fitted.\n")
+
         # Print summary
         print(f"\nFitting complete: {len(fit_results)}/{len(spectrum_files)} spectra processed")
-        
-        # Store output folder for return
-        output_folder = self._current_output_folder
-        
+
         # Clear cache after batch processing
         self.clear_cache()
-        
+
         return plot_grid_list, output_folder
     
     def _fit_multiple_spectra_flattened(
@@ -1054,7 +1117,12 @@ class BatchFittingService:
     ) -> List[str]:
         """
         Save plot grids directly to PDF files.
-        
+
+        Uses a thread pool to write multiple PDFs in parallel.
+        Each figure's rendering work (rasterisation of any bitmap
+        elements and vector path serialisation) releases the GIL,
+        so threads give a real speed-up here.
+
         Parameters
         ----------
         plot_grid_list : list
@@ -1063,38 +1131,46 @@ class BatchFittingService:
             Directory to save PDF files
         progress_callback : callable, optional
             Callback function for progress updates
-            
+
         Returns
         -------
         list of str
             List of saved PDF file paths
         """
         import matplotlib.pyplot as plt
-        
+
         os.makedirs(save_directory, exist_ok=True)
-        saved_files = []
-        
-        for plot_grid in plot_grid_list:
+
+        # -- helper executed in each thread --------------------------------
+        def _save_one(plot_grid: Any) -> Optional[str]:
             pdf_filename = f"{plot_grid.spectrum_name}_fit_grid.pdf"
             pdf_path = os.path.join(save_directory, pdf_filename)
-            
             try:
-                plot_grid.fig.savefig(pdf_path, dpi=200, bbox_inches='tight')
-                saved_files.append(pdf_path)
-                
-                # Always print to console when PDF is saved
-                print(f"Saved fit plot grid to: {pdf_path}")
-                
-                if progress_callback:
-                    progress_callback(f"Saved fit plot grid to: {pdf_path}\n")
-                    
+                plot_grid.fig.savefig(pdf_path, dpi=100)
+                return pdf_path
             except Exception as save_error:
                 if progress_callback:
                     progress_callback(f"Error saving PDF {pdf_filename}: {save_error}\n")
+                return None
             finally:
-                # Close the figure to free memory
                 plt.close(plot_grid.fig)
-        
+
+        # -- parallel save -------------------------------------------------
+        saved_files: List[str] = []
+        workers = min(len(plot_grid_list), max(1, os.cpu_count() or 1))
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(_save_one, pg): pg for pg in plot_grid_list
+            }
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    saved_files.append(result)
+                    print(f"Saved fit plot grid to: {result}")
+                    if progress_callback:
+                        progress_callback(f"Saved fit plot grid to: {result}\n")
+
         return saved_files
     
     def get_fit_summary(
