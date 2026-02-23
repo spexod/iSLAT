@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from ...Constants import MOLECULES_DATA
 from .molecular_data_reader import read_molecular_data
+from iSLAT.Modules.Debug.DebugConfig import debug_config
 
 #from pathlib import Path
 
@@ -664,16 +665,16 @@ def load_atomic_lines(file_path=atomic_lines_file_name, *, force_reload: bool = 
                     file_path = alt_path
                     break
             else:
-                print(f"Warning: Atomic lines file not found at {file_path} or alternative paths")
+                debug_config.warning('file_handling', f"Atomic lines file not found at {file_path} or alternative paths")
                 return pd.DataFrame()
         
         atomic_lines = pd.read_csv(file_path)
-        print(f"Loaded {len(atomic_lines)} atomic lines from {file_path}")
+        debug_config.info('file_handling', f"Loaded {len(atomic_lines)} atomic lines from {file_path}")
         _atomic_lines_cache = atomic_lines
         return atomic_lines
         
     except Exception as e:
-        print(f"Error loading atomic lines: {str(e)}")
+        debug_config.error('file_handling', f"Error loading atomic lines: {str(e)}")
         return pd.DataFrame()
 
 def load_molecular_data_from_par(molecule_name, filename):
