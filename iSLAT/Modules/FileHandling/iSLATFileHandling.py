@@ -24,7 +24,6 @@ def _load_default_user_settings(file_path=user_configuration_file_path, file_nam
             return json.load(f)
     return {}
 
-
 def _migrate_user_settings(user_settings, file_path=user_configuration_file_path, file_name=user_configuration_file_name):
     """
     Compare the user_settings_version in UserSettings.json against
@@ -77,7 +76,6 @@ def _migrate_user_settings(user_settings, file_path=user_configuration_file_path
     save_user_settings(user_settings, file_path, file_name)
 
     return user_settings
-
 
 def load_user_settings(file_path=user_configuration_file_path, file_name=user_configuration_file_name, theme_file_path=theme_file_path):
     """ load_user_settings() loads the user settings from the UserSettings.json file."""
@@ -178,6 +176,198 @@ def save_user_settings(user_settings, file_path=user_configuration_file_path, fi
             json.dump(to_save, f, indent=4)
     except Exception as e:
         print(f"Warning: Could not save user settings to {file}: {e}")
+
+# -- Batch Fitting Config --------------------------------------------------
+
+_BATCH_FITTING_CONFIG_DEFAULTS: Dict[str, Any] = {
+    "use_saved_parameters": True,
+    "overrides_enabled": True,
+    "save_model_parameters": True,
+    "saved_lines_file": None,
+    "global_overrides": {
+        "enabled": False,
+        "distance": None,
+        "stellar_rv": None,
+        "model_line_width": None,
+    },
+    "spectra": [],
+}
+
+_LOG_COMPONENT: str = "batch_config"
+
+def load_batch_fitting_config(
+    file_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Load the batch fitting configuration from JSON.
+
+    Parameters
+    ----------
+    file_path : str, optional
+        Full path to the config JSON.  Defaults to
+        ``DATAFILES/CONFIG/BatchFittingConfig.json``.
+
+    Returns
+    -------
+    dict
+        Parsed config with missing keys filled from defaults.
+    """
+    if file_path is None:
+        file_path = str(batch_fitting_config_file_path)
+
+    if not os.path.exists(file_path):
+        debug_config.info(_LOG_COMPONENT, f"Config not found at {file_path}, using defaults")
+        return dict(_BATCH_FITTING_CONFIG_DEFAULTS)
+
+    try:
+        with open(file_path, "r") as fh:
+            config: Dict[str, Any] = json.load(fh)
+    except (json.JSONDecodeError, OSError) as exc:
+        debug_config.error(_LOG_COMPONENT, f"Error reading config: {exc}")
+        return dict(_BATCH_FITTING_CONFIG_DEFAULTS)
+
+    # Back-fill missing top-level keys
+    for key, default in _BATCH_FITTING_CONFIG_DEFAULTS.items():
+        config.setdefault(key, default)
+
+    # Back-fill missing global_overrides sub-keys
+    go_defaults: Dict[str, Any] = _BATCH_FITTING_CONFIG_DEFAULTS["global_overrides"]
+    go: Dict[str, Any] = config.get("global_overrides", {})
+    for key, default in go_defaults.items():
+        go.setdefault(key, default)
+    config["global_overrides"] = go
+
+    # Normalise each spectrum entry
+    for entry in config.get("spectra", []):
+        entry.setdefault("enabled", True)
+        entry.setdefault("parameter_overrides", {})
+        po: Dict[str, Any] = entry["parameter_overrides"]
+        po.setdefault("enabled", True)
+        po.setdefault("distance", None)
+        po.setdefault("stellar_rv", None)
+
+    debug_config.info(
+        _LOG_COMPONENT,
+        f"Loaded batch config: {len(config.get('spectra', []))} spectra, "
+        f"overrides_enabled={config.get('overrides_enabled', True)}",
+    )
+    return config
+
+def save_batch_fitting_config(
+    config: Dict[str, Any],
+    file_path: Optional[str] = None,
+) -> str:
+    """Persist a batch fitting configuration to JSON.
+
+    Parameters
+    ----------
+    config : dict
+        The configuration to save.
+    file_path : str, optional
+        Full path for the output file.  Defaults to
+        ``DATAFILES/CONFIG/BatchFittingConfig.json``.
+
+    Returns
+    -------
+    str
+        The path the file was written to.
+    """
+    if file_path is None:
+        file_path = str(batch_fitting_config_file_path)
+
+    try:
+        with open(file_path, "w") as fh:
+            json.dump(config, fh, indent=4)
+        debug_config.info(_LOG_COMPONENT, f"Saved config to {file_path}")
+    except OSError as exc:
+        debug_config.error(_LOG_COMPONENT, f"Error saving config: {exc}")
+
+    return file_path
+
+def resolve_batch_spectrum_files(
+    config: Dict[str, Any],
+    search_dirs: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Resolve spectrum file paths from a batch fitting config.
+
+    For each enabled spectrum entry, attempts to find the file in the
+    provided search directories (falling back to ``EXAMPLE-data``).
+
+    The top-level ``overrides_enabled`` flag acts as a master switch.
+    When ``False``, all per-spectrum and global overrides are ignored
+    regardless of their individual ``enabled`` flags.
+
+    Parameters
+    ----------
+    config : dict
+        Batch fitting config (as returned by :func:`load_batch_fitting_config`).
+    search_dirs : list of str, optional
+        Directories to search for spectrum files.
+
+    Returns
+    -------
+    list of dict
+        Each dict has:
+        - ``file`` : resolved absolute path
+        - ``stellar_rv`` : per-spectrum stellar RV override (float or None)
+        - ``distance`` : per-spectrum distance override (float or None)
+        - ``use_saved_parameters`` : bool
+        - ``global_overrides`` : dict of global-level overrides
+    """
+    from iSLAT.Modules.FileHandling import example_data_folder_path
+
+    if search_dirs is None:
+        search_dirs = [str(example_data_folder_path)]
+
+    master_overrides: bool = config.get("overrides_enabled", True)
+    use_saved: bool = config.get("use_saved_parameters", True)
+    global_ov: Dict[str, Any] = config.get("global_overrides", {})
+
+    # If the master toggle is off, suppress all overrides
+    if not master_overrides:
+        global_ov = dict(global_ov)  # shallow copy
+        global_ov["enabled"] = False
+
+    resolved: List[Dict[str, Any]] = []
+    for entry in config.get("spectra", []):
+        if not entry.get("enabled", True):
+            continue
+
+        raw_file: Optional[str] = entry.get("file")
+        if not raw_file:
+            continue
+
+        # Resolve the path
+        abs_path: Optional[str] = None
+        if os.path.isabs(raw_file) and os.path.exists(raw_file):
+            abs_path = raw_file
+        else:
+            for search_dir in search_dirs:
+                candidate: str = os.path.join(search_dir, raw_file)
+                if os.path.exists(candidate):
+                    abs_path = candidate
+                    break
+
+        if abs_path is None:
+            debug_config.warning(_LOG_COMPONENT, f"Spectrum file not found: {raw_file}")
+            continue
+
+        # Build per-spectrum overrides
+        po: Dict[str, Any] = entry.get("parameter_overrides", {})
+        po_active: bool = master_overrides and po.get("enabled", True)
+
+        resolved.append({
+            "file": abs_path,
+            "stellar_rv": po.get("stellar_rv") if po_active else None,
+            "distance": po.get("distance") if po_active else None,
+            "use_saved_parameters": use_saved,
+            "global_overrides": global_ov,
+        })
+
+    debug_config.trace(
+        _LOG_COMPONENT,
+        f"Resolved {len(resolved)} spectrum files from config",
+    )
+    return resolved
 
 def read_from_csv(file_path=save_folder_path, file_name=molsave_file_name):
     file = os.path.join(file_path, file_name)
@@ -564,60 +754,92 @@ def read_spectral_data(file_path : str):
         return pd.DataFrame()
 
 def write_molecules_to_csv(molecules_dict, file_path=save_folder_path, file_name=None, loaded_spectrum_name=None):
-    """
-    Write molecule parameters to CSV file.
-    
-    Parameters:
-    -----------
-    molecules_dict : MoleculeDict
-        Dictionary containing molecule objects
+    """Write molecule parameters to a molsave-format CSV file.
+
+    Accepts either a ``MoleculeDict`` of live ``Molecule`` objects **or** a
+    plain ``dict[str, dict]`` of raw save data (as returned by
+    ``get_mole_save_data``).  The output format is identical in both cases.
+
+    Parameters
+    ----------
+    molecules_dict : MoleculeDict or dict[str, dict]
+        Dictionary containing molecule objects **or** raw parameter dicts.
+        When a raw dict is passed, entries whose key starts with ``_`` are
+        skipped (internal placeholders).
     file_path : str
-        Path to save folder
+        Path to save folder.
     file_name : str, optional
-        Name of the CSV file. If None, uses molecule_list_file_name
+        Name of the CSV file.  If ``None``, uses ``molecule_list_file_name``.
     loaded_spectrum_name : str, optional
-        Name of the currently loaded spectrum file. If provided, prefixes the filename
+        Name of the currently loaded spectrum file.  If provided, prefixes
+        the filename.
     """
     # Determine the base filename
     base_file_name = file_name if file_name is not None else molecule_list_file_name
-    
+
     # Create filename based on loaded spectrum if provided
     if loaded_spectrum_name:
         spectrum_base_name = os.path.splitext(loaded_spectrum_name)[0]
         csv_filename = os.path.join(file_path, f"{spectrum_base_name}-{base_file_name}")
     else:
         csv_filename = os.path.join(file_path, base_file_name)
-    
+
     # Ensure the directory exists
     os.makedirs(file_path, exist_ok=True)
-    
+
+    # Detect whether we received live Molecule objects or raw dicts
+    first_value = next(iter(molecules_dict.values()), None) if molecules_dict else None
+    is_raw_dict: bool = isinstance(first_value, dict)
+
     try:
         with open(csv_filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
-            # Use field names compatible with Molecule class expectations
             header = ['Molecule Name', 'File Path', 'Molecule Label', 'Temp', 'Rad', 'N_Mol', 'Color', 'Vis', 'Dist', 'StellarRV', 'FWHM', 'Broad', 'RV Shift']
             writer.writerow(header)
-            
-            for mol_name, mol_obj in molecules_dict.items():
-                row = [
-                    mol_name,
-                    getattr(mol_obj, 'filepath', getattr(mol_obj, 'hitran_data', '')),
-                    getattr(mol_obj, 'displaylabel', mol_name),
-                    getattr(mol_obj, 'temp', 600),
-                    getattr(mol_obj, 'radius', 0.5),
-                    getattr(mol_obj, 'n_mol', 1e17),
-                    getattr(mol_obj, 'color', '#FF0000'),
-                    getattr(mol_obj, 'is_visible', True),
-                    getattr(molecules_dict, '_global_dist', 140),
-                    getattr(molecules_dict, '_global_stellar_rv', 0),
-                    getattr(mol_obj, 'fwhm', 200),       # Default FWHM in km/s
-                    getattr(mol_obj, 'broad', 2.5),       # Default broadening
-                    getattr(mol_obj, 'rv_shift', 0),      # Default RV shift
-                ]
-                writer.writerow(row)
-        
+
+            if is_raw_dict:
+                # Raw dict-of-dicts path (batch fitting save data)
+                for mol_name, params in molecules_dict.items():
+                    if mol_name.startswith("_"):
+                        continue
+                    row = [
+                        mol_name,
+                        params.get("File Path", ""),
+                        params.get("Molecule Label", mol_name),
+                        params.get("Temp", ""),
+                        params.get("Rad", ""),
+                        params.get("N_Mol", ""),
+                        params.get("Color", ""),
+                        params.get("Vis", ""),
+                        params.get("Dist", ""),
+                        params.get("StellarRV", ""),
+                        params.get("FWHM", ""),
+                        params.get("Broad", ""),
+                        params.get("RV Shift", ""),
+                    ]
+                    writer.writerow(row)
+            else:
+                # Live MoleculeDict path (original behaviour)
+                for mol_name, mol_obj in molecules_dict.items():
+                    row = [
+                        mol_name,
+                        getattr(mol_obj, 'filepath', getattr(mol_obj, 'hitran_data', '')),
+                        getattr(mol_obj, 'displaylabel', mol_name),
+                        getattr(mol_obj, 'temp', 600),
+                        getattr(mol_obj, 'radius', 0.5),
+                        getattr(mol_obj, 'n_mol', 1e17),
+                        getattr(mol_obj, 'color', '#FF0000'),
+                        getattr(mol_obj, 'is_visible', True),
+                        getattr(molecules_dict, '_global_dist', 140),
+                        getattr(molecules_dict, '_global_stellar_rv', 0),
+                        getattr(mol_obj, 'fwhm', 200),       # Default FWHM in km/s
+                        getattr(mol_obj, 'broad', 2.5),       # Default broadening
+                        getattr(mol_obj, 'rv_shift', 0),      # Default RV shift
+                    ]
+                    writer.writerow(row)
+
         return csv_filename
-        
+
     except Exception as e:
         print(f"Error saving molecule parameters: {e}")
         return None

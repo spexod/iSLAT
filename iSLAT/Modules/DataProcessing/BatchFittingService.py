@@ -19,6 +19,7 @@ import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
 import iSLAT.Constants as c
 from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
+from iSLAT.Modules.Debug.DebugConfig import debug_config
 
 def batch_extract_component_parameters(params, prefix='', rest_wavelength=None, sig_det_lim=2):
         """
@@ -1150,3 +1151,271 @@ class BatchFittingService:
                 messages.append(f"Line {i+1} at {wavelength:.4f} μm: Fit failed")
         
         return messages
+
+    def fit_lines_from_batch_config(
+        self,
+        batch_config: Dict[str, Any],
+        user_settings: Dict[str, Any],
+        progress_callback: Optional[Callable[[str], None]] = None,
+        get_mole_save_data: Optional[Callable[[str], Optional[Dict[str, Dict[str, Any]]]]] = None,
+        base_output_path: Optional[str] = None,
+        spectrum_files: Optional[List[str]] = None,
+        molecules_dict: Optional[Any] = None,
+    ) -> Tuple[List[Any], Optional[str]]:
+        """Fit saved lines to spectra using a batch fitting configuration.
+
+        Reads the batch config (spectra list, global overrides, per-spectrum
+        overrides) and dispatches fitting accordingly.  When
+        ``use_saved_parameters`` is True the saved molsave CSV for each
+        spectrum is loaded for per-molecule settings and the stellar RV
+        stored there is used for wavelength correction.
+
+        Override priority (highest to lowest):
+            1. Per-spectrum ``parameter_overrides`` (when its ``enabled`` is True)
+            2. ``global_overrides`` (when its ``enabled`` is True)
+            3. Values from the saved parameter file
+
+        The top-level ``overrides_enabled`` flag is a master switch. When
+        False, both global and per-spectrum overrides are suppressed
+        regardless of their individual ``enabled`` flags.
+
+        Parameters
+        ----------
+        batch_config : dict
+            Batch fitting config as returned by
+            ``load_batch_fitting_config()``.
+        user_settings : dict
+            Current iSLAT user settings (e.g. ``fit_line_uncertainty``).
+        progress_callback : callable, optional
+            Callback for GUI progress messages.
+        get_mole_save_data : callable, optional
+            ``iSLAT.get_mole_save_data`` -- accepts a spectrum filename and
+            returns molecule save data dict.
+        base_output_path : str, optional
+            Base directory for output subfolder creation.
+        spectrum_files : list of str, optional
+            Caller-provided spectrum file paths.  When given, these are
+            always used as the spectra to fit.  The config spectra list is
+            used only for per-spectrum override lookups.
+        molecules_dict : MoleculeDict, optional
+            The currently loaded molecules.  When provided and
+            ``save_model_parameters`` is True, a molsave CSV of the active
+            molecule parameters is written to the output folder for each
+            spectrum.
+
+        Returns
+        -------
+        tuple
+            (list of FitLinesPlotGrid, output_folder or None)
+        """
+        _LOG: str = "batch_fitting"
+
+        from iSLAT.Modules.FileHandling.iSLATFileHandling import (
+            resolve_batch_spectrum_files,
+        )
+
+        # -- resolve spectrum file paths ------------------------------------
+        # The config spectra list is used for per-spectrum override lookups.
+        resolved: List[Dict[str, Any]] = resolve_batch_spectrum_files(batch_config)
+
+        # Always prefer caller-provided spectrum files (from the GUI sample).
+        if spectrum_files:
+            final_spectrum_files: List[str] = list(spectrum_files)
+            debug_config.info(_LOG, f"Using {len(final_spectrum_files)} caller-provided spectrum files")
+        elif resolved:
+            final_spectrum_files = [r["file"] for r in resolved]
+        else:
+            msg: str = "No spectrum files found in batch config or from caller."
+            debug_config.warning(_LOG, msg)
+            if progress_callback:
+                progress_callback(msg + "\n")
+            return [], None
+
+        # -- determine the saved lines file ---------------------------------
+        saved_lines_file: Optional[str] = batch_config.get("saved_lines_file")
+        if not saved_lines_file:
+            msg = "No saved_lines_file provided."
+            debug_config.warning(_LOG, msg)
+            if progress_callback:
+                progress_callback(msg + "\n")
+            return [], None
+
+        # resolve relative path
+        if not os.path.isabs(saved_lines_file):
+            from iSLAT.Modules.FileHandling import (
+                line_saves_file_path,
+                set_input_file_folder_path,
+            )
+            for candidate_dir in [str(line_saves_file_path), str(set_input_file_folder_path)]:
+                candidate: str = os.path.join(candidate_dir, saved_lines_file)
+                if os.path.exists(candidate):
+                    saved_lines_file = candidate
+                    break
+
+        if not os.path.exists(saved_lines_file):
+            msg = f"Saved lines file not found: {saved_lines_file}"
+            debug_config.error(_LOG, msg)
+            if progress_callback:
+                progress_callback(msg + "\n")
+            return [], None
+
+        master_overrides: bool = batch_config.get("overrides_enabled", True)
+        global_ov: Dict[str, Any] = batch_config.get("global_overrides", {})
+        global_ov_enabled: bool = master_overrides and global_ov.get("enabled", False)
+        use_saved: bool = batch_config.get("use_saved_parameters", True)
+
+        debug_config.info(
+            _LOG,
+            f"Starting batch fit: {len(final_spectrum_files)} spectra, "
+            f"saved_params={'ON' if use_saved else 'OFF'}, "
+            f"overrides_enabled={master_overrides}, "
+            f"global_overrides={'ON' if global_ov_enabled else 'OFF'}",
+        )
+
+        # -- build override-aware save-data accessor ------------------------
+        def _get_mole_save_data_with_overrides(
+            spectrum_filename: str,
+        ) -> Optional[Dict[str, Dict[str, Any]]]:
+            """Return molecule save data with config overrides applied."""
+            base_data: Optional[Dict[str, Dict[str, Any]]] = None
+            if use_saved and get_mole_save_data is not None:
+                base_data = get_mole_save_data(spectrum_filename)
+
+            # Look up per-spectrum override values for this file
+            per_spec_rv: Optional[float] = None
+            per_spec_dist: Optional[float] = None
+            if master_overrides:
+                for r in resolved:
+                    if os.path.basename(r["file"]) == spectrum_filename:
+                        per_spec_rv = r.get("stellar_rv")
+                        per_spec_dist = r.get("distance")
+                        break
+
+            if base_data is None:
+                # No saved file -- construct a minimal entry when overrides exist
+                override_rv: float = 0.0
+                override_dist: float = 0.0
+
+                if per_spec_rv is not None:
+                    override_rv = per_spec_rv
+                elif global_ov_enabled and global_ov.get("stellar_rv") is not None:
+                    override_rv = float(global_ov["stellar_rv"])
+
+                if per_spec_dist is not None:
+                    override_dist = per_spec_dist
+                elif global_ov_enabled and global_ov.get("distance") is not None:
+                    override_dist = float(global_ov["distance"])
+
+                if override_rv != 0.0 or override_dist != 0.0:
+                    debug_config.trace(
+                        _LOG,
+                        f"{spectrum_filename}: no saved params, using overrides "
+                        f"(rv={override_rv}, dist={override_dist})",
+                    )
+                    return {"_override": {
+                        "StellarRV": override_rv,
+                        "Dist": override_dist,
+                    }}
+                return None
+
+            # Apply overrides on top of the saved data
+            for mol_name, mol_data in base_data.items():
+                # Per-spectrum overrides take highest priority
+                if per_spec_rv is not None:
+                    mol_data["StellarRV"] = str(per_spec_rv)
+                elif global_ov_enabled and global_ov.get("stellar_rv") is not None:
+                    mol_data["StellarRV"] = str(global_ov["stellar_rv"])
+
+                if per_spec_dist is not None:
+                    mol_data["Dist"] = str(per_spec_dist)
+                elif global_ov_enabled and global_ov.get("distance") is not None:
+                    mol_data["Dist"] = str(global_ov["distance"])
+
+            debug_config.trace(
+                _LOG,
+                f"{spectrum_filename}: applied overrides on top of saved params",
+            )
+            return base_data
+
+        if progress_callback:
+            progress_callback(
+                f"Batch config: {len(final_spectrum_files)} spectra, "
+                f"saved params={'ON' if use_saved else 'OFF'}, "
+                f"overrides={'ON' if master_overrides else 'OFF'}, "
+                f"global overrides={'ON' if global_ov_enabled else 'OFF'}\n"
+            )
+
+        plot_grids, output_folder = self.fit_lines_to_multiple_spectra(
+            saved_lines_file=saved_lines_file,
+            spectrum_files=final_spectrum_files,
+            config=user_settings,
+            progress_callback=progress_callback,
+            base_output_path=base_output_path,
+            get_mole_save_data=_get_mole_save_data_with_overrides,
+        )
+
+        # -- save model parameters used for each spectrum -------------------
+        save_params: bool = batch_config.get("save_model_parameters", True)
+        if save_params and output_folder and molecules_dict is not None:
+            from iSLAT.Modules.FileHandling.iSLATFileHandling import (
+                write_molecules_to_csv,
+            )
+            from iSLAT.Modules.FileHandling import molsave_file_name
+
+            # Snapshot the original global values so we can restore after
+            original_rv: float = getattr(molecules_dict, '_global_stellar_rv', 0.0)
+            original_dist: float = getattr(molecules_dict, '_global_dist', 140.0)
+
+            saved_count: int = 0
+            for spec_file in final_spectrum_files:
+                spec_name: str = os.path.basename(spec_file)
+
+                # Determine override values for this spectrum
+                per_spec_rv: Optional[float] = None
+                per_spec_dist: Optional[float] = None
+                if master_overrides:
+                    for r in resolved:
+                        if os.path.basename(r["file"]) == spec_name:
+                            per_spec_rv = r.get("stellar_rv")
+                            per_spec_dist = r.get("distance")
+                            break
+
+                # Apply overrides to the live molecules_dict globals
+                if per_spec_rv is not None:
+                    molecules_dict._global_stellar_rv = float(per_spec_rv)
+                elif global_ov_enabled and global_ov.get("stellar_rv") is not None:
+                    molecules_dict._global_stellar_rv = float(global_ov["stellar_rv"])
+                else:
+                    molecules_dict._global_stellar_rv = original_rv
+
+                if per_spec_dist is not None:
+                    molecules_dict._global_dist = float(per_spec_dist)
+                elif global_ov_enabled and global_ov.get("distance") is not None:
+                    molecules_dict._global_dist = float(global_ov["distance"])
+                else:
+                    molecules_dict._global_dist = original_dist
+
+                result: Optional[str] = write_molecules_to_csv(
+                    molecules_dict,
+                    file_path=output_folder,
+                    file_name=molsave_file_name,
+                    loaded_spectrum_name=spec_name,
+                )
+                if result:
+                    saved_count += 1
+                    debug_config.trace(
+                        _LOG,
+                        f"{spec_name}: saved parameters to {result}",
+                    )
+
+            # Restore original global values
+            molecules_dict._global_stellar_rv = original_rv
+            molecules_dict._global_dist = original_dist
+
+            if saved_count > 0:
+                msg = f"Saved model parameters for {saved_count}/{len(final_spectrum_files)} spectra to output folder."
+                debug_config.info(_LOG, msg)
+                if progress_callback:
+                    progress_callback(msg + "\n")
+
+        return plot_grids, output_folder

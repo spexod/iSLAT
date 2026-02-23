@@ -1,0 +1,25 @@
+{
+    "use_saved_parameters": true,
+    "overrides_enabled": true,
+    "save_model_parameters": true,
+    "saved_lines_file": null,
+
+    "global_overrides": {
+        "enabled": false,
+        "distance": null,
+        "stellar_rv": 400,
+        "model_line_width": null
+    },
+
+    "spectra": [
+        {
+            "file": "CITau_MIRI_Banzatti+2023b.csv",
+            "enabled": true,
+            "parameter_overrides": {
+                "enabled": false,
+                "distance": null,
+                "stellar_rv": 300
+            }
+        }
+    ]
+}

@@ -120,6 +120,7 @@ class TopBar(ResizableFrame):
         spec_functions_menu.add_command(label="Fit Line", command=self.fit_selected_line)
         spec_functions_menu.add_command(label="Fit Saved Lines", command=self.fit_saved_lines)
         spec_functions_menu.add_command(label="Fit Saved Lines To Sample", command=self.fit_saved_lines_to_sample)
+        spec_functions_menu.add_command(label="Fit from Batch Config", command=self.fit_from_batch_config)
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
@@ -501,6 +502,92 @@ class TopBar(ResizableFrame):
                 )
             else:
                 PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
+
+    def fit_from_batch_config(self):
+        """Load the BatchFittingConfig.json and run the batch fitting pipeline.
+
+        Uses the same GUI-loaded state as the regular fit-to-sample flow:
+        - The active sample spectra (or file-dialog selection if none).
+        - The currently loaded line list (prompts via file dialog if none).
+        - The same parallel / PDF-save settings as the regular batch fit.
+        The batch config provides overrides and toggle settings only.
+        """
+        from iSLAT.Modules.FileHandling.iSLATFileHandling import (
+            load_batch_fitting_config,
+        )
+
+        batch_config = load_batch_fitting_config()
+
+        # -- spectra: same logic as fit_saved_lines_to_sample ---------------
+        if hasattr(self.islat, 'sample_spectra') and len(self.islat.sample_spectra) > 1:
+            spectrum_files = list(self.islat.sample_spectra)
+        else:
+            spectrum_files_tuple = filedialog.askopenfilenames(
+                title="Select Spectrum Files for Batch Config Fit",
+                filetypes=[("All files", "*.*")],
+                initialdir=example_data_folder_path,
+            )
+            if not spectrum_files_tuple:
+                self.data_field.insert_text("No spectrum files selected.\n")
+                return
+            spectrum_files = list(spectrum_files_tuple)
+
+        # -- line list: prefer config, fall back to GUI-loaded, then dialog --
+        saved_lines: str | None = batch_config.get("saved_lines_file") or None
+        if not saved_lines:
+            if self.islat.input_line_list:
+                saved_lines = self.islat.input_line_list
+            else:
+                self.data_field.insert_text(
+                    "No line list in batch config or loaded in GUI. "
+                    "Please select a line list file.\n"
+                )
+                from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
+                result = load_input_line_list()
+                if result is None:
+                    self.data_field.insert_text("No line list selected. Operation cancelled.\n")
+                    return
+                file_path, file_name = result
+                self.islat.input_line_list = file_path
+                saved_lines = file_path
+                self.data_field.insert_text(f"Loaded line list: {file_name}\n")
+                if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                    self.islat.GUI.file_interaction_pane.refresh()
+
+        # Write the resolved line list back into the config dict so the
+        # service method does not need its own fallback logic.
+        batch_config["saved_lines_file"] = saved_lines
+
+        def progress_callback(msg):
+            self.data_field.insert_text(msg, clear_after=False)
+
+        self.data_field.insert_text(
+            f"Running batch config: {len(spectrum_files)} spectra, "
+            f"lines file: {os.path.basename(saved_lines)}\n"
+        )
+
+        plot_grid_list, output_folder = self.batch_fitting_service.fit_lines_from_batch_config(
+            batch_config=batch_config,
+            user_settings=self.config,
+            progress_callback=progress_callback,
+            get_mole_save_data=self.islat.get_mole_save_data,
+            base_output_path=line_saves_file_path,
+            spectrum_files=spectrum_files,
+            molecules_dict=self.islat.molecules_dict,
+        )
+
+        if plot_grid_list:
+            save_directly_to_pdf = self.config.get("save_fit_plot_grid_directly_to_PDF", False)
+            if save_directly_to_pdf:
+                save_path = output_folder if output_folder else line_saves_file_path
+                self.batch_fitting_service.save_plot_grids_to_pdf(
+                    plot_grid_list, save_path, progress_callback=progress_callback
+                )
+            else:
+                PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
+
+        if output_folder:
+            self.data_field.insert_text(f"Output saved to: {output_folder}\n")
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""
