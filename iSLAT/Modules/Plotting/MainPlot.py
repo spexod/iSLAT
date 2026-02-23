@@ -412,6 +412,8 @@ class iSLATPlot:
     def onselect(self, xmin, xmax):
         self.current_selection = (xmin, xmax)
         self.toggle_state["current_selection"] = (xmin, xmax)
+        # Clear previous fit result — it belongs to the old selection
+        self.fit_result = None
         mask = (self.islat.wave_data >= xmin) & (self.islat.wave_data <= xmax)
         self.selected_wave = self.islat.wave_data[mask]
         self.selected_flux = self.islat.flux_data[mask]
@@ -857,15 +859,12 @@ class iSLATPlot:
         """
         Update the line inspection plot showing data and active molecule model in the selected range.
         Uses only PlotRenderer logic with molecule's built-in caching for optimal performance.
+
+        The stored ``fit_result`` is always forwarded so that fit overlays
+        survive ax2.clear() calls.  ``fit_result`` is reset to *None* in
+        :meth:`onselect` whenever the user drags a new span selection.
         """
-        # Delegate all rendering logic to PlotRenderer
         fit_result = getattr(self, 'fit_result', None)
-        if hasattr(self, 'old_fit_result'):
-            if fit_result == self.old_fit_result:
-                self.old_fit_result = fit_result
-                fit_result = None  # Avoid re-rendering if fit result hasn't changed
-        else:
-            self.old_fit_result = fit_result
         self.plot_renderer.render_complete_line_inspection_plot(
             wave_data=self.islat.wave_data,
             flux_data=self.islat.flux_data,
@@ -1183,9 +1182,15 @@ class iSLATPlot:
             fit_result, fitted_wave, fitted_flux = self.fitting_engine.fit_gaussian_line(
                 x_fit, y_fit, **fit_kwargs
             )
-            self.fit_result = fit_result, fitted_wave, fitted_flux
-            if update_plot:
-                self.plot_renderer._render_fit_results_in_line_inspection(fit_result=self.fit_result, xmin=xmin, xmax=xmax, max_y=fitted_flux.max())
+            self.fit_result = (fit_result, fitted_wave, fitted_flux)
+            if update_plot and self.current_selection is not None:
+                # Overlay the fit directly on the existing line inspection plot
+                # without clearing ax2 (which would destroy the active lines).
+                max_y = fitted_flux.max() if len(fitted_flux) > 0 else 0.15
+                self.plot_renderer._render_fit_results_in_line_inspection(
+                    fit_result=self.fit_result, xmin=xmin, xmax=xmax, max_y=max_y,
+                )
+                self.canvas.draw_idle()
             return self.fit_result
         except Exception as e:
             debug_config.error("main_plot", f"Error in fitting: {str(e)}")
