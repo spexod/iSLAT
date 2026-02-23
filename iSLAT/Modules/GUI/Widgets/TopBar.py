@@ -52,7 +52,7 @@ class TopBar(ResizableFrame):
         self.deblending_service = DeblendingService()
         self.line_save_service = LineSaveService()
 
-        self.button_frame = tk.Frame(self)
+        self.button_frame = tk.Frame(self, bg=self.theme.get("background", "#181A1B"))
         self.button_frame.grid(row=0, column=1)
 
         # Create buttons for options
@@ -77,7 +77,13 @@ class TopBar(ResizableFrame):
         else:
             molecule_drpdwn = create_menu_btn(self.button_frame, self.theme, "Manage Molecules ▼", 0, 0)
 
-        molecule_menu = tk.Menu(molecule_drpdwn, tearoff=0)
+        btn_theme = self.theme.get("buttons", {}).get("DefaultBotton", {})
+        molecule_menu = tk.Menu(molecule_drpdwn, tearoff=0,
+            bg=btn_theme.get("background", "lightgray"),
+            fg=self.theme.get("foreground", "#F0F0F0"),
+            activebackground=btn_theme.get("active_background", "gray"),
+            activeforeground=self.theme.get("foreground", "#F0F0F0"),
+        )
         molecule_menu.add_command(label="HITRAN Query", command=self.hitran_query)
         molecule_menu.add_command(label="Default Molecules", command=self.default_molecules)
         molecule_menu.add_command(label="Add Molecules", command=self.add_molecule)
@@ -88,7 +94,12 @@ class TopBar(ResizableFrame):
             spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters", 0, 1)
         else:
             spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters ▼", 0, 1)
-        spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
+        spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0,
+            bg=btn_theme.get("background", "lightgray"),
+            fg=self.theme.get("foreground", "#F0F0F0"),
+            activebackground=btn_theme.get("active_background", "gray"),
+            activeforeground=self.theme.get("foreground", "#F0F0F0"),
+        )
         spectrum_menu.add_command(label="Save Parameters (Ctrl+S)", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters (Ctrl+L)", command=self.load_parameters)
         spectrum_menu.add_command(label="Output Full Spectrum (Ctrl+Shift+F)", command=lambda: output_full_spectrum(self.islat))
@@ -99,7 +110,12 @@ class TopBar(ResizableFrame):
             spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions", 0, 2)
         else:
             spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions ▼", 0, 2)
-        spec_functions_menu = tk.Menu(spec_functions_drpwn, tearoff=0)
+        spec_functions_menu = tk.Menu(spec_functions_drpwn, tearoff=0,
+            bg=btn_theme.get("background", "lightgray"),
+            fg=self.theme.get("foreground", "#F0F0F0"),
+            activebackground=btn_theme.get("active_background", "gray"),
+            activeforeground=self.theme.get("foreground", "#F0F0F0"),
+        )
         spec_functions_menu.add_command(label="Save Line", command=self.save_line)
         spec_functions_menu.add_command(label="Fit Line", command=self.fit_selected_line)
         spec_functions_menu.add_command(label="Fit Saved Lines", command=self.fit_saved_lines)

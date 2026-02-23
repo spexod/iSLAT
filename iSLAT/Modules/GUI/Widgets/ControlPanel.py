@@ -13,12 +13,12 @@ from ..Tooltips import CreateToolTip
 _IS_WINDOWS = platform.system() == "Windows"
 _ENTRY_LABEL_PADX = 2 if _IS_WINDOWS else 1
 _ENTRY_FIELD_PADX = 2 if _IS_WINDOWS else 1
-_MOL_BTN_WIDTH = 4 if _IS_WINDOWS else 2
+_MOL_BTN_WIDTH = 5 if _IS_WINDOWS else 4
 _COLOR_VIS_SCROLL_WIDTH = 170 if _IS_WINDOWS else 160
 _MOL_PARAM_SCROLL_WIDTH = 185 if _IS_WINDOWS else 170
 _MATCH_BTN_PADX = 2 if _IS_WINDOWS else 1
 # Column minimum pixel sizes for molecule visibility/color grid alignment
-_VIS_COL_MINSIZES = (26, 52, 26, 28) if _IS_WINDOWS else (20, 40, 20, 22)
+_VIS_COL_MINSIZES = (26, 52, 26, 28) if _IS_WINDOWS else (20, 42, 20, 22)
 
 class ControlPanel(ttk.Frame):
     def __init__(self, master, islat, plot, data_field, font):
@@ -327,23 +327,33 @@ class ControlPanel(ttk.Frame):
             if mol_name not in self.mol_visibility:
                 self.mol_visibility[mol_name] = visibility_var
 
-            mol_btn = tk.Button(
+            from ..GUIFunctions import _MOLNAME_STYLE, configure_all_button_styles
+            if hasattr(self, 'theme') and self.theme:
+                configure_all_button_styles(self.theme)
+            mol_btn = ttk.Button(
                 mol_frame,
                 text=mol_name,
                 width=_MOL_BTN_WIDTH,
-                activebackground="white",
-                activeforeground="#0a84ff",
+                style=_MOLNAME_STYLE,
+                command=lambda name=mol_name: self._on_molecule_selected(mol_name=name),
             )
-            mol_btn.config(command=lambda name=mol_name: self._on_molecule_selected(mol_name=name))
             mol_btn.grid(row=0, column=1, sticky="ew", pady=2)
             if len(mol_name) > self.max_name_len:
                 CreateToolTip(mol_btn, mol_name, bg=self.bg_color)
 
-            delete_btn = tk.Button(
+            del_bg = self.theme.get("delete_button_bg_color", "#b1403b") if hasattr(self, 'theme') and self.theme else "#b1403b"
+            del_fg = self.theme.get("delete_button_fg_color", "#000000") if hasattr(self, 'theme') and self.theme else "#000000"
+            delete_btn = tk.Label(
                 mol_frame,
                 text="X",
-                command=lambda name=mol_name, frame=mol_frame: self._delete_molecule(mol_name=name, frame=frame)
+                bg=del_bg,
+                fg=del_fg,
+                width=2,
+                relief="raised",
+                borderwidth=1,
+                cursor="hand2",
             )
+            delete_btn.bind("<Button-1>", lambda e, name=mol_name, frame=mol_frame: self._delete_molecule(mol_name=name, frame=frame))
             delete_btn.grid(row=0, column=2, pady=2, sticky="nsew")
 
             color_button = ColorButton(

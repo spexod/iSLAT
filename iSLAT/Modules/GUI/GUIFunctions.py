@@ -2,26 +2,104 @@ import tkinter as tk
 from tkinter import ttk, font
 from .Tooltips import CreateToolTip
 
-def create_button(frame, theme, text, command, row, column, tip_text = None):
-        btn_theme = theme["buttons"].get(
-            text.replace(" ", ""), theme["buttons"]["DefaultBotton"]
-        )
+# ---------- ttk style names ----------
+_TOGGLE_STYLE = "TopBar.TButton"
+_DROPDOWN_STYLE = "TopBar.TMenubutton"
+_MOLNAME_STYLE = "MolName.TButton"
+_DELETE_STYLE = "Delete.TButton"
 
-        btn = tk.Button(
+
+def configure_all_button_styles(theme):
+    """(Re-)configure every custom ttk style used by the GUI.
+
+    Call once at startup and again whenever the theme changes.
+    """
+    btn_theme = theme.get("buttons", {}).get("DefaultBotton", {})
+    bg = btn_theme.get("background", "lightgray")
+    fg = theme.get("foreground", "#000000")
+    active_bg = btn_theme.get("active_background", "gray")
+
+    style = ttk.Style()
+
+    # -- Top-bar toggle buttons ("Toggle Saved Lines", etc.) --
+    style.configure(
+        _TOGGLE_STYLE,
+        background=bg, foreground=fg,
+        borderwidth=1, relief=tk.RAISED, padding=(4, 2),
+    )
+    style.map(
+        _TOGGLE_STYLE,
+        background=[("active", active_bg), ("pressed", active_bg)],
+        foreground=[("active", fg), ("pressed", fg)],
+        relief=[("pressed", "sunken")],
+    )
+
+    # -- Top-bar dropdown menu buttons (Manage Molecules, etc.) --
+    style.configure(
+        _DROPDOWN_STYLE,
+        background=bg, foreground=fg,
+        borderwidth=1, relief=tk.RAISED, padding=(4, 2),
+    )
+    style.map(
+        _DROPDOWN_STYLE,
+        background=[("active", active_bg), ("pressed", active_bg)],
+        foreground=[("active", fg), ("pressed", fg)],
+        relief=[("pressed", "sunken")],
+    )
+
+    # -- Molecule name buttons in ControlPanel --
+    style.configure(
+        _MOLNAME_STYLE,
+        background=bg, foreground=fg,
+        borderwidth=1, relief=tk.RAISED, padding=(1, 0),
+    )
+    style.map(
+        _MOLNAME_STYLE,
+        background=[("active", "white"), ("pressed", "white")],
+        foreground=[("active", "#0a84ff"), ("pressed", "#0a84ff")],
+    )
+
+    # -- Delete buttons in ControlPanel --
+    del_bg = theme.get("delete_button_bg_color", "#b1403b")
+    del_fg = theme.get("delete_button_fg_color", "#000000")
+    style.configure(
+        _DELETE_STYLE,
+        background=del_bg, foreground=del_fg,
+        borderwidth=1, relief=tk.RAISED, padding=(0, 0),
+    )
+    style.map(
+        _DELETE_STYLE,
+        background=[("active", active_bg), ("pressed", active_bg)],
+        foreground=[("active", fg), ("pressed", fg)],
+    )
+
+
+# Keep the old name as an alias so existing callers still work.
+_configure_toggle_style = configure_all_button_styles
+
+
+def create_button(frame, theme, text, command, row, column, tip_text=None):
+        configure_all_button_styles(theme)
+
+        btn = ttk.Button(
             frame, text=text,
             command=command,
+            style=_TOGGLE_STYLE,
         )
 
-        if tip_text: 
+        if tip_text:
             CreateToolTip(btn, tip_text)
 
         btn.grid(row=row, column=column, padx=1, pady=2, sticky="nsew")
         return btn
 
+
 def create_menu_btn(frame, theme, text, row, column):
-        drpdwn = tk.Menubutton(
+        configure_all_button_styles(theme)
+
+        drpdwn = ttk.Menubutton(
             frame, text=text,
-            relief=tk.RAISED, 
+            style=_DROPDOWN_STYLE,
         )
         drpdwn.grid(row=row, column=column, padx=1, pady=2, sticky="nsew")
         return drpdwn

@@ -406,6 +406,27 @@ class ResizableFrame(tk.Frame):
                     activebackground=self.theme.get("background", "#181A1B"),
                     activeforeground=self.theme.get("foreground", "#F0F0F0")
                 )
+            elif widget_class == 'Menubutton':
+                btn_theme = self.theme.get("buttons", {}).get("DefaultBotton", {})
+                widget.configure(
+                    bg=btn_theme.get("background", "lightgray"),
+                    fg=self.theme.get("foreground", "#F0F0F0"),
+                    activebackground=btn_theme.get("active_background", self.theme.get("selection_color", "#00FF99")),
+                    activeforeground=self.theme.get("foreground", "#F0F0F0"),
+                    highlightbackground=self.theme.get("background", "#181A1B"),
+                )
+            elif widget_class == 'Menu':
+                btn_theme = self.theme.get("buttons", {}).get("DefaultBotton", {})
+                widget.configure(
+                    bg=btn_theme.get("background", "lightgray"),
+                    fg=self.theme.get("foreground", "#F0F0F0"),
+                    activebackground=btn_theme.get("active_background", self.theme.get("selection_color", "#00FF99")),
+                    activeforeground=self.theme.get("foreground", "#F0F0F0"),
+                )
+            elif widget_class in ('TButton', 'TMenubutton'):
+                # Reconfigure all custom ttk button/menubutton styles.
+                from ..GUIFunctions import configure_all_button_styles
+                configure_all_button_styles(self.theme)
             # Handle TTK widgets
             elif hasattr(widget, '__class__') and 'ttk' in str(widget.__class__):
                 # self._apply_ttk_theme(widget)
