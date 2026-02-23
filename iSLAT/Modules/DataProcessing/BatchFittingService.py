@@ -559,7 +559,7 @@ class BatchFittingService:
                     pg.generate_plot()
                     pdf_filename = f"{pg.spectrum_name}_fit_grid.pdf"
                     pdf_path = os.path.join(save_path, pdf_filename)
-                    pg.fig.savefig(pdf_path, dpi=100)
+                    pg.fig.savefig(pdf_path, dpi=200)
                     return pdf_path
                 except Exception as exc:
                     if progress_callback:
@@ -1062,7 +1062,7 @@ class BatchFittingService:
             pdf_filename = f"{plot_grid.spectrum_name}_fit_grid.pdf"
             pdf_path = os.path.join(save_directory, pdf_filename)
             try:
-                plot_grid.fig.savefig(pdf_path, dpi=100)
+                plot_grid.fig.savefig(pdf_path, dpi=200)
                 return pdf_path
             except Exception as save_error:
                 if progress_callback:

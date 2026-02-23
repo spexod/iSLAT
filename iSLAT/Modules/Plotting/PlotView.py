@@ -195,6 +195,8 @@ class PlotView(ABC):
             save_kw["dpi"] = dpi
         elif rasterized:
             save_kw["dpi"] = 300
+        else:
+            save_kw["dpi"] = 300  # high-quality default for all exports
         save_kw.update(kwargs)
 
         fig.savefig(save_path, **save_kw)

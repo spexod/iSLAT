@@ -75,7 +75,7 @@ class PlotGridWindow(tk.Toplevel):
         fig_height = SUBPLOT_HEIGHT_INCHES * plot_grid.rows
         
         plot_grid.fig.set_size_inches(fig_width, fig_height)
-        plot_grid.fig.set_dpi(100)
+        plot_grid.fig.set_dpi(150)
         
         # Compact subplot spacing with enough room for titles/labels
         plot_grid.fig.subplots_adjust(
@@ -138,4 +138,4 @@ class PlotGridWindow(tk.Toplevel):
             initialfile=f"{plot_grid.spectrum_name}_fit_grid"
         )
         if filepath:
-            plot_grid.fig.savefig(filepath, dpi=150, bbox_inches='tight')
+            plot_grid.fig.savefig(filepath, dpi=300, bbox_inches='tight')

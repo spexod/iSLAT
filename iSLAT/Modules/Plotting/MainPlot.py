@@ -1205,7 +1205,7 @@ class iSLATPlot:
             debug_config.error("main_plot", f"Error in fitting: {str(e)}")
             return None
     
-    def save_fig(self, filename, dpi=10):
+    def save_fig(self, filename, dpi=300):
         """Save the current figure to a file."""
         try:
             self.fig.savefig(filename, dpi=dpi, bbox_inches='tight')

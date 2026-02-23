@@ -276,7 +276,7 @@ class TopBar(ResizableFrame):
             
             # Save plot
             figpath = os.path.join(line_saves_file_path, f"{spectrum_base_name}-deblend_plot.pdf")
-            self.main_plot.save_fig(figpath, dpi=10)
+            self.main_plot.save_fig(figpath, dpi=300)
             
             if saved_count > 0:
                 self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_after=False)

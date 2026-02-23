@@ -5,8 +5,10 @@ import threading
 import queue
 
 from iSLAT.Modules.Debug.PerformanceLogger import get_performance_summary
-from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv
+
+# High-DPI / Retina display support — imported before figures are created so that matplotlib rcParams are configured early.
+from iSLAT.Modules.GUI.DisplayConfig import apply_tk_scaling, display_config
 
 from .Widgets.DataField import DataField
 from .Widgets.ControlPanel import ControlPanel
@@ -18,6 +20,8 @@ class GUI:
     def __init__(self, master, molecule_data, wave_data, flux_data, config, islat_class_ref):
         if master is None:
             self.master = tk.Tk()
+            # Apply system DPI scaling for HiDPI / Retina displays
+            apply_tk_scaling(self.master)
             self.style = ttk.Style()
             self._style_config()
             # self.master = ThemedTk()
@@ -97,6 +101,7 @@ class GUI:
 
     def create_window(self):
         from iSLAT import __version__ as iSLAT_version
+        from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
         self.window = self.master
         self.window.title(f"iSLAT Version {iSLAT_version}")
         

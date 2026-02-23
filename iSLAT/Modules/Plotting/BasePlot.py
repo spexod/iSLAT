@@ -21,6 +21,12 @@ from matplotlib.lines import Line2D
 
 import iSLAT.Constants as c
 
+# Import display config to ensure rcParams are set early and to access the savefig DPI default.
+try:
+    from iSLAT.Modules.GUI.DisplayConfig import display_config as _display_config
+except ImportError:
+    _display_config = None
+
 if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.Molecule import Molecule
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
@@ -860,6 +866,10 @@ class BasePlot(ABC):
         save_kw: Dict[str, Any] = {"bbox_inches": bbox_inches}
         if dpi is not None:
             save_kw["dpi"] = dpi
+        else:
+            # Use the centralized high-quality default
+            _default_dpi = _display_config.savefig_dpi if _display_config else 300
+            save_kw["dpi"] = _default_dpi
         save_kw.update(kwargs)
         self.fig.savefig(str(path), **save_kw)
         return path
