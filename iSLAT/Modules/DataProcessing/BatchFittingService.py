@@ -21,235 +21,90 @@ from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
 from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 from iSLAT.Modules.Debug.DebugConfig import debug_config
 
-def batch_extract_component_parameters(params, prefix='', rest_wavelength=None, sig_det_lim=2):
-        """
-        Extract parameters for a single Gaussian component from fit results.
-        
-        Parameters
-        ----------
-        params : lmfit.Parameters
-            Fitted parameters object
-        prefix : str, optional
-            Parameter prefix (e.g., 'g1_' for multi-component fits, '' for single component)
-        rest_wavelength : float, optional
-            Rest wavelength for Doppler shift calculation
-        sig_det_lim : float, optional
-            Detection significance limit (default: 2)
-            
-        Returns
-        -------
-        dict
-            Dictionary containing extracted component parameters
-        """
-        center = params[f'{prefix}center'].value
-        center_err = params[f'{prefix}center'].stderr if params[f'{prefix}center'].stderr else 0.0
-        amplitude = params[f'{prefix}amplitude'].value
-        amplitude_err = params[f'{prefix}amplitude'].stderr if params[f'{prefix}amplitude'].stderr else 0.0
-        height = params[f'{prefix}height'].value if f'{prefix}height' in params else amplitude
-        height_err = params[f'{prefix}height'].stderr if f'{prefix}height' in params and params[f'{prefix}height'].stderr else amplitude_err
-        sigma = params[f'{prefix}sigma'].value
-        sigma_freq = c.SPEED_OF_LIGHT_MICRONS / (center**2) * sigma
-        sigma_freq_err = c.SPEED_OF_LIGHT_MICRONS / (center**2) * params[f'{prefix}sigma'].stderr if params[f'{prefix}sigma'].stderr else 0.0
-        
-        fwhm = params[f'{prefix}fwhm'].value / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params else 2.355 * sigma
-        fwhm_err = params[f'{prefix}fwhm'].stderr / center * c.SPEED_OF_LIGHT_KMS if f'{prefix}fwhm' in params and params[f'{prefix}fwhm'].stderr else 0.0
-        
-        gauss_area = height * sigma_freq * np.sqrt(2 * np.pi) * (1.e-23)  # to get line flux in erg/s/cm2
-        if height_err is not None and height != 0 and sigma_freq != 0:
-            gauss_area_err = np.absolute(gauss_area * np.sqrt(
-                (height_err / height) ** 2 +
-                (sigma_freq_err / sigma_freq) ** 2))  # get area error
-        else:
-            gauss_area_err = np.nan
-        
-        # Calculate fit signal-to-noise and detection for component
-        fit_det = abs(gauss_area) > sig_det_lim * gauss_area_err if not np.isnan(gauss_area_err) else False
-        
-        # Calculate Doppler shift if rest wavelength provided
-        doppler = ((center - rest_wavelength) / rest_wavelength * c.SPEED_OF_LIGHT_KMS) if rest_wavelength else np.nan
-        
-        component_params = {
-            'center': center,
-            'center_stderr': center_err,
-            'amplitude': amplitude,
-            'amplitude_stderr': amplitude_err,
-            'sigma': sigma,
-            'sigma_freq': sigma_freq,
-            'sigma_freq_stderr': sigma_freq_err,
-            'fwhm': fwhm,
-            'fwhm_stderr': fwhm_err,
-            'area': gauss_area,
-            'area_stderr': gauss_area_err,
-            'fit_detected': fit_det,
-            'doppler_shift': doppler
-        }
-        
-        return component_params
+def _fit_spectrum_batch_worker(
+    batch_data: Dict[str, Any],
+) -> List[Tuple[int, int, Dict, Any, Any, Any]]:
+    """Fit ALL lines for a single spectrum in one worker-process call.
 
-def _fit_task_worker(task_data: Dict[str, Any]) -> Tuple[int, int, Dict, Any, Any, Any]:
+    This replaces per-line submissions for ``ProcessPoolExecutor``
+    usage.  By batching all lines that share the same spectrum arrays
+    into a single submission, the heavy ``wave_data / flux_data /
+    err_data`` arrays are pickled only **once per spectrum** instead
+    of once per line.
+
+    Delegates all fitting, flux integration, and result formatting to
+    :class:`FittingEngine` and :class:`LineAnalyzer` so there is a
+    single source of truth for the fitting logic.
+
+    Parameters
+    ----------
+    batch_data : dict
+        ``spectrum_idx``, ``wave_data``, ``flux_data``, ``err_data``,
+        ``lines`` (list of per-line dicts with xmin/xmax/center_wave/
+        line_info/line_idx), and ``sig_det_lim``.
+
+    Returns
+    -------
+    list of tuple
+        One ``(spectrum_idx, line_idx, result_entry, fit_result,
+        fitted_wave, fitted_flux)`` per line.
     """
-    Module-level worker function for ProcessPoolExecutor.
-    
-    ProcessPoolExecutor requires a top-level function (can't pickle instance methods).
-    This function recreates the minimal fitting logic needed for each task.
-    """
-    from lmfit.models import GaussianModel
-    import numpy as np
-    
-    # Unpack task data
-    spectrum_idx = task_data['spectrum_idx']
-    line_idx = task_data['line_idx']
-    wave_data = task_data['wave_data']
-    flux_data = task_data['flux_data']
-    err_data = task_data['err_data']
-    xmin = task_data['xmin']
-    xmax = task_data['xmax']
-    center_wave = task_data['center_wave']
-    line_info = task_data['line_info']
-    sig_det_lim = task_data.get('sig_det_lim', 2.0)
-    
-    # Extract fitting region
-    fit_mask = (wave_data >= xmin) & (wave_data <= xmax)
-    x_fit = wave_data[fit_mask]
-    y_fit = flux_data[fit_mask]
-    
-    # Perform Gaussian fit (simplified version of FittingEngine logic)
-    fit_result = None
-    fitted_wave = None
-    fitted_flux = None
-    
-    try:
-        model = GaussianModel()
-        params = model.guess(y_fit, x=x_fit)
-        
-        # Apply error weights if available
-        weights = None
-        if err_data is not None:
-            err_fit = err_data[fit_mask] if len(err_data) > len(x_fit) else err_data
-            if len(err_fit) == len(y_fit) and len(err_fit) > 0:
-                max_err = np.max(err_fit)
-                if max_err > 0:
-                    err_fit_safe = np.where(err_fit <= 0, max_err * 0.01, err_fit)
-                    weights = 1.0 / err_fit_safe
-        
-        if weights is not None:
-            fit_result = model.fit(y_fit, params, x=x_fit, weights=weights, nan_policy='omit')
-        else:
-            fit_result = model.fit(y_fit, params, x=x_fit, nan_policy='omit')
-        
-        fitted_wave = x_fit
-        fitted_flux = fit_result.eval(x=fitted_wave)
-    except Exception:
-        pass
-    
-    # Calculate flux integral
-    wavelength_mask = (wave_data >= xmin) & (wave_data <= xmax)
-    flux_data_integral = 0.0
-    err_data_integral = 0.0
-    
-    if np.any(wavelength_mask):
-        lam_range = wave_data[wavelength_mask]
-        flux_range = flux_data[wavelength_mask]
-        if len(lam_range) >= 2:
-            freq_range = c.SPEED_OF_LIGHT_MICRONS / lam_range[::-1]
-            flux_data_integral = -np.trapezoid(flux_range[::-1], x=freq_range[::-1]) * 1e-23
-            if err_data is not None:
-                err_range = err_data[wavelength_mask]
-                err_data_integral = -np.trapezoid(err_range[::-1], x=freq_range[::-1]) * 1e-23
-    
-    # Format result entry (simplified version)
-    result_entry = dict(line_info)
-    result_entry['xmin'] = xmin
-    result_entry['xmax'] = xmax
-    result_entry['Flux_data'] = flux_data_integral
-    result_entry['Err_data'] = err_data_integral
-    
-    line_sn = np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1)
-    result_entry['Line_SN'] = line_sn
+    # Imports are inside the function because this runs in a fresh
+    # worker process that doesn't inherit the parent's import state.
+    from iSLAT.Modules.DataProcessing.FittingEngine import FittingEngine
+    from iSLAT.Modules.DataProcessing.LineAnalyzer import LineAnalyzer
 
-    if np.absolute(flux_data_integral) > sig_det_lim * err_data_integral:
-        line_det = True
-    else:
-        line_det = False
+    spectrum_idx = batch_data['spectrum_idx']
+    wave_data = batch_data['wave_data']
+    flux_data = batch_data['flux_data']
+    err_data = batch_data['err_data']
+    sig_det_lim = batch_data.get('sig_det_lim', 2.0)
 
-    result_entry['Line_Det'] = line_det
-    result_entry['Flux_islat'] = flux_data_integral # Default to data values
-    result_entry['Err_islat'] = err_data_integral   # Will be overwritten if fit succeeds
+    # Lightweight objects — no I/O, just method containers.
+    engine = FittingEngine()
+    results: list = []
 
-    # Process fit results if successful
-    if fit_result and fit_result.success:
-        # Extract fit parameters using the helper method
-        component_params = batch_extract_component_parameters(fit_result.params, '', line_info.get('lam'), sig_det_lim)
-        
-        # Get individual parameters for backward compatibility
-        center = component_params['center']
-        center_err = component_params['center_stderr']
-        gauss_area = component_params['area']
-        gauss_area_err = component_params['area_stderr']
-        fwhm = component_params['fwhm']
-        fwhm_err = component_params['fwhm_stderr']
-        fit_det = component_params['fit_detected']
-        doppler = component_params['doppler_shift']
+    for line in batch_data['lines']:
+        line_idx = line['line_idx']
+        xmin = line['xmin']
+        xmax = line['xmax']
+        center_wave = line['center_wave']
+        line_info = line['line_info']
 
-        fit_sn = gauss_area / gauss_area_err if gauss_area_err > 0 else 0.0
-        
-        # Update result with fit information
-        result_entry.update({
-            'Fit_SN': np.round(fit_sn, decimals=1),
-            'Fit_det': bool(fit_det),
-            'Flux_fit': np.float64(f'{gauss_area:.{3}e}'),
-            'Err_fit': np.float64(f'{gauss_area_err:.{3}e}'),
-            'FWHM_fit': np.round(fwhm, decimals=5) if fit_det else np.nan,
-            'FWHM_err': np.round(fwhm_err, decimals=5) if fit_det else np.nan,
-            'Centr_fit': np.round(center, decimals=5) if fit_det else np.nan,
-            'Centr_err': np.round(center_err, decimals=5) if fit_det else np.nan,
-            'Doppler': np.round(doppler, decimals=1) if fit_det else np.nan,
-            'Red-chisq': np.float64(f'{fit_result.redchi:.{3}e}' if fit_result.redchi is not None else np.nan),
-            'Fit_success': bool(True)
-        })
-        
-        # Update iSLAT flux values if fit is good and detected
-        if fit_det:
-            result_entry['Flux_islat'] = np.float64(f'{gauss_area:.{3}e}')
-            result_entry['Err_islat'] = np.float64(f'{gauss_area_err:.{3}e}')
-    else:
-        # Fit failed - fill with NaN values but keep data measurements
-        result_entry.update({
-            #'Fit_SN': np.round(flux_data_integral / err_data_integral if err_data_integral > 0 else 0.0, decimals=1),
-            'Fit_SN': 0.0,
-            'Fit_det': False,
-            'Flux_fit': np.nan, #np.float64(f'{flux_data_integral:.{3}e}'),  # Use data flux for failed fit
-            'Err_fit': np.nan, #np.float64(f'{err_data_integral:.{3}e}'),
-            'FWHM_fit': np.nan,
-            'FWHM_err': np.nan,
-            'Centr_fit': np.nan,
-            'Centr_err': np.nan,
-            'Doppler': np.nan,
-            'Red-chisq': np.nan,
-            'Fit_success': bool(False)
-        })
+        # -- Gaussian fit (delegates to FittingEngine) --
+        fit_mask = (wave_data >= xmin) & (wave_data <= xmax)
+        x_fit = wave_data[fit_mask]
+        y_fit = flux_data[fit_mask]
+        err_fit = err_data[fit_mask] if err_data is not None else None
 
-    '''if fit_result is not None and hasattr(fit_result, 'params'):
-        result_entry['Centr_fit'] = fit_result.params.get('center', center_wave)
-        result_entry['Flux_fit'] = fit_result.params.get('amplitude', 0.0) * fit_result.params.get('sigma', 1.0) * np.sqrt(2 * np.pi)
-        result_entry['FWHM_fit'] = fit_result.params.get('sigma', 0.0) * 2.35482
-        result_entry['Fit_det'] = True
-    else:
-        result_entry['Centr_fit'] = center_wave
-        result_entry['Flux_fit'] = 0.0
-        result_entry['FWHM_fit'] = 0.0
-        result_entry['Fit_det'] = False'''
-    
-    '''# Determine detection based on SNR
-    if err_data_integral != 0:
-        snr = abs(flux_data_integral / err_data_integral)
-        result_entry['SNR'] = snr
-        result_entry['Det'] = snr >= sig_det_lim
-    else:
-        result_entry['SNR'] = 0.0
-        result_entry['Det'] = False'''
+        fit_result, fitted_wave, fitted_flux = engine.fit_gaussian_line(
+            wave_data=x_fit,
+            flux_data=y_fit,
+            xmin=xmin,
+            xmax=xmax,
+            initial_guess=None,
+            deblend=False,
+            err_data=err_fit,
+        )
 
-    return (spectrum_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux)
+        # -- Flux integral (delegates to LineAnalyzer) --
+        flux_data_integral, err_data_integral = LineAnalyzer.flux_integral(
+            wave_data, flux_data, err=err_data,
+            lam_min=xmin, lam_max=xmax,
+        )
+
+        # -- Format result dict (delegates to FittingEngine) --
+        result_entry = engine.format_fit_results_for_csv(
+            fit_result, flux_data_integral, err_data_integral,
+            xmin, xmax, center_wave, line_info, sig_det_lim,
+        )
+
+        results.append(
+            (spectrum_idx, line_idx, result_entry,
+             fit_result, fitted_wave, fitted_flux)
+        )
+
+    return results
 
 @dataclass
 class FittingTask:
@@ -257,7 +112,6 @@ class FittingTask:
     spectrum_name: str
     spectrum_idx: int
     line_idx: int
-    line_row: pd.Series
     wave_data: np.ndarray
     flux_data: np.ndarray
     err_data: np.ndarray
@@ -815,76 +669,116 @@ class BatchFittingService:
         total_lines = len(saved_lines_df)
         sig_det_lim = 2.0
         
-        # Phase 1: Load all spectrum data (I/O bound, done sequentially)
-        spectrum_data = []
-        spectrum_names = []
-        
-        for spectrum_idx, spectrum_file in enumerate(spectrum_files):
+        # Phase 1: Load all spectrum data (I/O bound — parallelize reads)
+        def _load_spectrum(args: Tuple[int, str]) -> Optional[Dict[str, Any]]:
+            spectrum_idx, spectrum_file = args
             try:
                 stellar_rv = 0.0
                 if get_mole_save_data is not None:
                     save_info = get_mole_save_data(os.path.basename(spectrum_file))
                     stellar_rv = list(save_info.values())[0].get('StellarRV', 0.0) if save_info else 0.0
                     stellar_rv = float(stellar_rv)
-                
+
                 spectrum_df = ifh.read_spectral_data(spectrum_file)
+                if spectrum_df.empty:
+                    raise ValueError(f"Empty or unreadable spectrum file: {spectrum_file}")
+
+                missing = [col for col in ('wave', 'flux', 'err') if col not in spectrum_df.columns]
+                if missing:
+                    raise KeyError(
+                        f"Spectrum file {os.path.basename(spectrum_file)} is missing "
+                        f"required column(s): {', '.join(missing)}.  "
+                        f"Available columns: {list(spectrum_df.columns)}"
+                    )
+
                 wavedata = spectrum_df['wave'].to_numpy()
                 wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)
                 fluxdata = spectrum_df['flux'].to_numpy()
                 err_data = spectrum_df['err'].to_numpy()
-                
-                spectrum_name = os.path.basename(spectrum_file)
-                spectrum_names.append(spectrum_name)
-                
-                spectrum_data.append({
+
+                return {
                     'spectrum_idx': spectrum_idx,
-                    'spectrum_name': spectrum_name,
+                    'spectrum_name': os.path.basename(spectrum_file),
                     'spectrum_file': spectrum_file,
                     'wavedata': wavedata,
                     'fluxdata': fluxdata,
-                    'err_data': err_data
-                })
+                    'err_data': err_data,
+                }
             except Exception as e:
                 if progress_callback:
                     progress_callback(f"Error loading {os.path.basename(spectrum_file)}: {e}\n")
-        
+                else:
+                    print(f"Error loading {os.path.basename(spectrum_file)}: {e}")
+                return None
+
+        io_workers = min(len(spectrum_files), max(1, os.cpu_count() or 1))
+        spectrum_data: List[Dict[str, Any]] = []
+        spectrum_names: List[str] = []
+
+        with ThreadPoolExecutor(max_workers=io_workers) as io_pool:
+            load_futures = {
+                io_pool.submit(_load_spectrum, (idx, sf)): idx
+                for idx, sf in enumerate(spectrum_files)
+            }
+            for future in as_completed(load_futures):
+                result = future.result()
+                if result is not None:
+                    spectrum_data.append(result)
+                    spectrum_names.append(result['spectrum_name'])
+
+        # Sort by original index to keep deterministic order
+        spectrum_data.sort(key=lambda d: d['spectrum_idx'])
+        spectrum_names = [d['spectrum_name'] for d in spectrum_data]
+
         if not spectrum_data:
             return []
         
         # Phase 2: Create all fitting tasks (flattened across all spectra and lines)
+        # Pre-convert the DataFrame to a list of plain dicts ONCE.
+        # This avoids the slow pd.Series construction that iterrows()
+        # performs for every row × every spectrum.
+        _FLOAT_FIELDS = {'a_stein': 0.0, 'e_up': 0.0, 'e_low': 0.0, 'g_up': 1.0, 'g_low': 1.0}
+        line_records: List[Dict[str, Any]] = []
+        for raw_row in saved_lines_df.to_dict('records'):
+            center_wave = float(raw_row['lam']) if 'lam' in raw_row else 0.0
+            raw_xmin = raw_row.get('xmin')
+            raw_xmax = raw_row.get('xmax')
+            xmin = float(raw_xmin) if raw_xmin is not None and not pd.isna(raw_xmin) else center_wave - 0.01
+            xmax = float(raw_xmax) if raw_xmax is not None and not pd.isna(raw_xmax) else center_wave + 0.01
+
+            line_info: Dict[str, Any] = {
+                'species': raw_row.get('species', 'Unknown'),
+                'lev_up': raw_row.get('lev_up', ''),
+                'lev_low': raw_row.get('lev_low', ''),
+                'lam': center_wave,
+            }
+            for fld, default in _FLOAT_FIELDS.items():
+                val = raw_row.get(fld, default)
+                line_info[fld] = float(val) if val is not None and not pd.isna(val) else default
+            # Include any extra columns from the saved line list
+            line_info.update({k: v for k, v in raw_row.items() if k not in line_info})
+
+            line_records.append({
+                'center_wave': center_wave,
+                'xmin': xmin,
+                'xmax': xmax,
+                'line_info': line_info,
+            })
+
         all_tasks = []
-        
         for spec_data in spectrum_data:
-            for line_idx, line_row in saved_lines_df.iterrows():
-                center_wave = float(line_row['lam']) if 'lam' in line_row else 0.0
-                xmin = float(line_row['xmin']) if 'xmin' in line_row and not pd.isna(line_row['xmin']) else center_wave - 0.01
-                xmax = float(line_row['xmax']) if 'xmax' in line_row and not pd.isna(line_row['xmax']) else center_wave + 0.01
-                
-                line_info = {
-                    'species': line_row.get('species', 'Unknown'),
-                    'lev_up': line_row.get('lev_up', ''),
-                    'lev_low': line_row.get('lev_low', ''),
-                    'lam': center_wave,
-                    'a_stein': float(line_row.get('a_stein', 0.0)) if not pd.isna(line_row.get('a_stein', 0.0)) else 0.0,
-                    'e_up': float(line_row.get('e_up', 0.0)) if not pd.isna(line_row.get('e_up', 0.0)) else 0.0,
-                    'e_low': float(line_row.get('e_low', 0.0)) if not pd.isna(line_row.get('e_low', 0.0)) else 0.0,
-                    'g_up': float(line_row.get('g_up', 1.0)) if not pd.isna(line_row.get('g_up', 1.0)) else 1.0,
-                    'g_low': float(line_row.get('g_low', 1.0)) if not pd.isna(line_row.get('g_low', 1.0)) else 1.0,
-                }
-                line_info.update({key: line_row[key] for key in line_row.index if key not in line_info})
-                
+            for line_idx, rec in enumerate(line_records):
                 task = FittingTask(
                     spectrum_name=spec_data['spectrum_name'],
                     spectrum_idx=spec_data['spectrum_idx'],
                     line_idx=line_idx,
-                    line_row=line_row,
                     wave_data=spec_data['wavedata'],
                     flux_data=spec_data['fluxdata'],
                     err_data=spec_data['err_data'],
-                    xmin=xmin,
-                    xmax=xmax,
-                    center_wave=center_wave,
-                    line_info=line_info
+                    xmin=rec['xmin'],
+                    xmax=rec['xmax'],
+                    center_wave=rec['center_wave'],
+                    line_info=rec['line_info'],
                 )
                 all_tasks.append(task)
         
@@ -912,68 +806,75 @@ class BatchFittingService:
         # Phase 3: Execute all tasks in parallel
         # Choose executor based on class setting
         if self.USE_PROCESS_POOL:
-            # ProcessPoolExecutor for true parallelism (bypasses GIL)
-            # Convert tasks to picklable dictionaries
-            task_dicts = []
+            # ProcessPoolExecutor for true parallelism (bypasses GIL).
+            # Group tasks by spectrum so each spectrum's arrays are pickled
+            # only ONCE (instead of once per line).
+            from collections import defaultdict
+            tasks_by_spectrum: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
+            task_name_by_idx: Dict[int, str] = {}
             for task in all_tasks:
-                task_dicts.append({
-                    'spectrum_idx': task.spectrum_idx,
+                tasks_by_spectrum[task.spectrum_idx].append({
                     'line_idx': task.line_idx,
-                    'wave_data': task.wave_data,
-                    'flux_data': task.flux_data,
-                    'err_data': task.err_data,
                     'xmin': task.xmin,
                     'xmax': task.xmax,
                     'center_wave': task.center_wave,
                     'line_info': task.line_info,
-                    'sig_det_lim': sig_det_lim
                 })
-            
-            ExecutorClass = ProcessPoolExecutor
-            task_list = task_dicts
-            worker_func = _fit_task_worker
-            # Map task_dict back to FittingTask for progress tracking
-            task_lookup = {id(td): all_tasks[i] for i, td in enumerate(task_dicts)}
+                task_name_by_idx[task.spectrum_idx] = task.spectrum_name
+
+            # Build one batch dict per spectrum (arrays appear once)
+            batch_dicts: List[Dict[str, Any]] = []
+            for spec_data in spectrum_data:
+                sidx = spec_data['spectrum_idx']
+                batch_dicts.append({
+                    'spectrum_idx': sidx,
+                    'wave_data': spec_data['wavedata'],
+                    'flux_data': spec_data['fluxdata'],
+                    'err_data': spec_data['err_data'],
+                    'lines': tasks_by_spectrum[sidx],
+                    'sig_det_lim': sig_det_lim,
+                })
+
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(_fit_spectrum_batch_worker, bd): bd
+                    for bd in batch_dicts
+                }
+                for future in as_completed(futures):
+                    batch = futures[future]
+                    spec_name = task_name_by_idx[batch['spectrum_idx']]
+                    try:
+                        batch_results = future.result()
+                        for (spec_idx, line_idx, result_entry,
+                             fit_result, fitted_wave, fitted_flux) in batch_results:
+                            spec_results = results_by_spectrum[spec_idx]
+                            spec_results['fit_results_csv'][line_idx] = result_entry
+                            spec_results['fit_results_data'][line_idx] = fit_result
+                            spec_results['fitted_waves'][line_idx] = fitted_wave
+                            spec_results['fitted_fluxes'][line_idx] = fitted_flux
+                            work_queue.update_progress(spec_name)
+                    except Exception:
+                        pass
         else:
             # ThreadPoolExecutor for shared memory (lower overhead)
-            ExecutorClass = ThreadPoolExecutor
-            task_list = all_tasks
-            worker_func = lambda t: self._fit_single_task(t, sig_det_lim)
-            task_lookup = None
-        
-        with ExecutorClass(max_workers=max_workers) as executor:
-            if self.USE_PROCESS_POOL:
-                futures = {executor.submit(worker_func, task): task for task in task_list}
-            else:
-                futures = {executor.submit(self._fit_single_task, task, sig_det_lim): task for task in task_list}
-            
-            for future in as_completed(futures):
-                submitted_task = futures[future]
-                # Get the original FittingTask for progress tracking
-                if self.USE_PROCESS_POOL:
-                    # Find matching task by index
-                    idx = task_dicts.index(submitted_task)
-                    task = all_tasks[idx]
-                else:
-                    task = submitted_task
-                
-                try:
-                    spec_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux = future.result()
-                    
-                    # Store result in appropriate spectrum bucket
-                    spec_results = results_by_spectrum[spec_idx]
-                    spec_results['fit_results_csv'][line_idx] = result_entry
-                    spec_results['fit_results_data'][line_idx] = fit_result
-                    spec_results['fitted_waves'][line_idx] = fitted_wave
-                    spec_results['fitted_fluxes'][line_idx] = fitted_flux
-                    
-                    # Update progress
-                    work_queue.update_progress(task.spectrum_name)
-                    
-                except Exception as e:
-                    # Continue processing other tasks
-                    pass
-        
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(self._fit_single_task, task, sig_det_lim): task
+                    for task in all_tasks
+                }
+                for future in as_completed(futures):
+                    task = futures[future]
+                    try:
+                        spec_idx, line_idx, result_entry, fit_result, fitted_wave, fitted_flux = future.result()
+                        spec_results = results_by_spectrum[spec_idx]
+                        spec_results['fit_results_csv'][line_idx] = result_entry
+                        spec_results['fit_results_data'][line_idx] = fit_result
+                        spec_results['fitted_waves'][line_idx] = fitted_wave
+                        spec_results['fitted_fluxes'][line_idx] = fitted_flux
+                        work_queue.update_progress(task.spectrum_name)
+                    except Exception:
+                        pass
+
         # Ensure final progress is displayed
         work_queue.finalize_progress()
         
@@ -988,13 +889,17 @@ class BatchFittingService:
             if fit_results_csv and any(entry.get('a_stein', 0) > 0 for entry in fit_results_csv):
                 self.line_analyzer.add_rotation_diagram_values(fit_results_csv)
             
-            # Save results
+            # Save results — use bulk writer (single DataFrame.to_csv)
             spectrum_name = spec_results['spectrum_name']
             spectrum_base_name = os.path.splitext(spectrum_name)[0]
             output_file = f"{spectrum_base_name}-{os.path.basename(saved_lines_file)}"
             
             if self._current_output_folder and fit_results_csv:
-                ifh.save_fit_results(fit_results_csv, file_path=self._current_output_folder, file_name=output_file)
+                ifh.save_fit_results(
+                    fit_results_csv,
+                    file_path=self._current_output_folder,
+                    file_name=output_file,
+                )
             
             # Package for plot generation
             fit_results.append({
@@ -1055,7 +960,18 @@ class BatchFittingService:
             
             # Load the spectrum data
             spectrum_df = ifh.read_spectral_data(spectrum_file)
-            wavedata = spectrum_df['wave'].to_numpy()  # More efficient than np.array(df['col'].values)
+            if spectrum_df.empty:
+                raise ValueError(f"Empty or unreadable spectrum file: {spectrum_file}")
+
+            missing = [col for col in ('wave', 'flux', 'err') if col not in spectrum_df.columns]
+            if missing:
+                raise KeyError(
+                    f"Spectrum file {os.path.basename(spectrum_file)} is missing "
+                    f"required column(s): {', '.join(missing)}.  "
+                    f"Available columns: {list(spectrum_df.columns)}"
+                )
+
+            wavedata = spectrum_df['wave'].to_numpy()
             wavedata = wavedata - (wavedata / c.SPEED_OF_LIGHT_KMS * stellar_rv)
             fluxdata = spectrum_df['flux'].to_numpy()
             err_data = spectrum_df['err'].to_numpy()

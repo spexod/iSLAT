@@ -584,41 +584,68 @@ def save_line(line_info, file_path=line_saves_file_path, file_name=line_saves_fi
     
     return filename
 
-def save_fit_results(fit_results_data, file_path = line_saves_file_path, file_name= fit_save_lines_file_name, overwritefile=True, silent=True):
+def _sanitize_value(key: str, value):
+    """Sanitize a single value for CSV output.
+
+    Mirrors the per-key logic that :func:`save_line` applies so that
+    bulk and per-line writes produce identical output.
     """
-    Save fit results data to CSV file.
-    
+    if key == 'species' and hasattr(value, 'name'):
+        return str(value.name)
+    if isinstance(value, (int, float, str, bool)) or value is None:
+        return value
+    if isinstance(value, (np.bool_, np.integer, np.floating)):
+        return value.item()
+    if hasattr(value, 'value'):
+        return value.value
+    return str(value)
+
+def save_fit_results(fit_results_data, file_path = line_saves_file_path, file_name= fit_save_lines_file_name, overwritefile=True, silent=True):
+    """Save fit results data to CSV file.
+
+    Writes all rows in a single ``DataFrame.to_csv()`` call for speed.
+    Each value is sanitised (numpy scalars → native types, Molecule
+    objects → name strings, lmfit Parameters → numeric values) so the
+    output is identical to the legacy per-line ``save_line`` path.
+
     Parameters
     ----------
     fit_results_data : list of dict
-        List of dictionaries containing fit results
+        List of dictionaries containing fit results.
     file_path : str
-        Directory path to save the file
+        Directory path to save the file.
     file_name : str
-        Name of the CSV file
+        Name of the CSV file.
+    overwritefile : bool
+        If True, overwrite existing file (default: True).
     silent : bool
-        If True, print summary instead of per-line messages (default: True)
-        
+        If True, print summary instead of per-line messages (default: True).
+
     Returns
     -------
     str
-        Full path to the saved file
+        Full path to the saved file.
     """
-    
     full_path = os.path.join(file_path, file_name)
-    
-    # Save each fit result using the existing save_line function
-    # Overwrite the file only for the first entry if overwritefile is True
-    if overwritefile and os.path.exists(full_path):
-        # Clear the output but do not delete the file
-        open(full_path, 'w').close()
-    for fit_result in fit_results_data:
-        save_line(fit_result, file_path=file_path, file_name=file_name, silent=silent)
-    
-    # Print summary if in silent mode
+    os.makedirs(file_path, exist_ok=True)
+
+    if not fit_results_data:
+        return full_path
+
+    # Sanitize every value (same rules as save_line)
+    clean_rows = [
+        {k: _sanitize_value(k, v) for k, v in row.items()}
+        for row in fit_results_data
+    ]
+
+    df = pd.DataFrame(clean_rows)
+    mode = 'w' if overwritefile else 'a'
+    header = overwritefile or not (os.path.exists(full_path) and os.path.getsize(full_path) > 0)
+    df.to_csv(full_path, mode=mode, header=header, index=False)
+
     if silent and fit_results_data:
         print(f"Saved {len(fit_results_data)} lines to {full_path}")
-    
+
     return full_path
 
 class NpEncoder(json.JSONEncoder):
