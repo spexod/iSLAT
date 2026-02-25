@@ -8,7 +8,6 @@ _DROPDOWN_STYLE = "TopBar.TMenubutton"
 _MOLNAME_STYLE = "MolName.TButton"
 _DELETE_STYLE = "Delete.TButton"
 
-
 def configure_all_button_styles(theme):
     """(Re-)configure every custom ttk style used by the GUI.
 
@@ -60,12 +59,36 @@ def configure_all_button_styles(theme):
     )
 
     # -- Delete buttons in ControlPanel --
+    # Override the native Aqua layout so the button can shrink to fit
+    # its text.  The default macOS theme element enforces a minimum
+    # size; this custom layout uses generic elements instead.
+    try:
+        style.layout(
+            _DELETE_STYLE,
+            [(
+                "Button.border", {
+                    "sticky": "nsew",
+                    "border": "1",
+                    "children": [(
+                        "Button.padding", {
+                            "sticky": "nsew",
+                            "children": [(
+                                "Button.label", {"sticky": "nsew"}
+                            )]
+                        }
+                    )]
+                }
+            )]
+        )
+    except tk.TclError:
+        pass  # layout already set or not supported on this theme
+
     del_bg = theme.get("delete_button_bg_color", "#b1403b")
     del_fg = theme.get("delete_button_fg_color", "#000000")
     style.configure(
         _DELETE_STYLE,
         background=del_bg, foreground=del_fg,
-        borderwidth=1, relief=tk.RAISED, padding=(0, 0),
+        borderwidth=1, relief=tk.RAISED, padding=(1, 0),
     )
     style.map(
         _DELETE_STYLE,
@@ -73,10 +96,8 @@ def configure_all_button_styles(theme):
         foreground=[("active", fg), ("pressed", fg)],
     )
 
-
 # Keep the old name as an alias so existing callers still work.
 _configure_toggle_style = configure_all_button_styles
-
 
 def create_button(frame, theme, text, command, row, column, tip_text=None):
         configure_all_button_styles(theme)

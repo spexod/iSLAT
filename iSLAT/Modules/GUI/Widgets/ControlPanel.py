@@ -14,12 +14,12 @@ from ..Tooltips import CreateToolTip
 _IS_WINDOWS = platform.system() == "Windows"
 _ENTRY_LABEL_PADX = 2 if _IS_WINDOWS else 1
 _ENTRY_FIELD_PADX = 2 if _IS_WINDOWS else 1
-_MOL_BTN_WIDTH = 5 if _IS_WINDOWS else 3
+_MOL_BTN_WIDTH = 5 if _IS_WINDOWS else 4
 _COLOR_VIS_SCROLL_WIDTH = 170 if _IS_WINDOWS else 160
 _MOL_PARAM_SCROLL_WIDTH = 185 if _IS_WINDOWS else 170
 _MATCH_BTN_PADX = 2 if _IS_WINDOWS else 1
 # Column minimum pixel sizes for molecule visibility/color grid alignment
-_VIS_COL_MINSIZES = (24, 40, 20, 22) if _IS_WINDOWS else (18, 32, 16, 18)
+_VIS_COL_MINSIZES = (26, 52, 26, 28) if _IS_WINDOWS else (20, 42, 20, 22)
 
 class ControlPanel(ttk.Frame):
     def __init__(self, master, islat, plot, data_field, font):
@@ -328,41 +328,28 @@ class ControlPanel(ttk.Frame):
             if mol_name not in self.mol_visibility:
                 self.mol_visibility[mol_name] = visibility_var
 
-            btn_theme = self.theme.get("buttons", {}).get("DefaultBotton", {}) if hasattr(self, 'theme') and self.theme else {}
-            mol_bg = btn_theme.get("background", "lightgray")
-            mol_fg = self.theme.get("foreground", "#000000") if hasattr(self, 'theme') and self.theme else "#000000"
-            mol_btn = tk.Label(
+            from ..GUIFunctions import _MOLNAME_STYLE, _DELETE_STYLE, configure_all_button_styles
+            if hasattr(self, 'theme') and self.theme:
+                configure_all_button_styles(self.theme)
+            mol_btn = ttk.Button(
                 mol_frame,
                 text=mol_name,
                 width=_MOL_BTN_WIDTH,
-                bg=mol_bg,
-                fg=mol_fg,
-                relief="raised",
-                borderwidth=1,
-                cursor="hand2",
-                anchor="center",
+                style=_MOLNAME_STYLE,
+                command=lambda name=mol_name: self._on_molecule_selected(mol_name=name),
             )
-            mol_btn.bind("<Button-1>", lambda e, name=mol_name: self._on_molecule_selected(mol_name=name))
-            mol_btn.bind("<Enter>", lambda e, w=mol_btn: w.configure(bg="white", fg="#0a84ff"))
-            mol_btn.bind("<Leave>", lambda e, w=mol_btn, _bg=mol_bg, _fg=mol_fg: w.configure(bg=_bg, fg=_fg))
             mol_btn.grid(row=0, column=1, sticky="ew", pady=2)
             if len(mol_name) > self.max_name_len:
                 CreateToolTip(mol_btn, mol_name, bg=self.bg_color)
 
-            del_bg = self.theme.get("delete_button_bg_color", "#b1403b") if hasattr(self, 'theme') and self.theme else "#b1403b"
-            del_fg = self.theme.get("delete_button_fg_color", "#000000") if hasattr(self, 'theme') and self.theme else "#000000"
-            delete_btn = tk.Label(
+            delete_btn = ttk.Button(
                 mol_frame,
                 text="X",
-                bg=del_bg,
-                fg=del_fg,
-                width=2,
-                relief="raised",
-                borderwidth=1,
-                cursor="hand2",
+                width=1,
+                style=_DELETE_STYLE,
+                command=lambda name=mol_name, frame=mol_frame: self._delete_molecule(mol_name=name, frame=frame),
             )
-            delete_btn.bind("<Button-1>", lambda e, name=mol_name, frame=mol_frame: self._delete_molecule(mol_name=name, frame=frame))
-            delete_btn.grid(row=0, column=2, pady=2, sticky="nsew")
+            delete_btn.grid(row=0, column=2, pady=2, sticky="ns")
 
             color_button = ColorButton(
                 mol_frame,
