@@ -349,7 +349,13 @@ class ResizableFrame(tk.Frame):
     def _apply_theme_to_widget(self, widget):
         """Apply theme to any widget recursively."""
         try:
-    
+            # Skip matplotlib canvas widget subtrees – already themed by
+            # MainPlot.apply_theme(); recursing triggers expensive redraws.
+            if 'FigureCanvasTkAgg' in type(widget).__name__:
+                return
+            if hasattr(widget, 'master') and 'FigureCanvasTkAgg' in type(widget.master).__name__:
+                return
+
             widget_class = widget.winfo_class()
             
             # Apply theming based on widget type
@@ -371,10 +377,13 @@ class ResizableFrame(tk.Frame):
                     activeforeground=self.theme.get("foreground", "#F0F0F0")
                 )
             elif widget_class == 'Label':
-                widget.configure(
-                    bg=self.theme.get("background", "#181A1B"),
-                    fg=self.theme.get("foreground", "#F0F0F0")
-                )
+                # Skip ColorButton instances – they use bg for the
+                # molecule colour and must not be overwritten.
+                if not hasattr(widget, 'color'):
+                    widget.configure(
+                        bg=self.theme.get("background", "#181A1B"),
+                        fg=self.theme.get("foreground", "#F0F0F0")
+                    )
             elif widget_class == 'Entry':
                 widget.configure(
                     bg=self.theme.get("background_accent_color", "#23272A"),
@@ -424,9 +433,10 @@ class ResizableFrame(tk.Frame):
                     activeforeground=self.theme.get("foreground", "#F0F0F0"),
                 )
             elif widget_class in ('TButton', 'TMenubutton'):
-                # Reconfigure all custom ttk button/menubutton styles.
-                from ..GUIFunctions import configure_all_button_styles
-                configure_all_button_styles(self.theme)
+                # ttk styles are global — they are configured once via
+                # configure_all_button_styles() at startup and on theme
+                # change, so there is nothing per-widget to do here.
+                pass
             # Handle TTK widgets
             elif hasattr(widget, '__class__') and 'ttk' in str(widget.__class__):
                 # self._apply_ttk_theme(widget)

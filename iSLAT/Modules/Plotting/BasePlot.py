@@ -160,6 +160,17 @@ class BasePlot(ABC):
             ax.title.set_color(fg)
             for spine in ax.spines.values():
                 spine.set_color(fg)
+
+            # Recolour tagged data artists so they match the new theme
+            summed_color = self._get_theme_value("summed_spectra_color", "lightgray")
+            for artist in ax.lines:
+                if getattr(artist, '_islat_observed', False):
+                    artist.set_color(fg)
+            for artist in ax.collections:
+                if getattr(artist, '_islat_summed', False):
+                    artist.set_facecolor(summed_color)
+                    artist.set_edgecolor(summed_color)
+
             # Theme the legend text if one exists
             legend = ax.get_legend()
             if legend is not None:

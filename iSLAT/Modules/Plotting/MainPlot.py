@@ -234,13 +234,41 @@ class iSLATPlot:
                 if self.theme.get(f'ax{ax.get_gid()}_grid', False):
                     ax.grid(True, color=self.theme.get("axis_text_label_color", self.theme.get("foreground", "#F0F0F0")), alpha=0.3, linestyle='-', linewidth=0.5)
                     
-            # Apply theme to canvas
+            # Apply theme to canvas widget
             if hasattr(self.canvas.get_tk_widget(), 'configure'):
                 try:
                     self.canvas.get_tk_widget().configure(bg=self.theme.get("background", "#181A1B"))
-                except:
+                except Exception:
                     pass
-                    
+
+            # Recolour data artists in-place so they match the new theme
+            fg = self.theme.get("foreground", "#F0F0F0")
+            label_color = self.theme.get("axis_text_label_color", fg)
+            summed_color = self.theme.get("summed_spectra_color", "lightgray")
+            scatter_color = self.theme.get("scatter_main_color", "#838B8B")
+
+            for ax in [self.ax1, self.ax2, self.ax3]:
+                for artist in ax.lines:
+                    # Observed-spectrum lines are tagged at creation
+                    if getattr(artist, '_islat_observed', False):
+                        artist.set_color(fg)
+                for artist in ax.collections:
+                    # Summed-spectrum fills are tagged at creation
+                    if getattr(artist, '_islat_summed', False):
+                        artist.set_facecolor(summed_color)
+                        artist.set_edgecolor(summed_color)
+
+                # Legend frame / text
+                legend = ax.get_legend()
+                if legend is not None:
+                    frame = legend.get_frame()
+                    if legend.get_visible() and frame.get_visible():
+                        frame.set_facecolor(self.theme.get("graph_fill_color", "white"))
+                        frame.set_edgecolor(label_color)
+                    for text in legend.get_texts():
+                        if not getattr(text, '_islat_mol_color', False):
+                            text.set_color(label_color)
+
         except Exception as e:
             debug_config.error("main_plot", f"Could not apply plot theming: {e}")
     
@@ -1286,17 +1314,62 @@ class iSLATPlot:
         self.active_view.toggle_saved_lines(False)
 
     def apply_theme(self, theme=None):
-        """Apply theme to the plot and update colors"""
+        """Apply theme colours to the plot without recalculating spectra.
+
+        This is a *visual-only* refresh: figure / axes backgrounds,
+        tick / label / spine colours, canvas widget, toolbar, and the
+        full-spectrum view.  No spectrum data is recomputed, so the
+        update is near-instant.
+        """
         if theme:
             self.theme = theme
+
+        # Keep the PlotRenderer's theme reference in sync so that any
+        # subsequent render calls (e.g. on the next user interaction)
+        # use the new colours.
+        if hasattr(self, 'plot_renderer'):
+            self.plot_renderer.theme = self.theme
+            # Also update the sub-plot delegates if they exist
+            if hasattr(self.plot_renderer, '_line_inspection_plot') and self.plot_renderer._line_inspection_plot is not None:
+                self.plot_renderer._line_inspection_plot.theme = self.theme
+            if hasattr(self.plot_renderer, '_population_diagram_plot') and self.plot_renderer._population_diagram_plot is not None:
+                self.plot_renderer._population_diagram_plot.theme = self.theme
+
+        # Theme the three-panel axes (ax1/ax2/ax3)
         self._apply_plot_theming()
-        # Refresh the plots to apply colors
+
+        # Theme the full-spectrum view's figure if it has been initialised
+        if hasattr(self, '_full_spectrum_view'):
+            fsv = self._full_spectrum_view
+            if fsv._plot is not None:
+                fsv._plot.theme = self.theme
+                fsv._plot.apply_theme_to_figure()
+            if fsv._canvas is not None:
+                try:
+                    fsv._canvas.get_tk_widget().configure(
+                        bg=self.theme.get("background", "#181A1B")
+                    )
+                    fsv._canvas.draw_idle()
+                except Exception:
+                    pass
+
+        # Theme the matplotlib toolbar
+        if hasattr(self, 'toolbar') and self.toolbar is not None:
+            try:
+                self.toolbar.configure(
+                    bg=self.theme.get("background", "#181A1B")
+                )
+                for child in self.toolbar.winfo_children():
+                    try:
+                        child.configure(bg=self.theme.get("background", "#181A1B"))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        # Single canvas draw for the three-panel view
         if hasattr(self, 'canvas'):
-            self.canvas.draw()
-        # Only update plots if data has been initialized (avoid blocking during startup)
-        if hasattr(self, '_data_initialized') and self._data_initialized:
-            if hasattr(self, 'update_all_plots'):
-                self.update_all_plots()
+            self.canvas.draw_idle()
     
     def load_full_spectrum(self):
         """Activate the full-spectrum view (called by toggle_full_spectrum)."""
