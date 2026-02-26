@@ -695,7 +695,7 @@ class TopBar(ResizableFrame):
         dropdown.grid(row=1, column=0)
 
         # Create a button in the new window
-        button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(),data_field=self.data_field, wave_data=self.islat.wave_data))
+        button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(),data_field=self.data_field, wave_data=self.islat.wave_data_original))
         button.grid(row=1, column=1)
 
     def toggle_atomic_lines(self):

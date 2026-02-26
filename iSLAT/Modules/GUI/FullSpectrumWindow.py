@@ -7,7 +7,6 @@ from pathlib import Path
 
 from iSLAT.Modules.Plotting.FullSpectrumPlot import FullSpectrumPlot
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
-from iSLAT.Constants import SPEED_OF_LIGHT_KMS
 
 from typing import Optional, Any, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -59,11 +58,11 @@ class FullSpectrumWindow(tk.Toplevel):
         """Build a :class:`FullSpectrumPlot` from the current iSLAT state."""
         islat = self.islat_ref
 
-        # Spectrum data
+        # Spectrum data — delegate the stellar RV correction to
+        # MoleculeDict so the formula lives in one place.
         spectrum_data = pd.read_csv(islat.loaded_spectrum_file, sep=",")
-        rv = islat.molecules_dict.global_stellar_rv
-        wave = spectrum_data["wave"].values
-        wave = wave - (wave / SPEED_OF_LIGHT_KMS * rv)
+        wave_obs = spectrum_data["wave"].values
+        wave = islat.molecules_dict.apply_stellar_rv(wave_obs)
         flux = spectrum_data["flux"].values
 
         # Toggle state
@@ -88,6 +87,7 @@ class FullSpectrumWindow(tk.Toplevel):
             molecules=islat.molecules_dict,
             line_list=line_list_df,
             atomic_lines=atomic_lines_df,
+            wave_data_obs=wave_obs,
             **kwargs,
         )
 

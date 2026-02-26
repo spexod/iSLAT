@@ -239,7 +239,7 @@ class Molecule:
         self._distance = float(getattr(self, '_distance_val', None) or c.DEFAULT_DISTANCE)
         self._fwhm = float(getattr(self, '_fwhm_val', None) or c.DEFAULT_FWHM)
         self._broad = float(getattr(self, '_broad_val', 1.0) or c.INTRINSIC_LINE_WIDTH)
-        self._rv_shift = float(getattr(self, '_rv_shift', 0.0) or c.DEFAULT_STELLAR_RV)
+        self._rv_shift = float(getattr(self, '_rv_shift', None) if getattr(self, '_rv_shift', None) is not None else c.DEFAULT_MOLECULE_RV)
 
         self._intensity_calculation_method = str(kwargs.get('intensity_calculation_method', 'curve_growth'))
         self._wavelength_range = kwargs.get('wavelength_range', c.WAVELENGTH_RANGE)
@@ -308,7 +308,7 @@ class Molecule:
         self._distance_val = usd.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = usd.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = usd.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._rv_shift = usd.get('RV Shift', kwargs.get('rv_shift', c.DEFAULT_STELLAR_RV))
+        self._rv_shift = usd.get('RV Shift', kwargs.get('rv_shift', c.DEFAULT_MOLECULE_RV))
 
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)
@@ -331,7 +331,7 @@ class Molecule:
         self._distance_val = kwargs.get('Dist', kwargs.get('distance', c.DEFAULT_DISTANCE))
         self._fwhm_val = kwargs.get('FWHM', kwargs.get('fwhm', c.DEFAULT_FWHM))
         self._broad_val = kwargs.get('Broad', kwargs.get('_broad', c.INTRINSIC_LINE_WIDTH))
-        self._rv_shift = kwargs.get('rv_shift', kwargs.get('RV Shift', c.DEFAULT_STELLAR_RV))
+        self._rv_shift = kwargs.get('rv_shift', kwargs.get('RV Shift', c.DEFAULT_MOLECULE_RV))
 
         # Set kinetic temperature and molecule-specific parameters
         self.t_kin = self.initial_molecule_parameters.get('t_kin', self._temp_val if self._temp_val is not None else 300.0)

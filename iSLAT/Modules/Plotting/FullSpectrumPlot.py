@@ -71,12 +71,20 @@ class FullSpectrumPlot(BasePlot):
         xlim_range: Optional[Tuple[float, float]] = None,
         ymax_factor: float = 0.2,
         figsize: Optional[Tuple[float, float]] = None,
+        wave_data_obs: Optional[np.ndarray] = None,
         **kwargs,
     ):
         # Defer figsize — calculated once we know the number of panels
         super().__init__(figsize=figsize, **kwargs)
         self.wave_data = np.asarray(wave_data)
         self.flux_data = np.asarray(flux_data)
+        # Observer-frame wavelengths for model computation (get_summed_flux,
+        # get_matched_sampling_wavelengths).  Falls back to wave_data when
+        # no observer-frame array is provided (e.g. notebook usage).
+        self.wave_data_obs: np.ndarray = (
+            np.asarray(wave_data_obs) if wave_data_obs is not None
+            else self.wave_data
+        )
         self.molecules = molecules
         self.error_data = np.asarray(error_data) if error_data is not None else None
         self.line_list = line_list
@@ -120,6 +128,7 @@ class FullSpectrumPlot(BasePlot):
         error_data: Optional[np.ndarray] = None,
         line_list: Optional[pd.DataFrame] = None,
         atomic_lines: Optional[pd.DataFrame] = None,
+        wave_data_obs: Optional[np.ndarray] = None,
     ) -> bool:
         """Replace the data arrays and recompute panel layout.
 
@@ -128,6 +137,10 @@ class FullSpectrumPlot(BasePlot):
         """
         self.wave_data = np.asarray(wave_data)
         self.flux_data = np.asarray(flux_data)
+        self.wave_data_obs = (
+            np.asarray(wave_data_obs) if wave_data_obs is not None
+            else self.wave_data
+        )
         if molecules is not None:
             self.molecules = molecules
         self.error_data = np.asarray(error_data) if error_data is not None else None
@@ -163,7 +176,7 @@ class FullSpectrumPlot(BasePlot):
         if self.molecules is not None:
             try:
                 summed_wave, summed_flux = self.molecules.get_summed_flux(
-                    self.wave_data, visible_only=True
+                    self.wave_data_obs, visible_only=True
                 )
             except Exception:
                 pass
@@ -182,11 +195,13 @@ class FullSpectrumPlot(BasePlot):
         # calls (N panels x M molecules).
         mol_cache: List[tuple] = []
         if self.molecules is not None:
-            # Determine interpolation settings once
+            # Determine interpolation settings once using observer-frame
+            # wavelengths — get_matched_sampling_wavelengths handles the
+            # stellar RV correction internally.
             use_interp = False
             target_wave = None
-            if self.wave_data is not None and hasattr(self.molecules, 'get_matched_sampling_wavelengths'):
-                use_interp, target_wave = self.molecules.get_matched_sampling_wavelengths(self.wave_data)
+            if self.wave_data_obs is not None and hasattr(self.molecules, 'get_matched_sampling_wavelengths'):
+                use_interp, target_wave = self.molecules.get_matched_sampling_wavelengths(self.wave_data_obs)
                 if not use_interp:
                     target_wave = None
 
@@ -301,7 +316,7 @@ class FullSpectrumPlot(BasePlot):
         if self.molecules is not None:
             try:
                 summed_wave, summed_flux = self.molecules.get_summed_flux(
-                    self.wave_data, visible_only=True
+                    self.wave_data_obs, visible_only=True
                 )
             except Exception:
                 pass
@@ -312,8 +327,8 @@ class FullSpectrumPlot(BasePlot):
             visible = self.molecules.get_visible_molecules(return_objects=True)
             use_interp = False
             target_wave = None
-            if self.wave_data is not None and hasattr(self.molecules, 'get_matched_sampling_wavelengths'):
-                use_interp, target_wave = self.molecules.get_matched_sampling_wavelengths(self.wave_data)
+            if self.wave_data_obs is not None and hasattr(self.molecules, 'get_matched_sampling_wavelengths'):
+                use_interp, target_wave = self.molecules.get_matched_sampling_wavelengths(self.wave_data_obs)
                 if not use_interp:
                     target_wave = None
             for mol in visible:

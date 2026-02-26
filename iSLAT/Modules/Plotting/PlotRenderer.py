@@ -819,31 +819,36 @@ class PlotRenderer:
                                              wave_data: np.ndarray) -> None:
         """
         Update summed spectrum using MoleculeDict's advanced caching system.
-        This method leverages the built-in summed flux calculations with optimal caching.
+
+        ``get_summed_flux`` expects **observer-frame** wavelengths; the
+        ``wave_data`` parameter here may already be RV-corrected for
+        display, so we retrieve the original observer-frame array from
+        ``self.islat`` when available.
         """
         if not molecules_dict or len(molecules_dict) == 0:
-            # Clear summed spectrum if no molecules
             BasePlot._clear_tagged_artists(self.ax1, "_islat_summed", lines=False)
             return
 
-        # Check if any molecules are actually visible
         visible = (molecules_dict.get_visible_molecules()
                    if hasattr(molecules_dict, 'get_visible_molecules') else [])
         if not visible:
-            # No visible molecules — remove existing summed fill and return
             BasePlot._clear_tagged_artists(self.ax1, "_islat_summed", lines=False)
             return
 
+        # Prefer observer-frame wavelengths for get_summed_flux.
+        wave_obs = wave_data
+        if hasattr(self, 'islat') and hasattr(self.islat, 'wave_data_original'):
+            wave_obs = self.islat.wave_data_original
+
         try:
             debug_config.trace("plot_renderer", "Using MoleculeDict.get_summed_flux() with caching")
-            summed_wavelengths, summed_flux = molecules_dict.get_summed_flux(wave_data, visible_only=True)
-            wave_data = summed_wavelengths  # Use the combined wavelength grid
+            summed_wavelengths, summed_flux = molecules_dict.get_summed_flux(wave_obs, visible_only=True)
         except Exception as e:
             debug_config.warning("plot_renderer", f"Error in summed flux calculation: {e}")
             return
         
         # Update summed spectrum using PlotRenderer
-        self.update_summed_spectrum_only(wave_data, summed_flux)
+        self.update_summed_spectrum_only(summed_wavelengths, summed_flux)
     
     def clear_active_lines(self, active_lines_list: List[Any]) -> None:
         """
@@ -1141,14 +1146,20 @@ class PlotRenderer:
             
             # When match_spectral_sampling is enabled, resample each molecule's
             # model onto the data pixel grid (corrected for stellar RV).
+            # get_matched_sampling_wavelengths expects observer-frame
+            # wavelengths; use wave_data_original when available.
             use_interp = False
             target_wave = None
             if hasattr(self, 'islat') and hasattr(self.islat, 'molecules_dict'):
                 mol_dict = self.islat.molecules_dict
-                if hasattr(mol_dict, 'get_matched_sampling_wavelengths') and wave_data is not None:
-                    use_interp, target_wave = mol_dict.get_matched_sampling_wavelengths(wave_data)
-                    if not use_interp:
-                        target_wave = None
+                if hasattr(mol_dict, 'get_matched_sampling_wavelengths'):
+                    wave_obs = (self.islat.wave_data_original
+                                if hasattr(self.islat, 'wave_data_original')
+                                else wave_data)
+                    if wave_obs is not None:
+                        use_interp, target_wave = mol_dict.get_matched_sampling_wavelengths(wave_obs)
+                        if not use_interp:
+                            target_wave = None
 
             # Get spectrum data directly from molecule's caching system
             plot_lam, plot_flux = self.get_molecule_spectrum_data(

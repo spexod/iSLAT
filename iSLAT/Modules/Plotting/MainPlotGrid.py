@@ -89,6 +89,7 @@ class MainPlotGrid(BasePlot):
         line_list: Optional[pd.DataFrame] = None,
         atomic_lines: Optional[pd.DataFrame] = None,
         figsize: Optional[Tuple[float, float]] = None,
+        wave_data_obs: Optional[np.ndarray] = None,
         **kwargs,
     ):
         super().__init__(figsize=figsize or (15, 8.5), **kwargs)
@@ -103,6 +104,11 @@ class MainPlotGrid(BasePlot):
         self.line_data = line_data
         self.line_list = line_list
         self.atomic_lines = atomic_lines
+        # Observer-frame wavelengths for MoleculeDict calls that apply
+        # stellar RV internally.  Falls back to wave_data when not given.
+        self.wave_data_obs = (np.asarray(wave_data_obs)
+                              if wave_data_obs is not None
+                              else self.wave_data)
 
         # Panel axes (created in generate_plot)
         self.ax_spectrum: Optional[Axes] = None
@@ -156,10 +162,11 @@ class MainPlotGrid(BasePlot):
 
         # Molecule models + summed
         if self.molecules is not None:
-            self._plot_visible_molecules(ax, self.molecules, wave_data=self.wave_data)
+            self._plot_visible_molecules(ax, self.molecules, wave_data=self.wave_data,
+                                         wave_data_obs=self.wave_data_obs)
             try:
                 s_wave, s_flux = self.molecules.get_summed_flux(
-                    self.wave_data, visible_only=True
+                    self.wave_data_obs, visible_only=True
                 )
                 self._plot_summed_spectrum(ax, s_wave, s_flux)
             except Exception:

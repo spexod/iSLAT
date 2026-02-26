@@ -28,7 +28,6 @@ if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.Molecule import Molecule
 
-import iSLAT.Constants as c
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
 
 # Import debug configuration
@@ -140,20 +139,26 @@ class ThreePanelView(PlotView):
             self._canvas.draw_idle()
             return
 
-        wave_data = islat.wave_data_original
+        mol_dict = islat.molecules_dict
 
-        # Compute summed flux
+        # Always work from the original observer-frame wavelengths.
+        # MoleculeDict.get_summed_flux handles stellar RV and pixel
+        # matching internally; it returns rest-frame wavelengths.
+        wave_data_obs = islat.wave_data_original
+
+        # Compute summed flux.  get_summed_flux expects observer-frame
+        # wavelengths and returns (rest_frame_wavelengths, summed_flux).
         summed_wavelengths = summed_flux = None
         try:
-            if hasattr(islat.molecules_dict, 'get_summed_flux'):
-                summed_wavelengths, summed_flux = islat.molecules_dict.get_summed_flux(
-                    wave_data, visible_only=True
+            if hasattr(mol_dict, 'get_summed_flux'):
+                summed_wavelengths, summed_flux = mol_dict.get_summed_flux(
+                    wave_data_obs, visible_only=True
                 )
         except Exception as e:
             debug_config.warning("three_panel", f"Could not get summed flux: {e}")
 
-        # Apply RV correction
-        wave_data = wave_data - (wave_data / c.SPEED_OF_LIGHT_KMS * islat.molecules_dict.global_stellar_rv)
+        # RV-corrected (rest-frame) wavelengths for the display x-axis.
+        wave_data = mol_dict.apply_stellar_rv(wave_data_obs)
         islat.wave_data = wave_data
 
         self._renderer.render_main_spectrum_plot(

@@ -36,8 +36,6 @@ if TYPE_CHECKING:
     from iSLAT.Modules.DataTypes.MoleculeDict import MoleculeDict
     from iSLAT.Modules.DataTypes.Molecule import Molecule
 
-import iSLAT.Constants as c
-from iSLAT.Constants import SPEED_OF_LIGHT_KMS
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_atomic_lines
 from iSLAT.Modules.FileHandling import absolute_data_files_path
 import iSLAT.Modules.FileHandling.iSLATFileHandling as ifh
@@ -112,18 +110,23 @@ class FullSpectrumView(PlotView):
     # ==================================================================
     # Data loading
     # ==================================================================
-    def _load_spectrum_data(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Return RV-corrected observed spectrum from in-memory iSLAT data.
+    def _load_spectrum_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return observed spectrum arrays from in-memory iSLAT data.
 
-        Uses the already-loaded arrays on the iSLAT class instead of
-        re-reading the CSV from disk, which is a significant speed-up on
-        every call to ``_rebuild_plot`` / ``_create_plot``.
+        Returns
+        -------
+        wave : np.ndarray
+            RV-corrected (rest-frame) wavelengths for display.
+        flux : np.ndarray
+            Observed flux array.
+        wave_obs : np.ndarray
+            Observer-frame wavelengths, used by MoleculeDict methods
+            that apply the stellar RV correction internally.
         """
-        rv = self._islat.molecules_dict.global_stellar_rv
-        wave = np.array(self._islat.wave_data_original, copy=True)
-        wave = wave - (wave / SPEED_OF_LIGHT_KMS * rv)
+        wave_obs = np.array(self._islat.wave_data_original, copy=True)
+        wave = self._islat.molecules_dict.apply_stellar_rv(wave_obs)
         flux = np.array(self._islat.flux_data, copy=True)
-        return wave, flux
+        return wave, flux, wave_obs
 
     def _load_line_data(self) -> Optional[pd.DataFrame]:
         """Load the saved line list (for annotations)."""
@@ -137,7 +140,7 @@ class FullSpectrumView(PlotView):
     # ==================================================================
     def _create_plot(self) -> FullSpectrumPlot:
         """Build a fresh :class:`FullSpectrumPlot` from the current iSLAT state."""
-        wave, flux = self._load_spectrum_data()
+        wave, flux, wave_obs = self._load_spectrum_data()
         self.line_data = self._load_line_data()
 
         # The composed plot handles all rendering via BasePlot helpers.
@@ -147,6 +150,7 @@ class FullSpectrumView(PlotView):
             wave_data=wave,
             flux_data=flux,
             molecules=self._islat.molecules_dict,
+            wave_data_obs=wave_obs,
         )
         return plot
 
@@ -158,7 +162,7 @@ class FullSpectrumView(PlotView):
         via :meth:`FullSpectrumPlot.update_panels_inplace` for a significant
         speed-up (avoids ``fig.clf()`` and re-creating all subplot objects).
         """
-        wave, flux = self._load_spectrum_data()
+        wave, flux, wave_obs = self._load_spectrum_data()
         self.line_data = self._load_line_data()
 
         if self._plot is None:
@@ -171,6 +175,7 @@ class FullSpectrumView(PlotView):
             wave_data=wave,
             flux_data=flux,
             molecules=self._islat.molecules_dict,
+            wave_data_obs=wave_obs,
         )
 
         if layout_changed:
@@ -348,8 +353,11 @@ class FullSpectrumView(PlotView):
         if not self._initialised or not self.subplots:
             return
 
-        # Use the same RV-corrected wavelengths as the rendered panels.
+        # Use the same RV-corrected wavelengths as the rendered panels
+        # for display positioning, and observer-frame wavelengths for
+        # model computation (get_summed_flux expects observer frame).
         rv_wave = self._plot.wave_data if self._plot is not None else wave_data
+        wave_obs = self._plot.wave_data_obs if self._plot is not None else wave_data
 
         # 1. Toggle molecule line visibility per subplot.
         #    When force_rerender is True (parameters changed while hidden),
@@ -383,11 +391,11 @@ class FullSpectrumView(PlotView):
                             molecule, rv_wave, subplot=ax, update_legend=False,
                         )
 
-        # 2. Recompute summed spectrum using RV-corrected wavelengths
-        #    so the fill aligns with the plotted panel x-limits.
+        # 2. Recompute summed spectrum — pass observer-frame wavelengths
+        #    so MoleculeDict handles the stellar RV correction internally.
         try:
             summed_wavelengths, summed_flux = molecules_dict.get_summed_flux(
-                rv_wave, visible_only=True,
+                wave_obs, visible_only=True,
             )
         except Exception as exc:
             debug_config.warning("full_spectrum_view", f"Could not compute summed flux: {exc}")
@@ -608,7 +616,7 @@ class FullSpectrumView(PlotView):
             atomic_lines_df = load_atomic_lines()
 
         # Create standalone figure — uses BasePlot._ensure_figure (non-pyplot)
-        wave, flux = self._load_spectrum_data()  # now reads from memory, not disk
+        wave, flux, wave_obs = self._load_spectrum_data()
         standalone = FullSpectrumPlot(
             wave_data=wave,
             flux_data=flux,
@@ -616,6 +624,7 @@ class FullSpectrumView(PlotView):
             line_list=line_list_df,
             atomic_lines=atomic_lines_df,
             figsize=(12, 16),
+            wave_data_obs=wave_obs,
         )
         standalone.generate_plot()
 
@@ -705,10 +714,11 @@ def output_full_spectrum(islat_ref: Any, rasterized: bool = False) -> str | None
     This is the backward-compatible replacement for the function that
     previously lived in ``OutputFullSpectrum.py``.
     """
-    # Use in-memory data instead of re-reading the CSV from disk
-    rv = islat_ref.molecules_dict.global_stellar_rv
-    wave = np.array(islat_ref.wave_data_original, copy=True)
-    wave = wave - (wave / SPEED_OF_LIGHT_KMS * rv)
+    # Use in-memory data instead of re-reading the CSV from disk.
+    # Delegate the stellar RV correction to MoleculeDict so the formula
+    # lives in one place.
+    wave_obs = np.array(islat_ref.wave_data_original, copy=True)
+    wave = islat_ref.molecules_dict.apply_stellar_rv(wave_obs)
     flux = np.array(islat_ref.flux_data, copy=True)
 
     # Read toggle state if available
@@ -735,6 +745,7 @@ def output_full_spectrum(islat_ref: Any, rasterized: bool = False) -> str | None
         line_list=line_list_df,
         atomic_lines=atomic_lines_df,
         figsize=(12, 16),
+        wave_data_obs=wave_obs,
     )
     standalone.generate_plot()
 

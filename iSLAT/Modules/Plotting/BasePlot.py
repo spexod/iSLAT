@@ -525,6 +525,7 @@ class BasePlot(ABC):
         ax: Axes,
         molecules: "MoleculeDict",
         wave_data: Optional[np.ndarray] = None,
+        wave_data_obs: Optional[np.ndarray] = None,
         linewidth: float = 1,
         alpha: float = 0.8,
         update_legend: bool = True,
@@ -534,12 +535,22 @@ class BasePlot(ABC):
         When *molecules.match_spectral_sampling* is enabled, each molecule's
         model flux is individually resampled to the data wavelength grid
         (corrected for the global stellar RV) before plotting.
+
+        Parameters
+        ----------
+        wave_data : np.ndarray, optional
+            Display-frame wavelength array (used for x-axis positions).
+        wave_data_obs : np.ndarray, optional
+            Observer-frame wavelength array passed to
+            ``get_matched_sampling_wavelengths``.  Falls back to
+            *wave_data* when not provided.
         """
-        # Determine if we should interpolate to the data pixel grid
+        # get_matched_sampling_wavelengths expects observer-frame input.
+        obs = wave_data_obs if wave_data_obs is not None else wave_data
         use_interp = False
         target_wave = None
-        if wave_data is not None and hasattr(molecules, 'get_matched_sampling_wavelengths'):
-            use_interp, target_wave = molecules.get_matched_sampling_wavelengths(wave_data)
+        if obs is not None and hasattr(molecules, 'get_matched_sampling_wavelengths'):
+            use_interp, target_wave = molecules.get_matched_sampling_wavelengths(obs)
             if not use_interp:
                 target_wave = None  # don't pass target wavelengths when not interpolating
 
