@@ -233,7 +233,8 @@ class FullSpectrumPlot(BasePlot):
             panel_flux = self.flux_data[mask]
             panel_err = self.error_data[mask] if self.error_data is not None else None
 
-            self._plot_observed_spectrum(ax, panel_wave, panel_flux, panel_err)
+            self._plot_observed_spectrum(ax, panel_wave, panel_flux, panel_err,
+                                        deduplicate=True)
 
             # y-limits
             if np.any(mask):
