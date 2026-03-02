@@ -482,6 +482,7 @@ class LineListMaker:
         self,
         path: Union[str, Path],
         header: Optional[pd.DataFrame] = None,
+        partition_df: Optional[pd.DataFrame] = None,
     ) -> Path:
         """Write the filtered line list to a ``.par`` file.
 
@@ -496,6 +497,9 @@ class LineListMaker:
         header : pd.DataFrame, optional
             Single-row DataFrame overriding header fields (``molecule_id``,
             ``source``, ``molar_mass``, etc.).
+        partition_df : pd.DataFrame, optional
+            DataFrame with columns ``'temp'`` and ``'q'`` for the partition function.
+            When provided, this is written instead of the line list's own partition function data.
 
         Returns
         -------
@@ -516,7 +520,7 @@ class LineListMaker:
         # Build the lines DataFrame in the format write_par_file expects
         lines_df = self._df.drop(columns=["species"], errors="ignore").copy()
         self._linelist.write_par_file(
-            file_path=path, header=header, lines_df=lines_df
+            file_path=path, header=header, lines_df=lines_df, partition_df=partition_df
         )
         return path
 

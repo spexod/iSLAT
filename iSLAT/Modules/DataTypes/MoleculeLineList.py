@@ -550,8 +550,8 @@ class MoleculeLineList:
             return pd.DataFrame()
         
         return pd.DataFrame({
-            'Temperature': self.partition_function.t,
-            'Partition_Function': self.partition_function.q
+            'temp': self.partition_function.t,
+            'q': self.partition_function.q
         })
     
     @property
@@ -1099,6 +1099,7 @@ class MoleculeLineList:
         file_path: str | Path,
         header: Optional["pandas.DataFrame"] = None,
         lines_df: Optional["pandas.DataFrame"] = None,
+        partition_df: Optional["pandas.DataFrame"] = None
     ) -> None:
         """Write the line list to a .par file.
 
@@ -1118,8 +1119,10 @@ class MoleculeLineList:
             derived from the line list's own metadata.
         lines_df : pandas.DataFrame, optional
             A filtered DataFrame (same columns as ``get_pandas_table()``).
-            When provided, only these rows are written.  The partition
-            function is still taken from the line list itself.
+            When provided, only these rows are written.
+        partition_df : pandas.DataFrame, optional
+            A DataFrame with columns ``'temp'`` and ``'q'`` for the partition function.
+             When provided, this is written instead of the line list's own partition function data.
         """
         import datetime
         from pathlib import Path as _Path
@@ -1152,14 +1155,19 @@ class MoleculeLineList:
             fh.write(f"# {h_source}\n")
             fh.write(f"# {h_date}\n")
 
+            partition_function = partition_df if partition_df is not None else self.partition_function
+
             # Partition function — normalise column names to temp/q
-            if self.partition_function is not None:
+            if partition_function is not None:
                 pd = _get_pandas()
                 if pd is not None:
-                    qdata = pd.DataFrame({
-                        'temp': self.partition_function.t,
-                        'q': self.partition_function.q,
-                    })
+                    if type(partition_function) is not pd.DataFrame:
+                        qdata = pd.DataFrame({
+                            'temp': partition_function.t,
+                            'q': partition_function.q,
+                        })
+                    else:
+                        qdata = partition_function
                     fh = write_partition_function(fh, qdata)
 
             fh = self._write_line_data(fh, lines_df=lines_df)
