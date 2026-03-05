@@ -28,6 +28,7 @@
     "data_field_background": "#23272A",
     "tooltip_background": "#3C3F41",
     "tooltip_foreground": "#F0F0F0",
+    "model_linewidth": 1.2,
     "buttons": {
         "DefaultBotton": {
             "background": "#23272A",
