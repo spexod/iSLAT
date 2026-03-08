@@ -736,7 +736,7 @@ class BatchFittingService:
         # Phase 2: Create all fitting tasks (flattened across all spectra and lines)
         # Pre-convert the DataFrame to a list of plain dicts ONCE.
         # This avoids the slow pd.Series construction that iterrows()
-        # performs for every row × every spectrum.
+        # performs for every row x every spectrum.
         _FLOAT_FIELDS = {'a_stein': 0.0, 'e_up': 0.0, 'e_low': 0.0, 'g_up': 1.0, 'g_low': 1.0}
         line_records: List[Dict[str, Any]] = []
         for raw_row in saved_lines_df.to_dict('records'):

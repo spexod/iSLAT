@@ -689,6 +689,12 @@ class FullSpectrumView(PlotView):
 
         BasePlot.build_molecule_legend(legend_ax, mol_labels, mol_colors)
 
+        # Respect the legend toggle state from the controller
+        if not self._pm.legend_toggle:
+            legend = legend_ax.get_legend()
+            if legend is not None:
+                legend.set_visible(False)
+
     # ==================================================================
     # Cleanup
     # ==================================================================

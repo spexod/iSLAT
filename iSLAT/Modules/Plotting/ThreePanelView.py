@@ -181,6 +181,13 @@ class ThreePanelView(PlotView):
         if self._pm.line_toggle:
             self._plot_saved_lines()
 
+        # Respect the legend toggle state
+        if not self._pm.legend_toggle:
+            for ax in (self.ax1, self.ax2, self.ax3):
+                leg = ax.get_legend()
+                if leg is not None:
+                    leg.set_visible(False)
+
         # Recreate span selector and redraw
         self._pm.make_span_selector()
         self._canvas.draw_idle()

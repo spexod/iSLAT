@@ -152,10 +152,21 @@ class PlotRenderer:
         self._update_legend(self.ax1)
     
     def _update_legend(self, ax: "Axes" = None) -> None:
-        """Rebuild the legend, excluding invisible artists.  Delegates to :class:`BasePlot`."""
+        """Rebuild the legend, excluding invisible artists.  Delegates to :class:`BasePlot`.
+
+        After rebuilding, the legend visibility is set to match the
+        controller's ``legend_toggle`` state so that a legend that was
+        toggled off does not reappear after a plot update.
+        """
         if ax is None:
             ax = self.ax1
         BasePlot._update_legend(ax)
+
+        # Respect the legend toggle state from the controller
+        if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'legend_toggle'):
+            leg = ax.get_legend()
+            if leg is not None:
+                leg.set_visible(self.plot_manager.legend_toggle)
 
     def clear_all_plots(self) -> None:
         """Clear all plots and reset stats"""
@@ -223,6 +234,11 @@ class PlotRenderer:
         # Only update legend if requested
         if update_legend and lines_to_remove:
             BasePlot._update_legend(ax)
+            # Respect the legend toggle state from the controller
+            if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'legend_toggle'):
+                leg = ax.get_legend()
+                if leg is not None:
+                    leg.set_visible(self.plot_manager.legend_toggle)
     
     def set_molecule_visibility(self, molecule_name: str, visible: bool, ax: "Axes" = None, lines: List["Line2D"] = None) -> bool:
         """
@@ -366,6 +382,12 @@ class PlotRenderer:
         
         # Only show legend if there are labeled items
         BasePlot._update_legend(self.ax1)
+
+        # Respect the legend toggle state from the controller
+        if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'legend_toggle'):
+            leg = self.ax1.get_legend()
+            if leg is not None:
+                leg.set_visible(self.plot_manager.legend_toggle)
         
     def render_complete_line_inspection_plot(self, wave_data: np.ndarray, flux_data: np.ndarray,
                                            xmin: float, xmax: float, active_molecule: Optional['Molecule'] = None,
@@ -482,6 +504,11 @@ class PlotRenderer:
         handles, labels = self.ax2.get_legend_handles_labels()
         if handles:
             self.ax2.legend()
+            # Respect the legend toggle state from the controller
+            if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'legend_toggle'):
+                leg = self.ax2.get_legend()
+                if leg is not None:
+                    leg.set_visible(self.plot_manager.legend_toggle)
         # Don't call canvas.draw_idle() here - let caller batch it
     
     def _should_clear_old_fits(self) -> bool:
@@ -698,6 +725,11 @@ class PlotRenderer:
             # If no molecules are visible, just update legend and return
             if update_legend:
                 BasePlot._update_legend(plot)
+                # Respect the legend toggle state from the controller
+                if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'legend_toggle'):
+                    leg = plot.get_legend()
+                    if leg is not None:
+                        leg.set_visible(self.plot_manager.legend_toggle)
             return
         
         # Batch render all visible molecules without updating legend each time
@@ -718,6 +750,11 @@ class PlotRenderer:
         # Update legend only once after all molecules are rendered (if requested)
         if update_legend:
             BasePlot._update_legend(plot)
+            # Respect the legend toggle state from the controller
+            if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'legend_toggle'):
+                leg = plot.get_legend()
+                if leg is not None:
+                    leg.set_visible(self.plot_manager.legend_toggle)
     
     def handle_molecule_visibility_change(self, molecule_name: str, is_visible: bool, 
                                         molecules_dict: 'MoleculeDict', 
@@ -793,6 +830,7 @@ class PlotRenderer:
                     collection.set_visible(False)
         
         # Rebuild legend to reflect current visibility state
+        # (self._update_legend already respects the legend toggle)
         self._update_legend(self.ax1)
 
         # Handle active molecule line inspection update if needed
@@ -1216,6 +1254,11 @@ class PlotRenderer:
             # Only update legend if requested (batch operations can skip this)
             if update_legend:
                 BasePlot._update_legend(plot)
+                # Respect the legend toggle state from the controller
+                if hasattr(self, 'plot_manager') and hasattr(self.plot_manager, 'legend_toggle'):
+                    leg = plot.get_legend()
+                    if leg is not None:
+                        leg.set_visible(self.plot_manager.legend_toggle)
             
             self._plot_stats['molecules_rendered'] += 1
             

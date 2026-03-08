@@ -16,7 +16,7 @@ Performance notes
 -----------------
 * ``figure.dpi`` is set to the *logical* DPI (typically 100) — the OS
   compositor handles pixel-doubling on Retina screens, so matplotlib does
-  not need to render at 2× internally.
+  not need to render at 2x internally.
 * ``savefig.dpi`` is set to a sensible high-res default (300) for exports.
 * Anti-aliased text and Agg path snapping are left at their defaults
   (already enabled in modern matplotlib).
