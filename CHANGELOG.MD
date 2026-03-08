@@ -1,5 +1,87 @@
 # Changelog
 
+## v5.02.03 - March 08, 2026
+
+### Plotting System Refactor
+- Major refactor of the plotting system to use a modular, view-based architecture with new `PlotView` classes for different plot layouts
+- Introduced switchable plot views (`ThreePanelView`, `FullSpectrumView`) eliminating scattered conditional checks throughout the codebase
+- Refactored `PlotRenderer` and related plotting classes for more flexible rendering of lines and improved inheritance structure
+- Refactored the output full spectrum functionality into `FullSpectrumView`, eliminating the separate `OutputFullSpectrum` module
+- Speed improvements to the plotting API
+- Updated the full spectrum PDF output to use dynamic tick spacing based on panel width instead of hardcoded 0.25 μm
+- Reformatted the `FitLinesPlotGrid` output plot for improved readability and formatting
+- Updated the export models window and GUI output
+
+### Theming
+- Added automatic system theme syncing — the GUI now detects and updates when the macOS system theme changes
+- Removed old theme files and updated `DefaultUserSettings` to use auto theming by default
+- Added a new experimental `DisplayConfig` file for plot styling configuration
+- Updated theme files to use a wider model line width
+- GUI theming adjustments to use `ttk` instead of `tk` in several places for more consistent styling
+- Updates to theming of legends and model line width/alpha
+- Updates to plotting modules to work with the theming functionality
+
+### New Features
+
+#### Keyboard Shortcuts
+- Added `V` key to toggle the visibility of the active molecule
+- Added `Shift+V` to toggle all molecule visibilities at once
+
+#### Batch Fitting
+- First version of new batch fitting system using a configuration file
+- Batch fitting parallelization and debugging improvements
+- PDF saving improvements in `BatchFittingService`
+
+#### Data Processing
+- Refactored the `DataProcessing` module for more modular and independent operation of the fitting engine and line analyzer, removing direct dependencies on the main iSLAT instance
+- Centralized stellar RV application logic to `MoleculeDict.apply_stellar_rv`, ensuring consistent RV correction across the app
+- The match spectral sampling button now accounts for both stellar and per-molecule RV when matching, and also matches molecule models in addition to the sum
+- Updated the HITRAN download query to use the min and max wavelength settings from user settings
+- Added min/max wavelength settings to default and user settings JSON files
+- Updated user settings version number to 1.2
+
+#### LineListMaker & Data Export
+- Added new `LineListMaker` module and an example notebook
+- Updated `LineListMaker` and `MoleculeLineList` modules to accept a DataFrame to override partition function information
+- Created two new example notebooks for generating line lists in CSV and Parquet formats
+- Made modifications to `MoleculeLineList`, `FileHandling`, and `Hitran_data` modules to support new export functionalities
+- Added `get_wavelengths` method to `MoleculeLineList` that returns an array of line wavelengths
+
+#### GUI Improvements
+- Updated `ControlPanel` and `FileInteractionPane` formatting
+- Adjustments to control panel molecule label formatting
+- Windows control panel formatting update
+- Made the X buttons use the standard "x" character instead of the Unicode multiplication sign
+- Updated the atomic lines load message to use the debug logger module
+
+#### Example Notebooks
+- Added `Advanced_Plotting_API.ipynb` — advanced plotting API examples
+- Added `Generate_CSV_LineList_Example.ipynb` and `Generate_Parquet_Example.ipynb` — line list export examples
+- Added `LineListMaker_Examples.ipynb` — LineListMaker module examples
+- Updated and improved existing plotting example notebooks
+
+#### PerformanceLogger
+- Experimental update to the `PerformanceLogger` API to enable memory usage tracking
+
+### Bug Fixes
+- Fixed the toggle legend button not preserving the on/off state when plots are updated
+- Fixed the toggle legend behavior to support the same state persistence as other toggles
+- Fixed the atomic/saved lines toggle state not being respected when the plot view was switched
+- Fixed overplotting of sample spectra when in the `FullSpectrumPlot` view
+- Fixed fits not rendering correctly in the line inspection plot
+- Fixed the load spectrum button not opening the file dialog when a default spectra file was set in user settings
+- Fixed the output of the full spectrum to PDF
+- Fixed the fit saved lines function not using the output file from the GUI correctly
+- Fixed line list selection dialogs from fitting functions not correctly updating the GUI with the newly loaded line list
+- Fixed line save outputting incorrect fields
+
+### Code Quality
+- Removed unused files and cleaned up old modules
+- Updated README for version documentation
+- Bumped version to `v5.02.03`
+
+---
+
 ## v5.02.02 - February 08, 2026
 
 ### iSLAT Package
