@@ -1,22 +1,29 @@
 import tkinter as tk
 from tkinter import filedialog, ttk, font, simpledialog, messagebox
 import os
+import platform
 import threading
 import queue
 
 from iSLAT.Modules.Debug.PerformanceLogger import get_performance_summary
-from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
 from iSLAT.Modules.FileHandling.iSLATFileHandling import write_molecules_to_csv
+
+# High-DPI / Retina display support — imported before figures are created so that matplotlib rcParams are configured early.
+from iSLAT.Modules.GUI.DisplayConfig import apply_tk_scaling, display_config
 
 from .Widgets.DataField import DataField
 from .Widgets.ControlPanel import ControlPanel
 from .Widgets.TopBar import TopBar
 from .Widgets.FileInteractionPane import FileInteractionPane
+from .Tooltips import set_tooltip_theme
+from .GUIFunctions import configure_all_button_styles
 
 class GUI:
     def __init__(self, master, molecule_data, wave_data, flux_data, config, islat_class_ref):
         if master is None:
             self.master = tk.Tk()
+            # Apply system DPI scaling for HiDPI / Retina displays
+            apply_tk_scaling(self.master)
             self.style = ttk.Style()
             self._style_config()
             # self.master = ThemedTk()
@@ -37,6 +44,10 @@ class GUI:
         self.theme = config["theme"]
         self.islat_class = islat_class_ref
         self.default_font = font.nametofont("TkDefaultFont")
+
+        # Set module-level tooltip theme so every tooltip picks up
+        # the current theme's colours automatically.
+        set_tooltip_theme(self.theme)
         
         # Apply theme to root window
         # self._apply_theme_to_widget(self.master)
@@ -49,6 +60,218 @@ class GUI:
         if hasattr(self, 'plot') and hasattr(self.plot, 'apply_theme'):
             #print("applying theme to plot")
             self.plot.apply_theme(self.theme)
+
+    # ------------------------------------------------------------------
+    # Reactive system-theme synchronisation
+    # ------------------------------------------------------------------
+    def _bind_appearance_change(self):
+        """Bind to OS appearance changes so the GUI theme updates reactively.
+
+        On macOS (Tk ≥ 8.6.9) the ``<<AppearanceChanged>>`` virtual event
+        is fired whenever the user switches between Light and Dark mode in
+        System Preferences.  We listen for that event and re-apply the
+        theme across the entire GUI.
+        """
+        if platform.system() != "Darwin":
+            return  # Only macOS fires <<AppearanceChanged>>
+
+        # Only auto-sync when the user chose "auto" theme
+        theme_key = self.config.get("_theme_key", "")
+        if isinstance(theme_key, str) and theme_key.lower() != "auto":
+            return
+
+        try:
+            self.master.bind("<<AppearanceChanged>>", self._on_appearance_changed)
+        except tk.TclError:
+            # Older Tk build that doesn't support the virtual event
+            pass
+
+    def _on_appearance_changed(self, _event=None):
+        """Callback fired by Tk when the macOS appearance changes."""
+        from iSLAT.Modules.Plotting.BasePlot import _detect_system_theme, BasePlot
+
+        new_theme_name = _detect_system_theme()
+
+        # Load the new theme dict
+        new_theme = BasePlot.load_theme(new_theme_name)
+
+        # Check whether the theme actually changed (avoid redundant redraws)
+        old_bg = self.theme.get("background")
+        new_bg = new_theme.get("background")
+        if old_bg == new_bg:
+            return
+
+        # Store the new theme globally
+        self.theme = new_theme
+        self.config["theme"] = new_theme
+
+        # --- Propagate to every component ---
+
+        # 1. Tooltip colours
+        set_tooltip_theme(new_theme)
+
+        # 2. Custom ttk button / menubutton styles
+        configure_all_button_styles(new_theme)
+
+        # 3. Matplotlib-based plot (visual-only, no spectrum recalculation)
+        if hasattr(self, 'plot') and self.plot is not None:
+            self.plot.apply_theme(new_theme)
+
+        # 4. Recurse through every tk/ttk widget in the window.
+        self._apply_theme_to_all_widgets(new_theme)
+
+    def _apply_theme_to_all_widgets(self, theme):
+        """Walk the entire widget tree and apply *theme* to every widget.
+
+        This mirrors the logic in
+        :pymethod:`ResizableFrame._apply_theme_to_widget` but is invoked
+        from the top-level ``GUI`` instance so that widgets that are *not*
+        children of a ResizableFrame are also themed (e.g. raw ``tk.Frame``
+        containers, ``ControlPanel``, ``DataField``, etc.).
+        """
+        for child in self.master.winfo_children():
+            self._apply_theme_to_widget_recursive(child, theme)
+
+    def _apply_theme_to_widget_recursive(self, widget, theme):
+        """Apply *theme* colours to *widget* and recurse into children."""
+        try:
+            # Skip matplotlib canvas widget subtrees entirely – they are
+            # already themed by MainPlot.apply_theme() and recursing into
+            # their many internal tk children triggers expensive redraws.
+            if 'FigureCanvasTkAgg' in type(widget).__name__:
+                return
+            if hasattr(widget, 'master') and 'FigureCanvasTkAgg' in type(widget.master).__name__:
+                return
+
+            widget_class = widget.winfo_class()
+
+            if widget_class in ('Frame', 'LabelFrame'):
+                try:
+                    widget.configure(bg=theme.get("background", "#181A1B"))
+                except tk.TclError:
+                    pass
+                if widget_class == 'LabelFrame':
+                    try:
+                        widget.configure(
+                            fg=theme.get("foreground", "#F0F0F0"),
+                            highlightbackground=theme.get("foreground", "#F0F0F0"),
+                        )
+                    except tk.TclError:
+                        pass
+
+            elif widget_class == 'Button':
+                btn_theme = theme.get("buttons", {}).get("DefaultBotton", {})
+                try:
+                    widget.configure(
+                        bg=btn_theme.get("background", "lightgray"),
+                        fg=theme.get("foreground", "#F0F0F0"),
+                        activebackground=btn_theme.get("active_background",
+                                                       theme.get("selection_color", "#00FF99")),
+                        activeforeground=theme.get("foreground", "#F0F0F0"),
+                    )
+                except tk.TclError:
+                    pass
+
+            elif widget_class == 'Label':
+                # Skip ColorButton instances – they use bg for the
+                # molecule colour and must not be overwritten.
+                if not hasattr(widget, 'color'):
+                    try:
+                        widget.configure(
+                            bg=theme.get("background", "#181A1B"),
+                            fg=theme.get("foreground", "#F0F0F0"),
+                        )
+                    except tk.TclError:
+                        pass
+
+            elif widget_class == 'Entry':
+                try:
+                    widget.configure(
+                        bg=theme.get("background_accent_color", "#23272A"),
+                        fg=theme.get("foreground", "#F0F0F0"),
+                        insertbackground=theme.get("foreground", "#F0F0F0"),
+                        selectbackground=theme.get("selection_color", "#00FF99"),
+                        selectforeground=theme.get("background", "#181A1B"),
+                    )
+                except tk.TclError:
+                    pass
+
+            elif widget_class == 'Text':
+                try:
+                    widget.configure(
+                        bg=theme.get("data_field_background", "#23272A"),
+                        fg=theme.get("foreground", "#F0F0F0"),
+                        insertbackground=theme.get("foreground", "#F0F0F0"),
+                        selectbackground=theme.get("selection_color", "#00FF99"),
+                        selectforeground=theme.get("background", "#181A1B"),
+                    )
+                except tk.TclError:
+                    pass
+
+            elif widget_class == 'Listbox':
+                try:
+                    widget.configure(
+                        bg=theme.get("background_accent_color", "#23272A"),
+                        fg=theme.get("foreground", "#F0F0F0"),
+                        selectbackground=theme.get("selection_color", "#00FF99"),
+                        selectforeground=theme.get("background", "#181A1B"),
+                    )
+                except tk.TclError:
+                    pass
+
+            elif widget_class == 'Checkbutton':
+                try:
+                    widget.configure(
+                        bg=theme.get("background", "#181A1B"),
+                        fg=theme.get("foreground", "#F0F0F0"),
+                        selectcolor=theme.get("background_accent_color", "#23272A"),
+                        activebackground=theme.get("background", "#181A1B"),
+                        activeforeground=theme.get("foreground", "#F0F0F0"),
+                    )
+                except tk.TclError:
+                    pass
+
+            elif widget_class == 'Menubutton':
+                btn_theme = theme.get("buttons", {}).get("DefaultBotton", {})
+                try:
+                    widget.configure(
+                        bg=btn_theme.get("background", "lightgray"),
+                        fg=theme.get("foreground", "#F0F0F0"),
+                        activebackground=btn_theme.get("active_background",
+                                                       theme.get("selection_color", "#00FF99")),
+                        activeforeground=theme.get("foreground", "#F0F0F0"),
+                        highlightbackground=theme.get("background", "#181A1B"),
+                    )
+                except tk.TclError:
+                    pass
+
+            elif widget_class == 'Menu':
+                btn_theme = theme.get("buttons", {}).get("DefaultBotton", {})
+                try:
+                    widget.configure(
+                        bg=btn_theme.get("background", "lightgray"),
+                        fg=theme.get("foreground", "#F0F0F0"),
+                        activebackground=btn_theme.get("active_background",
+                                                       theme.get("selection_color", "#00FF99")),
+                        activeforeground=theme.get("foreground", "#F0F0F0"),
+                    )
+                except tk.TclError:
+                    pass
+
+            elif widget_class == 'Canvas':
+                # Skip matplotlib canvas widgets (handled by plot.apply_theme)
+                if 'NavigationToolbar2Tk' not in type(widget.master).__name__:
+                    try:
+                        widget.configure(bg=theme.get("background", "#181A1B"))
+                    except tk.TclError:
+                        pass
+
+            # Recurse into children
+            for child in widget.winfo_children():
+                self._apply_theme_to_widget_recursive(child, theme)
+
+        except tk.TclError:
+            pass
 
     def _configure_initial_size(self):
         """Configure initial window size based on screen resolution."""
@@ -92,6 +315,7 @@ class GUI:
 
     def create_window(self):
         from iSLAT import __version__ as iSLAT_version
+        from iSLAT.Modules.Plotting.MainPlot import iSLATPlot
         self.window = self.master
         self.window.title(f"iSLAT Version {iSLAT_version}")
         
@@ -133,6 +357,9 @@ class GUI:
     
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+        # Listen for OS appearance changes (macOS dark ↔ light mode)
+        self._bind_appearance_change()
+
         # Check config for start-on-top behavior
         if self.config.get("start_on_top", True):
             self.master.attributes('-topmost', True)
@@ -172,7 +399,29 @@ class GUI:
                 )
             except Exception as e:
                 print("Error", f"Failed to save molecule parameters: {str(e)}")
-        self.window.destroy()
+
+        # Close all matplotlib figures to release resources
+        try:
+            import matplotlib.pyplot as plt
+            plt.close("all")
+        except Exception:
+            pass
+
+        # Destroy the full-spectrum view's figure (non-pyplot managed)
+        try:
+            if hasattr(self, 'plot') and hasattr(self.plot, '_full_spectrum_view'):
+                self.plot._full_spectrum_view.destroy()
+        except Exception:
+            pass
+
+        try:
+            self.window.destroy()
+        except Exception:
+            pass
+
+        # Force-exit the process so no background threads keep it alive
+        import os
+        os._exit(0)
 
     def get_plot_renderer(self):
         return self.plot.plot_renderer

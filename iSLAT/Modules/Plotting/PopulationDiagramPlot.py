@@ -139,6 +139,10 @@ class PopulationDiagramPlot(BasePlot):
             color=fg,
         )
 
+        # Apply full theme (backgrounds, spines, etc.) to the figure
+        if self.fig is not None:
+            self.apply_theme_to_figure()
+
     # ------------------------------------------------------------------
     def _render_highlights(self, ax: Axes, beam_s: float) -> None:
         """Overlay highlighted lines as larger scatter points."""

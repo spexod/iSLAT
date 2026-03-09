@@ -23,7 +23,7 @@ from collections import namedtuple
     
     # Default parameters
     "WAVELENGTH_RANGE", "MIN_WAVELENGTH", "MAX_WAVELENGTH", "DEFAULT_DISTANCE",
-    "DEFAULT_STELLAR_RV", "DEFAULT_FWHM", "PIXELS_PER_FWHM", "DEFAULT_BROADENING",
+    "DEFAULT_STELLAR_RV", "DEFAULT_MOLECULE_RV", "DEFAULT_FWHM", "PIXELS_PER_FWHM", "DEFAULT_BROADENING",
     "INTRINSIC_LINE_WIDTH", "MODEL_LINE_WIDTH", "MODEL_PIXEL_RESOLUTION",
     
     # Spectroscopic analysis
@@ -130,6 +130,9 @@ DEFAULT_DISTANCE = 160.0
 
 DEFAULT_STELLAR_RV = 0.0
 """Default stellar radial velocity in km/s."""
+
+DEFAULT_MOLECULE_RV = 0.0
+"""Default per-molecule radial-velocity shift in km/s."""
 
 DEFAULT_FWHM = 130.0
 """Default FWHM of observed lines or instrument in km/s."""

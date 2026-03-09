@@ -3,9 +3,10 @@ from tkinter import ttk
 from iSLAT.Modules.Hitran_data import download_hitran_data
 
 class MoleculeSelector:
-    def __init__(self, master, data_field):
+    def __init__(self, master, data_field, user_settings=None):
         self.master = master
         self.data_field = data_field  # Reference to the data field in the main GUI
+        self.user_settings = user_settings or {}
         self.mols = []
         self.basem = []
         self.isot = []
@@ -122,7 +123,11 @@ class MoleculeSelector:
             self.isot.append(isotope)
             
 
-            missed_mols = download_hitran_data(self.basem, self.mols, self.isot)
+            missed_mols = download_hitran_data(
+                self.basem, self.mols, self.isot,
+                min_wave=self.user_settings.get("hitran_min_wave", 0.3),
+                max_wave=self.user_settings.get("hitran_max_wave", 1000.0),
+            )
             if missed_mols:
                 for (bm, mol, iso) in missed_mols:
                     error_message = f"Could not load Molecule: {bm}, Isotopologue: {mol}, Isotope Number: {iso}"

@@ -75,21 +75,22 @@ class PlotGridWindow(tk.Toplevel):
         fig_height = SUBPLOT_HEIGHT_INCHES * plot_grid.rows
         
         plot_grid.fig.set_size_inches(fig_width, fig_height)
-        plot_grid.fig.set_dpi(100)
+        plot_grid.fig.set_dpi(150)
         
-        # Compact subplot spacing
+        # Compact subplot spacing with enough room for titles/labels
         plot_grid.fig.subplots_adjust(
-            left=0.05, right=0.98,
-            top=0.96, bottom=0.04,
-            wspace=0.3, hspace=0.4
+            left=0.06, right=0.98,
+            top=0.96, bottom=0.05,
+            wspace=0.35, hspace=0.65
         )
         
         # Reduce font sizes for compact display
         for ax in plot_grid.axs.flat:
-            ax.tick_params(axis='both', labelsize=7)
-            ax.title.set_fontsize(8)
+            ax.tick_params(axis='both', labelsize=6, pad=1)
+            ax.title.set_fontsize(7)
+            ax.title.set_position((0.5, 1.0))
             if ax.yaxis.label:
-                ax.yaxis.label.set_fontsize(7)
+                ax.yaxis.label.set_fontsize(6)
         
         # Create matplotlib canvas widget
         fig_canvas = FigureCanvasTkAgg(plot_grid.fig, master=inner_frame)
@@ -137,4 +138,4 @@ class PlotGridWindow(tk.Toplevel):
             initialfile=f"{plot_grid.spectrum_name}_fit_grid"
         )
         if filepath:
-            plot_grid.fig.savefig(filepath, dpi=150, bbox_inches='tight')
+            plot_grid.fig.savefig(filepath, dpi=300, bbox_inches='tight')

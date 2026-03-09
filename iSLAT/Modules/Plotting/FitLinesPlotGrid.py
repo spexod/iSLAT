@@ -1,8 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
 #import pandas as pd
 
 from typing import Dict, List, Optional, Tuple, Callable, Any, Union, TYPE_CHECKING
+from matplotlib.ticker import MaxNLocator
 
 from .BasePlot import BasePlot
 
@@ -47,9 +47,8 @@ class FitLinesPlotGrid(BasePlot):
         # Initialize BasePlot with computed figsize
         super().__init__(figsize=self.figsize, **kwargs)
 
-        self.fig: Figure
-        self.axs: np.ndarray[Axes]
-        self.fig = plt.figure(figsize=self.figsize)
+        # Use _ensure_figure() from BasePlot (creates a non-pyplot Figure)
+        self._ensure_figure()
         self.axs = self.fig.subplots(self.rows, self.cols)
         # Ensure axs is always 2D array even for single row/column
         if self.rows == 1 and self.cols == 1:
@@ -66,6 +65,8 @@ class FitLinesPlotGrid(BasePlot):
 
     def generate_plot(self):
         gauss_fits, fitted_waves, fitted_fluxes = self.fit_data_tuple_list
+        n_plots = len(list(zip(gauss_fits, fitted_waves, fitted_fluxes)))
+
         for idx, (gauss_fit, fitted_wave, fitted_flux) in enumerate(zip(gauss_fits, fitted_waves, fitted_fluxes)):
             if idx >= self.rows * self.cols:
                 break
@@ -84,49 +85,61 @@ class FitLinesPlotGrid(BasePlot):
             #fit_wave = fitted_wave[fit_mask]
             #fit_flux = fitted_flux[fit_mask]
 
-            # Plot the spectrum
-            ax.plot(spectrum_wave, spectrum_flux, color='black', linewidth=1, zorder=5)
-            ax.errorbar(spectrum_wave, spectrum_flux, yerr=spectrum_err, fmt='-', color='black')
+            # Plot the observed spectrum using BasePlot helper
+            self._plot_observed_spectrum(
+                ax, spectrum_wave, spectrum_flux,
+                error_data=spectrum_err, color='black', label='',
+            )
             
             # plot the fit result
             if fitted_wave is None or fitted_flux is None:
-                ax.set_title(f"Line {idx+1}: Fit Error", fontsize=8)
+                ax.set_title(f"Line {idx+1}: Fit Error", fontsize=9, pad=2)
                 continue
 
             # get color based on fit det
-            if self.fit_csv_dict[idx]['Fit_det'] == True:
-                line_color = 'lime'
-            else:
-                line_color = 'red'
+            line_color = 'lime' if self.fit_csv_dict[idx]['Fit_det'] else 'red'
             try:
-                ax.plot(fitted_wave, fitted_flux, color=line_color, linewidth=2, zorder=10, linestyle='--')[0]#, label=f'Gauss Fit {i}')[0]
-                dely = gauss_fit.eval_uncertainty(sigma = self.fit_line_uncertainty)
-                ax.fill_between(fitted_wave, fitted_flux - dely, fitted_flux + dely,
-                                        color=line_color, alpha=0.3)#, label=r'3-$\sigma$ uncertainty band')
-
-                # plot the xmin and xmax for each line
-                #ax.vlines([lam_min, lam_max], -2, 10, colors='lime', alpha=0.5)
+                # Plot Gaussian fit + uncertainty using BasePlot helper
+                self._plot_gaussian_fit(
+                    ax, gauss_fit, fitted_wave, fitted_flux,
+                    color=line_color, uncertainty_sigma=self.fit_line_uncertainty,
+                )
             
-                ax.set_title(f"{self.fit_csv_dict[idx]['species']} {self.fit_csv_dict[idx]['lam']:.2f}", fontsize=8)
+                ax.set_title(f"{self.fit_csv_dict[idx]['species']} {self.fit_csv_dict[idx]['lam']:.2f}", fontsize=9, pad=2)
                 # set y lim to 10% above and below the observed flux in the fit range
                 y_min = np.min(spectrum_flux) - 0.1 * np.abs(np.min(spectrum_flux))
                 y_max = np.max(spectrum_flux) + 0.1 * np.abs(np.max(spectrum_flux))
                 ax.set_ylim(y_min, y_max)
-                #ax.set_xlabel("Wavelength")
-                #ax.set_ylabel("Flux (Jy)")
-                #ax.label_outer()
             except Exception as e:
-                ax.set_title(f"Plot Error", fontsize=8)
+                ax.set_title(f"Plot Error", fontsize=9, pad=2)
                 print(f"Error plotting line {idx+1}: {e}")       
+
+            # Compact tick labels to prevent overlap
+            ax.tick_params(axis='both', labelsize=7, pad=1)
+            # Limit number of tick marks to reduce clutter
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=4, prune='both'))
+            ax.yaxis.set_major_locator(MaxNLocator(nbins=4, prune='both'))
+
+            # Show wavelength labels on all rows (each line has a different range)
+            ax.set_xlabel("Wavelength (μm)", fontsize=7, labelpad=1)
 
             # add a y label to only the first column
             if col == 0:
-                ax.set_ylabel("Flux (Jy)", fontsize=7)
+                ax.set_ylabel("Flux (Jy)", fontsize=7, labelpad=1)
 
             self.axs[row, col] = ax
 
-        # Make one y label for all subplots
-        #self.fig.text(0.04, 0.5, 'Flux (Jy)', va='center', rotation='vertical')
+        # Hide unused subplots
+        for idx in range(n_plots, self.rows * self.cols):
+            row = idx // self.cols
+            col = idx % self.cols
+            self.axs[row, col].set_visible(False)
+
+        # Note: figure uses constrained_layout (set in _ensure_figure),
+        # so no explicit tight_layout() call is needed.
+
+        # Apply full theme (backgrounds, spines, etc.) to the figure
+        self.apply_theme_to_figure()
     
     def plot(self):
         self.generate_plot()

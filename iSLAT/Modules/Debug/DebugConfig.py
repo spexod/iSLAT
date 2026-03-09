@@ -42,6 +42,9 @@ class DebugConfig:
             'spectrum_calc': DebugLevel.WARNING,
             'active_molecule': DebugLevel.WARNING,
             'line_inspection': DebugLevel.WARNING,
+            'file_handling': DebugLevel.WARNING,
+            'batch_config': DebugLevel.WARNING,
+            'batch_fitting': DebugLevel.WARNING,
         })
     
     @property

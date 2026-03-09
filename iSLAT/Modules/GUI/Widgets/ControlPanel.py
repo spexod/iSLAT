@@ -1,12 +1,25 @@
 #import traceback
+import platform
 import tkinter as tk
 from tkinter import ttk, colorchooser
 import numpy as np
 from iSLAT.Modules.DataTypes.Molecule import Molecule
 from iSLAT.Modules.FileHandling.iSLATFileHandling import load_control_panel_fields_config
+from iSLAT.Modules.Debug import debug_config
 from ..GUIFunctions import create_wrapper_frame, create_scrollable_frame, ColorButton
 #from .RegularFrame import RegularFrame
 from ..Tooltips import CreateToolTip
+
+# Platform-specific layout constants — Windows uses larger font metrics than macOS
+_IS_WINDOWS = platform.system() == "Windows"
+_ENTRY_LABEL_PADX = 2 if _IS_WINDOWS else 1
+_ENTRY_FIELD_PADX = 2 if _IS_WINDOWS else 1
+_MOL_BTN_WIDTH = 5 if _IS_WINDOWS else 4
+_COLOR_VIS_SCROLL_WIDTH = 170 if _IS_WINDOWS else 160
+_MOL_PARAM_SCROLL_WIDTH = 185 if _IS_WINDOWS else 170
+_MATCH_BTN_PADX = 2 if _IS_WINDOWS else 1
+# Column minimum pixel sizes for molecule visibility/color grid alignment
+_VIS_COL_MINSIZES = (26, 52, 26, 28) if _IS_WINDOWS else (20, 42, 20, 22)
 
 class ControlPanel(ttk.Frame):
     def __init__(self, master, islat, plot, data_field, font):
@@ -77,7 +90,7 @@ class ControlPanel(ttk.Frame):
     def _create_molecule_param_frame(self):
        wrapper = create_wrapper_frame(self.label_frame, 0, 1)
        self._create_selected_frame(wrapper, 0, 0)
-       molecule_param_frame = create_scrollable_frame(wrapper, height=250, width= 170, horizontal=True, row=1, col=0)
+       molecule_param_frame = create_scrollable_frame(wrapper, height=250, width=_MOL_PARAM_SCROLL_WIDTH, horizontal=True, row=1, col=0)
 
        molecule_param_frame.rowconfigure(0, weight=1)
        molecule_param_frame.columnconfigure(0, weight=1)
@@ -87,7 +100,7 @@ class ControlPanel(ttk.Frame):
     def _create_color_and_vis_frame(self):
         wrapper = create_wrapper_frame(self.label_frame, 0, 0, sticky="nsew")
 
-        color_vis_frame = create_scrollable_frame(wrapper, height=250, width = 160, vertical=True)
+        color_vis_frame = create_scrollable_frame(wrapper, height=250, width=_COLOR_VIS_SCROLL_WIDTH, vertical=True)
 
         return color_vis_frame
 
@@ -104,7 +117,7 @@ class ControlPanel(ttk.Frame):
     def _create_simple_entry(self, parent, label_text, initial_value, row, col, on_change_callback, width=7, param_name = None, tip_text = None):
         """Create a simple entry field with label and change callback"""
         label = ttk.Label(parent, text=label_text)
-        label.grid(row=row, column=col, padx=1, pady=5)
+        label.grid(row=row, column=col, padx=_ENTRY_LABEL_PADX, pady=5)
 
         if tip_text: 
             CreateToolTip(label, tip_text)
@@ -123,7 +136,7 @@ class ControlPanel(ttk.Frame):
             justify="left", 
         )
         
-        entry.grid(row=row, column=col + 1, padx=1, sticky="w")
+        entry.grid(row=row, column=col + 1, padx=_ENTRY_FIELD_PADX, sticky="w")
         
         def on_change(*args):
             self.updating = True
@@ -261,10 +274,11 @@ class ControlPanel(ttk.Frame):
             if field_key == 'model_pixel_res':
                 self._match_sampling_btn = ttk.Button(
                     parent, 
-                    text="Match Pix. Sampling", 
+                    text="  Match Pix. Sampling", 
+                    width=22,
                     command=self._toggle_match_spectral_sampling
                 )
-                self._match_sampling_btn.grid(row=row, column=col + 2, padx=1, sticky="w")
+                self._match_sampling_btn.grid(row=row, column=start_col + 2, columnspan=2, padx=_MATCH_BTN_PADX, sticky="w")
                 match_tip = ("Toggle matched spectral sampling.\n"
                              "When enabled, model flux is interpolated\n"
                              "pixel-by-pixel to match the spectrum's\n"
@@ -276,85 +290,83 @@ class ControlPanel(ttk.Frame):
             col_offset += 1
 
     def _build_color_and_vis_controls(self, parent):
-        parent.grid_columnconfigure(0, weight=1)
         self.mol_frames = {}
 
+        # Header row — packed with fill="x" so it matches molecule row widths
         header_frame = tk.Frame(parent)
-        header_frame.grid(row=0, column= 0, sticky="ew")
+        header_frame.pack(fill="x")
+        self._apply_vis_col_config(header_frame)
 
-        content_frame = tk.Frame(parent)
-        content_frame.grid(row=1, column=0, sticky="nsew")
- 
         for col, (label, tip_text) in enumerate(self.column_labels.items()):
-            padx = 0
             label_widget = tk.Label(header_frame, text=label)
             if tip_text:
-                CreateToolTip(label_widget, tip_text)    
-            if label == "Del.":
-                padx = (7,0)
+                CreateToolTip(label_widget, tip_text)
             # Make the "On" label clickable to toggle all molecule visibility
             if label == "On":
                 label_widget.config(cursor="hand2", fg="blue")
                 label_widget.bind("<Button-1>", lambda e: self._toggle_all_molecule_visibility())
-            label_widget.grid(row=0, column=col, sticky="ew", padx=padx)
-            header_frame.grid_columnconfigure(col, weight=1)
-    
+            label_widget.grid(row=0, column=col, sticky="ew", padx=2)
+
+        # Molecule rows — each packed with fill="x" for consistent width,
+        # using identical column config so columns align across rows.
         for row, (mol_name, mol_obj) in enumerate(self.mol_dict.items()):
             mol_name = str(mol_name)
-            
             current_mol = mol_obj
 
-            mol_frame = tk.Frame(content_frame)
+            mol_frame = tk.Frame(parent)
             self.mol_frames[mol_name] = mol_frame
-            # mol_frame.grid(row=row, column=0, pady=2, sticky="nsew")
-            mol_frame.pack(pady=2)
-            mol_frame.grid_rowconfigure(0, weight=1)
-            for col in range(len(self.column_labels)):  # adjust number of columns as needed
-                mol_frame.grid_columnconfigure(col, weight=1)
+            mol_frame.pack(fill="x", pady=2)
+            self._apply_vis_col_config(mol_frame)
 
             visibility_var = tk.BooleanVar()
             visibility_checkbox = ttk.Checkbutton(
-                mol_frame, 
-                variable=visibility_var, 
-                command=lambda name = mol_name: self._on_visibility_changed(name)
+                mol_frame,
+                variable=visibility_var,
+                command=lambda name=mol_name: self._on_visibility_changed(name)
             )
-
-            visibility_checkbox.grid(row=0, column=0, sticky="nsew", pady=2, padx=0)
+            visibility_checkbox.grid(row=0, column=0, sticky="nsew", pady=2)
             if mol_name not in self.mol_visibility:
                 self.mol_visibility[mol_name] = visibility_var
 
-            btn_frame = tk.Frame(mol_frame)
-            btn_frame.grid(row=0, column=1, pady=2, sticky="nsew")
-            mol_btn = tk.Button(btn_frame, 
-                                text=mol_name, 
-                                width=2,
-                                activebackground="white",  # macOS pressed blue
-                                activeforeground="#0a84ff",
-                                )
-            mol_btn.config(command=lambda name=mol_name, frame=mol_frame: self._on_molecule_selected(mol_name=name))
-            mol_btn.grid(row=0, column=0)
-            if(len(mol_name) > self.max_name_len):
+            from ..GUIFunctions import _MOLNAME_STYLE, _DELETE_STYLE, configure_all_button_styles
+            if hasattr(self, 'theme') and self.theme:
+                configure_all_button_styles(self.theme)
+            mol_btn = ttk.Button(
+                mol_frame,
+                text=mol_name,
+                width=_MOL_BTN_WIDTH,
+                style=_MOLNAME_STYLE,
+                command=lambda name=mol_name: self._on_molecule_selected(mol_name=name),
+            )
+            mol_btn.grid(row=0, column=1, sticky="ew", pady=2)
+            if len(mol_name) > self.max_name_len:
                 CreateToolTip(mol_btn, mol_name, bg=self.bg_color)
 
-            delete_btn = tk.Button(
-                            mol_frame, 
-                            text= "X",
-                            command= lambda name = mol_name, frame = mol_frame: self._delete_molecule(mol_name=name, frame=frame)
-                            )
-            
-            delete_btn.grid(row=0, column=2, pady=2,padx=0, sticky="nsew")
+            delete_btn = ttk.Button(
+                mol_frame,
+                text="X",
+                width=1,
+                style=_DELETE_STYLE,
+                command=lambda name=mol_name, frame=mol_frame: self._delete_molecule(mol_name=name, frame=frame),
+            )
+            delete_btn.grid(row=0, column=2, pady=2, sticky="ns")
 
             color_button = ColorButton(
-                            mol_frame, 
-                            color= getattr(current_mol,'color', "Blue"),
-                            )
-            color_button.add_command(command= lambda btn = color_button, name=mol_name: self._on_color_button_clicked(name, btn))
-            color_button.grid(row=0, column = 3, sticky="nsew")
+                mol_frame,
+                color=getattr(current_mol, 'color', "Blue"),
+            )
+            color_button.add_command(command=lambda btn=color_button, name=mol_name: self._on_color_button_clicked(name, btn))
+            color_button.grid(row=0, column=3, sticky="nsew")
 
             is_visible = getattr(self.islat.molecules_dict[mol_name], 'is_visible', False)
             visibility_var.set(is_visible)
 
         self._update_active_molecule_changes()
+
+    def _apply_vis_col_config(self, frame):
+        """Apply consistent column sizing for aligned visibility/color control columns."""
+        for col, minsize in enumerate(_VIS_COL_MINSIZES):
+            frame.grid_columnconfigure(col, weight=(1 if col == 1 else 0), minsize=minsize)
 
     def _create_global_parameter_entry(self, parent, label_text, property_name, row, col, width=12, tip_text = None):
         """Create an entry bound to a global parameter in molecules_dict"""
@@ -409,10 +421,12 @@ class ControlPanel(ttk.Frame):
     def _toggle_match_spectral_sampling(self):
         """Toggle matched spectral sampling mode.
         
-        When enabled, model flux is interpolated pixel-by-pixel to match
-        the spectrum's wavelength grid. This is essential for accurate
-        data-model subtraction, especially for MIRI and other spectra
-        with uneven pixel sampling that varies with wavelength.
+        When enabled, each molecule's rest-frame model flux is individually
+        interpolated onto the data wavelength grid (accounting for the global
+        stellar RV) and then the resampled models are summed.  This is
+        essential for accurate data-model subtraction, especially for MIRI
+        and other spectra with uneven pixel sampling that varies with
+        wavelength.
         """
         if not hasattr(self.islat, 'wave_data') or self.islat.wave_data is None:
             self.data_field.insert_text("No spectrum loaded.")
@@ -432,10 +446,12 @@ class ControlPanel(ttk.Frame):
             if new_state:
                 self._match_sampling_btn.configure(text="✓ Match Pix. Sampling")
             else:
-                self._match_sampling_btn.configure(text="Match Pix. Sampling")
+                self._match_sampling_btn.configure(text="  Match Pix. Sampling")
         
         state_text = "enabled" if new_state else "disabled"
-        self.data_field.insert_text(f"Matched spectral sampling {state_text}.")
+        stellar_rv = self.islat.molecules_dict.global_stellar_rv
+        rv_info = f" (stellar RV = {stellar_rv:.2f} km/s)" if stellar_rv != 0 else ""
+        self.data_field.insert_text(f"Matched spectral sampling {state_text}{rv_info}.")
 
     def _create_molecule_specific_controls(self, parent, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""
@@ -718,13 +734,12 @@ class ControlPanel(ttk.Frame):
         # Simply toggle this molecule's visibility - don't affect other molecules
         self.islat.molecules_dict.bulk_set_visibility(new_visibility, [molecule_name])
         
-        # Debug: Verify the visibility was actually set
-        print(f"ControlPanel: Set {molecule_name} visibility to {new_visibility}, actual value: {getattr(selected_mol, 'is_visible', 'UNDEFINED')}")
+        debug_config.trace("control_panel", f"Set {molecule_name} visibility to {new_visibility}, actual value: {getattr(selected_mol, 'is_visible', 'UNDEFINED')}")
         
         # Trigger selective plot refresh to show/hide the molecule
         if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot') and hasattr(self.islat.GUI.plot, 'on_molecule_visibility_changed'):
             self.islat.GUI.plot.on_molecule_visibility_changed(molecule_name, new_visibility)
-            print(f"ControlPanel: Triggered selective plot refresh for visibility change")
+            debug_config.trace("control_panel", f"Triggered selective plot refresh for visibility change")
 
     def _toggle_all_molecule_visibility(self):
         """Toggle the visibility of all molecules at once"""
@@ -746,16 +761,10 @@ class ControlPanel(ttk.Frame):
             if mol_name in self.mol_visibility:
                 self.mol_visibility[mol_name].set(new_visibility)
         
-        # Trigger plot refresh - handle both normal and full spectrum modes
+        # Trigger plot refresh — the active view handles both modes
         if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'plot'):
             plot = self.islat.GUI.plot
-            # Check if full spectrum mode is active
-            if hasattr(plot, 'is_full_spectrum') and plot.is_full_spectrum:
-                if hasattr(plot, 'full_spectrum_plot') and hasattr(plot, 'full_spectrum_plot_canvas'):
-                    plot.full_spectrum_plot.reload_data()
-                    plot.full_spectrum_plot_canvas.draw_idle()
-            else:
-                plot.update_model_plot()
+            plot.update_model_plot()
         
         #print(f"ControlPanel: Toggled all molecules to visibility={new_visibility}")
 
@@ -946,15 +955,12 @@ class ControlPanel(ttk.Frame):
 
     def _rebuild_color_and_vis_controls(self):
         """Rebuild color and visibility controls when molecules are added/removed"""
-        if hasattr(self, 'mol_frames'):
-            # Clear existing frames
-            for frame in self.mol_frames.values():
-                frame.destroy()
+        if hasattr(self, 'color_vis_frame'):
+            # Destroy all children (header + molecule rows) to avoid stale widgets
+            for child in self.color_vis_frame.winfo_children():
+                child.destroy()
             self.mol_frames.clear()
             self.mol_visibility.clear()
-        
-        # Get the parent frame
-        if hasattr(self, 'color_vis_frame'):
             self._build_color_and_vis_controls(self.color_vis_frame)
 
     def cleanup(self):
@@ -1014,7 +1020,7 @@ class ControlPanel(ttk.Frame):
                 if is_matched:
                     self._match_sampling_btn.configure(text="✓ Match Pix. Sampling")
                 else:
-                    self._match_sampling_btn.configure(text="Match Pix. Sampling")
+                    self._match_sampling_btn.configure(text="  Match Pix. Sampling")
             except (AttributeError, TypeError):
                 pass
 

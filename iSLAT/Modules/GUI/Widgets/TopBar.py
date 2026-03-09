@@ -17,7 +17,7 @@ from iSLAT.Modules.FileHandling.iSLATFileHandling import (
     write_molecules_to_csv, generate_csv, line_saves_file_path,
     line_saves_file_name, example_data_folder_path
 )
-from iSLAT.Modules.FileHandling.OutputFullSpectrum import output_full_spectrum
+from iSLAT.Modules.Plotting.FullSpectrumView import output_full_spectrum
 from iSLAT.Modules.DataProcessing.Slabfit import SlabFit as SlabModel
 from iSLAT.Modules.DataProcessing.BatchFittingService import BatchFittingService
 from iSLAT.Modules.DataProcessing.DeblendingService import DeblendingService
@@ -48,11 +48,11 @@ class TopBar(ResizableFrame):
         self.control_panel = control_panel
 
         # Initialize services for non-GUI logic
-        self.batch_fitting_service = BatchFittingService(islat)
-        self.deblending_service = DeblendingService(islat)
-        self.line_save_service = LineSaveService(islat)
+        self.batch_fitting_service = BatchFittingService()
+        self.deblending_service = DeblendingService()
+        self.line_save_service = LineSaveService()
 
-        self.button_frame = tk.Frame(self)
+        self.button_frame = tk.Frame(self, bg=self.theme.get("background", "#181A1B"))
         self.button_frame.grid(row=0, column=1)
 
         # Create buttons for options
@@ -77,7 +77,13 @@ class TopBar(ResizableFrame):
         else:
             molecule_drpdwn = create_menu_btn(self.button_frame, self.theme, "Manage Molecules ▼", 0, 0)
 
-        molecule_menu = tk.Menu(molecule_drpdwn, tearoff=0)
+        btn_theme = self.theme.get("buttons", {}).get("DefaultBotton", {})
+        molecule_menu = tk.Menu(molecule_drpdwn, tearoff=0,
+            bg=btn_theme.get("background", "lightgray"),
+            fg=self.theme.get("foreground", "#F0F0F0"),
+            activebackground=btn_theme.get("active_background", "gray"),
+            activeforeground=self.theme.get("foreground", "#F0F0F0"),
+        )
         molecule_menu.add_command(label="HITRAN Query", command=self.hitran_query)
         molecule_menu.add_command(label="Default Molecules", command=self.default_molecules)
         molecule_menu.add_command(label="Add Molecules", command=self.add_molecule)
@@ -88,7 +94,12 @@ class TopBar(ResizableFrame):
             spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters", 0, 1)
         else:
             spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters ▼", 0, 1)
-        spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0)
+        spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0,
+            bg=btn_theme.get("background", "lightgray"),
+            fg=self.theme.get("foreground", "#F0F0F0"),
+            activebackground=btn_theme.get("active_background", "gray"),
+            activeforeground=self.theme.get("foreground", "#F0F0F0"),
+        )
         spectrum_menu.add_command(label="Save Parameters (Ctrl+S)", command=self.save_parameters)
         spectrum_menu.add_command(label="Load Parameters (Ctrl+L)", command=self.load_parameters)
         spectrum_menu.add_command(label="Output Full Spectrum (Ctrl+Shift+F)", command=lambda: output_full_spectrum(self.islat))
@@ -99,11 +110,17 @@ class TopBar(ResizableFrame):
             spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions", 0, 2)
         else:
             spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions ▼", 0, 2)
-        spec_functions_menu = tk.Menu(spec_functions_drpwn, tearoff=0)
+        spec_functions_menu = tk.Menu(spec_functions_drpwn, tearoff=0,
+            bg=btn_theme.get("background", "lightgray"),
+            fg=self.theme.get("foreground", "#F0F0F0"),
+            activebackground=btn_theme.get("active_background", "gray"),
+            activeforeground=self.theme.get("foreground", "#F0F0F0"),
+        )
         spec_functions_menu.add_command(label="Save Line", command=self.save_line)
         spec_functions_menu.add_command(label="Fit Line", command=self.fit_selected_line)
         spec_functions_menu.add_command(label="Fit Saved Lines", command=self.fit_saved_lines)
         spec_functions_menu.add_command(label="Fit Saved Lines To Sample", command=self.fit_saved_lines_to_sample)
+        #spec_functions_menu.add_command(label="Fit from Batch Config", command=self.fit_from_batch_config)
         #spec_functions_menu.add_command(label="Find Single Lines", command=self.find_single_lines)
         spec_functions_menu.add_command(label="Single Slab Fit", command=self.single_slab_fit)
         spec_functions_menu.add_command(label="Line de-Blender", command=lambda: self.fit_selected_line(deblend=True))
@@ -128,7 +145,10 @@ class TopBar(ResizableFrame):
         """Save the currently selected line to the line saves file."""
         # Use service to extract line info
         selected_line_info, error_msg = self.line_save_service.extract_line_info_from_selection(
-            self.main_plot, save_type
+            self.main_plot, save_type,
+            wave_data=self.islat.wave_data,
+            flux_data=self.islat.flux_data,
+            err_data=self.islat.err_data
         )
         
         if error_msg:
@@ -167,23 +187,10 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text("No saved lines found.\n")
             return
         try:
-            self.line_toggle = not self.line_toggle
-
-            # Check if full spectrum view is active
-            if hasattr(self.main_plot, 'is_full_spectrum') and self.main_plot.is_full_spectrum:
-                # Use optimized toggle method that only adds/removes line artists
-                if hasattr(self.main_plot, 'full_spectrum_plot'):
-                    self.main_plot.full_spectrum_plot.toggle_saved_lines(self.line_toggle)
-                    if hasattr(self.main_plot, 'full_spectrum_plot_canvas'):
-                        self.main_plot.full_spectrum_plot_canvas.draw_idle()
-            else:
-                # Regular view - toggle on the main plot
-                if self.line_toggle:
-                    # Plot the saved lines on the main plot
-                    self.main_plot.plot_saved_lines(loaded_lines=loaded_lines, data_field=self.data_field)
-                else:
-                    self.main_plot.remove_saved_lines()
-                    # self.data_field.insert_text("Removed lines")
+            # Let MainPlot flip the toggle and forward to the active view
+            self.main_plot.toggle_saved_lines(loaded_lines=loaded_lines)
+            # Keep TopBar in sync for any legacy readers
+            self.line_toggle = self.main_plot.line_toggle
             
         except Exception as e:
             self.data_field.insert_text(f"Error loading saved lines: {e}\n")
@@ -269,7 +276,7 @@ class TopBar(ResizableFrame):
             
             # Save plot
             figpath = os.path.join(line_saves_file_path, f"{spectrum_base_name}-deblend_plot.pdf")
-            self.main_plot.save_fig(figpath, dpi=10)
+            self.main_plot.save_fig(figpath, dpi=300)
             
             if saved_count > 0:
                 self.data_field.insert_text(f"\nDe-blended line saved in /LINESAVES!", clear_after=False)
@@ -305,8 +312,8 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text(f"Loaded line list: {file_name}\n")
             
             # Update the FileInteractionPane label if available
-            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_pane'):
-                self.islat.GUI.file_pane.update_file_labels()
+            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                self.islat.GUI.file_interaction_pane.refresh()
         
         if not self.islat.output_line_measurements:
             self.data_field.insert_text("No output line measurements file configured. Using default\n")
@@ -333,7 +340,8 @@ class TopBar(ResizableFrame):
                 spectrum_files=list(spectrum_files),
                 config=self.config,
                 progress_callback=progress_callback,
-                base_output_path=line_saves_file_path
+                base_output_path=line_saves_file_path,
+                get_mole_save_data=self.islat.get_mole_save_data
             )
             
             if plot_grid_list:
@@ -363,9 +371,30 @@ class TopBar(ResizableFrame):
             self.data_field.insert_text("No input line list file configured.\n")
             return None
         
+        # Default to islat data when not explicitly provided
+        if spectrum_name is None:
+            spectrum_name = getattr(self.islat, 'loaded_spectrum_name', 'unknown')
+        if wavedata is None:
+            wavedata = self.islat.wave_data
+        if fluxdata is None:
+            fluxdata = self.islat.flux_data
+        if err_data is None:
+            err_data = getattr(self.islat, 'err_data', None)
+        
         # Progress callback for GUI updates
         def progress_callback(msg):
             self.data_field.insert_text(msg, clear_after=False)
+        
+        # Determine the output file and path from the user's selection
+        output_file = None
+        output_path = None
+        if self.islat.output_line_measurements:
+            output_file = os.path.basename(self.islat.output_line_measurements)
+            output_path = os.path.dirname(self.islat.output_line_measurements)
+        
+        # Set the output folder before calling fit so LineAnalyzer uses it
+        if output_path:
+            self.batch_fitting_service._current_output_folder = output_path
         
         # Use batch fitting service
         fit_data = self.batch_fitting_service.fit_lines_to_spectrum(
@@ -374,6 +403,7 @@ class TopBar(ResizableFrame):
             wavedata=wavedata,
             fluxdata=fluxdata,
             err_data=err_data,
+            output_file=output_file,
             progress_callback=progress_callback
         )
         
@@ -414,6 +444,7 @@ class TopBar(ResizableFrame):
             
             if plot_results:
                 self.main_plot.plot_renderer.plot_fitted_saved_lines(fit_results_data, self.main_plot.ax1)
+                self.main_plot.canvas.draw_idle()
         else:
             self.data_field.insert_text("No lines found or no fits completed successfully.\n", clear_after=False)
         
@@ -443,6 +474,10 @@ class TopBar(ResizableFrame):
             file_path, file_name = result
             self.islat.input_line_list = file_path
             self.data_field.insert_text(f"Loaded line list: {file_name}\n")
+            
+            # Update the FileInteractionPane label if available
+            if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                self.islat.GUI.file_interaction_pane.refresh()
 
         def progress_callback(msg):
             self.data_field.insert_text(msg, clear_after=False)
@@ -454,7 +489,8 @@ class TopBar(ResizableFrame):
             spectrum_files=spectrum_files,
             config=self.config,
             progress_callback=progress_callback,
-            base_output_path=line_saves_file_path
+            base_output_path=line_saves_file_path,
+            get_mole_save_data=self.islat.get_mole_save_data
         )
 
         if plot_grid_list:
@@ -466,6 +502,92 @@ class TopBar(ResizableFrame):
                 )
             else:
                 PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
+
+    def fit_from_batch_config(self):
+        """Load the BatchFittingConfig.json and run the batch fitting pipeline.
+
+        Uses the same GUI-loaded state as the regular fit-to-sample flow:
+        - The active sample spectra (or file-dialog selection if none).
+        - The currently loaded line list (prompts via file dialog if none).
+        - The same parallel / PDF-save settings as the regular batch fit.
+        The batch config provides overrides and toggle settings only.
+        """
+        from iSLAT.Modules.FileHandling.iSLATFileHandling import (
+            load_batch_fitting_config,
+        )
+
+        batch_config = load_batch_fitting_config()
+
+        # -- spectra: same logic as fit_saved_lines_to_sample ---------------
+        if hasattr(self.islat, 'sample_spectra') and len(self.islat.sample_spectra) > 1:
+            spectrum_files = list(self.islat.sample_spectra)
+        else:
+            spectrum_files_tuple = filedialog.askopenfilenames(
+                title="Select Spectrum Files for Batch Config Fit",
+                filetypes=[("All files", "*.*")],
+                initialdir=example_data_folder_path,
+            )
+            if not spectrum_files_tuple:
+                self.data_field.insert_text("No spectrum files selected.\n")
+                return
+            spectrum_files = list(spectrum_files_tuple)
+
+        # -- line list: prefer config, fall back to GUI-loaded, then dialog --
+        saved_lines: str | None = batch_config.get("saved_lines_file") or None
+        if not saved_lines:
+            if self.islat.input_line_list:
+                saved_lines = self.islat.input_line_list
+            else:
+                self.data_field.insert_text(
+                    "No line list in batch config or loaded in GUI. "
+                    "Please select a line list file.\n"
+                )
+                from iSLAT.Modules.FileHandling.iSLATFileHandling import load_input_line_list
+                result = load_input_line_list()
+                if result is None:
+                    self.data_field.insert_text("No line list selected. Operation cancelled.\n")
+                    return
+                file_path, file_name = result
+                self.islat.input_line_list = file_path
+                saved_lines = file_path
+                self.data_field.insert_text(f"Loaded line list: {file_name}\n")
+                if hasattr(self.islat, 'GUI') and hasattr(self.islat.GUI, 'file_interaction_pane'):
+                    self.islat.GUI.file_interaction_pane.refresh()
+
+        # Write the resolved line list back into the config dict so the
+        # service method does not need its own fallback logic.
+        batch_config["saved_lines_file"] = saved_lines
+
+        def progress_callback(msg):
+            self.data_field.insert_text(msg, clear_after=False)
+
+        self.data_field.insert_text(
+            f"Running batch config: {len(spectrum_files)} spectra, "
+            f"lines file: {os.path.basename(saved_lines)}\n"
+        )
+
+        plot_grid_list, output_folder = self.batch_fitting_service.fit_lines_from_batch_config(
+            batch_config=batch_config,
+            user_settings=self.config,
+            progress_callback=progress_callback,
+            get_mole_save_data=self.islat.get_mole_save_data,
+            base_output_path=line_saves_file_path,
+            spectrum_files=spectrum_files,
+            molecules_dict=self.islat.molecules_dict,
+        )
+
+        if plot_grid_list:
+            save_directly_to_pdf = self.config.get("save_fit_plot_grid_directly_to_PDF", False)
+            if save_directly_to_pdf:
+                save_path = output_folder if output_folder else line_saves_file_path
+                self.batch_fitting_service.save_plot_grids_to_pdf(
+                    plot_grid_list, save_path, progress_callback=progress_callback
+                )
+            else:
+                PlotGridWindow(self.master, plot_grid_list, theme=self.theme)
+
+        if output_folder:
+            self.data_field.insert_text(f"Output saved to: {output_folder}\n")
 
     def find_single_lines(self):
         """Find isolated molecular lines (similar to single_finder function in original iSLAT)."""
@@ -557,7 +679,7 @@ class TopBar(ResizableFrame):
         
         # Create a new window for exporting the spectrum
         export_window = tk.Toplevel(self.master)
-        export_window.title("Export Spectrum")
+        export_window.title("Export Models")
         # Always on top
         export_window.attributes("-topmost", True)
 
@@ -573,7 +695,7 @@ class TopBar(ResizableFrame):
         dropdown.grid(row=1, column=0)
 
         # Create a button in the new window
-        button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(),data_field=self.data_field, wave_data=self.islat.wave_data))
+        button = ttk.Button(export_window, text="Generate CSV", command=lambda: generate_csv(molecules_data=self.islat.molecules_dict, mol_name=dropdown_var.get(),data_field=self.data_field, wave_data=self.islat.wave_data_original))
         button.grid(row=1, column=1)
 
     def toggle_atomic_lines(self):
@@ -581,21 +703,10 @@ class TopBar(ResizableFrame):
         Show atomic lines as vertical dashed lines on the plot.
         """
         try:
-            self.atomic_toggle = not self.atomic_toggle
-
-            # Check if full spectrum view is active
-            if hasattr(self.main_plot, 'is_full_spectrum') and self.main_plot.is_full_spectrum:
-                # Use optimized toggle method that only adds/removes line artists
-                if hasattr(self.main_plot, 'full_spectrum_plot'):
-                    self.main_plot.full_spectrum_plot.toggle_atomic_lines(self.atomic_toggle)
-                    if hasattr(self.main_plot, 'full_spectrum_plot_canvas'):
-                        self.main_plot.full_spectrum_plot_canvas.draw_idle()
-            else:
-                # Regular view
-                if self.atomic_toggle:
-                    self.main_plot.plot_atomic_lines(data_field=self.data_field)
-                else:
-                    self.main_plot.remove_atomic_lines()
+            # Let MainPlot flip the toggle and forward to the active view
+            self.main_plot.toggle_atomic_lines()
+            # Keep TopBar in sync for any legacy readers
+            self.atomic_toggle = self.main_plot.atomic_toggle
 
         except Exception as e:
             self.data_field.insert_text(f"Error displaying atomic lines: {e}\n")
@@ -628,7 +739,7 @@ class TopBar(ResizableFrame):
         try:
             # Use the root window from the islat class for the MoleculeSelector
             root_window = getattr(self.islat, 'root', self.master)
-            MoleculeSelector(root_window, self.data_field)
+            MoleculeSelector(root_window, self.data_field, user_settings=self.islat.user_settings)
         except Exception as e:
             print(f"Error opening HITRAN query: {e}")
             if self.data_field:

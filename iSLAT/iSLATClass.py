@@ -341,7 +341,11 @@ class iSLAT:
                 if not os.path.exists(hitran_file):
                     print(f"WARNING: HITRAN file for {mol} not found at {hitran_file}")
                     try:
-                        missed_mols = download_hitran_data([bm], [mol], [iso])
+                        missed_mols = download_hitran_data(
+                            [bm], [mol], [iso],
+                            min_wave=self.user_settings.get("hitran_min_wave", 0.3),
+                            max_wave=self.user_settings.get("hitran_max_wave", 1000.0),
+                        )
                     except Exception as e:
                         print(f"ERROR: Failed to load HITRAN file for {mol}: {e}")
                     continue
@@ -630,7 +634,7 @@ class iSLAT:
         new_index = (self.sample_spectra_index + direction) % len(self.sample_spectra)
         self.switch_to_spectrum(new_index)
 
-    def load_spectrum(self, file_path=None, load_parameters=False):
+    def load_spectrum(self, file_path=None, load_parameters=False, force_dialog=False):
         """
         Load a spectrum from file or show file dialog.
         
@@ -638,6 +642,9 @@ class iSLAT:
         ----------
         file_path : str, optional
             Path to spectrum file. If None, shows file dialog.
+        force_dialog : bool, optional
+            If True, always show the file dialog regardless of default settings.
+            Used when the user explicitly clicks the Load Spectrum button.
             
         Returns
         -------
@@ -657,7 +664,7 @@ class iSLAT:
         # Track whether the user is explicitly choosing a new file
         user_initiated = (file_path is None)
         
-        if file_path is None:
+        if file_path is None and not force_dialog:
             if self.user_settings.get("default_spectra_file_to_load", None) is not None:
                 file_path = self.user_settings.get("default_spectra_file_to_load", None)
 
@@ -843,8 +850,9 @@ class iSLAT:
             self.molecules_dict.bulk_recalculate()
         
         try:
-            # Use the optimized cached summed flux from MoleculeDict - now returns (wavelengths, flux)
-            self.sum_spectrum_wavelengths, self.sum_spectrum_flux = self.molecules_dict.get_summed_flux(self.wave_data, visible_only=True)
+            # get_summed_flux expects observer-frame wavelengths.
+            wave_obs = self.wave_data_original if hasattr(self, 'wave_data_original') else self.wave_data
+            self.sum_spectrum_wavelengths, self.sum_spectrum_flux = self.molecules_dict.get_summed_flux(wave_obs, visible_only=True)
             
         except Exception as e:
             print(f"Error updating model spectrum: {e}")
