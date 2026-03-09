@@ -34,7 +34,6 @@ from typing import Optional
 
 import matplotlib
 
-
 # ======================================================================
 # System detection helpers (pure functions — no side effects)
 # ======================================================================
@@ -51,7 +50,6 @@ def _detect_macos_scale_factor() -> float:
     except Exception:
         pass
     return 1.0
-
 
 def _detect_windows_scale_factor() -> float:
     """Return the Windows DPI scale factor (e.g. 1.25, 1.5, 2.0)."""
@@ -72,7 +70,6 @@ def _detect_windows_scale_factor() -> float:
         return dpi / 96.0
     except Exception:
         return 1.0
-
 
 def _detect_linux_scale_factor() -> float:
     """Best-effort scale factor for Linux (Xorg / Wayland)."""
@@ -95,7 +92,6 @@ def _detect_linux_scale_factor() -> float:
     except ValueError:
         return 1.0
 
-
 def detect_scale_factor() -> float:
     """Return the system's display scale factor (1.0 = standard, 2.0 = HiDPI)."""
     system = platform.system()
@@ -105,7 +101,6 @@ def detect_scale_factor() -> float:
         return _detect_windows_scale_factor()
     else:
         return _detect_linux_scale_factor()
-
 
 # ======================================================================
 # Configuration dataclass
@@ -129,7 +124,6 @@ class _DisplayConfig:
 
     # Tk / GUI hints
     tk_scaling: Optional[float]  # Value to pass to root.tk.call('tk', 'scaling', ...)
-
 
 def _build_config() -> _DisplayConfig:
     """Build the display configuration from detected system capabilities."""
@@ -173,10 +167,8 @@ def _build_config() -> _DisplayConfig:
         tk_scaling=tk_scaling,
     )
 
-
 # Singleton — computed once at import time
 display_config: _DisplayConfig = _build_config()
-
 
 # ======================================================================
 # Matplotlib rcParams configuration
@@ -211,7 +203,6 @@ def apply_matplotlib_defaults() -> None:
     rc["path.simplify"] = True           # Keep simplification ON (performance)
     rc["path.simplify_threshold"] = 1/9  # matplotlib default — good balance
 
-
 def apply_tk_scaling(root) -> None:
     """Apply DPI scaling to a Tk root window if needed.
 
@@ -234,7 +225,6 @@ def apply_tk_scaling(root) -> None:
             root.tk.call("tk", "windowingsystem")  # just a health-check
         except Exception:
             pass
-
 
 # ======================================================================
 # Apply defaults eagerly on import
