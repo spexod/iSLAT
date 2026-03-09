@@ -143,6 +143,16 @@ class FullSpectrumView(PlotView):
         wave, flux, wave_obs = self._load_spectrum_data()
         self.line_data = self._load_line_data()
 
+        # Compute a figsize appropriate for the interactive GUI view.
+        # Without an explicit figsize the auto-calculation in
+        # FullSpectrumPlot produces dimensions suited for PDF export
+        # (e.g. 12 × 16 in) which are far too tall for an embedded
+        # canvas — especially on Windows where the oversized figure
+        # causes rendering/layout problems.
+        # Cap the height to a screen-proportional value, matching the
+        # approach used by FullSpectrumWindow._create_plot().
+        figsize = self._compute_interactive_figsize(wave)
+
         # The composed plot handles all rendering via BasePlot helpers.
         # We do NOT pass line_list / atomic_lines here — those are applied
         # dynamically by sync_toggle_state() so they can be toggled.
@@ -151,8 +161,40 @@ class FullSpectrumView(PlotView):
             flux_data=flux,
             molecules=self._islat.molecules_dict,
             wave_data_obs=wave_obs,
+            figsize=figsize,
         )
         return plot
+
+    def _compute_interactive_figsize(
+        self, wave: np.ndarray
+    ) -> Tuple[float, float]:
+        """Return a ``(width, height)`` suitable for the embedded GUI canvas.
+
+        Uses the Tk screen height (if available) to cap the figure so it
+        fits within the application window.  Falls back to sensible
+        defaults when no Tk root is reachable.
+        """
+        # Try to read screen dimensions from the Tk root
+        screen_h_px: Optional[int] = None
+        try:
+            root = getattr(self._islat, "root", None)
+            if root is not None:
+                screen_h_px = root.winfo_screenheight()
+        except Exception:
+            pass
+
+        if screen_h_px is None:
+            # Fallback: assume a modest screen height
+            screen_h_px = 900
+
+        # Convert screen pixels to approximate matplotlib inches at the
+        # logical DPI (100).  Leave room for toolbars / window chrome.
+        dpi = 100
+        max_fig_h = min((screen_h_px - 160) / dpi, 14.0)
+        # Ensure at least a reasonable minimum height
+        max_fig_h = max(max_fig_h, 4.0)
+
+        return (12, max_fig_h)
 
     def _rebuild_plot(self) -> None:
         """Refresh data and regenerate the composed plot.
