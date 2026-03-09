@@ -53,29 +53,19 @@ def _detect_macos_scale_factor() -> float:
     return 1.0
 
 
-# Module-level flag: True when SetProcessDpiAwareness succeeded on Windows.
-# When DPI awareness is active the OS compositor handles scaling, so Tk's
-# own ``tk scaling`` command must NOT be used (that would double-scale).
-_windows_dpi_aware: bool = False
-
-
 def _detect_windows_scale_factor() -> float:
     """Return the Windows DPI scale factor (e.g. 1.25, 1.5, 2.0)."""
-    global _windows_dpi_aware
     try:
         import ctypes
         # Enable Per-Monitor DPI awareness (V2 preferred, V1 fallback)
         # so that Tk reports real screen dimensions and renders correctly.
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE_V2
-            _windows_dpi_aware = True
         except Exception:
             try:
                 ctypes.windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_SYSTEM_DPI_AWARE
-                _windows_dpi_aware = True
             except Exception:
                 ctypes.windll.user32.SetProcessDPIAware()
-                _windows_dpi_aware = True
         hdc = ctypes.windll.user32.GetDC(0)
         dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)  # LOGPIXELSX
         ctypes.windll.user32.ReleaseDC(0, hdc)
@@ -164,15 +154,10 @@ def _build_config() -> _DisplayConfig:
 
     # --- Tk scaling ---
     # On macOS the TkAgg backend already respects Retina automatically.
-    # On Windows, when DPI awareness is enabled (SetProcessDpiAwareness),
-    # the OS compositor handles scaling for Tk widgets — setting
-    # ``tk scaling`` on top of that causes **double-scaling**, making
-    # the matplotlib canvas and all widgets larger than the window.
-    # Only apply tk_scaling when DPI awareness could NOT be established.
-    # On Linux we may still need to nudge Tk's internal scaling.
+    # On Windows / Linux we may need to nudge Tk's internal scaling.
     tk_scaling: Optional[float] = None
     system = platform.system()
-    if system == "Windows" and scale > 1.0 and not _windows_dpi_aware:
+    if system == "Windows" and scale > 1.0:
         tk_scaling = scale
     elif system == "Linux" and scale > 1.0:
         tk_scaling = scale
