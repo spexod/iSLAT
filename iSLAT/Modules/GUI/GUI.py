@@ -53,6 +53,14 @@ class GUI:
         # self._apply_theme_to_widget(self.master)
 
     def _style_config(self):
+        # On Windows, prefer a modern built-in ttk theme for cleaner widgets.
+        if platform.system() == "Windows":
+            available = self.style.theme_names()
+            for preferred in ("vista", "winnative", "xpnative"):
+                if preferred in available:
+                    self.style.theme_use(preferred)
+                    break
+
         self.style.configure("Small.TButton", padding=(0, 5))
     
     def _force_theme_update(self):

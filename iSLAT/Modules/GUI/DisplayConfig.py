@@ -57,11 +57,15 @@ def _detect_windows_scale_factor() -> float:
     """Return the Windows DPI scale factor (e.g. 1.25, 1.5, 2.0)."""
     try:
         import ctypes
-        # SetProcessDPIAware so we get the real monitor DPI
+        # Enable Per-Monitor DPI awareness (V2 preferred, V1 fallback)
+        # so that Tk reports real screen dimensions and renders correctly.
         try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE_V2
         except Exception:
-            ctypes.windll.user32.SetProcessDPIAware()
+            try:
+                ctypes.windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_SYSTEM_DPI_AWARE
+            except Exception:
+                ctypes.windll.user32.SetProcessDPIAware()
         hdc = ctypes.windll.user32.GetDC(0)
         dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)  # LOGPIXELSX
         ctypes.windll.user32.ReleaseDC(0, hdc)

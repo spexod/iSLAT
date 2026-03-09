@@ -28,6 +28,9 @@ class FullSpectrumWindow(tk.Toplevel):
 
         self.title("Full Spectrum Output")
 
+        # --- Constrain window to screen dimensions -----------------------
+        self._constrain_to_screen()
+
         # --- Build the standalone plot with toggle state -----------------
         self.spectrum_plot = self._create_plot(**kwargs)
 
@@ -54,6 +57,18 @@ class FullSpectrumWindow(tk.Toplevel):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _constrain_to_screen(self):
+        """Set initial window geometry so it fits comfortably on screen."""
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        # Use at most 85% of screen width and 90% of screen height
+        win_w = min(int(screen_w * 0.85), 1400)
+        win_h = min(int(screen_h * 0.90), screen_h - 80)
+        pos_x = max((screen_w - win_w) // 2, 0)
+        pos_y = max((screen_h - win_h) // 2, 0)
+        self.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
+        self.minsize(600, 400)
+
     def _create_plot(self, **kwargs) -> FullSpectrumPlot:
         """Build a :class:`FullSpectrumPlot` from the current iSLAT state."""
         islat = self.islat_ref
@@ -80,6 +95,14 @@ class FullSpectrumWindow(tk.Toplevel):
         atomic_lines_df: Optional[pd.DataFrame] = None
         if ts.get("atomic_lines", False):
             atomic_lines_df = load_atomic_lines()
+
+        # Cap figsize to screen-proportional dimensions so the figure
+        # doesn't render larger than the display (especially on Windows).
+        if 'figsize' not in kwargs:
+            screen_h = self.winfo_screenheight()
+            # Convert screen pixels to approximate matplotlib inches (100 DPI)
+            max_fig_h = min((screen_h - 120) / 100.0, 14.0)
+            kwargs['figsize'] = (12, max_fig_h)
 
         return FullSpectrumPlot(
             wave_data=wave,

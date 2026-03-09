@@ -12,14 +12,14 @@ from ..Tooltips import CreateToolTip
 
 # Platform-specific layout constants — Windows uses larger font metrics than macOS
 _IS_WINDOWS = platform.system() == "Windows"
-_ENTRY_LABEL_PADX = 2 if _IS_WINDOWS else 1
-_ENTRY_FIELD_PADX = 2 if _IS_WINDOWS else 1
-_MOL_BTN_WIDTH = 5 if _IS_WINDOWS else 4
-_COLOR_VIS_SCROLL_WIDTH = 170 if _IS_WINDOWS else 160
-_MOL_PARAM_SCROLL_WIDTH = 185 if _IS_WINDOWS else 170
-_MATCH_BTN_PADX = 2 if _IS_WINDOWS else 1
+_ENTRY_LABEL_PADX = 3 if _IS_WINDOWS else 1
+_ENTRY_FIELD_PADX = 3 if _IS_WINDOWS else 1
+_MOL_BTN_WIDTH = 6 if _IS_WINDOWS else 4
+_COLOR_VIS_SCROLL_WIDTH = 190 if _IS_WINDOWS else 160
+_MOL_PARAM_SCROLL_WIDTH = 200 if _IS_WINDOWS else 170
+_MATCH_BTN_PADX = 3 if _IS_WINDOWS else 1
 # Column minimum pixel sizes for molecule visibility/color grid alignment
-_VIS_COL_MINSIZES = (26, 52, 26, 28) if _IS_WINDOWS else (20, 42, 20, 22)
+_VIS_COL_MINSIZES = (30, 62, 30, 32) if _IS_WINDOWS else (20, 42, 20, 22)
 
 class ControlPanel(ttk.Frame):
     def __init__(self, master, islat, plot, data_field, font):
@@ -291,6 +291,7 @@ class ControlPanel(ttk.Frame):
 
     def _build_color_and_vis_controls(self, parent):
         self.mol_frames = {}
+        _row_pady = 3 if _IS_WINDOWS else 2
 
         # Header row — packed with fill="x" so it matches molecule row widths
         header_frame = tk.Frame(parent)
@@ -305,7 +306,7 @@ class ControlPanel(ttk.Frame):
             if label == "On":
                 label_widget.config(cursor="hand2", fg="blue")
                 label_widget.bind("<Button-1>", lambda e: self._toggle_all_molecule_visibility())
-            label_widget.grid(row=0, column=col, sticky="ew", padx=2)
+            label_widget.grid(row=0, column=col, sticky="ew", padx=3 if _IS_WINDOWS else 2)
 
         # Molecule rows — each packed with fill="x" for consistent width,
         # using identical column config so columns align across rows.
@@ -315,7 +316,7 @@ class ControlPanel(ttk.Frame):
 
             mol_frame = tk.Frame(parent)
             self.mol_frames[mol_name] = mol_frame
-            mol_frame.pack(fill="x", pady=2)
+            mol_frame.pack(fill="x", pady=_row_pady)
             self._apply_vis_col_config(mol_frame)
 
             visibility_var = tk.BooleanVar()
@@ -324,7 +325,7 @@ class ControlPanel(ttk.Frame):
                 variable=visibility_var,
                 command=lambda name=mol_name: self._on_visibility_changed(name)
             )
-            visibility_checkbox.grid(row=0, column=0, sticky="nsew", pady=2)
+            visibility_checkbox.grid(row=0, column=0, sticky="nsew", pady=_row_pady)
             if mol_name not in self.mol_visibility:
                 self.mol_visibility[mol_name] = visibility_var
 
@@ -338,7 +339,7 @@ class ControlPanel(ttk.Frame):
                 style=_MOLNAME_STYLE,
                 command=lambda name=mol_name: self._on_molecule_selected(mol_name=name),
             )
-            mol_btn.grid(row=0, column=1, sticky="ew", pady=2)
+            mol_btn.grid(row=0, column=1, sticky="ew", pady=_row_pady)
             if len(mol_name) > self.max_name_len:
                 CreateToolTip(mol_btn, mol_name, bg=self.bg_color)
 
@@ -349,7 +350,7 @@ class ControlPanel(ttk.Frame):
                 style=_DELETE_STYLE,
                 command=lambda name=mol_name, frame=mol_frame: self._delete_molecule(mol_name=name, frame=frame),
             )
-            delete_btn.grid(row=0, column=2, pady=2, sticky="ns")
+            delete_btn.grid(row=0, column=2, pady=_row_pady, sticky="ns")
 
             color_button = ColorButton(
                 mol_frame,
