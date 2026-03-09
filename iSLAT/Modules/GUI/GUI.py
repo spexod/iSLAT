@@ -282,21 +282,36 @@ class GUI:
             pass
 
     def _configure_initial_size(self):
-        """Configure initial window size based on screen resolution."""
+        """Configure initial window size based on screen resolution.
+
+        On Windows the taskbar typically occupies 40-60 px of the
+        screen height.  Using percentages that are too aggressive
+        (e.g. 95 % width, 87 % height) can cause the window — and
+        especially the matplotlib canvas — to extend beyond the
+        visible work area, clipping the plots.
+        """
         screen_width = self.master.winfo_screenwidth()
         screen_height = self.master.winfo_screenheight()
-        
-        # Use 80% of screen width and 75% of screen height
-        window_width = int(screen_width * 0.95)
-        window_height = int(screen_height * 0.87)
-        
+
+        # On Windows, account for the taskbar by subtracting a fixed
+        # allowance from the screen height before applying the fraction.
+        import platform
+        if platform.system() == "Windows":
+            taskbar_allowance = 60  # px reserved for the Windows taskbar
+            usable_height = screen_height - taskbar_allowance
+            window_width = int(screen_width * 0.92)
+            window_height = int(usable_height * 0.92)
+        else:
+            window_width = int(screen_width * 0.95)
+            window_height = int(screen_height * 0.87)
+
         # Ensure minimum size constraints
         window_width = max(window_width, 800)
         window_height = max(window_height, 600)
         
         # Calculate position to center the window
         pos_x = int((screen_width - window_width) / 2)
-        pos_y = int((screen_height - window_height) / 2)
+        pos_y = max(int((screen_height - window_height) / 2), 0)
         
         self.master.geometry(f"{window_width}x{window_height}+{pos_x}+{pos_y}")
 
