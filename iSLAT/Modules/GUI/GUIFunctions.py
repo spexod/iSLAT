@@ -1,3 +1,4 @@
+import platform
 import tkinter as tk
 from tkinter import ttk, font
 from .Tooltips import CreateToolTip
@@ -34,6 +35,35 @@ def configure_all_button_styles(theme):
     )
 
     # -- Top-bar dropdown menu buttons (Manage Molecules, etc.) --
+    # On Windows the native ttk Menubutton theme draws a dropdown arrow
+    # indicator *in addition to* any arrow character in the label text.
+    # Strip the indicator on Windows only; macOS Aqua keeps its native arrow.
+    if platform.system() == "Windows":
+        try:
+            style.layout(
+                _DROPDOWN_STYLE,
+                [(
+                    "Menubutton.border", {
+                        "sticky": "nsew",
+                        "children": [(
+                            "Menubutton.focus", {
+                                "sticky": "nsew",
+                                "children": [(
+                                    "Menubutton.padding", {
+                                        "sticky": "nsew",
+                                        "children": [(
+                                            "Menubutton.label", {"sticky": ""}
+                                        )]
+                                    }
+                                )]
+                            }
+                        )]
+                    }
+                )]
+            )
+        except tk.TclError:
+            pass  # layout already set or not supported on this theme
+
     style.configure(
         _DROPDOWN_STYLE,
         background=bg, foreground=fg,
@@ -126,7 +156,8 @@ def create_menu_btn(frame, theme, text, row, column):
         return drpdwn
 
 def create_scrollable_frame(parent, height = 150, width = 300, vertical = False, horizontal = False, row=0, col = 0):
-        
+        import platform as _plat
+
         canvas_frame = ttk.Frame(parent)
         canvas_frame.grid(row=row, column=col, sticky="nsew")
 
@@ -135,12 +166,31 @@ def create_scrollable_frame(parent, height = 150, width = 300, vertical = False,
 
         canvasscroll = tk.Canvas(canvas_frame, height=height, width=width, highlightthickness=0)
         canvasscroll.grid(row=0, column=0, sticky="nsew")
+
+        # On Windows, configure a narrow ttk scrollbar style so it
+        # doesn't dominate the control-panel column.
+        _style = ttk.Style()
+        if _plat.system() == "Windows":
+            _style.configure("Narrow.Vertical.TScrollbar", width=12)
+            _style.configure("Narrow.Horizontal.TScrollbar", width=12)
+        else:
+            _style.configure("Narrow.Vertical.TScrollbar")
+            _style.configure("Narrow.Horizontal.TScrollbar")
+
         if vertical is True:
-                vscrollbar = tk.Scrollbar(canvas_frame, orient="vertical", command=canvasscroll.yview)
+                vscrollbar = ttk.Scrollbar(
+                    canvas_frame, orient="vertical",
+                    command=canvasscroll.yview,
+                    style="Narrow.Vertical.TScrollbar",
+                )
                 vscrollbar.grid(row=0, column=1, sticky="ns")
                 canvasscroll.configure(yscrollcommand=vscrollbar.set)
         if horizontal is True:
-                hscrollbar = tk.Scrollbar(canvas_frame, orient="horizontal", command=canvasscroll.xview)
+                hscrollbar = ttk.Scrollbar(
+                    canvas_frame, orient="horizontal",
+                    command=canvasscroll.xview,
+                    style="Narrow.Horizontal.TScrollbar",
+                )
                 hscrollbar.grid(row=1, column=0, columnspan= 2, sticky="ew")
                 canvasscroll.configure(xscrollcommand=hscrollbar.set)
         
@@ -154,12 +204,7 @@ def create_scrollable_frame(parent, height = 150, width = 300, vertical = False,
         data_frame.bind("<Configure>", 
                         lambda event: canvasscroll.configure(scrollregion=canvasscroll.bbox("all"))
                         )
-        # this is attempt to add default parameters button 
-        # def resize_frame(event):
-        #     canvasscroll.itemconfig(window_item, width=event.width, height=event.height)
 
-        # canvasscroll.bind("<Configure>", resize_frame)
-        
         return data_frame
 
 def create_wrapper_frame(parent, row, col, bg = "darkgrey", sticky = "nsew", columnspan = 1) -> tk.Frame:

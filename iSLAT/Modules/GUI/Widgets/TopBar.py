@@ -71,11 +71,7 @@ class TopBar(ResizableFrame):
     
     def _create_buttons(self):
         """Create all the button widgets."""
-        os_name = platform.system()
-        if os_name == "Darwin":
-            molecule_drpdwn = create_menu_btn(self.button_frame, self.theme, "Manage Molecules", 0, 0)
-        else:
-            molecule_drpdwn = create_menu_btn(self.button_frame, self.theme, "Manage Molecules ▼", 0, 0)
+        molecule_drpdwn = create_menu_btn(self.button_frame, self.theme, "Manage Molecules", 0, 0)
 
         btn_theme = self.theme.get("buttons", {}).get("DefaultBotton", {})
         molecule_menu = tk.Menu(molecule_drpdwn, tearoff=0,
@@ -90,10 +86,7 @@ class TopBar(ResizableFrame):
         molecule_menu.add_command(label="Export Models", command=self.export_models)
         molecule_drpdwn.config(menu=molecule_menu)
 
-        if os_name == "Darwin":
-            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters", 0, 1)
-        else:
-            spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters ▼", 0, 1)
+        spectrum_drpdwn = create_menu_btn(self.button_frame, self.theme, "Model Parameters", 0, 1)
         spectrum_menu = tk.Menu(spectrum_drpdwn, tearoff=0,
             bg=btn_theme.get("background", "lightgray"),
             fg=self.theme.get("foreground", "#F0F0F0"),
@@ -106,10 +99,7 @@ class TopBar(ResizableFrame):
         spectrum_menu.add_command(label="Display Full Spectrum (Ctrl+F)", command=lambda: FullSpectrumWindow(self.master, self.islat))
         spectrum_drpdwn.config(menu=spectrum_menu)
 
-        if os_name == "Darwin":
-            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions", 0, 2)
-        else:
-            spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions ▼", 0, 2)
+        spec_functions_drpwn = create_menu_btn(self.button_frame, self.theme, "Spectral Functions", 0, 2)
         spec_functions_menu = tk.Menu(spec_functions_drpwn, tearoff=0,
             bg=btn_theme.get("background", "lightgray"),
             fg=self.theme.get("foreground", "#F0F0F0"),
