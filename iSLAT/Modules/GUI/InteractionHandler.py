@@ -246,11 +246,8 @@ class InteractionHandler:
         if event.key == 'h':
             # Toggle grid
             self._toggle_grid()
-        elif event.key == 'l':
-            # Toggle legend
-            self._toggle_legend()
-        # Note: 'f' and 'control+f' are handled by tkinter keybindings (_on_tk_key_f and _on_tk_key_ctrl_f)
-        # Don't duplicate here to avoid double-triggering
+        # Note: 'f', 'l', 's', etc. are handled by tkinter keybindings
+        # (_on_tk_keypress) — don't duplicate here to avoid double-triggering.
     
     def _on_key_release(self, event):
         """Handle key release events"""
@@ -370,13 +367,6 @@ class InteractionHandler:
         """Toggle grid on/off"""
         for ax in [self.ax1, self.ax2, self.ax3]:
             ax.grid(not ax.get_grid)
-        self.canvas.draw_idle()
-    
-    def _toggle_legend(self):
-        """Toggle legend on/off"""
-        legend = self.ax1.get_legend()
-        if legend:
-            legend.set_visible(not legend.get_visible())
         self.canvas.draw_idle()
     
     def _setup_tkinter_keybindings(self):
