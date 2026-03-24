@@ -449,11 +449,6 @@ class ControlPanel(ttk.Frame):
             else:
                 self._match_sampling_btn.configure(text="  Match Pix. Sampling")
         
-        state_text = "enabled" if new_state else "disabled"
-        stellar_rv = self.islat.molecules_dict.global_stellar_rv
-        rv_info = f" (stellar RV = {stellar_rv:.2f} km/s)" if stellar_rv != 0 else ""
-        self.data_field.insert_text(f"Matched spectral sampling {state_text}{rv_info}.")
-
     def _create_molecule_specific_controls(self, parent, start_row, start_col):
         """Create controls for molecule-specific parameters that update with active molecule"""
         # Store references for later updates
