@@ -246,6 +246,7 @@ class MainPlotGrid(BasePlot):
             molecule=lip_molecule,
             molecules=lip_molecules,
             line_data=self.line_data,
+            wave_data_obs=self.wave_data_obs,
             ax=ax,
             theme=self.theme,
         )
