@@ -159,8 +159,8 @@ class Molecule:
     _cache_lock = threading.Lock()
     
     INTENSITY_AFFECTING_PARAMS = {'temp', 'n_mol', 'broad', 'rv_shift', 'wavelength_range', 'intensity_calculation_method'}
-    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'rv_shift', 'wavelength_range', 'model_pixel_res'}
-    FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS
+    SPECTRUM_AFFECTING_PARAMS = {'radius', 'distance', 'fwhm', 'rv_shift', 'wavelength_range'}
+    FLUX_AFFECTING_PARAMS = INTENSITY_AFFECTING_PARAMS | SPECTRUM_AFFECTING_PARAMS | {'model_pixel_res'}
     
     @classmethod
     def add_molecule_parameter_change_callback(cls, callback):
@@ -285,12 +285,11 @@ class Molecule:
             self._fwhm,
             self._rv_shift,
             wavelength_tuple,
-            self._model_pixel_res,
             self._compute_intensity_hash()  # Include intensity hash for dependencies
         ))
 
     def _compute_full_parameter_hash(self):
-        return hash((self._compute_spectrum_hash()))
+        return hash((self._compute_spectrum_hash(), self._model_pixel_res))
 
     def _load_from_user_save_data(self, kwargs: Dict[str, Any]):
         """Load parameters from user save data"""
@@ -438,7 +437,6 @@ class Molecule:
         # Use consistent wavelength range for all molecules to ensure identical grids
         if hasattr(self, '_wavelength_range') and self._wavelength_range is not None:
             global_min, global_max = self._wavelength_range
-            #print(f"getting wavelength range: {self._wavelength_range}")
             # Use the exact global range
             spectrum_lam_min = global_min
             spectrum_lam_max = global_max
@@ -447,10 +445,17 @@ class Molecule:
             spectrum_lam_min = self.wavelength_range[0]
             spectrum_lam_max = self.wavelength_range[1]
         
+        # Always compute the internal spectrum on a fine grid that properly
+        # Nyquist-samples the instrumental line spread function.  The user's
+        # model_pixel_res is applied later via flux-conserving resampling
+        # (_spectres) in get_flux(), ensuring that changing pixel resolution
+        # does not alter the total flux.
+        fine_dlambda = (mean_wavelength / c.SPEED_OF_LIGHT_KMS * self._fwhm) / c.PIXELS_PER_FWHM
+        
         self.spectrum = Spectrum(
             lam_min=spectrum_lam_min,
             lam_max=spectrum_lam_max,
-            dlambda=self._model_pixel_res,
+            dlambda=fine_dlambda,
             R=spectral_resolution,
             distance=self._distance
         )
@@ -617,9 +622,24 @@ class Molecule:
             result_wavelengths = wavelength_array.copy()  # Copy to prevent modification
             result_flux = interpolated_flux
         else:
-            # Return on the native grid with RV shift applied
-            result_wavelengths = lam_grid.copy()  # Copy to prevent modification
-            result_flux = rv_corrected_flux
+            # The internal spectrum is always computed on a fine Nyquist-sampled
+            # grid.  When the user-requested model_pixel_res differs from the
+            # internal grid spacing we resample via _spectres (flux-conserving)
+            # so that changing pixel resolution never alters the total flux.
+            native_dlambda = lam_grid[1] - lam_grid[0] if len(lam_grid) > 1 else self._model_pixel_res
+            needs_resample = abs(self._model_pixel_res - native_dlambda) > 1e-12 * native_dlambda
+
+            if needs_resample and self._model_pixel_res > native_dlambda:
+                # Build the coarser output grid at the requested pixel resolution
+                output_grid = np.arange(lam_grid[0], lam_grid[-1], self._model_pixel_res)
+                if len(output_grid) < 2:
+                    output_grid = lam_grid  # Fallback: pixel res too coarse for range
+                result_flux = _spectres(output_grid, lam_grid, rv_corrected_flux, fill=0.0)
+                result_wavelengths = output_grid
+            else:
+                # Fine grid is already at or coarser than requested resolution
+                result_wavelengths = lam_grid.copy()
+                result_flux = rv_corrected_flux
         
         # Cache the result (store copies to prevent modification)
         self._flux_cache[cache_key] = {

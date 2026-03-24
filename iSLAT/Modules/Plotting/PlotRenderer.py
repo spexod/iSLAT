@@ -391,7 +391,9 @@ class PlotRenderer:
         
     def render_complete_line_inspection_plot(self, wave_data: np.ndarray, flux_data: np.ndarray,
                                            xmin: float, xmax: float, active_molecule: Optional['Molecule'] = None,
-                                           fit_result: Optional[Any] = None) -> None:
+                                           fit_result: Optional[Any] = None,
+                                           molecules: Optional['MoleculeDict'] = None,
+                                           wave_data_obs: Optional[np.ndarray] = None) -> None:
         """
         Render complete line inspection plot with observed data and active molecule model.
         
@@ -413,13 +415,25 @@ class PlotRenderer:
             Active molecule to plot model for
         fit_result : Any, optional
             Fit results to plot if available
+        molecules : MoleculeDict, optional
+            Molecule dictionary — when provided the matched-spectral-sampling
+            setting is honoured in the line inspection plot.
+        wave_data_obs : np.ndarray, optional
+            Observer-frame wavelength array for matched spectral sampling.
         """
         # Always clear the line inspection plot to start fresh
         self.ax2.clear()
         
         if xmin is None or xmax is None or (xmax - xmin) < 0.0001:
             return
-        
+
+        # Resolve molecules dict and observer-frame wavelengths from islat
+        # when the caller did not supply them explicitly.
+        if molecules is None and hasattr(self, 'islat') and hasattr(self.islat, 'molecules_dict'):
+            molecules = self.islat.molecules_dict
+        if wave_data_obs is None and hasattr(self, 'islat'):
+            wave_data_obs = getattr(self.islat, 'wave_data_original', wave_data)
+
         # Reuse stored LineInspectionPlot, updating its parameters
         if self._line_inspection_plot is None:
             self._line_inspection_plot = LineInspectionPlot(
@@ -428,6 +442,8 @@ class PlotRenderer:
                 xmin=xmin,
                 xmax=xmax,
                 molecule=active_molecule,
+                molecules=molecules,
+                wave_data_obs=wave_data_obs,
                 ax=self.ax2,
                 fig=self.fig,
                 theme=self.theme,
@@ -438,6 +454,11 @@ class PlotRenderer:
             self._line_inspection_plot.xmin = xmin
             self._line_inspection_plot.xmax = xmax
             self._line_inspection_plot.molecule = active_molecule
+            self._line_inspection_plot.molecules = molecules
+            self._line_inspection_plot.wave_data_obs = (
+                np.asarray(wave_data_obs) if wave_data_obs is not None
+                else wave_data
+            )
             self._line_inspection_plot.theme = self.theme
         self._line_inspection_plot.generate_plot()
 

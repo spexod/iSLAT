@@ -62,6 +62,7 @@ class LineInspectionPlot(BasePlot):
         line_threshold: float = 0.0,
         figsize: Optional[Tuple[float, float]] = None,
         ax: Optional[Axes] = None,
+        wave_data_obs: Optional[np.ndarray] = None,
         **kwargs,
     ):
         super().__init__(figsize=figsize or (10, 4), **kwargs)
@@ -75,6 +76,12 @@ class LineInspectionPlot(BasePlot):
         self.line_data = line_data
         self.line_threshold = line_threshold
         self._external_ax = ax
+        # Observer-frame wavelengths for matched spectral sampling.
+        # Falls back to wave_data when no observer-frame array is provided.
+        self.wave_data_obs: np.ndarray = (
+            np.asarray(wave_data_obs) if wave_data_obs is not None
+            else self.wave_data
+        )
 
     # ------------------------------------------------------------------
     @property
@@ -111,14 +118,24 @@ class LineInspectionPlot(BasePlot):
         max_y = float(np.nanmax(obs_flux)) if len(obs_flux) > 0 else 0.15
 
         # -- molecule model(s) ------------------------------------------
+        # Determine matched spectral sampling settings (same logic as
+        # FullSpectrumPlot) so the line inspection plot honours the
+        # "Match Pix. Sampling" toggle.
+        use_interp = False
+        target_wave = None
+        if self.molecules is not None and hasattr(self.molecules, 'get_matched_sampling_wavelengths'):
+            use_interp, target_wave = self.molecules.get_matched_sampling_wavelengths(self.wave_data_obs)
+            if not use_interp:
+                target_wave = None
+
         if self.molecules is not None:
             visible = self.molecules.get_visible_molecules(return_objects=True)
             for mol in visible:
-                mol_max = self._overlay_molecule(ax, mol)
+                mol_max = self._overlay_molecule(ax, mol, use_interp, target_wave)
                 if mol_max is not None and len(obs_flux) == 0:
                     max_y = max(max_y, mol_max)
         elif self.molecule is not None:
-            mol_max = self._overlay_molecule(ax, self.molecule)
+            mol_max = self._overlay_molecule(ax, self.molecule, use_interp, target_wave)
             if mol_max is not None and len(obs_flux) == 0:
                 max_y = max(max_y, mol_max)
 
@@ -142,12 +159,22 @@ class LineInspectionPlot(BasePlot):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _overlay_molecule(self, ax: Axes, molecule: "Molecule") -> Optional[float]:
+    def _overlay_molecule(
+        self,
+        ax: Axes,
+        molecule: "Molecule",
+        interpolate_to_input: bool = False,
+        target_wavelengths: Optional[np.ndarray] = None,
+    ) -> Optional[float]:
         """Plot one molecule model in the inspection range.
 
         Returns the max flux value in the range, or *None* if nothing was plotted.
         """
-        plot_lam, model_flux = self.get_molecule_spectrum_data(molecule, self.wave_data)
+        plot_lam, model_flux = self.get_molecule_spectrum_data(
+            molecule, self.wave_data,
+            interpolate_to_input=interpolate_to_input,
+            target_wavelengths=target_wavelengths,
+        )
         if plot_lam is None or model_flux is None:
             return None
         m = (plot_lam >= self.xmin) & (plot_lam <= self.xmax)
