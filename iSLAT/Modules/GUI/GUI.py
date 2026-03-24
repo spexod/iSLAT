@@ -528,21 +528,55 @@ class GUI:
             filetypes = [(filetypes, "*.*")]
         else:
             filetypes = filetypes
-        
-        if allow_multiple:
-            file_paths = filedialog.askopenfilenames(
+
+        # If no Tk root window exists yet (initial launch), create one and
+        # bring the app to the foreground so the native file dialog is
+        # visible and interactive on macOS.
+        temp_root = None
+        if tk._default_root is None:
+            temp_root = tk.Tk()
+            temp_root.withdraw()
+
+        # On macOS, nudge the process to the foreground so the file
+        # dialog is not hidden behind other application windows.
+        if platform.system() == "Darwin":
+            try:
+                from AppKit import NSApplication, NSApp  # type: ignore[import-untyped]
+                NSApplication.sharedApplication()
+                NSApp.activateIgnoringOtherApps_(True)
+            except ImportError:
+                # PyObjC not available — fall back to osascript
+                try:
+                    import subprocess
+                    subprocess.Popen(
+                        ["osascript", "-e",
+                         'tell application "System Events" to set frontmost '
+                         'of the first process whose unix id is '
+                         + str(os.getpid()) + ' to true'],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    pass
+
+        try:
+            if allow_multiple:
+                file_paths = filedialog.askopenfilenames(
+                    title=window_title,
+                    filetypes=filetypes,
+                    initialdir=initialdir,
+                )
+                return list(file_paths)
+
+            file_path = filedialog.askopenfilename(
                 title=window_title,
                 filetypes=filetypes,
-                initialdir=initialdir
+                initialdir=initialdir,
             )
-            return list(file_paths)
-        
-        file_path = filedialog.askopenfilename(
-            title=window_title,
-            filetypes=filetypes,
-            initialdir=initialdir
-        )
-        return file_path
+            return file_path
+        finally:
+            if temp_root is not None:
+                temp_root.destroy()
     
     @staticmethod
     def add_molecule_name_popup(title : str = "Assign label"):
