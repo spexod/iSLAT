@@ -434,6 +434,14 @@ class PlotRenderer:
         if wave_data_obs is None and hasattr(self, 'islat'):
             wave_data_obs = getattr(self.islat, 'wave_data_original', wave_data)
 
+        # In the GUI three-panel layout, only the active molecule should be
+        # rendered in the line inspection plot.  We still need the full
+        # MoleculeDict to query matched-spectral-sampling settings, so we
+        # pass it solely for that purpose but do NOT pass it as the
+        # rendering source — that role belongs to ``molecule`` (singular).
+        # Passing ``molecules`` would cause every visible molecule to be
+        # drawn and appear in the legend.
+
         # Reuse stored LineInspectionPlot, updating its parameters
         if self._line_inspection_plot is None:
             self._line_inspection_plot = LineInspectionPlot(
@@ -447,6 +455,7 @@ class PlotRenderer:
                 ax=self.ax2,
                 fig=self.fig,
                 theme=self.theme,
+                render_all_visible=False,
             )
         else:
             self._line_inspection_plot.wave_data = wave_data
@@ -459,6 +468,7 @@ class PlotRenderer:
                 np.asarray(wave_data_obs) if wave_data_obs is not None
                 else wave_data
             )
+            self._line_inspection_plot.render_all_visible = False
             self._line_inspection_plot.theme = self.theme
         self._line_inspection_plot.generate_plot()
 

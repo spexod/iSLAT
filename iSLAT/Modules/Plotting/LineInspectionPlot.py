@@ -63,6 +63,7 @@ class LineInspectionPlot(BasePlot):
         figsize: Optional[Tuple[float, float]] = None,
         ax: Optional[Axes] = None,
         wave_data_obs: Optional[np.ndarray] = None,
+        render_all_visible: bool = True,
         **kwargs,
     ):
         super().__init__(figsize=figsize or (10, 4), **kwargs)
@@ -76,6 +77,10 @@ class LineInspectionPlot(BasePlot):
         self.line_data = line_data
         self.line_threshold = line_threshold
         self._external_ax = ax
+        # When True (default), all visible molecules from *molecules* are
+        # rendered.  When False, only *molecule* (singular) is rendered;
+        # *molecules* is still used for matched-spectral-sampling queries.
+        self.render_all_visible: bool = render_all_visible
         # Observer-frame wavelengths for matched spectral sampling.
         # Falls back to wave_data when no observer-frame array is provided.
         self.wave_data_obs: np.ndarray = (
@@ -128,13 +133,16 @@ class LineInspectionPlot(BasePlot):
             if not use_interp:
                 target_wave = None
 
-        if self.molecules is not None:
+        if self.molecules is not None and self.render_all_visible:
+            # Standalone / notebook mode: render every visible molecule.
             visible = self.molecules.get_visible_molecules(return_objects=True)
             for mol in visible:
                 mol_max = self._overlay_molecule(ax, mol, use_interp, target_wave)
                 if mol_max is not None and len(obs_flux) == 0:
                     max_y = max(max_y, mol_max)
         elif self.molecule is not None:
+            # GUI mode (render_all_visible=False) or single-molecule mode:
+            # only render the active molecule.
             mol_max = self._overlay_molecule(ax, self.molecule, use_interp, target_wave)
             if mol_max is not None and len(obs_flux) == 0:
                 max_y = max(max_y, mol_max)
@@ -184,6 +192,13 @@ class LineInspectionPlot(BasePlot):
         model_flux_range = model_flux[m]
         if len(model_wave_range) == 0 or len(model_flux_range) == 0:
             return None
+
+        # Skip molecules whose flux is effectively zero in this range so
+        # they don't clutter the legend with a flat-line entry.
+        peak = float(np.nanmax(np.abs(model_flux_range)))
+        if peak < 1e-30:
+            return None
+
         ax.plot(
             model_wave_range,
             model_flux_range,
