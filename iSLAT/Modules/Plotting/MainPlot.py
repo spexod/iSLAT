@@ -317,20 +317,24 @@ class iSLATPlot:
         self.on_active_molecule_changed()
     
     def _on_global_parameter_changed(self, parameter_name, old_value, new_value):
-        """Handle global parameter changes that affect all molecules"""
-        # For match_spectral_sampling, update plots but preserve line inspection
-        if parameter_name == 'match_spectral_sampling':
-            # Delegate to active view for model update
-            self.active_view.update_model_plot()
-            # If there's an active line inspection selection in 3-panel mode, refresh it
-            if not self.is_full_spectrum:
-                if hasattr(self, 'current_selection') and self.current_selection:
-                    xmin, xmax = self.current_selection
-                    self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
-            return
-        
-        # For other global parameters, refresh all plots
-        self.update_all_plots()
+        """Handle global parameter changes that affect all molecules.
+
+        Always preserves the current line-inspection selection so that
+        changing global parameters (pixel resolution, distance, …) does
+        not blank the inspection / population-diagram panels.
+        """
+        # Update the main spectrum (and mark the inactive view stale)
+        self.update_model_plot()
+
+        # If there's an active line inspection selection, refresh it
+        # with the new parameters instead of clearing it.
+        if hasattr(self, 'current_selection') and self.current_selection:
+            xmin, xmax = self.current_selection
+            self.plot_spectrum_around_line(xmin, xmax, highlight_strongest=True)
+        else:
+            # No selection — just refresh the population diagram
+            self.plot_renderer.render_population_diagram(self.islat.active_molecule)
+            self.canvas.draw_idle()
 
     def match_display_range(self, match_y=False):
         # Sync plot xlim to islat.display_range if set, else update islat.display_range from plot
