@@ -1,5 +1,21 @@
 # Changelog
 
+## v5.02.04 - April 12, 2026
+
+### New Features
+- Updated the `Molecule` and `Spectrum` classes to use flux-conserving resampling in the same fashion as the match pixel sampling function
+
+### Bug Fixes
+- Fixed the toggle legend keybind to work correctly
+- Fixed the file dialog not opening on top of other windows
+- Disabled the data field output when the match spectral sampling button is toggled
+- Fixed the `MainPlot` class clearing the line inspection plot when the model pixel resolution is updated
+
+### Code Quality
+- Bumped version to `v5.02.04`
+
+---
+
 ## v5.02.03 - March 08, 2026
 
 ### Plotting System Refactor
