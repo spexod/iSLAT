@@ -1,4 +1,4 @@
-__version__ = 'v5.02.03'
+__version__ = 'v5.02.04'
 
 from .iSLATClass import iSLAT
 
